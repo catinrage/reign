@@ -33,6 +33,61 @@
 
 	const backgroundColor = '#614735';
 
+	// Calculate vertex positions for a hexagon (6 vertices)
+	function getVertexPositions(): [number, number, number][] {
+		const vertices: [number, number, number][] = [];
+		for (let i = 0; i < 6; i++) {
+			const angle = (Math.PI / 3) * i; // 60 degrees apart
+			const x = TILE_RADIUS * Math.cos(angle);
+			const z = TILE_RADIUS * Math.sin(angle);
+			vertices.push([x, TILE_HEIGHT / 2 + 0.05, z]);
+		}
+		return vertices;
+	}
+
+	// Calculate edge positions (midpoint between vertices) and exact orientation/length
+	function getEdgePositions(): Array<{
+		position: [number, number, number];
+		rotation: number; // yaw around Y so the long axis (Z) aligns with the edge
+		length: number; // bar length to match the side length (minus a tiny margin)
+	}> {
+		const edges: Array<{ position: [number, number, number]; rotation: number; length: number }> =
+			[];
+		for (let i = 0; i < 6; i++) {
+			const angle1 = (Math.PI / 3) * i;
+			const angle2 = (Math.PI / 3) * ((i + 1) % 6);
+
+			const x1 = TILE_RADIUS * Math.cos(angle1);
+			const z1 = TILE_RADIUS * Math.sin(angle1);
+			const x2 = TILE_RADIUS * Math.cos(angle2);
+			const z2 = TILE_RADIUS * Math.sin(angle2);
+
+			// Midpoint between the two vertices
+			const midX = (x1 + x2) / 2;
+			const midZ = (z1 + z2) / 2;
+
+			// Edge direction from v1 -> v2 on XZ plane
+			const dx = x2 - x1;
+			const dz = z2 - z1;
+			// Rotate the bar so its local Z axis lies along the edge
+			const rotation = Math.atan2(dx, dz);
+
+			// Exact side length of a regular hex with circumradius = TILE_RADIUS is TILE_RADIUS
+			// But compute from vertices to be robust; subtract a small margin so it doesn't touch red points visually
+			const length = Math.hypot(dx, dz) - 0.05;
+
+			edges.push({
+				position: [midX, TILE_HEIGHT / 2 + 0.05, midZ],
+				rotation,
+				length
+			});
+		}
+		return edges;
+	}
+
+	const vertexPositions = getVertexPositions();
+	const edgePositions = getEdgePositions();
+
 	function loadResourceTexture(source: string): THREE.Texture | null {
 		if (!isBrowser || !textureLoader) return null;
 		const url = source;
@@ -156,6 +211,7 @@
 	let numberTexture = $state(createNumberTexture(number));
 	let currentTokenValue = number;
 	let numberMeshRef = $state<THREE.Mesh | undefined>(undefined);
+	let edgeMeshRefs = $state<(THREE.Mesh | undefined)[]>(Array(6).fill(undefined));
 
 	const { camera } = useThrelte();
 
@@ -176,6 +232,16 @@
 			numberMeshRef.rotation.order = 'YXZ';
 			numberMeshRef.rotation.set(-Math.PI / 2, angle, 0);
 		}
+
+		// Make edge markers stay parallel to edges (flat on XZ plane)
+		edgeMeshRefs.forEach((edgeMesh, i) => {
+			if (edgeMesh && camera.current) {
+				// Keep the edge aligned with its original orientation and flat on the tile
+				const edge = edgePositions[i];
+				edgeMesh.rotation.order = 'YXZ';
+				edgeMesh.rotation.set(0, edge.rotation, 0);
+			}
+		});
 	});
 
 	$effect(() => {
@@ -222,6 +288,23 @@
 		<T.CircleGeometry args={[TILE_RADIUS * 0.5, 48]} />
 		<T.MeshBasicMaterial map={numberTexture} transparent depthWrite={false} toneMapped={false} />
 	</T.Mesh>
+
+	<!-- Vertex markers (red circles) -->
+	{#each vertexPositions as vertexPos, i (i)}
+		<T.Mesh position={vertexPos}>
+			<T.SphereGeometry args={[0.15, 16, 16]} />
+			<T.MeshStandardMaterial color="#ff0000" />
+		</T.Mesh>
+	{/each}
+
+	<!-- Edge markers (blue bars along hex edges) -->
+	{#each edgePositions as edge, i (i)}
+		<T.Mesh bind:ref={edgeMeshRefs[i]} position={edge.position}>
+			<!-- width (x): thin, height (y): very thin above tile, depth (z): edge length -->
+			<T.BoxGeometry args={[0.08, 0.03, edge.length]} />
+			<T.MeshStandardMaterial color="#0000ff" />
+		</T.Mesh>
+	{/each}
 
 	{#each piecesInThisTile as piece (piece.id)}
 		{#if piece.name === 'Thief'}

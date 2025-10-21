@@ -5,7 +5,7 @@ export type BuildingProps<T extends string, L = unknown> = {
 	name: T;
 	owner: Player;
 	model: string;
-	location?: L;
+	location: L;
 };
 
 /**
@@ -26,11 +26,20 @@ export type EdgeCoordination = {
 	edgeIndex: number;
 };
 
-export class Building<T extends string = string, L = unknown> {
+export class Building<
+	T extends BuildingName = BuildingName,
+	L = VertexCoordination | EdgeCoordination
+> {
 	public readonly name: T;
+	public readonly owner: Player;
+	public readonly model: string;
+	public readonly location: L;
 
 	constructor(props: BuildingProps<T, L>) {
 		this.name = props.name;
+		this.owner = props.owner;
+		this.model = props.model;
+		this.location = props.location;
 	}
 }
 

@@ -13,17 +13,13 @@ import mountainTexture from '$lib/assets/images/tiles/mountain.png';
 import pastureTexture from '$lib/assets/images/tiles/pasture.png';
 import fieldTexture from '$lib/assets/images/tiles/field.png';
 import { Entity } from './entity';
-
-export type TilePosition = {
-	q: number;
-	r: number;
-};
+import type { TileCoordination } from '$lib/types';
 
 export type TileProps<T extends string> = {
 	name: T;
 	number: number;
 	image: string;
-	position: TilePosition;
+	position: TileCoordination;
 	textureScale?: number;
 };
 
@@ -31,7 +27,7 @@ export abstract class Tile<T extends string = TileName> extends Entity {
 	public readonly name: T;
 	public readonly number: number;
 	public readonly image: string;
-	public readonly position: TilePosition;
+	public readonly position: TileCoordination;
 	public readonly textureScale: number;
 
 	constructor(props: TileProps<T>) {

@@ -1,8 +1,9 @@
 import { getContext, setContext } from 'svelte';
-import type { Piece } from './piece';
+import type { Piece, PieceName } from './piece';
 import type { Player } from './player';
 import { Terrain } from './terrain';
 import type { Tile } from './tile';
+import { BuildingRoad, type Building, type BuildingName } from './building';
 
 export enum GameStateEnum {
 	NOT_STARTED = 'NOT_STARTED',
@@ -14,6 +15,7 @@ export class Game {
 	private _players: Player[] = $state([]);
 	private _terrain: Terrain = $state(new Terrain());
 	private _pieces: Piece[] = $state([]);
+	private _buildings: Building[] = $state([]);
 	private _state: GameStateEnum = $state(GameStateEnum.NOT_STARTED);
 
 	public init() {
@@ -32,12 +34,31 @@ export class Game {
 		return this._pieces;
 	}
 
+	public get buildings() {
+		return this._buildings;
+	}
+
 	public addPiece(piece: Piece) {
 		this.pieces.push(piece);
 	}
 
 	public getPiecesInTile(tile: Tile) {
 		return this.pieces.filter((piece) => piece.location === tile);
+	}
+
+	public addBuilding(building: Building) {
+		this.buildings.push(building);
+	}
+
+	public getBuildingsInTile(tile: Tile) {
+		return this.buildings.filter((building) => {
+			if (
+				building.location.tile.q === tile.position.q &&
+				building.location.tile.r === tile.position.r
+			) {
+				return true;
+			}
+		});
 	}
 }
 
