@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { default as TileComponent } from './Tile.svelte';
-	import { Terrain } from './models/terrain';
 	import { T } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';
+	import { getGame } from '$lib/models/game.svelte';
+	import { PieceThief } from '$lib/models/piece';
 
-	const terrain = $state(new Terrain());
-	terrain.generate();
+	const game = getGame();
+
+	const desertTile = game.terrain.tiles.find((tile) => tile.name === 'Desert');
+	const thief = new PieceThief(desertTile!);
+	game.addPiece(thief);
 </script>
 
 <!-- setup camera -->
@@ -29,6 +33,6 @@
 <T.AmbientLight intensity={5} />
 <!-- <T.DirectionalLight position={[5, 12, 6]} intensity={1.15} castShadow /> -->
 
-{#each terrain.tiles as tile (tile.id)}
-	<TileComponent {...tile} />
+{#each game.terrain.tiles as tile (tile.id)}
+	<TileComponent {tile} />
 {/each}

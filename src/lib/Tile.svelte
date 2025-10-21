@@ -11,7 +11,7 @@
 </script>
 
 <script lang="ts">
-	import { T } from '@threlte/core';
+	import { T, useTask, useThrelte } from '@threlte/core';
 	import { interactivity } from '@threlte/extras';
 	import { onDestroy } from 'svelte';
 	import * as THREE from 'three';
@@ -91,12 +91,29 @@
 
 			ctx.fillStyle = '#ffffff';
 			if (value === 6 || value === 8) {
-				ctx.fillStyle = '#D32F2F';
+				ctx.fillStyle = '#8BC34A';
 			}
 			ctx.font = `${size * 0.3}px "Libre Baskerville", "Arial", sans-serif`;
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
 			ctx.fillText(String(value), size / 2, size / 2);
+
+			// Draw probability dots below the number
+			const dotCount = getDiceComboCount(value);
+			if (dotCount > 0) {
+				const dotRadius = size * 0.015;
+				const dotSpacing = size * 0.04;
+				const totalWidth = (dotCount - 1) * dotSpacing;
+				const startX = size / 2 - totalWidth / 2;
+				const dotY = size / 2 + size * 0.15;
+
+				ctx.fillStyle = '#ffffff';
+				for (let i = 0; i < dotCount; i++) {
+					ctx.beginPath();
+					ctx.arc(startX + i * dotSpacing, dotY, dotRadius, 0, Math.PI * 2);
+					ctx.fill();
+				}
+			}
 		}
 
 		const tokenTexture = new THREE.CanvasTexture(canvas);
@@ -104,6 +121,24 @@
 		tokenTexture.anisotropy = 4;
 		tokenTexture.needsUpdate = true;
 		return tokenTexture;
+	}
+
+	function getDiceComboCount(value: number): number {
+		// Returns the number of dice combinations that result in the given value
+		const combos: Record<number, number> = {
+			2: 1,
+			3: 2,
+			4: 3,
+			5: 4,
+			6: 5,
+			7: 6,
+			8: 5,
+			9: 4,
+			10: 3,
+			11: 2,
+			12: 1
+		};
+		return combos[value] || 0;
 	}
 
 	function axialToWorld({ q, r }: Props['position']): [number, number, number] {
@@ -117,6 +152,28 @@
 	let tileTexture = $state<THREE.Texture | null>(loadResourceTexture(image));
 	let numberTexture = $state(createNumberTexture(number));
 	let currentTokenValue = number;
+	let numberMeshRef = $state<THREE.Mesh | undefined>(undefined);
+
+	const { camera } = useThrelte();
+
+	// Make number billboard (always face camera but stay flat on tile)
+	useTask(() => {
+		if (numberMeshRef && camera.current) {
+			const meshWorldPos = new THREE.Vector3();
+			numberMeshRef.getWorldPosition(meshWorldPos);
+
+			// Calculate direction to camera on XZ plane only
+			const dx = camera.current.position.x - meshWorldPos.x;
+			const dz = camera.current.position.z - meshWorldPos.z;
+
+			// Calculate angle (rotation around Y axis when lying flat)
+			const angle = Math.atan2(dx, dz);
+
+			// Apply rotations in correct order: first face camera (Y), then lay flat (X)
+			numberMeshRef.rotation.order = 'YXZ';
+			numberMeshRef.rotation.set(-Math.PI / 2, angle, 0);
+		}
+	});
 
 	$effect(() => {
 		tileTexture = loadResourceTexture(image);
@@ -157,7 +214,7 @@
 		/>
 	</T.Mesh>
 
-	<T.Mesh position={[0, TILE_HEIGHT / 2 + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+	<T.Mesh bind:ref={numberMeshRef} position={[0, TILE_HEIGHT / 2 + 0.02, 0]}>
 		<T.CircleGeometry args={[TILE_RADIUS * 0.5, 48]} />
 		<T.MeshBasicMaterial map={numberTexture} transparent depthWrite={false} toneMapped={false} />
 	</T.Mesh>

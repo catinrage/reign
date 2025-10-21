@@ -6,13 +6,13 @@ import {
 	ResourceWheat,
 	type ResourceType
 } from './resource';
-import { v4 as uuidv4 } from 'uuid';
-import desertTexture from '$lib/assets/textures/desert.png';
-import forestTexture from '$lib/assets/textures/forest.png';
-import hillTexture from '$lib/assets/textures/hill.png';
-import mountainTexture from '$lib/assets/textures/mountain.png';
-import pastureTexture from '$lib/assets/textures/pasture.png';
-import fieldTexture from '$lib/assets/textures/field.png';
+import desertTexture from '$lib/assets/images/tiles/desert.png';
+import forestTexture from '$lib/assets/images/tiles/forest.png';
+import hillTexture from '$lib/assets/images/tiles/hill.png';
+import mountainTexture from '$lib/assets/images/tiles/mountain.png';
+import pastureTexture from '$lib/assets/images/tiles/pasture.png';
+import fieldTexture from '$lib/assets/images/tiles/field.png';
+import { Entity } from './entity';
 
 export type TilePosition = {
 	q: number;
@@ -27,8 +27,7 @@ export type TileProps<T extends string> = {
 	textureScale?: number;
 };
 
-export abstract class Tile<T extends string = TileName> {
-	public readonly id: string = uuidv4();
+export abstract class Tile<T extends string = TileName> extends Entity {
 	public readonly name: T;
 	public readonly number: number;
 	public readonly image: string;
@@ -36,6 +35,7 @@ export abstract class Tile<T extends string = TileName> {
 	public readonly textureScale: number;
 
 	constructor(props: TileProps<T>) {
+		super();
 		this.name = props.name;
 		this.number = props.number;
 		this.image = props.image;
@@ -49,7 +49,7 @@ export abstract class Tile<T extends string = TileName> {
 
 export class TileDesert extends Tile<'Desert'> {
 	constructor(props: Pick<TileProps<'Desert'>, 'position'>) {
-		super({ ...props, image: desertTexture, number: 0, name: 'Desert', textureScale: 0.8 });
+		super({ ...props, image: desertTexture, number: 0, name: 'Desert', textureScale: 0.74 });
 	}
 
 	get resource() {
@@ -79,7 +79,7 @@ export class TileHill extends Tile<'Hill'> {
 
 export class TileMountain extends Tile<'Mountain'> {
 	constructor(props: Pick<TileProps<'Mountain'>, 'number' | 'position'>) {
-		super({ ...props, image: mountainTexture, name: 'Mountain', textureScale: 0.8 });
+		super({ ...props, image: mountainTexture, name: 'Mountain', textureScale: 0.78 });
 	}
 
 	get resource() {

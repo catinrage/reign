@@ -1,18 +1,17 @@
-import stoneTexture from '$lib/assets/textures/desert.png';
-import woodTexture from '$lib/assets/textures/desert.png';
-import sheepTexture from '$lib/assets/textures/desert.png';
-import wheatTexture from '$lib/assets/textures/desert.png';
-import brickTexture from '$lib/assets/textures/desert.png';
+import stoneTexture from '$lib/assets/images/tiles/desert.png';
+import woodTexture from '$lib/assets/images/tiles/desert.png';
+import sheepTexture from '$lib/assets/images/tiles/desert.png';
+import wheatTexture from '$lib/assets/images/tiles/desert.png';
+import brickTexture from '$lib/assets/images/tiles/desert.png';
 
-export type TextureSource = string;
 export type ResourceProps<T extends string> = {
 	name: T;
-	image: TextureSource;
+	image: string;
 };
 
-export class Resource<T extends string> {
+export abstract class Resource<T extends string> {
 	public readonly name: T;
-	public readonly image: TextureSource;
+	public readonly image: string;
 
 	constructor(props: ResourceProps<T>) {
 		this.name = props.name;
