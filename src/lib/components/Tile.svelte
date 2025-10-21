@@ -26,6 +26,7 @@
 	const { number, image, position, textureScale = 1 } = tile;
 
 	const piecesInThisTile = $derived(game.getPiecesInTile(tile));
+	const buildingsInThisTile = $derived(game.getBuildingsInTile(tile));
 	const hasThief = $derived(piecesInThisTile.some((piece) => piece.name === 'Thief'));
 
 	const TILE_RADIUS = 2.75;
@@ -212,6 +213,8 @@
 	let currentTokenValue = number;
 	let numberMeshRef = $state<THREE.Mesh | undefined>(undefined);
 	let edgeMeshRefs = $state<(THREE.Mesh | undefined)[]>(Array(6).fill(undefined));
+	let buildingScenes = $state<(THREE.Object3D | undefined)[]>([]);
+	const processedBuildingScenes = new WeakSet<THREE.Object3D>();
 
 	const { camera } = useThrelte();
 
@@ -241,6 +244,31 @@
 				edgeMesh.rotation.order = 'YXZ';
 				edgeMesh.rotation.set(0, edge.rotation, 0);
 			}
+		});
+	});
+
+	// (coloring code removed) only enabling shadows for loaded GLTFs
+
+	// After a GLTF scene is available, ensure all child meshes cast and receive shadows
+	function enableBuildingShadows(root: THREE.Object3D) {
+		root.traverse((obj) => {
+			if ((obj as THREE.Mesh).isMesh) {
+				const mesh = obj as THREE.Mesh;
+				mesh.castShadow = true;
+				mesh.receiveShadow = true;
+			}
+		});
+	}
+
+	useTask(() => {
+		// keep scenes array in sync with items
+		if (buildingScenes.length !== buildingsInThisTile.length) {
+			buildingScenes.length = buildingsInThisTile.length;
+		}
+		buildingScenes.forEach((scene) => {
+			if (!scene || processedBuildingScenes.has(scene)) return;
+			enableBuildingShadows(scene);
+			processedBuildingScenes.add(scene);
 		});
 	});
 
@@ -309,6 +337,46 @@
 	{#each piecesInThisTile as piece (piece.id)}
 		{#if piece.name === 'Thief'}
 			<GLTF url={piece.model} position={[-1, TILE_HEIGHT / 2 + 1, -1]} scale={1.0} castShadow />
+		{/if}
+	{/each}
+
+	<!-- Buildings placed on this tile -->
+	{#each buildingsInThisTile as building, i (i)}
+		{#if 'vertexIndex' in building.location}
+			{#key building}
+				<!-- Vertex-based buildings (Settlement/City/Fortress) -->
+				{#if vertexPositions[building.location.vertexIndex]}
+					<GLTF
+						bind:scene={buildingScenes[i]}
+						url={building.model}
+						position={[
+							vertexPositions[building.location.vertexIndex][0],
+							vertexPositions[building.location.vertexIndex][1] + 0.6,
+							vertexPositions[building.location.vertexIndex][2]
+						]}
+						scale={0.6}
+						castShadow
+					/>
+				{/if}
+			{/key}
+		{:else if 'edgeIndex' in building.location}
+			{#key building}
+				<!-- Edge-based buildings (Road) -->
+				{#if edgePositions[building.location.edgeIndex]}
+					<GLTF
+						bind:scene={buildingScenes[i]}
+						url={building.model}
+						position={[
+							edgePositions[building.location.edgeIndex].position[0],
+							edgePositions[building.location.edgeIndex].position[1] + 0.15,
+							edgePositions[building.location.edgeIndex].position[2]
+						]}
+						rotation={[0, edgePositions[building.location.edgeIndex].rotation, 0]}
+						scale={0.5}
+						castShadow
+					/>
+				{/if}
+			{/key}
 		{/if}
 	{/each}
 </T.Group>
