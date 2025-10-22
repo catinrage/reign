@@ -1,6 +1,6 @@
 <script>
 	import Scene from '$lib/components/Scene.svelte';
-	import { BuildingCity } from '$lib/models/building';
+	import { BuildingCity, BuildingRoad, BuildingSettlement } from '$lib/models/building';
 	import { setGame } from '$lib/models/game.svelte';
 	import { Player } from '$lib/models/player';
 	import { Canvas } from '@threlte/core';
@@ -22,6 +22,32 @@
 					r: 0
 				},
 				vertexIndex: 0
+			}
+		})
+	);
+
+	game.addBuilding(
+		new BuildingSettlement({
+			owner: player,
+			location: {
+				tile: {
+					q: 0,
+					r: 0
+				},
+				vertexIndex: 3
+			}
+		})
+	);
+
+	game.addBuilding(
+		new BuildingRoad({
+			owner: player,
+			location: {
+				tile: {
+					q: 0,
+					r: 0
+				},
+				edgeIndex: 0
 			}
 		})
 	);

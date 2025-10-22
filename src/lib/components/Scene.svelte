@@ -12,7 +12,7 @@
 	game.addPiece(thief);
 </script>
 
-<!-- setup camera -->
+<!-- setup camera and make the main light follow the camera by parenting it -->
 <T.PerspectiveCamera
 	makeDefault
 	position={[0, 35, 0]}
@@ -29,9 +29,10 @@
 		minDistance={15}
 		maxDistance={60}
 	/>
+	<T.DirectionalLight position={[5, 12, 6]} intensity={10} castShadow />
 </T.PerspectiveCamera>
+
 <T.AmbientLight intensity={5} />
-<!-- <T.DirectionalLight position={[5, 12, 6]} intensity={1.15} castShadow /> -->
 
 {#each game.terrain.tiles as tile (tile.id)}
 	<TileComponent {tile} />

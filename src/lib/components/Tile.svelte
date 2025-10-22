@@ -233,7 +233,7 @@
 	// (coloring code removed) only enabling shadows for loaded GLTFs
 
 	// After a GLTF scene is available, ensure all child meshes cast and receive shadows,
-	// and tint the materials to the owner's color.
+	// and tint the materials to the owner's color while preserving PBR shading and maps.
 	function enableBuildingShadows(root: THREE.Object3D, colorHex: string) {
 		const ownerColor = new THREE.Color(colorHex);
 		root.traverse((obj) => {
@@ -243,55 +243,65 @@
 				mesh.castShadow = true;
 				mesh.receiveShadow = true;
 
-				// Force building materials to red
-				const applyRed = (material: THREE.Material | null | undefined) => {
+				// Apply owner color while keeping texture/normal maps for depth
+				const applyOwnerTint = (material: THREE.Material | null | undefined) => {
 					if (!material) return;
-					// If material has a color, force a bright owner color and reduce dependence on lighting
+
+					// If material is unlit (MeshBasic), convert to a lit PBR material and copy maps
+					if (material instanceof THREE.MeshBasicMaterial) {
+						const src = material as THREE.MeshBasicMaterial;
+						const newMat = new THREE.MeshStandardMaterial({
+							color: ownerColor.clone(),
+							roughness: 0.7,
+							metalness: 0.1
+						});
+						// Preserve key properties for depth and appearance
+						newMat.map = src.map ?? null;
+						newMat.alphaMap = src.alphaMap ?? null;
+						// Carry rendering flags
+						newMat.transparent = src.transparent;
+						newMat.opacity = src.opacity;
+						newMat.side = src.side;
+						newMat.depthTest = src.depthTest;
+						newMat.depthWrite = src.depthWrite;
+						// Ensure no emissive contribution; rely on scene lighting entirely
+						newMat.emissive.set(0x000000);
+						newMat.emissiveIntensity = 0;
+						// Dispose old material and assign
+						src.dispose();
+						mesh.material = newMat;
+						return;
+					}
+					// If material has a color, tint it; preserve maps and lighting so the model keeps depth
 					if ('color' in material) {
 						const matWithColor = material as THREE.Material & { color: THREE.Color };
 						matWithColor.color.set(ownerColor);
-
-						// Remove any base color texture that could darken the final look
-						if ('map' in material) {
-							(
-								material as
-									| THREE.MeshStandardMaterial
-									| THREE.MeshPhysicalMaterial
-									| THREE.MeshLambertMaterial
-									| THREE.MeshPhongMaterial
-							).map = null as unknown as THREE.Texture;
-						}
-
-						// Boost emissive to keep it vivid in low light
+						// Remove any emissive contribution from existing materials
 						if ('emissive' in material) {
 							const matWithEmissive = material as THREE.Material & {
 								emissive: THREE.Color;
 								emissiveIntensity?: number;
+								emissiveMap?: THREE.Texture | null;
 							};
-							matWithEmissive.emissive.set(ownerColor);
+							matWithEmissive.emissive.set(0x000000);
 							if (
 								'emissiveIntensity' in matWithEmissive &&
 								typeof matWithEmissive.emissiveIntensity === 'number'
 							) {
-								matWithEmissive.emissiveIntensity = 1.0;
+								matWithEmissive.emissiveIntensity = 0;
 							}
-						}
-
-						// Disable tone mapping influence so it stays bright red
-						(material as THREE.Material).toneMapped = false;
-
-						// If present, tune PBR props to keep the red clear
-						if ('roughness' in material) {
-							(material as THREE.MeshStandardMaterial).roughness = 0.5;
-						}
-						if ('metalness' in material) {
-							(material as THREE.MeshStandardMaterial).metalness = 0.0;
+							if ('emissiveMap' in matWithEmissive) {
+								matWithEmissive.emissiveMap = null as unknown as THREE.Texture;
+							}
 						}
 						return;
 					}
-					// Otherwise, replace with an unlit bright material of owner's color
-					const newMat = new THREE.MeshBasicMaterial({ color: ownerColor });
-					newMat.toneMapped = false;
+					// Otherwise, replace with a lit PBR material in the owner's color
+					const newMat = new THREE.MeshStandardMaterial({
+						color: ownerColor,
+						roughness: 0.7,
+						metalness: 0.1
+					});
 					if (
 						'dispose' in (material as THREE.Material) &&
 						typeof (material as THREE.Material).dispose === 'function'
@@ -302,9 +312,9 @@
 				};
 
 				if (Array.isArray(mesh.material)) {
-					(mesh.material as THREE.Material[]).forEach((m) => applyRed(m));
+					(mesh.material as THREE.Material[]).forEach((m) => applyOwnerTint(m));
 				} else {
-					applyRed(mesh.material as THREE.Material | undefined);
+					applyOwnerTint(mesh.material as THREE.Material | undefined);
 				}
 			}
 		});
@@ -350,8 +360,8 @@
 		<T.MeshStandardMaterial color={backgroundColor} roughness={0.85} metalness={0.1} />
 	</T.Mesh>
 
-	<!-- Texture layer on top -->
-	<T.Mesh geometry={tileGeometry} position={[0, 0.01, 0]}>
+	<!-- Texture layer on top (receives shadow) -->
+	<T.Mesh geometry={tileGeometry} position={[0, 0.01, 0]} receiveShadow>
 		<T.MeshStandardMaterial
 			map={tileTexture ?? undefined}
 			transparent
@@ -359,6 +369,7 @@
 			roughness={0.85}
 			metalness={0.1}
 			depthWrite={true}
+			shadowSide={THREE.FrontSide}
 			color={hasThief && tile.name !== 'Desert' ? '#ff0000' : '#ffffff'}
 		/>
 	</T.Mesh>
@@ -422,8 +433,8 @@
 							edgePositions[building.location.edgeIndex].position[1] + 0.15,
 							edgePositions[building.location.edgeIndex].position[2]
 						]}
-						rotation={[0, edgePositions[building.location.edgeIndex].rotation, 0]}
-						scale={0.5}
+						rotation={[0, edgePositions[building.location.edgeIndex].rotation + Math.PI / 2, 0]}
+						scale={0.7}
 						castShadow
 					/>
 				{/if}

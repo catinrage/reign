@@ -45,7 +45,7 @@ export class Building<
 
 export class BuildingSettlement extends Building<'Settlement', VertexCoordination> {
 	constructor(props: Omit<BuildingProps<'Settlement', VertexCoordination>, 'name' | 'model'>) {
-		super({ ...props, name: 'Settlement', model: '/assets/meshes/city.glb' });
+		super({ ...props, name: 'Settlement', model: '/assets/meshes/settlement.glb' });
 	}
 }
 
@@ -63,7 +63,7 @@ export class BuildingFortress extends Building<'Fortress', VertexCoordination> {
 
 export class BuildingRoad extends Building<'Road', EdgeCoordination> {
 	constructor(props: Omit<BuildingProps<'Road', EdgeCoordination>, 'name' | 'model'>) {
-		super({ ...props, name: 'Road', model: '/assets/meshes/city.glb' });
+		super({ ...props, name: 'Road', model: '/assets/meshes/road.glb' });
 	}
 }
 
