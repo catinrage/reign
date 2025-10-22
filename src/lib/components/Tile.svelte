@@ -1,6 +1,7 @@
 <script lang="ts" module>
 	import { getGame } from '$lib/models/game.svelte';
 	import type { Tile } from '$lib/models/tile';
+	import { getDiceComboCount } from '$lib/utils';
 
 	export type Props = {
 		tile: Tile;
@@ -182,24 +183,6 @@
 		return tokenTexture;
 	}
 
-	function getDiceComboCount(value: number): number {
-		// Returns the number of dice combinations that result in the given value
-		const combos: Record<number, number> = {
-			2: 1,
-			3: 2,
-			4: 3,
-			5: 4,
-			6: 5,
-			7: 6,
-			8: 5,
-			9: 4,
-			10: 3,
-			11: 2,
-			12: 1
-		};
-		return combos[value] || 0;
-	}
-
 	function axialToWorld({ q, r }: Props['tile']['position']): [number, number, number] {
 		const x = TILE_RADIUS * 1.5 * q;
 		const z = TILE_RADIUS * Math.sqrt(3) * (r + q / 2);
@@ -249,13 +232,80 @@
 
 	// (coloring code removed) only enabling shadows for loaded GLTFs
 
-	// After a GLTF scene is available, ensure all child meshes cast and receive shadows
-	function enableBuildingShadows(root: THREE.Object3D) {
+	// After a GLTF scene is available, ensure all child meshes cast and receive shadows,
+	// and tint the materials to the owner's color.
+	function enableBuildingShadows(root: THREE.Object3D, colorHex: string) {
+		const ownerColor = new THREE.Color(colorHex);
 		root.traverse((obj) => {
-			if ((obj as THREE.Mesh).isMesh) {
+			// Handle Meshes (SkinnedMesh extends Mesh)
+			if (obj instanceof THREE.Mesh) {
 				const mesh = obj as THREE.Mesh;
 				mesh.castShadow = true;
 				mesh.receiveShadow = true;
+
+				// Force building materials to red
+				const applyRed = (material: THREE.Material | null | undefined) => {
+					if (!material) return;
+					// If material has a color, force a bright owner color and reduce dependence on lighting
+					if ('color' in material) {
+						const matWithColor = material as THREE.Material & { color: THREE.Color };
+						matWithColor.color.set(ownerColor);
+
+						// Remove any base color texture that could darken the final look
+						if ('map' in material) {
+							(
+								material as
+									| THREE.MeshStandardMaterial
+									| THREE.MeshPhysicalMaterial
+									| THREE.MeshLambertMaterial
+									| THREE.MeshPhongMaterial
+							).map = null as unknown as THREE.Texture;
+						}
+
+						// Boost emissive to keep it vivid in low light
+						if ('emissive' in material) {
+							const matWithEmissive = material as THREE.Material & {
+								emissive: THREE.Color;
+								emissiveIntensity?: number;
+							};
+							matWithEmissive.emissive.set(ownerColor);
+							if (
+								'emissiveIntensity' in matWithEmissive &&
+								typeof matWithEmissive.emissiveIntensity === 'number'
+							) {
+								matWithEmissive.emissiveIntensity = 1.0;
+							}
+						}
+
+						// Disable tone mapping influence so it stays bright red
+						(material as THREE.Material).toneMapped = false;
+
+						// If present, tune PBR props to keep the red clear
+						if ('roughness' in material) {
+							(material as THREE.MeshStandardMaterial).roughness = 0.5;
+						}
+						if ('metalness' in material) {
+							(material as THREE.MeshStandardMaterial).metalness = 0.0;
+						}
+						return;
+					}
+					// Otherwise, replace with an unlit bright material of owner's color
+					const newMat = new THREE.MeshBasicMaterial({ color: ownerColor });
+					newMat.toneMapped = false;
+					if (
+						'dispose' in (material as THREE.Material) &&
+						typeof (material as THREE.Material).dispose === 'function'
+					) {
+						(material as THREE.Material).dispose();
+					}
+					mesh.material = newMat;
+				};
+
+				if (Array.isArray(mesh.material)) {
+					(mesh.material as THREE.Material[]).forEach((m) => applyRed(m));
+				} else {
+					applyRed(mesh.material as THREE.Material | undefined);
+				}
 			}
 		});
 	}
@@ -265,9 +315,10 @@
 		if (buildingScenes.length !== buildingsInThisTile.length) {
 			buildingScenes.length = buildingsInThisTile.length;
 		}
-		buildingScenes.forEach((scene) => {
+		buildingScenes.forEach((scene, i) => {
 			if (!scene || processedBuildingScenes.has(scene)) return;
-			enableBuildingShadows(scene);
+			// Use the building owner's color to tint the model
+			enableBuildingShadows(scene, buildingsInThisTile[i]?.owner?.color ?? '#ffffff');
 			processedBuildingScenes.add(scene);
 		});
 	});
