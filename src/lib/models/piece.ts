@@ -1,18 +1,20 @@
 import { Entity } from './entity';
-import type { Tile } from './tile';
+import type { BaseTile } from './tile';
 
-export type PieceProps<T extends string> = {
+export type BasePieceProps<T extends string> = {
 	name: T;
-	location: Tile;
+	location: BaseTile;
 	model: string;
 };
 
-export abstract class Piece<T extends PieceName = PieceName> extends Entity {
+export type PieceProps = Omit<BasePieceProps<PieceName>, 'name' | 'model'>;
+
+export abstract class BasePiece<T extends PieceName = PieceName> extends Entity {
 	public readonly name: T;
 	public readonly model: string;
-	private _location: Tile;
+	private _location: BaseTile;
 
-	constructor(props: PieceProps<T>) {
+	constructor(props: BasePieceProps<T>) {
 		super();
 		this.name = props.name;
 		this.model = props.model;
@@ -23,14 +25,14 @@ export abstract class Piece<T extends PieceName = PieceName> extends Entity {
 		return this._location;
 	}
 
-	public set location(tile: Tile) {
+	public set location(tile: BaseTile) {
 		this._location = tile;
 	}
 }
 
-export class PieceThief extends Piece<'Thief'> {
-	constructor(location: Tile) {
-		super({ name: 'Thief', location, model: '/assets/models/thief.glb' });
+export class PieceThief extends BasePiece<'Thief'> {
+	constructor(props: PieceProps) {
+		super({ ...props, name: 'Thief', model: '/assets/models/thief.glb' });
 	}
 }
 

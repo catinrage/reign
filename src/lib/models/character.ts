@@ -4,14 +4,14 @@
  * Characters trains are defined in the hooks, allowing for easy extension.
  */
 
-export type CharacterProps<T extends string> = {
+export type BaseCharacterProps<T extends string> = {
 	name: T;
 };
 
-export abstract class Character<T extends string> {
+export abstract class BaseCharacter<T extends CharacterName = CharacterName> {
 	public readonly name: T;
 
-	constructor(props: CharacterProps<T>) {
+	constructor(props: BaseCharacterProps<T>) {
 		this.name = props.name;
 	}
 
@@ -22,31 +22,31 @@ export abstract class Character<T extends string> {
 	public onTurnEnd() {}
 }
 
-export class CharacterGreedy extends Character<'Greedy'> {
+export class CharacterGreedy extends BaseCharacter<'Greedy'> {
 	constructor() {
 		super({ name: 'Greedy' });
 	}
 }
 
-export class CharacterWarrior extends Character<'Warrior'> {
+export class CharacterWarrior extends BaseCharacter<'Warrior'> {
 	constructor() {
 		super({ name: 'Warrior' });
 	}
 }
 
-export class CharacterExplorer extends Character<'Explorer'> {
+export class CharacterExplorer extends BaseCharacter<'Explorer'> {
 	constructor() {
 		super({ name: 'Explorer' });
 	}
 }
 
-export class CharacterDiplomat extends Character<'Diplomat'> {
+export class CharacterDiplomat extends BaseCharacter<'Diplomat'> {
 	constructor() {
 		super({ name: 'Diplomat' });
 	}
 }
 
-export class CharacterMerchant extends Character<'Merchant'> {
+export class CharacterMerchant extends BaseCharacter<'Merchant'> {
 	constructor() {
 		super({ name: 'Merchant' });
 	}

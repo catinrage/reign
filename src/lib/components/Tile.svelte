@@ -1,10 +1,10 @@
 <script lang="ts" module>
 	import { getGame } from '$lib/models/game.svelte';
-	import type { Tile } from '$lib/models/tile';
+	import type { BaseTile } from '$lib/models/tile';
 	import { getDiceComboCount } from '$lib/utils';
 
 	export type Props = {
-		tile: Tile;
+		tile: BaseTile;
 	};
 </script>
 
@@ -13,6 +13,8 @@
 	import { GLTF, interactivity } from '@threlte/extras';
 	import { onDestroy } from 'svelte';
 	import * as THREE from 'three';
+	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+	import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 	const game = getGame();
 
@@ -196,8 +198,26 @@
 	let currentTokenValue = number;
 	let numberMeshRef = $state<THREE.Mesh | undefined>(undefined);
 	let edgeMeshRefs = $state<(THREE.Mesh | undefined)[]>(Array(6).fill(undefined));
-	let buildingScenes = $state<(THREE.Object3D | undefined)[]>([]);
-	const processedBuildingScenes = new WeakSet<THREE.Object3D>();
+	let buildingObjects = $state<(THREE.Object3D | undefined)[]>([]);
+	let buildingGroupRefs = $state<(THREE.Group | undefined)[]>([]);
+
+	// GLTF model cache and loader for buildings
+	const gltfLoader = isBrowser ? new GLTFLoader() : null;
+	const modelCache: Record<string, THREE.Object3D | null | undefined> = {};
+
+	async function loadModel(url: string): Promise<THREE.Object3D | null> {
+		if (!isBrowser || !gltfLoader) return null;
+		if (modelCache[url] !== undefined) return modelCache[url] ?? null;
+		try {
+			const gltf = await gltfLoader.loadAsync(url);
+			modelCache[url] = gltf.scene;
+			return gltf.scene;
+		} catch (e) {
+			console.error('Failed to load GLTF model', url, e);
+			modelCache[url] = null;
+			return null;
+		}
+	}
 
 	const { camera } = useThrelte();
 
@@ -237,6 +257,8 @@
 	function enableBuildingShadows(root: THREE.Object3D, colorHex: string) {
 		const ownerColor = new THREE.Color(colorHex);
 		root.traverse((obj) => {
+			// Put all building objects on layer 1 so only the directional light affects them
+			obj.layers.set(1);
 			// Handle Meshes (SkinnedMesh extends Mesh)
 			if (obj instanceof THREE.Mesh) {
 				const mesh = obj as THREE.Mesh;
@@ -321,15 +343,31 @@
 	}
 
 	useTask(() => {
-		// keep scenes array in sync with items
-		if (buildingScenes.length !== buildingsInThisTile.length) {
-			buildingScenes.length = buildingsInThisTile.length;
+		// keep arrays in sync with items
+		if (buildingObjects.length !== buildingsInThisTile.length) {
+			buildingObjects.length = buildingsInThisTile.length;
 		}
-		buildingScenes.forEach((scene, i) => {
-			if (!scene || processedBuildingScenes.has(scene)) return;
-			// Use the building owner's color to tint the model
-			enableBuildingShadows(scene, buildingsInThisTile[i]?.owner?.color ?? '#ffffff');
-			processedBuildingScenes.add(scene);
+		if (buildingGroupRefs.length !== buildingsInThisTile.length) {
+			buildingGroupRefs.length = buildingsInThisTile.length;
+		}
+
+		// ensure each building has its own cloned object
+		buildingsInThisTile.forEach(async (building, i) => {
+			if (!buildingObjects[i]) {
+				const source = await loadModel(building.model);
+				if (!source) return;
+				const clone = skeletonClone(source) as THREE.Object3D;
+				// Apply owner color, shadows, and layers to the cloned instance
+				enableBuildingShadows(clone, buildingsInThisTile[i]?.owner?.color ?? '#ffffff');
+				buildingObjects[i] = clone;
+			}
+			// attach to its group when available
+			const obj = buildingObjects[i];
+			const grp = buildingGroupRefs[i];
+			if (obj && grp && obj.parent !== grp) {
+				if (obj.parent) obj.parent.remove(obj);
+				grp.add(obj);
+			}
 		});
 	});
 
@@ -352,24 +390,23 @@
 		tileGeometry.dispose();
 		numberTexture.dispose();
 	});
+
+	// console.log(game.getBuildingsInTile(tile));
 </script>
 
 <T.Group position={tilePosition}>
-	<!-- Background color layer -->
+	<!-- Background color layer (unlit, not affected by directional light) -->
 	<T.Mesh geometry={tileGeometry} castShadow receiveShadow>
-		<T.MeshStandardMaterial color={backgroundColor} roughness={0.85} metalness={0.1} />
+		<T.MeshBasicMaterial color={backgroundColor} />
 	</T.Mesh>
 
-	<!-- Texture layer on top (receives shadow) -->
+	<!-- Texture layer on top (unlit; still respects alpha and depth) -->
 	<T.Mesh geometry={tileGeometry} position={[0, 0.01, 0]} receiveShadow>
-		<T.MeshStandardMaterial
+		<T.MeshBasicMaterial
 			map={tileTexture ?? undefined}
 			transparent
 			alphaTest={0.01}
-			roughness={0.85}
-			metalness={0.1}
 			depthWrite={true}
-			shadowSide={THREE.FrontSide}
 			color={hasThief && tile.name !== 'Desert' ? '#ff0000' : '#ffffff'}
 		/>
 	</T.Mesh>
@@ -402,22 +439,22 @@
 		{/if}
 	{/each}
 
-	<!-- Buildings placed on this tile -->
+	<!-- Buildings placed on this tile (use a group wrapper and attach cloned object) -->
 	{#each buildingsInThisTile as building, i (i)}
 		{#if 'vertexIndex' in building.location}
 			{#key building}
 				<!-- Vertex-based buildings (Settlement/City/Fortress) -->
 				{#if vertexPositions[building.location.vertexIndex]}
-					<GLTF
-						bind:scene={buildingScenes[i]}
-						url={building.model}
+					<T.Group
+						bind:ref={buildingGroupRefs[i]}
 						position={[
 							vertexPositions[building.location.vertexIndex][0],
-							vertexPositions[building.location.vertexIndex][1] + 0.6,
+							vertexPositions[building.location.vertexIndex][1] +
+								0.6 +
+								(building.modelZOffset ?? 0),
 							vertexPositions[building.location.vertexIndex][2]
 						]}
-						scale={0.6}
-						castShadow
+						scale={building.modelScale ?? 1}
 					/>
 				{/if}
 			{/key}
@@ -425,17 +462,17 @@
 			{#key building}
 				<!-- Edge-based buildings (Road) -->
 				{#if edgePositions[building.location.edgeIndex]}
-					<GLTF
-						bind:scene={buildingScenes[i]}
-						url={building.model}
+					<T.Group
+						bind:ref={buildingGroupRefs[i]}
 						position={[
 							edgePositions[building.location.edgeIndex].position[0],
-							edgePositions[building.location.edgeIndex].position[1] + 0.15,
+							edgePositions[building.location.edgeIndex].position[1] +
+								0.15 +
+								(building.modelZOffset ?? 0),
 							edgePositions[building.location.edgeIndex].position[2]
 						]}
 						rotation={[0, edgePositions[building.location.edgeIndex].rotation + Math.PI / 2, 0]}
-						scale={0.7}
-						castShadow
+						scale={building.modelScale ?? 1}
 					/>
 				{/if}
 			{/key}

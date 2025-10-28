@@ -1,56 +1,59 @@
 <script>
 	import Scene from '$lib/components/Scene.svelte';
-	import { BuildingCity, BuildingRoad, BuildingSettlement } from '$lib/models/building';
+	import { CharacterGreedy } from '$lib/models/character';
 	import { setGame } from '$lib/models/game.svelte';
-	import { Player } from '$lib/models/player';
+	import { Player } from '$lib/models/player.svelte';
 	import { Canvas } from '@threlte/core';
 
 	const game = setGame();
-	game.init();
-
 	const player = new Player({
 		name: 'Player 1',
-		color: '#ff0000'
+		color: '#FF1744',
+		character: new CharacterGreedy()
+	});
+	game.init({
+		players: [player]
 	});
 
-	game.addBuilding(
-		new BuildingCity({
-			owner: player,
-			location: {
-				tile: {
-					q: 0,
-					r: 0
-				},
-				vertexIndex: 0
-			}
-		})
-	);
+	player.build('City', {
+		tile: {
+			q: 0,
+			r: 0
+		},
+		vertexIndex: 0
+	});
 
-	game.addBuilding(
-		new BuildingSettlement({
-			owner: player,
-			location: {
-				tile: {
-					q: 0,
-					r: 0
-				},
-				vertexIndex: 3
-			}
-		})
-	);
+	player.build('City', {
+		tile: {
+			q: 1,
+			r: 0
+		},
+		vertexIndex: 0
+	});
 
-	game.addBuilding(
-		new BuildingRoad({
-			owner: player,
-			location: {
-				tile: {
-					q: 0,
-					r: 0
-				},
-				edgeIndex: 0
-			}
-		})
-	);
+	player.build('Settlement', {
+		tile: {
+			q: 0,
+			r: 0
+		},
+		vertexIndex: 2
+	});
+
+	player.build('Road', {
+		tile: {
+			q: 0,
+			r: 0
+		},
+		edgeIndex: 0
+	});
+
+	player.build('Road', {
+		tile: {
+			q: 0,
+			r: 0
+		},
+		edgeIndex: 1
+	});
 </script>
 
 <Canvas>

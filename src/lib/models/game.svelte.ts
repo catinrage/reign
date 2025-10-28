@@ -1,9 +1,9 @@
 import { getContext, setContext } from 'svelte';
-import type { Piece, PieceName } from './piece';
-import type { Player } from './player';
 import { Terrain } from './terrain';
-import type { Tile } from './tile';
-import { BuildingRoad, type Building, type BuildingName } from './building';
+import type { BasePiece } from './piece';
+import type { Player } from './player.svelte';
+import type { BaseTile } from './tile';
+import type { BaseBuilding } from './building';
 
 export enum GameStateEnum {
 	NOT_STARTED = 'NOT_STARTED',
@@ -11,15 +11,22 @@ export enum GameStateEnum {
 	COMPLETED = 'COMPLETED'
 }
 
-export class Game {
-	private _players: Player[] = $state([]);
-	private _terrain: Terrain = $state(new Terrain());
-	private _pieces: Piece[] = $state([]);
-	private _buildings: Building[] = $state([]);
-	private _state: GameStateEnum = $state(GameStateEnum.NOT_STARTED);
+export type GameProps = {
+	players: Player[];
+};
 
-	public init() {
+export class Game {
+	private _terrain: Terrain = $state(new Terrain());
+	private _players: Player[] = $state([]);
+	private _pieces: BasePiece[] = $state([]);
+	private _state: GameStateEnum = $state(GameStateEnum.NOT_STARTED);
+	private _turn: number = $state(0);
+	private _currentPlayerIndex: number = $state(0);
+	private _currentPlayer = $derived(this._players[this._currentPlayerIndex]);
+
+	public init(props: GameProps) {
 		this.terrain.generate();
+		this._players = props.players;
 	}
 
 	public get players() {
@@ -34,23 +41,19 @@ export class Game {
 		return this._pieces;
 	}
 
-	public get buildings() {
-		return this._buildings;
+	public get buildings(): BaseBuilding[] {
+		return this._players.flatMap((player) => player.buildings);
 	}
 
-	public addPiece(piece: Piece) {
+	public addPiece(piece: BasePiece) {
 		this.pieces.push(piece);
 	}
 
-	public getPiecesInTile(tile: Tile) {
+	public getPiecesInTile(tile: BaseTile) {
 		return this.pieces.filter((piece) => piece.location === tile);
 	}
 
-	public addBuilding(building: Building) {
-		this.buildings.push(building);
-	}
-
-	public getBuildingsInTile(tile: Tile) {
+	public getBuildingsInTile(tile: BaseTile) {
 		return this.buildings.filter((building) => {
 			if (
 				building.location.tile.q === tile.position.q &&

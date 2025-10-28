@@ -1,5 +1,5 @@
 import {
-	Tile,
+	BaseTile,
 	TileDesert,
 	TileField,
 	TileForest,
@@ -10,14 +10,14 @@ import {
 } from './tile';
 
 export class Terrain {
-	private _tiles: Tile[] = [];
+	private _tiles: BaseTile[] = [];
 
-	constructor(tiles?: Tile[]) {
+	constructor(tiles?: BaseTile[]) {
 		this._tiles = tiles || [];
 	}
 
 	generate() {
-		const generatedTiles: Tile[] = [];
+		const generatedTiles: BaseTile[] = [];
 		let numberOfWoodsToAdd = 4;
 		let numberOfHillsToAdd = 3;
 		let numberOfFieldsToAdd = 4;
@@ -94,7 +94,7 @@ export class Terrain {
 		this._tiles = generatedTiles;
 	}
 
-	public get tiles(): Tile[] {
+	public get tiles(): BaseTile[] {
 		return this._tiles;
 	}
 }
