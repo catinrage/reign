@@ -7,6 +7,8 @@ class UiState {
 	flash = $state(false);
 	logOpen = $state(typeof window === 'undefined' || window.innerWidth > 900);
 	rolling = $state(false);
+	/** The in-game menu (pauses a game vs bots). */
+	menu = $state(false);
 }
 
 export const ui = new UiState();

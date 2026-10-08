@@ -13,7 +13,7 @@
 	import Flyers, { flyers } from './Flyers.svelte';
 	import Hand from './Hand.svelte';
 	import Log from './Log.svelte';
-	import Menu from './Menu.svelte';
+	import GameMenu from './GameMenu.svelte';
 	import OfferCard from './OfferCard.svelte';
 	import Players from './Players.svelte';
 	import Prompt from './Prompt.svelte';
@@ -164,10 +164,13 @@
 	});
 
 	function onKey(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
+		if (e.key !== 'Escape') return;
+		// Esc backs out of whatever is open, and opens the menu when nothing is.
+		if (ui.menu) ui.menu = false;
+		else if (ui.build || ui.trade) {
 			ui.build = null;
 			ui.trade = false;
-		}
+		} else ui.menu = true;
 	}
 	void getTopology;
 </script>
@@ -175,7 +178,6 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="hud" class:flash={ui.flash}>
-	<Menu />
 	<Prompt />
 	<Players />
 	<DiceBadge />
@@ -187,6 +189,7 @@
 	<Dialogs />
 	<Victory />
 	<Flyers />
+	<GameMenu />
 </div>
 
 <style>

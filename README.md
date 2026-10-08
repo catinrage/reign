@@ -36,7 +36,7 @@ any host that supports WebSockets (Render, Fly.io, Railway, a VPS…).
 - Drag to rotate the table, right-drag (or two fingers) to pan, wheel/pinch to zoom.
 - Glowing gems and rings mark where you can build; hover to preview the piece, click to place it.
 - During setup and when moving the robber, the board highlights the valid spots for you.
-- `Esc` cancels build mode or closes the trade panel.
+- `Esc` cancels build mode or closes the trade panel, and otherwise opens the game menu (how to play, settings, leave). In a game against bots the menu pauses the table.
 
 ## How it's built
 

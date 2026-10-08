@@ -2,12 +2,21 @@
 	import { flip } from 'svelte/animate';
 	import { fly } from 'svelte/transition';
 	import { client } from '../state/client.svelte';
+	import { PIXEL } from './pixel';
+
+	const ICON = { error: PIXEL.close, good: PIXEL.check, info: PIXEL.letter };
 </script>
 
 <div class="toasts">
 	{#each client.toasts as t (t.id)}
-		<div class="toast {t.kind}" animate:flip={{ duration: 200 }} in:fly={{ y: -16, duration: 220 }} out:fly={{ y: -10, duration: 180 }}>
-			{t.text}
+		<div
+			class="toast parch {t.kind}"
+			animate:flip={{ duration: 200 }}
+			in:fly={{ y: -16, duration: 220 }}
+			out:fly={{ y: -10, duration: 180 }}
+		>
+			<img class="icon-px" src={ICON[t.kind]} alt="" />
+			<span>{t.text}</span>
 		</div>
 	{/each}
 </div>
@@ -15,31 +24,44 @@
 <style>
 	.toasts {
 		position: fixed;
-		top: 76px;
+		top: 128px;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 8px;
-		z-index: 60;
+		gap: 6px;
+		z-index: 70;
 		pointer-events: none;
+		width: max-content;
+		max-width: calc(100vw - 24px);
 	}
 	.toast {
+		--s: 2px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 2px 8px;
 		font-family: var(--px);
-		font-size: 17px;
-		padding: 8px 16px;
-		border-radius: 8px;
-		color: #fff6e2;
-		background: rgba(40, 22, 12, 0.92);
-		border: 2px solid #f2c14e;
-		box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+		font-weight: 700;
+		font-size: 16px;
+		color: var(--ink);
+		pointer-events: none;
+	}
+	.toast img {
+		width: 18px;
+		height: 18px;
+		flex: none;
 	}
 	.toast.error {
-		border-color: #ff6a55;
-		background: rgba(70, 18, 10, 0.94);
+		color: #7a1a0c;
 	}
 	.toast.good {
-		border-color: #8be06e;
+		color: #2a5a14;
+	}
+	@media (max-width: 900px) {
+		.toasts {
+			top: 150px;
+		}
 	}
 </style>

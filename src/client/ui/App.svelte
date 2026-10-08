@@ -4,6 +4,8 @@
 	import Home from './Home.svelte';
 	import Lobby from './Lobby.svelte';
 	import Toasts from './Toasts.svelte';
+	import { PIXEL } from './pixel';
+	import { setMusicMode, sfx } from './sound';
 	import { sceneRef } from './sceneRef';
 
 	const screen = $derived(
@@ -16,6 +18,26 @@
 		}
 	});
 
+	// The tavern tune plays full in the menus and softly under a game.
+	$effect(() => {
+		setMusicMode(screen === 'game' ? 'game' : 'menu');
+	});
+
+	// Wooden taps for every button, and a faint tick when the mouse moves onto one.
+	const PRESSABLE =
+		'.btn, .icon-btn, .medal, .banner, .tile, .build, .devcard, .card.clickable, .seg .btn';
+	let hovered: Element | null = null;
+	function onPointerDown(e: PointerEvent) {
+		const el = (e.target as Element | null)?.closest?.(PRESSABLE);
+		if (el && !(el as HTMLButtonElement).disabled) sfx.click();
+	}
+	function onPointerOver(e: PointerEvent) {
+		if (e.pointerType !== 'mouse') return;
+		const el = (e.target as Element | null)?.closest?.(PRESSABLE) ?? null;
+		if (el !== hovered && el && !(el as HTMLButtonElement).disabled) sfx.hover();
+		hovered = el;
+	}
+
 	let wasGame = false;
 	$effect(() => {
 		if (screen === 'game') wasGame = true;
@@ -26,6 +48,8 @@
 	});
 </script>
 
+<svelte:window onpointerdown={onPointerDown} onpointerover={onPointerOver} />
+
 {#if screen === 'home'}
 	<Home />
 {:else if screen === 'lobby'}
@@ -35,22 +59,41 @@
 {/if}
 
 {#if client.status !== 'online'}
-	<div class="conn">{client.status === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</div>
+	<div class="conn plaque">
+		<img class="icon-px" src={PIXEL.hourglass} alt="" />{client.status === 'connecting'
+			? 'Connecting…'
+			: 'Reconnecting…'}
+	</div>
 {/if}
 <Toasts />
 
 <style>
 	.conn {
 		position: fixed;
-		bottom: 14px;
+		top: 50%;
 		left: 50%;
-		transform: translateX(-50%);
+		transform: translate(-50%, -50%);
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 6px 14px 6px 10px;
 		font-family: var(--px);
-		padding: 6px 14px;
-		border-radius: 8px;
-		background: rgba(30, 16, 8, 0.9);
-		border: 2px solid #ff8a55;
-		color: #ffe2c8;
-		z-index: 70;
+		font-weight: 700;
+		font-size: 18px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+		filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
+		z-index: 80;
+		animation: fade-in 0.4s ease-out 0.6s both;
+	}
+	.conn img {
+		width: 24px;
+		height: 24px;
+		animation: flip 1.6s ease-in-out infinite;
+	}
+	@keyframes flip {
+		50% {
+			transform: rotate(180deg);
+		}
 	}
 </style>

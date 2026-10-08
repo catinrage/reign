@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
-	import { myTurn, playerColor, promptText } from '../helpers';
+	import { myTurn, promptText } from '../helpers';
+	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 
 	const view = $derived(client.view!);
@@ -10,18 +11,22 @@
 			: promptText(view)
 	);
 	const mine = $derived(myTurn(view));
+	const color = $derived(view.players[view.current]?.color ?? 'white');
+	const ended = $derived(view.phase === 'ended');
 </script>
 
 <div class="wrap">
-{#key text}
-	<div class="prompt" class:mine style="--c:{playerColor(view, view.current)}">
-		<span class="chip"></span>
-		<span class="title">{text}</span>
-		{#if ui.build}
-			<button class="btn small wood" onclick={() => (ui.build = null)}>Cancel</button>
-		{/if}
-	</div>
-{/key}
+	{#key text}
+		<div class="prompt">
+			<div class="ribbon" class:mine style="--rib: var(--art-ribbon-{ended ? 'gold' : color})">
+				{#if !mine && !ended}<img class="icon-px" src={PIXEL.hourglass} alt="" />{/if}
+				<span class="text">{text}</span>
+			</div>
+			{#if ui.build}
+				<button class="btn small wood" onclick={() => (ui.build = null)}>Cancel</button>
+			{/if}
+		</div>
+	{/key}
 </div>
 
 <style>
@@ -37,46 +42,40 @@
 	.prompt {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 9px 18px;
-		border-radius: 999px;
-		background: rgba(36, 20, 11, 0.86);
-		border: 3px solid #1a0d06;
-		box-shadow:
-			inset 0 2px 0 rgba(255, 220, 170, 0.18),
-			0 8px 22px rgba(0, 0, 0, 0.4);
+		gap: 8px;
+		max-width: calc(100vw - 580px);
+		animation: drop-in 0.4s cubic-bezier(0.2, 1.3, 0.4, 1);
+	}
+	.ribbon {
+		max-width: 100%;
 		font-size: 19px;
-		color: #fff1d8;
-		white-space: nowrap;
-		max-width: calc(100vw - 32px);
-		animation: pop-in 0.3s ease-out;
 		pointer-events: auto;
 	}
-	.prompt.mine {
-		border-color: var(--gold);
-		animation:
-			pop-in 0.3s ease-out,
-			glow 1.8s ease-in-out infinite 0.3s;
+	.ribbon.mine {
+		animation: glow 1.8s ease-in-out infinite 0.4s;
 	}
-	.chip {
-		width: 14px;
-		height: 14px;
-		border-radius: 4px;
-		background: var(--c);
-		border: 2px solid rgba(0, 0, 0, 0.5);
+	.ribbon img {
+		width: 20px;
+		height: 20px;
 		flex: none;
+		filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6));
 	}
-	.title {
+	.text {
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	@media (max-width: 700px) {
+	.prompt .btn {
+		pointer-events: auto;
+	}
+	@media (max-width: 900px) {
 		.wrap {
 			top: 62px;
 		}
 		.prompt {
+			max-width: calc(100vw - 32px);
+		}
+		.ribbon {
 			font-size: 15px;
-			padding: 7px 14px;
 		}
 	}
 </style>

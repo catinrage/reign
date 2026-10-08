@@ -1,13 +1,19 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
-	import { playerColor } from '../helpers';
+	import Embers from '../menu/Embers.svelte';
 	import { PIXEL } from '../pixel';
 
 	const view = $derived(client.view!);
 	let hidden = $state(false);
 	const ranking = $derived(
 		view.players
-			.map((p, i) => ({ i, name: p.name, pts: p.totalPoints ?? p.publicPoints, vp: p.devCards?.filter((c) => c.type === 'victoryPoint').length ?? 0 }))
+			.map((p, i) => ({
+				i,
+				name: p.name,
+				color: p.color,
+				pts: p.totalPoints ?? p.publicPoints,
+				vp: p.devCards?.filter((c) => c.type === 'victoryPoint').length ?? 0
+			}))
 			.sort((a, b) => b.pts - a.pts)
 	);
 	let show = $state(false);
@@ -19,85 +25,176 @@
 		show = false;
 		hidden = false;
 	});
+	const winner = $derived(view.winner !== null ? view.players[view.winner] : null);
+	const MEDAL = ['gold', 'silver', 'bronze', 'iron'];
 </script>
 
-{#if show && !hidden && view.winner !== null}
-	<div class="modal-backdrop">
-		<div class="modal panel win">
-			<img class="icon-px crown" src={PIXEL.victoryPoint} alt="" />
-			<h2 style="color:{playerColor(view, view.winner)}">
-				{view.winner === view.me ? 'Victory!' : `${view.players[view.winner].name} wins!`}
-			</h2>
-			<div class="ranks">
-				{#each ranking as r, k}
-					<div class="rank" class:first={k === 0}>
-						<span class="pos title">{k + 1}</span>
-						<span class="swatch" style="background:{playerColor(view, r.i)}"></span>
-						<span class="nm">{r.name}</span>
-						{#if r.vp}<span class="vpc">{r.vp} hidden VP</span>{/if}
-						<span class="pts title">{r.pts}</span>
-					</div>
-				{/each}
-			</div>
-			<div class="foot">
-				<button class="btn wood" onclick={() => (hidden = true)}>View board</button>
-				{#if client.isHost}
-					<button class="btn green" onclick={() => client.send({ t: 'start' })}>Play again</button>
-				{:else}
-					<button class="btn wood" onclick={() => client.leave()}>Leave</button>
-				{/if}
+{#if show && !hidden && winner}
+	<div class="modal-backdrop victory">
+		<Embers count={34} />
+		<div class="stage">
+			<div class="rays"></div>
+			<img class="crown icon-px" src={PIXEL.crown} alt="" />
+			<div class="ribbon big">{view.winner === view.me ? 'Victory!' : `${winner.name} wins!`}</div>
+			<div class="board panel">
+				<div class="ranks">
+					{#each ranking as r, k (r.i)}
+						<div
+							class="rank plaque"
+							class:first={k === 0}
+							class:me={r.i === view.me}
+							style="animation-delay:{0.25 + k * 0.12}s"
+						>
+							<span class="medal coin {MEDAL[k]}">{k + 1}</span>
+							<span class="shield" style="--shield: var(--art-shield-{r.color})"
+								>{r.name.slice(0, 1).toUpperCase()}</span
+							>
+							<span class="nm">{r.name}{r.i === view.me ? ' (you)' : ''}</span>
+							{#if r.vp}<span class="vpc" title="Hidden victory point cards"
+									><img class="icon-px" src={PIXEL.victoryPoint} alt="" />{r.vp}</span
+								>{/if}
+							<span class="pts title">{r.pts}<small>VP</small></span>
+						</div>
+					{/each}
+				</div>
+				<div class="foot">
+					<button class="btn wood" onclick={() => (hidden = true)}>View board</button>
+					{#if client.isHost}
+						<button class="btn green shine" onclick={() => client.send({ t: 'start' })}
+							>Play again</button
+						>
+					{:else}
+						<button class="btn red" onclick={() => client.leave()}>Leave</button>
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>
 {/if}
 
 <style>
-	.win {
-		text-align: center;
-		min-width: 360px;
+	.victory {
+		z-index: 55;
+	}
+	.stage {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		width: min(460px, calc(100vw - 24px));
+		animation: pop-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
+	}
+	.rays {
+		position: absolute;
+		top: -150px;
+		left: 50%;
+		width: 520px;
+		height: 520px;
+		margin-left: -260px;
+		background: repeating-conic-gradient(
+			from 0deg,
+			rgba(255, 214, 110, 0.32) 0deg 9deg,
+			transparent 9deg 22.5deg
+		);
+		mask: radial-gradient(circle, #000 18%, transparent 62%);
+		-webkit-mask: radial-gradient(circle, #000 18%, transparent 62%);
+		animation: spin 24s linear infinite;
+		pointer-events: none;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 	.crown {
-		width: 72px;
-		height: 72px;
-		animation: bob 1.4s ease-in-out infinite;
+		position: relative;
+		width: 96px;
+		height: 96px;
+		filter: drop-shadow(0 0 14px rgba(255, 200, 80, 0.9)) drop-shadow(0 6px 0 rgba(60, 30, 4, 0.6));
+		animation: bob 1.6s ease-in-out infinite;
 	}
-	h2 {
-		font-size: 40px !important;
-		text-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
+	.ribbon.big {
+		position: relative;
+		z-index: 2;
+		font-size: 28px;
+		margin: 6px 0 calc(var(--s) * -9);
+		padding-left: calc(var(--s) * 7);
+		padding-right: calc(var(--s) * 7);
+	}
+	.board {
+		width: 100%;
+		padding: calc(var(--s) * 9) 12px 12px;
 	}
 	.ranks {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-		margin: 14px 0;
+		gap: 8px;
+		margin-bottom: 14px;
 	}
 	.rank {
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		padding: 7px 12px;
-		border-radius: 8px;
-		background: rgba(0, 0, 0, 0.22);
+		padding: 2px 8px 2px 4px;
+		animation: pop-in 0.35s ease-out both;
 	}
 	.rank.first {
-		background: linear-gradient(90deg, rgba(242, 193, 78, 0.35), rgba(0, 0, 0, 0.2));
+		filter: drop-shadow(0 0 6px rgba(255, 210, 90, 0.75));
 	}
-	.pos {
-		width: 20px;
-		color: var(--muted);
+	.medal {
+		--s: 2.2px;
+		font-size: 15px;
+	}
+	.medal.silver {
+		filter: grayscale(1) brightness(1.35);
+	}
+	.medal.bronze {
+		filter: sepia(0.6) hue-rotate(-18deg) saturate(1.4) brightness(0.85);
+	}
+	.medal.iron {
+		filter: grayscale(1) brightness(0.75);
+	}
+	.rank .shield {
+		--s: 2.2px;
+		font-size: 15px;
 	}
 	.nm {
 		flex: 1;
 		text-align: left;
-		font-weight: 800;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 17px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.me .nm {
+		color: #ffe08a;
 	}
 	.vpc {
-		font-size: 12px;
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		font-size: 13px;
+		font-weight: 800;
 		color: var(--muted);
 	}
+	.vpc img {
+		width: 16px;
+		height: 16px;
+	}
 	.pts {
-		font-size: 22px;
+		font-size: 24px;
 		color: var(--gold);
+		text-shadow: 0 2px 0 #5a3010;
+	}
+	.pts small {
+		font-size: 11px;
+		margin-left: 2px;
+		color: var(--muted);
+		text-shadow: none;
 	}
 	.foot {
 		display: flex;

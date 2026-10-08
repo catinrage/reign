@@ -3,6 +3,7 @@
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
 	import { eventParts, playerColor } from '../helpers';
+	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 
 	const view = $derived(client.view!);
@@ -18,6 +19,7 @@
 
 	$effect(() => {
 		void lines.length;
+		void ui.logOpen;
 		tick().then(() => box && (box.scrollTop = box.scrollHeight));
 	});
 
@@ -30,18 +32,26 @@
 </script>
 
 <div class="log panel" class:closed={!ui.logOpen}>
-	<button class="head title" onclick={() => (ui.logOpen = !ui.logOpen)}>
-		Chronicle <span>{ui.logOpen ? '▾' : '▸'}</span>
+	<button class="head" onclick={() => (ui.logOpen = !ui.logOpen)} aria-expanded={ui.logOpen}>
+		<img class="icon-px" src={PIXEL.book} alt="" />
+		<span class="title">Chronicle</span>
+		<span class="chev" class:open={ui.logOpen}>▸</span>
 	</button>
 	{#if ui.logOpen}
-		<div class="lines" bind:this={box}>
+		<div class="lines well" bind:this={box}>
 			{#each lines as l (l.seq)}
 				<div class="line" class:chat={l.chat}>
-					{#each l.parts! as p}
+					{#if l.chat}<img class="icon-px bubble" src={PIXEL.chat} alt="" />{/if}
+					{#each l.parts! as p, k (k)}
 						{#if p.res}
-							<span class="res">{#if (p.count ?? 1) > 1}<b>{p.count}</b>{/if}<img src={icons[p.res]} alt={p.res} /></span>
+							<span class="res"
+								>{#if (p.count ?? 1) > 1}<b>{p.count}</b>{/if}<img
+									src={icons[p.res]}
+									alt={p.res}
+								/></span
+							>
 						{:else if p.player !== undefined}
-							<b style="color:{playerColor(view, p.player)}">{p.text}</b>
+							<b class="who" style="--c:{playerColor(view, p.player)}">{p.text}</b>
 						{:else}
 							<span>{p.text}</span>
 						{/if}
@@ -49,7 +59,13 @@
 				</div>
 			{/each}
 		</div>
-		<form class="chat" onsubmit={(e) => { e.preventDefault(); send(); }}>
+		<form
+			class="chat"
+			onsubmit={(e) => {
+				e.preventDefault();
+				send();
+			}}
+		>
 			<input class="input" bind:value={text} maxlength="200" placeholder="Say something…" />
 		</form>
 	{/if}
@@ -58,28 +74,48 @@
 <style>
 	.log {
 		position: absolute;
-		left: 14px;
-		bottom: 14px;
-		width: 300px;
+		left: 12px;
+		bottom: 12px;
+		width: 310px;
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
+		gap: 6px;
+		padding: 2px 4px 4px;
+	}
+	.closed {
+		width: auto;
 	}
 	.head {
 		all: unset;
 		pointer-events: auto;
 		cursor: pointer;
-		padding: 7px 12px;
-		font-size: 15px;
-		color: var(--gold);
 		display: flex;
-		justify-content: space-between;
-		background: rgba(0, 0, 0, 0.2);
+		align-items: center;
+		gap: 8px;
+		padding: 2px 4px;
+	}
+	.head img {
+		width: 22px;
+		height: 22px;
+	}
+	.head .title {
+		flex: 1;
+		font-size: 16px;
+		color: var(--gold);
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.7);
+	}
+	.chev {
+		color: var(--muted);
+		transition: transform 0.2s;
+		font-size: 14px;
+	}
+	.chev.open {
+		transform: rotate(90deg);
 	}
 	.lines {
-		height: 190px;
+		height: 180px;
 		overflow-y: auto;
-		padding: 6px 12px;
+		padding: 2px 6px;
 		display: flex;
 		flex-direction: column;
 		gap: 3px;
@@ -87,20 +123,32 @@
 		line-height: 1.35;
 		scrollbar-width: thin;
 		scrollbar-color: #7a4a2c transparent;
+		pointer-events: auto;
 	}
 	.line {
 		animation: fade-in 0.4s;
-		color: #f0dcc0;
+		color: #ead6b8;
 	}
-	.line b {
+	.who {
 		font-weight: 800;
-		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+		color: var(--c);
+		/* Dark outline keeps light colors (white, yellow) readable. */
+		text-shadow:
+			1px 0 0 #1a0c05,
+			-1px 0 0 #1a0c05,
+			0 1px 0 #1a0c05,
+			0 -1px 0 #1a0c05;
 	}
 	.line.chat {
 		color: #fff;
-		background: rgba(255, 255, 255, 0.06);
-		border-radius: 5px;
+		background: rgba(255, 236, 200, 0.07);
 		padding: 2px 5px;
+	}
+	.bubble {
+		width: 14px;
+		height: 14px;
+		vertical-align: -2px;
+		margin-right: 4px;
 	}
 	.res {
 		display: inline-flex;
@@ -116,25 +164,25 @@
 		height: 20px;
 		margin: -3px 0;
 	}
-	.chat {
-		padding: 6px 8px 8px;
-	}
 	.chat .input {
 		width: 100%;
 		box-sizing: border-box;
+		font-family: var(--body);
+		font-weight: 700;
 		font-size: 14px;
-		padding: 5px 9px;
-		font-family: inherit;
+		min-height: 0;
+		padding: 2px 6px;
 	}
 	@media (max-width: 900px) {
 		.log {
-			top: 112px;
+			top: 104px;
 			bottom: auto;
-			left: 8px;
-			width: 240px;
+			left: 62px;
+			width: 250px;
+			max-width: calc(100vw - 70px);
 			z-index: 5;
 		}
-		.closed {
+		.log.closed {
 			width: auto;
 		}
 		.lines {

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Resource } from '../../shared/rules/config';
 	import { getIcons } from '../scene/icons';
-	import { RES_BG, RESOURCE_LABEL } from './helpers';
+	import { RESOURCE_LABEL } from './helpers';
 
 	let {
 		res,
@@ -9,6 +9,7 @@
 		size = 64,
 		dim = false,
 		label = false,
+		selected = false,
 		onclick = undefined
 	}: {
 		res: Resource;
@@ -16,24 +17,26 @@
 		size?: number;
 		dim?: boolean;
 		label?: boolean;
+		selected?: boolean;
 		onclick?: () => void;
 	} = $props();
 	const icon = $derived(getIcons().urls[res]);
-	const a = $derived(RES_BG[res][0]);
-	const b = $derived(RES_BG[res][1]);
+	// One pixel of card art: whole device pixels keep the frame crisp.
+	const px = $derived(size >= 56 ? 3 : 2);
 </script>
 
 <button
 	class="card"
 	class:dim
+	class:selected
 	class:clickable={!!onclick}
-	style="--w:{size}px; --a:{a}; --b:{b}"
-	onclick={onclick}
+	style="--w:{size}px; --cp:{px}px; --pat: var(--pat-{res})"
+	{onclick}
 	disabled={!onclick}
 	title={RESOURCE_LABEL[res]}
 >
 	<span class="art"><img src={icon} alt={RESOURCE_LABEL[res]} draggable="false" /></span>
-	{#if label}<span class="label">{RESOURCE_LABEL[res]}</span>{/if}
+	{#if label}<span class="name">{RESOURCE_LABEL[res]}</span>{/if}
 	{#if count !== undefined}<span class="count">{count}</span>{/if}
 </button>
 
@@ -42,23 +45,23 @@
 		position: relative;
 		width: var(--w);
 		height: calc(var(--w) * 1.36);
-		padding: calc(var(--w) * 0.07);
-		border-radius: calc(var(--w) * 0.12);
-		background: linear-gradient(180deg, #fff6e2, #ecd6aa);
-		border: 2px solid #8a6436;
-		box-shadow:
-			inset 0 2px 0 rgba(255, 255, 255, 0.8),
-			0 3px 0 #5a3c1c,
-			0 6px 12px rgba(0, 0, 0, 0.35);
+		box-sizing: border-box;
+		padding: 0;
+		margin: 0;
+		border-style: solid;
+		border-width: calc(var(--cp) * 3);
+		border-image: var(--art-card) 3 fill / calc(var(--cp) * 3) stretch;
+		background: none;
 		display: flex;
 		flex-direction: column;
-		align-items: center;
-		gap: 2px;
+		align-items: stretch;
+		gap: calc(var(--cp) * 1);
 		font: inherit;
 		color: var(--ink);
 		cursor: default;
+		filter: drop-shadow(0 3px 0 rgba(40, 20, 8, 0.55)) drop-shadow(0 6px 8px rgba(0, 0, 0, 0.3));
 		transition:
-			transform 0.12s,
+			transform 0.14s,
 			filter 0.2s;
 		pointer-events: auto;
 	}
@@ -71,50 +74,55 @@
 	.clickable:hover {
 		transform: translateY(-4px);
 	}
+	.selected {
+		transform: translateY(-4px);
+		filter: drop-shadow(0 0 0 #ffd45a) drop-shadow(0 0 3px #ffd45a)
+			drop-shadow(0 0 7px rgba(255, 200, 80, 0.9));
+	}
 	.art {
 		flex: 1;
-		width: 100%;
-		border-radius: calc(var(--w) * 0.08);
-		background:
-			repeating-linear-gradient(
-				90deg,
-				rgba(255, 255, 255, 0.07) 0 6px,
-				transparent 6px 12px
-			),
-			linear-gradient(180deg, var(--a), var(--b));
-		box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.15);
+		min-height: 0;
+		position: relative;
+		background: var(--pat) 0 0 / calc(var(--cp) * 8) calc(var(--cp) * 8) repeat;
+		box-shadow:
+			inset 0 0 0 var(--cp) rgba(40, 20, 8, 0.55),
+			inset 0 calc(var(--cp) * 2) 0 rgba(255, 255, 255, 0.18),
+			inset 0 calc(var(--cp) * -3) 0 rgba(0, 0, 0, 0.2);
 		display: grid;
 		place-items: center;
 		overflow: hidden;
 	}
 	img {
-		width: 92%;
-		filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.35));
+		width: 124%;
+		max-width: none;
+		margin: -12%;
+		filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.3));
 	}
-	.label {
+	.name {
 		font-family: var(--px);
-		font-size: calc(var(--w) * 0.18);
+		font-size: calc(var(--w) * 0.17);
 		font-weight: 700;
+		text-align: center;
+		line-height: 1;
+		padding-bottom: 1px;
 	}
 	.count {
 		position: absolute;
-		top: calc(var(--w) * -0.16);
-		right: calc(var(--w) * -0.16);
-		min-width: calc(var(--w) * 0.4);
-		height: calc(var(--w) * 0.4);
-		padding: 0 4px;
-		border-radius: 999px;
-		background: #2a170d;
+		top: calc(var(--w) * -0.2);
+		right: calc(var(--w) * -0.2);
+		width: calc(var(--cp) * 12);
+		height: calc(var(--cp) * 12);
+		background: var(--art-badge) center / 100% 100%;
 		color: #fff3d6;
-		border: 2px solid #f2c14e;
 		font-family: var(--px);
 		font-weight: 700;
-		font-size: calc(var(--w) * 0.24);
+		font-size: calc(var(--cp) * 6.5);
+		line-height: 1;
 		display: grid;
 		place-items: center;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
 	}
 	.dim {
-		filter: grayscale(0.9) brightness(0.65);
+		filter: grayscale(0.85) brightness(0.62) drop-shadow(0 3px 0 rgba(40, 20, 8, 0.55));
 	}
 </style>

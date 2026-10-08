@@ -119,11 +119,34 @@ export class Stage {
 		this.running = false;
 	}
 
+	private shift = 0;
+	private shiftGoal = 0;
+
+	/**
+	 * Slide the rendered image sideways by a fraction of the screen width (a lens shift, so
+	 * the orbit is unchanged). Menus use it to make room for a side panel.
+	 */
+	setLensShift(x: number) {
+		this.shiftGoal = x;
+	}
+
+	private applyShift() {
+		const w = this.canvas.clientWidth || window.innerWidth;
+		const h = this.canvas.clientHeight || window.innerHeight;
+		if (Math.abs(this.shift) < 1e-4) this.camera.clearViewOffset();
+		else this.camera.setViewOffset(w, h, -this.shift * w, 0, w, h);
+	}
+
 	/** Render one frame (also used by tests and icon capture). */
 	frame() {
 		const dt = Math.min(0.05, this.clock.getDelta());
 		const t = this.clock.elapsedTime;
 		sharedUniforms.uTime.value = t;
+		if (this.shift !== this.shiftGoal) {
+			const d = this.shiftGoal - this.shift;
+			this.shift = Math.abs(d) < 1e-4 ? this.shiftGoal : this.shift + d * Math.min(1, dt * 3.5);
+			this.applyShift();
+		}
 		this.rig.update(dt);
 		this.lighting.update(dt, t);
 		for (const fn of this.updaters) fn(dt, t);
@@ -137,6 +160,7 @@ export class Stage {
 		this.composer.setSize(w, h, false);
 		this.camera.aspect = w / h;
 		this.camera.updateProjectionMatrix();
+		this.applyShift();
 	};
 
 	get qualityLevel() {

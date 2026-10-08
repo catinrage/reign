@@ -1,0 +1,144 @@
+<script lang="ts">
+	import { PIXEL } from '../pixel';
+	import { CHANNELS, settings } from '../settings.svelte';
+	import { isMuted, setMuted } from '../sound';
+
+	let muted = $state(isMuted());
+	function toggleMute(m: boolean) {
+		muted = m;
+		setMuted(m);
+	}
+</script>
+
+<div class="settings">
+	<section>
+		<div class="divider"><i></i><span>Sound</span><i></i></div>
+		<div class="row">
+			<span class="name"
+				><img class="icon-px" src={muted ? PIXEL.mute : PIXEL.speaker} alt="" />Sound</span
+			>
+			<div class="seg">
+				<button class="btn small" class:on={!muted} onclick={() => toggleMute(false)}>On</button>
+				<button class="btn small" class:on={muted} onclick={() => toggleMute(true)}>Off</button>
+			</div>
+		</div>
+		{#each CHANNELS as c (c.id)}
+			{@const v = settings.volumes[c.id]}
+			<label class="row" class:off={muted}>
+				<span class="name">{c.label}</span>
+				<input
+					class="slider"
+					type="range"
+					min="0"
+					max="1"
+					step="0.05"
+					value={v}
+					style="--fill:{v * 100}%"
+					oninput={(e) => settings.setVolume(c.id, Number(e.currentTarget.value))}
+				/>
+				<span class="val">{Math.round(v * 100)}</span>
+			</label>
+		{/each}
+	</section>
+
+	<section>
+		<div class="divider"><i></i><span>Graphics</span><i></i></div>
+		<div class="row">
+			<span class="name">Quality</span>
+			<div class="seg">
+				<button
+					class="btn small"
+					class:on={settings.quality === 'high'}
+					onclick={() => settings.setQuality('high')}>High</button
+				>
+				<button
+					class="btn small"
+					class:on={settings.quality === 'low'}
+					onclick={() => settings.setQuality('low')}>Low</button
+				>
+			</div>
+		</div>
+		<p class="hint">
+			Low turns off shadows and depth of field for older devices. The game reloads to apply it.
+		</p>
+		<div class="row">
+			<span class="name">Reduce motion</span>
+			<div class="seg">
+				<button
+					class="btn small"
+					class:on={!settings.reduceMotion}
+					onclick={() => settings.setReduceMotion(false)}>Off</button
+				>
+				<button
+					class="btn small"
+					class:on={settings.reduceMotion}
+					onclick={() => settings.setReduceMotion(true)}>On</button
+				>
+			</div>
+		</div>
+	</section>
+</div>
+
+<style>
+	.settings {
+		display: flex;
+		flex-direction: column;
+		gap: 18px;
+		padding: 4px 2px;
+	}
+	section {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.row {
+		display: grid;
+		grid-template-columns: 112px 1fr auto;
+		align-items: center;
+		gap: 12px;
+		min-height: 34px;
+	}
+	.row:has(.seg) {
+		grid-template-columns: 1fr auto;
+	}
+	.row.off {
+		opacity: 0.45;
+	}
+	.name {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 17px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.name img {
+		width: 22px;
+		height: 22px;
+	}
+	.val {
+		min-width: 30px;
+		text-align: right;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 15px;
+		color: var(--gold);
+	}
+	.hint {
+		margin: -4px 0 0 !important;
+		font-size: 13px;
+		text-align: left !important;
+		color: var(--muted);
+	}
+	@media (max-width: 480px) {
+		.row {
+			grid-template-columns: 84px 1fr auto;
+			gap: 8px;
+		}
+		.name {
+			font-size: 15px;
+		}
+	}
+</style>

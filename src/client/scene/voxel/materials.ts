@@ -30,6 +30,7 @@ export interface VoxelMaterialOptions {
 }
 
 const VERT_HEAD = /* glsl */ `
+uniform float uSwayBase;
 varying vec3 vVox;
 varying vec3 vVoxN;
 varying vec3 vTanU;
@@ -94,7 +95,9 @@ const FRAG_RIM = /* glsl */ `
 function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMaterialOptions) {
 	const bevel = { value: opts.bevel ?? 0.55 };
 	const bevelWidth = { value: opts.bevelWidth ?? 0.14 };
+	const swayBase = { value: opts.swayBase ?? 0 };
 	material.onBeforeCompile = (shader) => {
+		shader.uniforms.uSwayBase = swayBase;
 		shader.uniforms.uTime = sharedUniforms.uTime;
 		shader.uniforms.uFlicker = sharedUniforms.uFlicker;
 		shader.uniforms.uNight = sharedUniforms.uNight;
@@ -109,7 +112,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 				/* glsl */ `#include <begin_vertex>
 				{
 					vec4 wp = modelMatrix * vec4(position, 1.0);
-					float k = clamp((position.y - ${(opts.swayBase ?? 0).toFixed(1)}) / 6.0, 0.0, 1.0);
+					float k = clamp((position.y - uSwayBase) / 6.0, 0.0, 1.0);
 					k *= k;
 					float sway = sin(uTime * 1.6 + wp.x * 0.12 + wp.z * 0.08) * 0.5 + sin(uTime * 2.7 + wp.z * 0.2) * 0.25;
 					transformed.x += sway * 0.5 * k;

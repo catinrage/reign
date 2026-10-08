@@ -1,10 +1,32 @@
 /**
- * Sound effects. Samples (generated with ElevenLabs) live in public/sfx and are decoded
- * with WebAudio on first use; until a sample is ready the old synthesized version plays.
- * A quiet fireplace ambience loop starts after the first user gesture.
+ * Sound: one-shot effects, the fireside ambience loop and the tavern music.
+ *
+ * Samples (generated with ElevenLabs) live in public/sfx and are decoded with WebAudio on first
+ * use; until a sample is ready the synthesized version plays. The ambience and the music start
+ * after the first user gesture. The music streams from public/music through an <audio> element, so
+ * the ~1 MB file is never decoded up front; the file is cut to whole bars with its end crossfaded
+ * into its start, so it loops seamlessly.
+ *
+ * Mix: one-shots -> sfx bus, ambience -> ambience bus, music -> music bus, and every bus feeds the
+ * master gain, which also carries mute. Channel volumes are linear 0..1 and persist per browser.
  */
 
-const SAMPLES = ['dice', 'build', 'coin', 'turn', 'robber', 'steal', 'error', 'win', 'pop', 'card'] as const;
+const SAMPLES = [
+	'dice',
+	'build',
+	'coin',
+	'turn',
+	'robber',
+	'steal',
+	'error',
+	'win',
+	'pop',
+	'card',
+	'click',
+	'open',
+	'close',
+	'hover'
+] as const;
 type SampleName = (typeof SAMPLES)[number];
 
 /** Per-sample playback gain (the files are loudness-normalized, this sets the mix). */
@@ -18,52 +40,139 @@ const VOLUME: Record<SampleName, number> = {
 	error: 0.55,
 	win: 0.65,
 	pop: 0.45,
-	card: 0.6
+	card: 0.6,
+	// UI sounds sit with the quieter game sounds; hover is a barely-there tick.
+	click: 0.55,
+	open: 0.45,
+	close: 0.5,
+	hover: 0.13
 };
 /** Random pitch spread (playbackRate +/- this) for sounds that repeat a lot. */
-const VARY: Partial<Record<SampleName, number>> = { dice: 0.06, build: 0.08, pop: 0.12, card: 0.08 };
+const VARY: Partial<Record<SampleName, number>> = {
+	dice: 0.06,
+	build: 0.08,
+	pop: 0.12,
+	card: 0.08,
+	click: 0.05,
+	hover: 0.08,
+	open: 0.03,
+	close: 0.03
+};
 
 const AMBIENCE_GAIN = 0.12;
 const AMBIENCE_FADE_IN = 4;
+/** Hover ticks closer together than this are dropped. */
+const HOVER_GAP_MS = 70;
 
-let ctx: AudioContext | null = null;
-let master: GainNode | null = null;
+// ---------------------------------------------------------------- channels
+
+export type Channel = 'master' | 'sfx' | 'music' | 'ambience';
+const CHANNELS: Channel[] = ['master', 'sfx', 'music', 'ambience'];
+const DEFAULT_VOLUME: Record<Channel, number> = {
+	master: 0.9,
+	sfx: 0.9,
+	music: 0.45,
+	ambience: 0.6
+};
+const volume: Record<Channel, number> = { ...DEFAULT_VOLUME };
+
 let muted = false;
 try {
 	muted = localStorage.getItem('reign:muted') === '1';
+	for (const ch of CHANNELS) {
+		const s = localStorage.getItem(`reign:vol:${ch}`);
+		const v = s === null ? NaN : Number(s);
+		if (Number.isFinite(v)) volume[ch] = clamp01(v);
+	}
 } catch {
 	/* ignore */
 }
 
+function clamp01(v: number) {
+	return Math.min(1, Math.max(0, v));
+}
+
+let ctx: AudioContext | null = null;
+let master: GainNode | null = null;
+let sfxBus: GainNode | null = null;
+let ambienceBus: GainNode | null = null;
+let musicBus: GainNode | null = null;
+/** Set by the first user gesture: from then on the context may run and the music may play. */
+let armed = false;
+
 const buffers = new Map<string, AudioBuffer>();
 let loading: Promise<void> | null = null;
 
-/** The audio context, created on demand (even while muted, so loading and ambience can resume). */
+/** The audio context and its buses, created on demand (even while muted, so loading and ambience can resume). */
 function context(): AudioContext | null {
 	if (!ctx) {
 		try {
-			ctx = new AudioContext();
-			master = ctx.createGain();
-			master.gain.value = muted ? 0 : 1;
-			master.connect(ctx.destination);
+			const a = new AudioContext();
+			master = a.createGain();
+			master.gain.value = muted ? 0 : volume.master;
+			master.connect(a.destination);
+			const bus = (v: number) => {
+				const g = a.createGain();
+				g.gain.value = v;
+				g.connect(master!);
+				return g;
+			};
+			sfxBus = bus(volume.sfx);
+			ambienceBus = bus(volume.ambience);
+			musicBus = bus(volume.music);
+			ctx = a;
 		} catch {
 			return null;
 		}
 	}
-	if (ctx.state === 'suspended' && !muted) ctx.resume().catch(() => {});
+	// 'interrupted' is Safari's state after a phone call or similar
+	if (ctx.state !== 'running' && ctx.state !== 'closed' && !muted) ctx.resume().catch(() => {});
 	return ctx;
 }
 
-/** Context for playing a one-shot, or null when muted / unavailable. */
+/**
+ * Context for playing a one-shot, or null when muted / unavailable. Before the first gesture the
+ * context cannot run, so nothing is scheduled (it would all play at once on the first click).
+ */
 function ac(): AudioContext | null {
-	if (muted) return null;
+	if (muted || !(armed || ctx?.state === 'running')) return null;
 	const a = context();
 	if (a) loadSamples();
 	return a;
 }
 
+/** Where one-shots (samples and their synthesized fallbacks) go. */
 function out(): AudioNode {
-	return master!;
+	return sfxBus!;
+}
+
+/** Glide a param from its current value to `v` without jumping, even if another ramp is running. */
+function glide(p: AudioParam, v: number, seconds: number, linear = false) {
+	if (!ctx) return;
+	const t = ctx.currentTime;
+	const now = p.value;
+	p.cancelScheduledValues(t);
+	p.setValueAtTime(now, t);
+	if (linear) p.linearRampToValueAtTime(v, t + seconds);
+	else p.setTargetAtTime(v, t, seconds / 3);
+}
+
+/** A channel's volume, 0..1. */
+export function getVolume(ch: Channel): number {
+	return volume[ch];
+}
+
+/** Set a channel's volume (0..1). It glides there at once and is remembered in this browser. */
+export function setVolume(ch: Channel, v: number) {
+	const x = Number.isFinite(v) ? clamp01(v) : DEFAULT_VOLUME[ch];
+	volume[ch] = x;
+	try {
+		localStorage.setItem(`reign:vol:${ch}`, String(x));
+	} catch {
+		/* ignore */
+	}
+	const node = { master, sfx: sfxBus, music: musicBus, ambience: ambienceBus }[ch];
+	if (node) glide(node.gain, ch === 'master' && muted ? 0 : x, 0.08);
 }
 
 async function loadOne(a: AudioContext, name: string) {
@@ -93,7 +202,7 @@ export function loadSamples(): Promise<void> {
 /** Play a decoded sample. Returns false when it is not loaded yet (caller falls back to synth). */
 function sample(name: SampleName, delay = 0): boolean {
 	const a = ac();
-	if (!a) return true; // muted: nothing to play, and no fallback either
+	if (!a) return true; // muted or not armed: nothing to play, and no fallback either
 	const buf = buffers.get(name);
 	if (!buf) return false;
 	const t = a.currentTime + delay;
@@ -124,20 +233,17 @@ export function setMuted(m: boolean) {
 		/* ignore */
 	}
 	if (m) {
-		if (ctx && master) {
-			master.gain.cancelScheduledValues(ctx.currentTime);
-			master.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
-		}
+		if (master) glide(master.gain, 0, 0.15);
 		stopAmbienceSource(0.3);
 	} else {
 		const a = context(); // unmuting is a click, so creating/resuming the context is allowed
 		if (a && master) {
-			master.gain.cancelScheduledValues(a.currentTime);
-			master.gain.setTargetAtTime(1, a.currentTime, 0.05);
+			glide(master.gain, volume.master, 0.15);
 			loadSamples();
 		}
 		if (ambienceWanted) startAmbience();
 	}
+	applyMusic();
 }
 
 // ---------------------------------------------------------------- ambience
@@ -177,7 +283,7 @@ export function startAmbience() {
 	const g = a.createGain();
 	g.gain.setValueAtTime(0.0001, a.currentTime);
 	g.gain.linearRampToValueAtTime(AMBIENCE_GAIN, a.currentTime + AMBIENCE_FADE_IN);
-	src.connect(g).connect(out());
+	src.connect(g).connect(ambienceBus!);
 	src.start(a.currentTime, s);
 	ambSrc = src;
 	ambGain = g;
@@ -200,21 +306,123 @@ export function stopAmbience() {
 	stopAmbienceSource(1.2);
 }
 
+// ---------------------------------------------------------------- music
+
+export type MusicMode = 'menu' | 'game' | 'off';
+const MUSIC_URL = '/music/tavern.mp3';
+/** Level of the track (before the music channel volume) in each mode. */
+const MUSIC_LEVEL: Record<MusicMode, number> = { menu: 1, game: 0.45, off: 0 };
+const MUSIC_FADE = 2;
+const MUSIC_MUTE_FADE = 0.3;
+
+let musicMode: MusicMode = 'menu';
+let musicEl: HTMLAudioElement | null = null;
+let musicGain: GainNode | null = null;
+let musicBroken = false;
+let musicPause: ReturnType<typeof setTimeout> | null = null;
+
+/** The <audio> element streaming the track into the music bus, created on first use. */
+function musicNode(a: AudioContext): GainNode | null {
+	if (musicGain || musicBroken) return musicGain;
+	try {
+		const el = new Audio(MUSIC_URL);
+		el.loop = true;
+		el.preload = 'auto';
+		el.addEventListener('error', () => {
+			musicBroken = true;
+		});
+		const g = a.createGain();
+		g.gain.value = 0;
+		a.createMediaElementSource(el).connect(g).connect(musicBus!);
+		musicEl = el;
+		musicGain = g;
+	} catch {
+		musicBroken = true;
+	}
+	return musicGain;
+}
+
+/** Fade the music to what the mode and mute ask for; pause the element once it is silent. */
+function applyMusic() {
+	if (!armed || musicBroken) return;
+	const level = muted ? 0 : MUSIC_LEVEL[musicMode];
+	if (!level && !musicEl) return;
+	const a = context();
+	const g = a && musicNode(a);
+	const el = musicEl;
+	if (!g || !el) return;
+	if (musicPause) clearTimeout(musicPause);
+	musicPause = null;
+	const fade = muted ? MUSIC_MUTE_FADE : MUSIC_FADE;
+	glide(g.gain, level, fade, true);
+	if (level) {
+		if (el.paused)
+			el.play().catch((err: unknown) => {
+				if ((err as DOMException)?.name === 'NotAllowedError') retryMusicOnGesture();
+			});
+	} else {
+		musicPause = setTimeout(
+			() => {
+				musicPause = null;
+				el.pause();
+			},
+			fade * 1000 + 100
+		);
+	}
+}
+
 /**
- * Arm audio for the first user gesture: browsers only allow an AudioContext to start
- * after one. On that gesture the samples load and the ambience fades in.
+ * Choose the music: 'menu' plays the tavern track at the music volume, 'game' plays it at about
+ * 45% of that under the game, 'off' fades it out. Changes fade over ~2 s. Before the first user
+ * gesture the mode is only remembered (it starts as 'menu').
  */
+export function setMusicMode(mode: MusicMode) {
+	if (mode === musicMode) return;
+	musicMode = mode;
+	applyMusic();
+}
+
+/** Events that can carry user activation (a touch only counts once the finger lifts). */
+const GESTURES = ['pointerdown', 'pointerup', 'touchend', 'keydown'] as const;
+const CAPTURE = { capture: true } as const;
+
+let musicRetry = false;
+/** The browser refused to start the music (no user activation yet): try again on the next gesture. */
+function retryMusicOnGesture() {
+	if (musicRetry) return;
+	musicRetry = true;
+	const again = () => {
+		for (const e of GESTURES) window.removeEventListener(e, again, CAPTURE);
+		musicRetry = false;
+		applyMusic();
+	};
+	for (const e of GESTURES) window.addEventListener(e, again, CAPTURE);
+}
+
+/**
+ * Arm audio for the first user gesture: browsers only allow an AudioContext (and media playback)
+ * to start after one. On that gesture the samples load and the ambience and music fade in. This
+ * keeps listening until the context is actually running.
+ */
+let armListening = false;
 export function armAudio() {
-	const opts = { capture: true } as const;
+	if (armListening) return;
+	armListening = true;
 	const go = () => {
-		window.removeEventListener('pointerdown', go, opts);
-		window.removeEventListener('keydown', go, opts);
-		context();
+		armed = true;
+		const a = context();
 		loadSamples();
 		startAmbience();
+		applyMusic();
+		if (!a) return;
+		const done = () => {
+			if (a.state === 'running')
+				for (const e of GESTURES) window.removeEventListener(e, go, CAPTURE);
+		};
+		if (a.state === 'running') done();
+		else a.resume().then(done, () => {});
 	};
-	window.addEventListener('pointerdown', go, opts);
-	window.addEventListener('keydown', go, opts);
+	for (const e of GESTURES) window.addEventListener(e, go, CAPTURE);
 }
 
 // ---------------------------------------------------------------- synthesized fallbacks
@@ -257,6 +465,31 @@ function click(delay: number, gain = 0.25, pitch = 1) {
 	src.start(t);
 }
 
+/** Filtered noise whose band sweeps f0 -> f1, rising over `attack` then dying away (paper, cloth). */
+function swish(delay: number, dur: number, gain: number, f0: number, f1: number, attack: number) {
+	const a = ac();
+	if (!a) return;
+	const t = a.currentTime + delay;
+	const len = Math.floor(a.sampleRate * dur);
+	const buf = a.createBuffer(1, len, a.sampleRate);
+	const d = buf.getChannelData(0);
+	for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+	const src = a.createBufferSource();
+	src.buffer = buf;
+	const f = a.createBiquadFilter();
+	f.type = 'bandpass';
+	f.Q.value = 0.8;
+	f.frequency.setValueAtTime(f0, t);
+	f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+	const g = a.createGain();
+	g.gain.setValueAtTime(0.0001, t);
+	g.gain.exponentialRampToValueAtTime(gain, t + attack);
+	g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+	src.connect(f).connect(g).connect(out());
+	src.start(t);
+	src.stop(t + dur + 0.02);
+}
+
 const synth: Record<SampleName, () => void> = {
 	dice() {
 		const hits = [0.0, 0.08, 0.6, 0.66, 0.95, 1.02, 1.18, 1.24];
@@ -294,6 +527,21 @@ const synth: Record<SampleName, () => void> = {
 	},
 	card() {
 		click(0, 0.18, 1.6);
+	},
+	click() {
+		click(0, 0.16, 0.6);
+		tone(200, 0.05, 'sine', 0.08, 0, 0.75);
+	},
+	open() {
+		swish(0, 0.42, 0.1, 900, 3200, 0.16);
+		click(0.17, 0.05, 1.3);
+	},
+	close() {
+		swish(0, 0.12, 0.05, 1400, 500, 0.03);
+		tone(120, 0.16, 'sine', 0.2, 0.02, 0.55);
+	},
+	hover() {
+		click(0, 0.04, 0.9);
 	}
 };
 
@@ -302,6 +550,15 @@ const DELAY: Partial<Record<SampleName, number>> = { build: 0.5 };
 
 function play(name: SampleName) {
 	if (!sample(name, DELAY[name] ?? 0)) synth[name]();
+}
+
+let lastHover = -Infinity;
+function hover() {
+	if (muted) return;
+	const t = performance.now();
+	if (t - lastHover < HOVER_GAP_MS) return;
+	lastHover = t;
+	play('hover');
 }
 
 export const sfx = {
@@ -314,5 +571,13 @@ export const sfx = {
 	error: () => play('error'),
 	win: () => play('win'),
 	pop: () => play('pop'),
-	card: () => play('card')
+	card: () => play('card'),
+	/** A soft wooden button tap. */
+	click: () => play('click'),
+	/** A parchment page turning: a menu, sheet or book opening. */
+	open: () => play('open'),
+	/** A small book closing: a menu or sheet closing. */
+	close: () => play('close'),
+	/** A tiny, very quiet wooden tick; at most one every 70 ms. */
+	hover
 };
