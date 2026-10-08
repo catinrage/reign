@@ -5,7 +5,10 @@ import './styles/global.css';
 import { runSandbox } from './sandbox';
 
 async function boot() {
-	await document.fonts.load('700 40px "Pixelify Sans"').catch(() => {});
+	await Promise.all([
+		document.fonts.load('700 40px "Pixelify Sans"'),
+		document.fonts.load('900 40px "Nunito Variable"')
+	]).catch(() => {});
 	const canvas = document.getElementById('world') as HTMLCanvasElement;
 	if (new URLSearchParams(location.search).has('sandbox')) {
 		runSandbox(canvas);

@@ -11,5 +11,5 @@ page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto(url);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 }).catch(() => console.log('not ready'));
 await page.waitForTimeout(Number(wait));
-await page.screenshot({ path: out });
+await page.screenshot({ path: out, animations: 'disabled' });
 await browser.close();

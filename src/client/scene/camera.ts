@@ -11,7 +11,7 @@ export class CameraRig {
 	radius = 330;
 
 	private goal = { target: new THREE.Vector3(0, 0, 8), azimuth: -0.62, polar: 0.86, radius: 330 };
-	limits = { minPolar: 0.25, maxPolar: 1.18, minRadius: 110, maxRadius: 620, pan: 150 };
+	limits = { minPolar: 0.25, maxPolar: 1.18, minRadius: 110, maxRadius: 720, pan: 150 };
 	autoRotate = 0;
 	enabled = true;
 	/** True if the last pointer gesture moved enough to count as a drag, not a click. */

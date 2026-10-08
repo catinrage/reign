@@ -103,7 +103,7 @@ export class Room {
 		const isHost = seat.id === this.hostId;
 		switch (msg.t) {
 			case 'setName':
-				if (this.started) return;
+				if (this.started && this.game!.phase !== 'ended') return;
 				seat.name = cleanName(msg.name) || seat.name;
 				return this.broadcastLobby();
 			case 'setColor':
@@ -133,7 +133,7 @@ export class Room {
 				this.seats = this.seats.filter((s) => s.id !== msg.seat || !s.isBot);
 				return this.broadcastLobby();
 			case 'start':
-				if (!isHost || this.started) return;
+				if (!isHost || (this.game && this.game.phase !== 'ended')) return;
 				if (this.seats.length < MIN_PLAYERS) {
 					return send(ws, { t: 'error', message: 'You need at least two players. Add a bot!' });
 				}

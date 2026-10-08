@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+await page.goto('http://localhost:8787/' + (process.argv[2] ?? ''));
+await page.waitForTimeout(8000);
+const a = await page.evaluate(() => [document.timeline.currentTime, performance.now()]);
+await page.waitForTimeout(3000);
+const b = await page.evaluate(() => [document.timeline.currentTime, performance.now()]);
+const fps = await page.evaluate(() => new Promise((r) => { let n = 0; const t0 = performance.now(); const f = () => { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(f); else r(n / 3); }; requestAnimationFrame(f); }));
+console.log({ a, b, fps });
+await browser.close();

@@ -53,7 +53,7 @@ export class BoardView {
 		for (const p of this.build.ports) {
 			const tok = harborToken(p.kind === 'any' ? null : icons.canvases[p.kind], p.ratio, p.kind);
 			tok.position.set(p.x, SEA_Y + 1.2, p.z);
-			tok.scale.setScalar(0.9);
+			tok.scale.setScalar(0.78);
 			this.faces.push(tok);
 			this.group.add(tok);
 			const ship = cloneModel(shipModel());

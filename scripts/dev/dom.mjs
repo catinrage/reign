@@ -1,0 +1,23 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && errors.push(m.type() + ' ' + m.text()));
+await page.goto('http://localhost:8787/?autoplay');
+await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
+await page.click('text=Quick game vs 3 bots');
+await page.waitForFunction(() => window.__client?.view, null, { timeout: 30000 });
+await page.waitForTimeout(12000);
+const info = await page.evaluate(() => {
+	const pr = document.querySelector('.prompt');
+	const cs = pr && getComputedStyle(pr);
+	const line = document.querySelector('.lines .line');
+	const ls = line && getComputedStyle(line);
+	window.__dbg = { op: cs?.opacity, anim: cs?.animationName, vis: cs?.visibility, lineOp: ls?.opacity, lineAnim: ls?.animationName, lineColor: ls?.color, anims: document.getAnimations().map(a => [a.animationName, a.playState, a.currentTime]).slice(0, 12) };
+	const lines = [...document.querySelectorAll('.lines .line')].map((l) => l.textContent.trim());
+	const box = document.querySelector('.lines');
+	return { dbg: window.__dbg, prompt: pr ? [pr.textContent, JSON.stringify(pr.getBoundingClientRect())] : null, lines: lines.slice(-12), nLines: lines.length, box: box && [box.scrollTop, box.scrollHeight, box.clientHeight], log: window.__client.view.log.slice(-5).map((e) => e.type) };
+});
+console.log(JSON.stringify(info, null, 1), errors.slice(0, 10));
+await browser.close();

@@ -1,0 +1,22 @@
+// Dev: play a quick autoplay game for N seconds, then take close-up screenshots.
+import { chromium } from 'playwright';
+const [out = '/tmp/closeup', secs = '50', w = '1600', h = '900'] = process.argv.slice(2);
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) }, deviceScaleFactor: Number(w) < 800 ? 2 : 1, hasTouch: Number(w) < 800 });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+await page.goto('http://localhost:8787/?autoplay');
+await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
+await page.click('text=Quick game vs 3 bots');
+await page.waitForFunction(() => window.__client?.view, null, { timeout: 30000 });
+await page.waitForTimeout(Number(secs) * 1000);
+await page.screenshot({ path: `${out}-a.png`, animations: 'disabled', timeout: 90000 });
+await page.evaluate(() => window.__scene.stage.rig.set({ radius: 140, polar: 0.75, azimuth: -0.3 }, true));
+await page.waitForTimeout(2500);
+await page.screenshot({ path: `${out}-b.png`, animations: 'disabled', timeout: 90000 });
+await page.evaluate(() => window.__scene.stage.rig.set({ radius: 90, polar: 0.95, azimuth: 2.2 }, true));
+await page.waitForTimeout(2500);
+await page.screenshot({ path: `${out}-c.png`, animations: 'disabled', timeout: 90000 });
+console.log(JSON.stringify({ errors: errors.slice(0, 10) }));
+await browser.close();
