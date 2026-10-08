@@ -15,6 +15,8 @@ export interface LobbyInfo {
 	seats: LobbySeat[];
 	started: boolean;
 	maxPlayers: number;
+	/** Every player at the table has the game menu open, so bots wait too. */
+	paused: boolean;
 }
 
 export type ClientMessage =
@@ -27,6 +29,7 @@ export type ClientMessage =
 	| { t: 'start' }
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }
+	| { t: 'pause'; paused: boolean }
 	| { t: 'leave' }
 	| { t: 'ping' };
 

@@ -10,7 +10,7 @@ export function startAutoplay(delay = 250) {
 	let lastKey = '';
 	let perTurn = 0;
 	let turnKey = '';
-	setInterval(() => {
+	const timer = setInterval(() => {
 		const v = client.view;
 		if (!v || v.me < 0 || v.phase === 'ended') return;
 		const key = `${v.version}:${v.log.length}`;
@@ -36,4 +36,5 @@ export function startAutoplay(delay = 250) {
 		if (v.current === v.me) perTurn++;
 		client.act(action);
 	}, delay);
+	(window as any).__stopAutoplay = () => clearInterval(timer);
 }

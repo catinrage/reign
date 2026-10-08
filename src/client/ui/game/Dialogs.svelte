@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { RESOURCE_LABEL, emptyResources, type Resource } from '../../../shared/rules/config';
 	import { client } from '../../state/client.svelte';
-	import { RESOURCES, myTurn, playerColor } from '../helpers';
+	import { RESOURCES, myTurn } from '../helpers';
+	import Modal from '../menu/Modal.svelte';
+	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
 	import { dialogs } from './dialogs.svelte';
 
@@ -26,81 +28,118 @@
 		if (!res || picked >= mustDiscard || discard[r] >= res[r]) return;
 		discard[r]++;
 	}
+	function addYop(r: Resource) {
+		if (yop.length < 2 && view.bank[r] > yop.filter((x) => x === r).length) yop = [...yop, r];
+	}
 </script>
 
 {#if mustDiscard && res}
-	<div class="modal-backdrop">
-		<div class="modal panel">
-			<h2>The robber strikes!</h2>
-			<p>You have more than 7 cards. Choose {mustDiscard} to give back to the bank.</p>
-			<div class="row">
-				{#each RESOURCES as r}
-					<div class="col">
-						<ResCard res={r} count={res[r] - discard[r]} size={54} dim={res[r] - discard[r] === 0} onclick={() => addDiscard(r)} />
-						{#if discard[r]}<button class="chip" onclick={() => discard[r]--}>−{discard[r]}</button>{/if}
-					</div>
-				{/each}
-			</div>
-			<div class="foot">
-				<span class="count title">{picked} / {mustDiscard}</span>
-				<button class="btn red" disabled={picked !== mustDiscard} onclick={() => client.act({ type: 'discard', resources: { ...discard } })}>Discard</button>
-			</div>
+	<Modal title="The robber strikes!" ribbon="crimson" width={480}>
+		<p>You hold more than 7 cards. Pick {mustDiscard} to give back to the bank.</p>
+		<div class="row">
+			{#each RESOURCES as r (r)}
+				<div class="col">
+					<ResCard
+						res={r}
+						count={res[r] - discard[r]}
+						size={58}
+						dim={res[r] - discard[r] === 0}
+						onclick={() => addDiscard(r)}
+					/>
+					<button
+						class="chip"
+						class:on={discard[r] > 0}
+						disabled={!discard[r]}
+						onclick={() => discard[r]--}
+					>
+						{discard[r] ? `−${discard[r]}` : '·'}
+					</button>
+				</div>
+			{/each}
 		</div>
-	</div>
+		<div class="foot spread">
+			<span class="progress"
+				><span class="coin">{picked}</span><span class="of">of {mustDiscard}</span></span
+			>
+			<button
+				class="btn red"
+				disabled={picked !== mustDiscard}
+				onclick={() => client.act({ type: 'discard', resources: { ...discard } })}>Discard</button
+			>
+		</div>
+	</Modal>
 {/if}
 
 {#if choosingVictim}
-	<div class="modal-backdrop">
-		<div class="modal panel">
-			<h2>Rob someone</h2>
-			<p>Take a random card from one player next to the robber.</p>
-			<div class="victims">
-				{#each view.stealCandidates as v}
-					<button class="btn wood victim" onclick={() => client.act({ type: 'steal', victim: v })}>
-						<span class="swatch" style="background:{playerColor(view, v)}"></span>
-						{view.players[v].name}
-						<small>{view.players[v].resourceCount} cards</small>
-					</button>
-				{/each}
-			</div>
+	<Modal title="Rob a neighbor" ribbon="crimson" width={400}>
+		<p>Take a random card from one player beside the robber.</p>
+		<div class="victims">
+			{#each view.stealCandidates as v (v)}
+				{@const p = view.players[v]}
+				<button
+					class="btn wood block victim"
+					onclick={() => client.act({ type: 'steal', victim: v })}
+				>
+					<span class="shield" style="--shield: var(--art-shield-{p.color})"
+						>{p.name.slice(0, 1).toUpperCase()}</span
+					>
+					<span class="vname">{p.name}</span>
+					<small><img class="icon-px" src={PIXEL.cards} alt="" />{p.resourceCount}</small>
+				</button>
+			{/each}
 		</div>
-	</div>
+	</Modal>
 {/if}
 
 {#if dialogs.open === 'yearOfPlenty'}
-	<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && (dialogs.open = null)} role="presentation">
-		<div class="modal panel">
-			<h2>Year of Plenty</h2>
-			<p>Take any two resources from the bank.</p>
-			<div class="row">
-				{#each RESOURCES as r}
-					<ResCard res={r} size={54} count={yop.filter((x) => x === r).length || undefined} dim={view.bank[r] === 0} onclick={() => yop.length < 2 && view.bank[r] > yop.filter((x) => x === r).length && (yop = [...yop, r])} />
-				{/each}
-			</div>
-			<div class="foot">
-				<button class="btn wood" onclick={() => (yop.length ? (yop = []) : (dialogs.open = null))}>{yop.length ? 'Reset' : 'Cancel'}</button>
-				<button class="btn green" disabled={yop.length !== 2} onclick={() => { client.act({ type: 'playYearOfPlenty', resources: [yop[0], yop[1]] }); dialogs.open = null; }}>Take them</button>
-			</div>
+	<Modal title="Year of Plenty" width={480} onclose={() => (dialogs.open = null)}>
+		<p>Take any two resources from the bank.</p>
+		<div class="row">
+			{#each RESOURCES as r (r)}
+				<ResCard
+					res={r}
+					size={58}
+					count={yop.filter((x) => x === r).length || undefined}
+					dim={view.bank[r] === 0}
+					onclick={() => addYop(r)}
+				/>
+			{/each}
 		</div>
-	</div>
+		<div class="foot">
+			<button class="btn wood" onclick={() => (yop.length ? (yop = []) : (dialogs.open = null))}
+				>{yop.length ? 'Reset' : 'Cancel'}</button
+			>
+			<button
+				class="btn green"
+				disabled={yop.length !== 2}
+				onclick={() => {
+					client.act({ type: 'playYearOfPlenty', resources: [yop[0], yop[1]] });
+					dialogs.open = null;
+				}}>Take them</button
+			>
+		</div>
+	</Modal>
 {/if}
 
 {#if dialogs.open === 'monopoly'}
-	<div class="modal-backdrop" onclick={(e) => e.target === e.currentTarget && (dialogs.open = null)} role="presentation">
-		<div class="modal panel">
-			<h2>Monopoly</h2>
-			<p>Name a resource. Every other player hands you all of theirs.</p>
-			<div class="row">
-				{#each RESOURCES as r}
-					<div class="col">
-						<ResCard res={r} size={54} onclick={() => { client.act({ type: 'playMonopoly', resource: r }); dialogs.open = null; }} />
-						<span class="nm">{RESOURCE_LABEL[r]}</span>
-					</div>
-				{/each}
-			</div>
-			<div class="foot"><button class="btn wood" onclick={() => (dialogs.open = null)}>Cancel</button></div>
+	<Modal title="Monopoly" width={480} onclose={() => (dialogs.open = null)}>
+		<p>Name a resource. Every other player hands you all of theirs.</p>
+		<div class="row">
+			{#each RESOURCES as r (r)}
+				<div class="col">
+					<ResCard
+						res={r}
+						size={58}
+						onclick={() => {
+							client.act({ type: 'playMonopoly', resource: r });
+							dialogs.open = null;
+						}}
+					/>
+					<span class="nm">{RESOURCE_LABEL[r]}</span>
+				</div>
+			{/each}
 		</div>
-	</div>
+	</Modal>
 {/if}
 
 <style>
@@ -108,7 +147,8 @@
 		display: flex;
 		gap: 10px;
 		justify-content: center;
-		padding-top: 10px;
+		padding-top: 12px;
+		flex-wrap: wrap;
 	}
 	.col {
 		display: flex;
@@ -118,24 +158,39 @@
 	}
 	.chip {
 		all: unset;
-		cursor: pointer;
+		min-width: 30px;
+		text-align: center;
 		font-family: var(--px);
+		font-weight: 700;
 		font-size: 13px;
-		padding: 1px 7px;
-		border-radius: 6px;
-		background: #8a2a1a;
+		padding: 1px 6px;
+		color: var(--muted);
+	}
+	.chip.on {
+		cursor: pointer;
 		color: #ffe1d6;
+		background: #8a2a1a;
+		box-shadow:
+			inset 0 2px 0 #c2402a,
+			0 0 0 2px #2a0804;
 	}
-	.foot {
-		display: flex;
+	.foot.spread {
 		justify-content: space-between;
-		align-items: center;
-		margin-top: 18px;
-		gap: 10px;
 	}
-	.count {
-		font-size: 22px;
-		color: var(--gold);
+	.progress {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.progress .coin {
+		--s: 2.5px;
+		font-size: 18px;
+	}
+	.of {
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 18px;
+		color: var(--muted);
 	}
 	.victims {
 		display: flex;
@@ -144,16 +199,42 @@
 	}
 	.victim {
 		justify-content: flex-start;
+		gap: 12px;
 		font-size: 19px;
 	}
+	.victim .shield {
+		--s: 2.2px;
+		font-size: 15px;
+	}
+	.vname {
+		flex: 1;
+		text-align: left;
+	}
 	.victim small {
-		margin-left: auto;
-		font-size: 13px;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 15px;
 		color: var(--muted);
 	}
+	.victim small img {
+		width: 18px;
+		height: 18px;
+	}
 	.nm {
-		font-size: 12px;
+		font-family: var(--px);
+		font-size: 13px;
 		color: var(--muted);
 		font-weight: 700;
+	}
+	@media (max-width: 480px) {
+		.row {
+			gap: 6px;
+			flex-wrap: nowrap;
+		}
+		.row :global(.card) {
+			--w: 50px !important;
+			--cp: 2px !important;
+		}
 	}
 </style>

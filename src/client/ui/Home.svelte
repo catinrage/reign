@@ -1,143 +1,383 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { LogoView } from '../scene/logo';
 	import { client } from '../state/client.svelte';
+	import CodeTiles from './menu/CodeTiles.svelte';
+	import Embers from './menu/Embers.svelte';
+	import HowToPlay from './menu/HowToPlay.svelte';
+	import Modal from './menu/Modal.svelte';
+	import Settings from './menu/Settings.svelte';
+	import { sideLayout } from './menu/sideLayout';
+	import { PIXEL } from './pixel';
+	import { isMuted, setMuted, sfx } from './sound';
 
-	let code = $state(new URLSearchParams(location.search).get('room') ?? '');
+	const NAMES = [
+		'Aldric',
+		'Brenna',
+		'Corwin',
+		'Dagny',
+		'Elric',
+		'Freya',
+		'Gideon',
+		'Hilde',
+		'Ivo',
+		'Jorunn',
+		'Kestrel',
+		'Leif',
+		'Maren',
+		'Osric',
+		'Petra',
+		'Rowan',
+		'Sigrid',
+		'Tamsin',
+		'Ulric',
+		'Wren'
+	];
+
+	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let name = $state(client.name);
+	let muted = $state(isMuted());
+	let sheet = $state<'help' | 'settings' | null>(null);
+	let canvas: HTMLCanvasElement | undefined = $state();
+	let logoOk = $state(true);
+	const busy = $derived(client.pendingJoin || client.status !== 'online');
+
+	onMount(sideLayout);
+
+	onMount(() => {
+		if (!canvas) return;
+		let logo: LogoView | null = null;
+		try {
+			logo = new LogoView(canvas);
+		} catch {
+			// No second WebGL context: show the title as text instead.
+			logoOk = false;
+		}
+		const onResize = () => logo?.resize();
+		window.addEventListener('resize', onResize);
+		return () => {
+			window.removeEventListener('resize', onResize);
+			logo?.dispose();
+		};
+	});
 
 	function commitName() {
 		client.setName(name.trim().slice(0, 18));
+	}
+	function randomName() {
+		const pool = NAMES.filter((n) => n !== name);
+		name = pool[Math.floor(Math.random() * pool.length)];
+		commitName();
+	}
+	function play() {
+		commitName();
+		client.quickPlay(3);
 	}
 	function create() {
 		commitName();
 		client.create();
 	}
 	function join() {
+		if (code.length !== 5 || busy) return;
 		commitName();
 		client.join(code);
+	}
+	function openSheet(s: 'help' | 'settings') {
+		sfx.open();
+		sheet = s;
+	}
+	function closeSheet() {
+		sfx.close();
+		sheet = null;
+	}
+	function toggleSound() {
+		muted = !muted;
+		setMuted(muted);
 	}
 </script>
 
 <div class="home">
-	<div class="logo">
-		<h1 class="title">REIGN</h1>
-		<div class="sub title">settle · trade · build</div>
-	</div>
+	<Embers />
+	<div class="column">
+		<header class="crest">
+			<div class="logo">
+				<canvas bind:this={canvas} aria-label="Reign"></canvas>
+				{#if !logoOk}<h1 class="title">REIGN</h1>{/if}
+			</div>
+			<div class="ribbon tagline">Settle <i>·</i> Trade <i>·</i> Build</div>
+		</header>
 
-	<div class="card panel">
-		<label class="field">
-			<span class="title">Your name</span>
-			<input
-				class="input"
-				bind:value={name}
-				maxlength="18"
-				placeholder="Settler"
-				onchange={commitName}
-				onkeydown={(e) => e.key === 'Enter' && create()}
-			/>
-		</label>
-		<button class="btn big green" onclick={create} disabled={client.pendingJoin || client.status !== 'online'}>
-			Create a game
-		</button>
-		<button class="btn wood" onclick={() => { commitName(); client.quickPlay(3); }} disabled={client.pendingJoin || client.status !== 'online'}>
-			Quick game vs 3 bots
-		</button>
-		<div class="or title"><span>or join a friend</span></div>
-		<div class="join">
-			<input
-				class="input code"
-				bind:value={code}
-				maxlength="5"
-				placeholder="CODE"
-				oninput={() => (code = code.toUpperCase().replace(/[^A-Z]/g, ''))}
-				onkeydown={(e) => e.key === 'Enter' && join()}
-			/>
-			<button class="btn" onclick={join} disabled={code.length !== 5 || client.pendingJoin || client.status !== 'online'}>Join</button>
+		<div class="sign panel">
+			<label class="field">
+				<span class="label">Your name</span>
+				<div class="name-row">
+					<input
+						class="input"
+						bind:value={name}
+						maxlength="18"
+						placeholder="Settler"
+						onchange={commitName}
+						onkeydown={(e) => e.key === 'Enter' && play()}
+					/>
+					<button
+						class="icon-btn dice"
+						onclick={randomName}
+						title="Pick a random name"
+						aria-label="Random name"
+					>
+						<img src={PIXEL.die} alt="" />
+					</button>
+				</div>
+			</label>
+
+			<button class="btn big block shine" onclick={play} disabled={busy}>
+				<img src={PIXEL.play} alt="" />
+				<span class="stack"
+					>Play vs bots<span class="sub">Three rivals, start right away</span></span
+				>
+			</button>
+			<button class="btn green block" onclick={create} disabled={busy}>
+				<img src={PIXEL.house} alt="" />
+				<span class="stack">Create a room<span class="sub">Invite friends with a code</span></span>
+			</button>
+
+			<div class="divider"><i></i><span>or join a friend</span><i></i></div>
+
+			<div class="join">
+				<CodeTiles bind:value={code} editable onenter={join} />
+				<button class="btn wood" onclick={join} disabled={code.length !== 5 || busy}>Join</button>
+			</div>
 		</div>
+
+		<nav class="extras">
+			<button class="medal" onclick={() => openSheet('help')}>
+				<span class="icon-btn"><img src={PIXEL.book} alt="" /></span>
+				<span class="cap">How to play</span>
+			</button>
+			<button class="medal" onclick={() => openSheet('settings')}>
+				<span class="icon-btn"><img src={PIXEL.gear} alt="" /></span>
+				<span class="cap">Settings</span>
+			</button>
+			<button class="medal" onclick={toggleSound}>
+				<span class="icon-btn"><img src={muted ? PIXEL.mute : PIXEL.speaker} alt="" /></span>
+				<span class="cap">{muted ? 'Sound off' : 'Sound on'}</span>
+			</button>
+		</nav>
 	</div>
-	<p class="hint">Create a game, then send the link to your friends. Add bots to fill empty seats.</p>
+	<footer>A voxel island game for 2 to 4 players</footer>
 </div>
+
+{#if sheet === 'help'}
+	<Modal title="How to play" frame="parch" width={760} onclose={closeSheet}><HowToPlay /></Modal>
+{:else if sheet === 'settings'}
+	<Modal title="Settings" width={460} onclose={closeSheet}><Settings /></Modal>
+{/if}
 
 <style>
 	.home {
 		position: absolute;
 		inset: 0;
+		overflow-y: auto;
+		overflow-x: hidden;
+		pointer-events: auto;
+		background:
+			radial-gradient(ellipse 70% 60% at 50% 46%, transparent 35%, rgba(12, 5, 2, 0.6) 100%),
+			linear-gradient(
+				180deg,
+				rgba(12, 5, 2, 0.45),
+				transparent 30%,
+				transparent 70%,
+				rgba(12, 5, 2, 0.5)
+			);
+	}
+	.column {
+		position: relative;
+		min-height: 100%;
+		box-sizing: border-box;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 22px;
-		padding: 16px;
-		background: radial-gradient(ellipse at 50% 55%, transparent 30%, rgba(10, 5, 2, 0.55) 100%);
+		gap: 14px;
+		padding: 10px 16px 44px;
+	}
+	.crest {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		animation: drop-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) both;
 	}
 	.logo {
-		text-align: center;
+		width: min(700px, 94vw);
+		aspect-ratio: 700 / 230;
+		margin-bottom: -18px;
 		pointer-events: none;
 	}
-	h1 {
+	.logo {
+		position: relative;
+	}
+	.logo canvas {
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+	.logo h1 {
+		position: absolute;
+		inset: 0;
 		margin: 0;
+		display: grid;
+		place-items: center;
 		font-size: clamp(64px, 13vw, 132px);
-		line-height: 0.9;
 		color: #ffd86b;
+		letter-spacing: 0.08em;
 		text-shadow:
 			0 4px 0 #c9781a,
 			0 8px 0 #8a4410,
 			0 12px 0 #4a2008,
 			0 18px 24px rgba(0, 0, 0, 0.6);
-		letter-spacing: 0.08em;
 	}
-	.sub {
-		margin-top: 18px;
-		font-size: 20px;
-		color: #fbe3b8;
-		text-shadow: 0 2px 0 #3a1c0a;
-		letter-spacing: 0.3em;
+	.tagline {
+		--rib: var(--art-ribbon-crimson);
+		font-size: 18px;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
+		padding-left: calc(var(--s) * 6);
+		padding-right: calc(var(--s) * 6);
 	}
-	.card {
+	.tagline i {
+		font-style: normal;
+		color: var(--gold);
+	}
+	.sign {
+		width: min(400px, 100%);
 		display: flex;
 		flex-direction: column;
-		gap: 14px;
-		padding: 22px;
-		width: min(380px, 100%);
-		box-sizing: border-box;
+		gap: 12px;
+		padding: 10px 12px 14px;
+		animation: pop-in 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) 0.15s both;
 	}
 	.field {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		font-size: 15px;
-		color: var(--muted);
 	}
-	.or {
+	.name-row {
 		display: flex;
+		gap: 8px;
 		align-items: center;
-		gap: 10px;
-		color: var(--muted);
-		font-size: 14px;
 	}
-	.or::before,
-	.or::after {
-		content: '';
+	.name-row .input {
 		flex: 1;
-		height: 2px;
-		background: rgba(255, 220, 170, 0.18);
+		min-width: 0;
+	}
+	.dice {
+		width: calc(var(--s) * 14);
+		height: calc(var(--s) * 14);
+		flex: none;
+	}
+	.dice:active img {
+		transform: rotate(90deg);
+	}
+	.sign .btn.block {
+		justify-content: flex-start;
+		gap: 12px;
+		padding-left: calc(var(--s) * 4);
+	}
+	.sign .btn img {
+		height: calc(var(--s) * 9);
 	}
 	.join {
 		display: flex;
 		gap: 10px;
+		align-items: center;
+		justify-content: space-between;
 	}
-	.code {
+	.join .btn {
 		flex: 1;
-		min-width: 0;
-		text-transform: uppercase;
-		letter-spacing: 0.3em;
-		text-align: center;
+		min-height: calc(var(--s) * 13);
 	}
-	.hint {
-		margin: 0;
-		color: #e9cfa8;
+	.extras {
+		display: flex;
+		gap: 22px;
+		animation: fade-in 0.6s ease-out 0.4s both;
+	}
+	.medal {
+		all: unset;
+		pointer-events: auto;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		cursor: pointer;
+	}
+	.medal:hover .icon-btn {
+		filter: brightness(1.15);
+		transform: translateY(-1px);
+	}
+	.medal:active .icon-btn {
+		border-image-source: var(--art-btn-wood-down);
+		transform: translateY(var(--s));
+	}
+	.medal:focus-visible .icon-btn {
+		filter: drop-shadow(0 0 5px rgba(255, 210, 90, 0.9));
+	}
+	.cap {
+		font-family: var(--px);
+		font-weight: 700;
 		font-size: 14px;
-		text-shadow: 0 1px 2px #000;
+		color: #fff2d2;
+		text-shadow: var(--outline-dark);
+	}
+	footer {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 10px;
 		text-align: center;
+		font-size: 13px;
+		font-weight: 700;
+		color: rgba(255, 236, 205, 0.6);
+		text-shadow: 0 1px 2px #000;
+		pointer-events: none;
+	}
+	@media (min-width: 1100px) and (min-aspect-ratio: 4/3) {
+		.column {
+			align-items: flex-start;
+			width: 600px;
+			margin-left: max(24px, 4vw);
+		}
+		.crest,
+		.sign,
+		.extras {
+			align-self: center;
+		}
+		.logo {
+			width: 580px;
+		}
+		.sign {
+			width: 420px;
+		}
+		footer {
+			text-align: left;
+			left: max(40px, 5vw);
+		}
+	}
+	@media (max-height: 760px) and (min-width: 701px) {
+		.logo {
+			width: min(560px, 80vw);
+		}
+	}
+	@media (max-width: 700px) {
+		.column {
+			justify-content: flex-start;
+			padding-top: 18px;
+			gap: 12px;
+		}
+		.tagline {
+			font-size: 14px;
+		}
+		.extras {
+			gap: 16px;
+		}
 	}
 </style>

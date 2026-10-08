@@ -4,6 +4,8 @@ import { GameScene } from './scene/gameScene';
 import { getIcons } from './scene/icons';
 import { client } from './state/client.svelte';
 import App from './ui/App.svelte';
+import { installArt } from './ui/art';
+import { applySettings } from './ui/settings.svelte';
 import { sceneRef } from './ui/sceneRef';
 import { armAudio } from './ui/sound';
 
@@ -14,6 +16,8 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	} catch {
 		/* ignore */
 	}
+	installArt();
+	applySettings();
 	getIcons();
 	sceneRef.current = new GameScene(canvas, quality);
 	(window as any).__scene = sceneRef.current;

@@ -1,15 +1,22 @@
 <script lang="ts">
-	import { DEV_CARDS, DEV_CARD_LABEL, DEV_CARD_TEXT, type DevCardType } from '../../../shared/rules/config';
+	import {
+		DEV_CARDS,
+		DEV_CARD_LABEL,
+		DEV_CARD_TEXT,
+		type DevCardType
+	} from '../../../shared/rules/config';
 	import { client } from '../../state/client.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
 	import { dialogs } from './dialogs.svelte';
+	import { ui } from './ui.svelte';
 
 	const view = $derived(client.view!);
 	const me = $derived(view.players[view.me]);
 	const res = $derived(me?.resources);
 	const dev = $derived(me?.devCards ?? []);
+	const total = $derived(res ? RESOURCES.reduce((n, r) => n + res[r], 0) : 0);
 	const groups = $derived(
 		DEV_CARDS.map((type) => ({
 			type,
@@ -17,6 +24,8 @@
 			ready: dev.filter((c) => c.type === type && c.boughtTurn < view.turn).length
 		})).filter((g) => g.total > 0)
 	);
+	// On phones the build bar sits under the hand, so the hand moves up while it shows.
+	const raised = $derived(myTurn(view) && view.step === 'main' && !ui.trade);
 	const canPlay = $derived(
 		myTurn(view) && (view.step === 'roll' || view.step === 'main') && !view.devCardPlayedThisTurn
 	);
@@ -30,26 +39,40 @@
 </script>
 
 {#if res}
-	<div class="hand">
-		<div class="res">
-			{#each RESOURCES as r}
-				<div class="slot" data-hand={r}>
-					{#key res[r]}
-						<div class="bump"><ResCard res={r} count={res[r]} dim={res[r] === 0} size={58} /></div>
-					{/key}
-				</div>
-			{/each}
+	<div class="hand" class:raised>
+		<div class="tray panel">
+			<div class="cards">
+				{#each RESOURCES as r, i (r)}
+					<div class="slot" data-hand={r} style="--i:{i - 2}">
+						{#key res[r]}
+							<div class="bump">
+								<ResCard res={r} count={res[r]} dim={res[r] === 0} size={58} />
+							</div>
+						{/key}
+					</div>
+				{/each}
+			</div>
+			<div
+				class="total"
+				class:warn={total > 7}
+				title={total > 7 ? 'More than 7 cards: you will discard half on a 7' : 'Cards in hand'}
+			>
+				<img class="icon-px" src={PIXEL.cards} alt="" />{total}
+			</div>
 		</div>
 		{#if groups.length}
 			<div class="dev">
-				{#each groups as g}
+				{#each groups as g (g.type)}
 					{@const playable = canPlay && g.type !== 'victoryPoint' && g.ready > 0}
 					<button
 						class="devcard"
 						class:playable
 						disabled={!playable}
 						onclick={() => play(g.type)}
-						title="{DEV_CARD_LABEL[g.type]}: {DEV_CARD_TEXT[g.type]}{g.ready < g.total && g.type !== 'victoryPoint' ? ' (new cards can be played next turn)' : ''}"
+						title="{DEV_CARD_LABEL[g.type]}: {DEV_CARD_TEXT[g.type]}{g.ready < g.total &&
+						g.type !== 'victoryPoint'
+							? ' (new cards can be played next turn)'
+							: ''}"
 					>
 						<img class="icon-px" src={PIXEL[g.type]} alt="" />
 						<span class="dname">{DEV_CARD_LABEL[g.type]}</span>
@@ -64,59 +87,97 @@
 <style>
 	.hand {
 		position: absolute;
-		bottom: 14px;
+		bottom: 10px;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
 		align-items: flex-end;
-		gap: 16px;
+		gap: 12px;
 		pointer-events: none;
 	}
-	.res {
+	.tray {
+		position: relative;
+		padding: 16px 12px 4px;
+		pointer-events: auto;
+	}
+	.cards {
 		display: flex;
-		gap: 8px;
-		padding: 12px 12px 10px;
-		border-radius: 12px;
-		background: linear-gradient(180deg, rgba(40, 22, 12, 0.55), rgba(30, 16, 8, 0.85));
-		border: 2px solid rgba(20, 10, 4, 0.8);
-		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+		gap: 6px;
+	}
+	.slot {
+		transform: rotate(calc(var(--i) * 2.5deg)) translateY(calc(var(--i) * var(--i) * 1.5px));
+		transition: transform 0.15s;
+	}
+	.slot:hover {
+		transform: rotate(0deg) translateY(-8px);
+		z-index: 2;
 	}
 	.bump {
 		animation: bump 0.35s ease-out;
 	}
 	@keyframes bump {
 		40% {
-			transform: translateY(-10px) scale(1.08);
+			transform: translateY(-12px) scale(1.1);
 		}
+	}
+	.total {
+		position: absolute;
+		top: -14px;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 10px 3px;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 14px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+		border-style: solid;
+		border-width: calc(var(--s) * 3);
+		border-image: var(--art-plaque) 4 fill / calc(var(--s) * 3) round;
+		white-space: nowrap;
+	}
+	.total img {
+		width: 16px;
+		height: 16px;
+	}
+	.total.warn {
+		color: #ffb09a;
 	}
 	.dev {
 		display: flex;
-		flex-direction: column;
+		flex-direction: column-reverse;
 		gap: 6px;
+		pointer-events: auto;
 	}
 	.devcard {
 		position: relative;
-		pointer-events: auto;
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 6px 12px 6px 8px;
+		min-width: 150px;
+		padding: 0 10px 0 4px;
+		height: 44px;
+		box-sizing: border-box;
+		border-style: solid;
+		border-width: 6px;
+		border-image: var(--art-card-dev) 3 fill / 6px stretch;
+		background: none;
 		font-family: var(--px);
 		font-size: 14px;
 		font-weight: 700;
-		color: #fff3dc;
-		background: linear-gradient(180deg, #7b55c4, #553296);
-		border: 2px solid #261340;
-		border-radius: 8px;
-		box-shadow:
-			inset 0 2px 0 rgba(255, 255, 255, 0.3),
-			0 3px 0 #1a0c30;
+		color: #fff3ff;
+		text-shadow: 0 2px 0 rgba(30, 10, 60, 0.8);
 		cursor: default;
-		opacity: 0.75;
+		opacity: 0.7;
+		filter: drop-shadow(0 3px 0 rgba(20, 8, 40, 0.6));
+		transition: transform 0.15s;
 	}
 	.devcard img {
-		width: 24px;
-		height: 24px;
+		width: 26px;
+		height: 26px;
 	}
 	.devcard.playable {
 		opacity: 1;
@@ -124,29 +185,43 @@
 		animation: bob 1.6s ease-in-out infinite;
 	}
 	.devcard.playable:hover {
-		filter: brightness(1.15);
+		transform: translateX(-4px);
+		filter: brightness(1.15) drop-shadow(0 0 6px rgba(190, 150, 255, 0.9));
 	}
 	.n {
 		position: absolute;
-		top: -8px;
-		right: -8px;
-		background: #2a170d;
-		border: 2px solid var(--gold);
-		border-radius: 999px;
-		padding: 0 6px;
-		font-size: 12px;
+		top: -14px;
+		right: -14px;
+		width: 24px;
+		height: 24px;
+		background: var(--art-badge) center / 100% 100%;
+		display: grid;
+		place-items: center;
+		font-size: 13px;
+		color: #fff3d6;
 	}
 	@media (max-width: 900px) {
 		.hand {
-			bottom: 74px;
-			gap: 8px;
+			bottom: 64px;
+			gap: 6px;
 		}
-		.res {
-			gap: 4px;
-			padding: 8px;
+		.hand.raised {
+			bottom: 156px;
 		}
-		.res :global(.card) {
+		.tray {
+			padding: 12px 6px 2px;
+		}
+		.cards {
+			gap: 3px;
+		}
+		.cards :global(.card) {
 			--w: 44px !important;
+			--cp: 2px !important;
+		}
+		.devcard {
+			min-width: 0;
+			height: 40px;
+			padding-right: 4px;
 		}
 		.dname {
 			display: none;

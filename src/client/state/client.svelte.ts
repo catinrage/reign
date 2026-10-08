@@ -31,6 +31,8 @@ class GameClient {
 	name = $state<string>(storage('reign:name') ?? '');
 	toasts = $state<Toast[]>([]);
 	pendingJoin = $state(false);
+	/** Whether this player has the game menu open (the table pauses when everyone does). */
+	menuOpen = $state(false);
 
 	private ws: WebSocket | null = null;
 	private retry = 0;
@@ -69,6 +71,7 @@ class GameClient {
 				this.pendingJoin = false;
 				storage(`reign:token:${msg.code}`, msg.token);
 				this.setUrl(msg.code);
+				if (this.menuOpen) this.send({ t: 'pause', paused: true });
 				if (this.autoBots) {
 					for (let i = 0; i < this.autoBots; i++) this.send({ t: 'addBot' });
 					this.autoBots = 0;
@@ -129,7 +132,14 @@ class GameClient {
 		this.send({ t: 'join', code, name: this.name || 'Player', token: storage(`reign:token:${code}`) ?? undefined });
 	}
 
+	setMenuOpen(open: boolean) {
+		if (open === this.menuOpen) return;
+		this.menuOpen = open;
+		if (this.view) this.send({ t: 'pause', paused: open });
+	}
+
 	leave() {
+		this.menuOpen = false;
 		this.send({ t: 'leave' });
 		this.lobby = null;
 		this.view = null;

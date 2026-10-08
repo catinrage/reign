@@ -31,6 +31,8 @@ export class Room {
 	private botTimer: NodeJS.Timeout | null = null;
 	private botActionsThisTurn = 0;
 	private botTurnKey = '';
+	/** Seats that have the game menu open. */
+	private pausedBy = new Set<string>();
 
 	constructor(public code: string) {}
 
@@ -38,11 +40,19 @@ export class Room {
 		return this.game !== null;
 	}
 
+	/** The table pauses only when every connected player has the menu open (a solo game vs bots). */
+	get paused() {
+		if (!this.game || this.game.phase === 'ended') return false;
+		const humans = this.seats.filter((s) => !s.isBot && s.sockets.size > 0);
+		return humans.length > 0 && humans.every((s) => this.pausedBy.has(s.id));
+	}
+
 	lobbyInfo(): LobbyInfo {
 		return {
 			code: this.code,
 			started: this.started,
 			maxPlayers: MAX_PLAYERS,
+			paused: this.paused,
 			seats: this.seats.map(
 				(s): LobbySeat => ({
 					id: s.id,
@@ -75,6 +85,8 @@ export class Room {
 		}
 		seat.sockets.add(ws);
 		seat.lastSeen = Date.now();
+		// A fresh connection starts with the menu closed; the client says so if it is open.
+		this.pausedBy.delete(seat.id);
 		if (!this.hostId || !this.seats.find((s) => s.id === this.hostId && !s.isBot)) {
 			this.hostId = seat.id;
 		}
@@ -86,7 +98,10 @@ export class Room {
 
 	disconnect(ws: WebSocket) {
 		for (const s of this.seats) {
-			if (s.sockets.delete(ws)) s.lastSeen = Date.now();
+			if (s.sockets.delete(ws)) {
+				s.lastSeen = Date.now();
+				if (!s.sockets.size) this.pausedBy.delete(s.id);
+			}
 		}
 		if (!this.started) {
 			// In the lobby an empty seat is just gone.
@@ -137,6 +152,7 @@ export class Room {
 				if (this.seats.length < MIN_PLAYERS) {
 					return send(ws, { t: 'error', message: 'You need at least two players. Add a bot!' });
 				}
+				this.pausedBy.clear();
 				// Random seating order makes the first player fair.
 				this.seats.sort(() => Math.random() - 0.5);
 				this.game = createGame(
@@ -159,6 +175,18 @@ export class Room {
 				if (!text || !this.game) return;
 				this.game = addChat(this.game, this.seatIndex(seat), text);
 				return this.broadcastGame();
+			}
+			case 'pause': {
+				const was = this.paused;
+				if (msg.paused) this.pausedBy.add(seat.id);
+				else this.pausedBy.delete(seat.id);
+				if (this.paused === was) return;
+				if (this.paused && this.botTimer) {
+					clearTimeout(this.botTimer);
+					this.botTimer = null;
+				}
+				this.broadcastLobby();
+				return this.scheduleBots();
 			}
 			case 'leave':
 				seat.sockets.delete(ws);
@@ -202,7 +230,7 @@ export class Room {
 
 	/** Bots (and stand-ins for players who dropped) act one step at a time, with a human-ish pause. */
 	private scheduleBots() {
-		if (this.botTimer || !this.game || this.game.phase === 'ended') return;
+		if (this.botTimer || !this.game || this.game.phase === 'ended' || this.paused) return;
 		const next = this.nextBotMove();
 		if (!next) {
 			// Someone may go AFK later; check back.
@@ -221,7 +249,7 @@ export class Room {
 		if (next.action.type === 'respondTrade') delay += 600;
 		this.botTimer = setTimeout(() => {
 			this.botTimer = null;
-			if (!this.game) return;
+			if (!this.game || this.paused) return;
 			const move = this.nextBotMove();
 			if (move) {
 				const res = applyAction(this.game, move.player, move.action);

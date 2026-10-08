@@ -150,5 +150,252 @@ export const PIXEL = {
 	trade: svg(
 		['....k.....', '....kk....', 'kkkkkyk...', 'kyyyyyyk..', 'kkkkkyk...', '....kk..k.', '....k..kk.', '...kgkkkkk', '..kggggggk', '...kgkkkkk', '....kk....'],
 		{ ...base, y: '#f2c14e', g: '#7fd36b' }
+	),
+	die: svg(
+		[
+			'.kkkkkkkkkk.',
+			'kwwwwwwwwwsk',
+			'kwppwwwwppsk',
+			'kwppwwwwppsk',
+			'kwwwwwwwwwsk',
+			'kwwwwppwwwsk',
+			'kwwwwppwwwsk',
+			'kwwwwwwwwwsk',
+			'kwppwwwwppsk',
+			'kwppwwwwppsk',
+			'kssssssssssk',
+			'.kkkkkkkkkk.'
+		],
+		{ ...base, w: '#fffaf0', s: '#d9cdb4', p: '#3a1f1a' }
+	),
+	hourglass: svg(
+		[
+			'bbbbbbbbbb',
+			'.kwwwwwwk.',
+			'.kyyyyyyk.',
+			'..kyyyyk..',
+			'...kyyk...',
+			'....kk....',
+			'...kwwk...',
+			'..kwwyyk..',
+			'.kwyyyyyk.',
+			'.kyyyyyyk.',
+			'bbbbbbbbbb'
+		],
+		{ ...base, b: '#8a5430', w: '#d8eef5', y: '#f2c14e' }
+	),
+	gear: svg(
+		[
+			'.....kk.....',
+			'..k.kggk.k..',
+			'.kgkggggkgk.',
+			'..kggggggk..',
+			'.kggkkkkggk.',
+			'kggk....kggk',
+			'kggk....kggk',
+			'.kggkkkkggk.',
+			'..kggggggk..',
+			'.kgkggggkgk.',
+			'..k.kggk.k..',
+			'.....kk.....'
+		],
+		{ k: '#4a2c08', g: '#e6b04a' }
+	),
+	book: svg(
+		[
+			'.kkkk..kkkk.',
+			'kppppkkppppk',
+			'kpllpkkpllpk',
+			'kppppkkppppk',
+			'kpllpkkpllpk',
+			'kppppkkppppk',
+			'kpllpkkpllpk',
+			'kppppkkppppk',
+			'kkkkkkkkkkkk',
+			'.rrrrrrrrrr.'
+		],
+		{ k: '#3a2416', p: '#f6e3bd', l: '#b8946a', r: '#9a2c1c' }
+	),
+	door: svg(
+		[
+			'..kkkkkk..',
+			'.kbbbbbbk.',
+			'kbbdbbdbbk',
+			'kbbdbbdbbk',
+			'kbbdbbdbbk',
+			'kbbdbbdbbk',
+			'kbbdbbdybk',
+			'kbbdbbdbbk',
+			'kbbdbbdbbk',
+			'kbbdbbdbbk',
+			'kkkkkkkkkk'
+		],
+		{ k: '#1e0e06', b: '#8a5430', d: '#5e351b', y: '#f2c14e' }
+	),
+	play: svg(
+		[
+			'kk.......',
+			'kyk......',
+			'kyyk.....',
+			'kyyyk....',
+			'kyyyyk...',
+			'kyyyk....',
+			'kyyk.....',
+			'kyk......',
+			'kk.......'
+		],
+		{ k: '#3a1d04', y: '#fff3b8' }
+	),
+	letter: svg(
+		[
+			'kkkkkkkkkkkk',
+			'kwkwwwwwwkwk',
+			'kwwkwwwwkwwk',
+			'kwwwkwwkwwwk',
+			'kwwwwkrkwwwk',
+			'kwwwwrrrwwwk',
+			'kwwwwwrwwwwk',
+			'kkkkkkkkkkkk'
+		],
+		{ k: '#6a4a2a', w: '#f6e3bd', r: '#c2271d' }
+	),
+	speaker: svg(
+		[
+			'.....k......',
+			'....kk...k..',
+			'kkkkwk.k..k.',
+			'kwwwwk..k.k.',
+			'kwwwwk..k.k.',
+			'kkkkwk.k..k.',
+			'....kk...k..',
+			'.....k......'
+		],
+		{ k: '#2a1a10', w: '#e6d2b0' }
+	),
+	mute: svg(
+		[
+			'.....k......',
+			'....kk......',
+			'kkkkwk.r...r',
+			'kwwwwk..r.r.',
+			'kwwwwk...r..',
+			'kkkkwk..r.r.',
+			'....kk.r...r',
+			'.....k......'
+		],
+		{ k: '#2a1a10', w: '#e6d2b0', r: '#d8352a' }
+	),
+	close: svg(
+		[
+			'kk.....kk',
+			'kwk...kwk',
+			'.kwk.kwk.',
+			'..kwkwk..',
+			'...kwk...',
+			'..kwkwk..',
+			'.kwk.kwk.',
+			'kwk...kwk',
+			'kk.....kk'
+		],
+		{ k: '#2a1006', w: '#ffe1c8' }
+	),
+	check: svg(
+		[
+			'........kk',
+			'.......kgk',
+			'kk....kgk.',
+			'kgk..kgk..',
+			'.kgkkgk...',
+			'..kggk....',
+			'...kk.....'
+		],
+		{ k: '#10260a', g: '#9be27b' }
+	),
+	star: svg(
+		[
+			'....k....',
+			'...kyk...',
+			'kkkkyykkk',
+			'kyyyyyyyk',
+			'.kyyyyyk.',
+			'..kyyyk..',
+			'.kyykyyk.',
+			'.kyk.kyk.',
+			'.kk...kk.'
+		],
+		{ k: '#5a3010', y: '#ffd86b' }
+	),
+	anchor: svg(
+		[
+			'...kkk...',
+			'...k.k...',
+			'...kkk...',
+			'.kkkkkkk.',
+			'....k....',
+			'....k....',
+			'k...k...k',
+			'kk..k..kk',
+			'.kk.k.kk.',
+			'..kkkkk..'
+		],
+		{ k: '#2c3a52' }
+	),
+	sword: svg(
+		[
+			'........kk',
+			'.......kwk',
+			'......kwk.',
+			'.....kwk..',
+			'.k..kwk...',
+			'.kkkwk....',
+			'..kyk.....',
+			'.kykk.....',
+			'kyk.kk....',
+			'kk........'
+		],
+		{ k: '#2a1a10', w: '#e4e8ee', y: '#c08a4a' }
+	),
+	chat: svg(
+		[
+			'.kkkkkkkkk.',
+			'kwwwwwwwwwk',
+			'kwkkwkkwkwk',
+			'kwwwwwwwwwk',
+			'kwkkkwkkwwk',
+			'kwwwwwwwwwk',
+			'.kkkwkkkkk.',
+			'...kk......',
+			'..k........'
+		],
+		{ k: '#3a2416', w: '#f6e3bd' }
+	),
+	house: svg(
+		[
+			'....kk....',
+			'...krrk...',
+			'..krrrrk..',
+			'.krrrrrrk.',
+			'krrrrrrrrk',
+			'.kwwwwwwk.',
+			'.kwwkkwwk.',
+			'.kwwkdkwk.',
+			'.kwwkdkwk.',
+			'.kkkkkkkk.'
+		],
+		{ k: '#2a1a10', r: '#c2372b', w: '#f0dcc0', d: '#6a3f22' }
+	),
+	shieldIcon: svg(
+		[
+			'kkkkkkkkk',
+			'kyyyyyyyk',
+			'kyrrrrryk',
+			'kyrryrryk',
+			'kyryyyryk',
+			'kyrryrryk',
+			'.kyrrryk.',
+			'..kyyyk..',
+			'...kkk...'
+		],
+		{ k: '#2a1a10', y: '#f2c14e', r: '#c2372b' }
 	)
 };

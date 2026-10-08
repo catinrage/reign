@@ -17,7 +17,7 @@ await page.waitForFunction(() => window.__ready === true, null, { timeout: 12000
 await page.waitForTimeout(3000);
 await page.screenshot({ path: `${out}/01-home.png`, animations: 'disabled', timeout: 90000 });
 await page.fill('input[placeholder="Settler"]', 'Komeil');
-await page.click('text=Quick game vs 3 bots');
+await page.click('text=Play vs bots', { force: true });
 await page.waitForFunction(() => window.__client?.view, null, { timeout: 30000 });
 await page.waitForTimeout(4000);
 await page.screenshot({ path: `${out}/02-start.png`, animations: 'disabled', timeout: 90000 });

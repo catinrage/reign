@@ -9,6 +9,7 @@
 	const view = $derived(client.view!);
 	const mine = $derived(myTurn(view));
 	const color = $derived(view.players[view.me]?.color ?? 'white');
+	const left = $derived(view.players[view.me]?.piecesLeft);
 	const icons = getIcons().urls;
 
 	const builds: { kind: BuildKind; label: string }[] = [
@@ -25,35 +26,64 @@
 	function iconFor(kind: BuildKind) {
 		return kind === 'devCard' ? PIXEL.dev : icons[`${kind}:${color}`];
 	}
+	function stock(kind: BuildKind) {
+		if (kind === 'devCard') return view.devDeckCount;
+		return left?.[kind] ?? 0;
+	}
 </script>
 
 {#if view.me >= 0 && view.phase !== 'ended'}
 	<div class="actions">
 		{#if mine && view.step === 'roll'}
-			<button class="btn big green roll" onclick={() => client.act({ type: 'rollDice' })}>
-				<span class="d">⚄</span> Roll dice
+			<button class="btn big shine roll" onclick={() => client.act({ type: 'rollDice' })}>
+				<img src={PIXEL.die} alt="" /> Roll dice
 			</button>
 		{/if}
 		{#if mine && view.step === 'main'}
-			<div class="builds panel">
-				{#each builds as b}
-					{@const ok = buildAvailable(view, b.kind)}
-					<button class="build" class:active={ui.build === b.kind} disabled={!ok} onclick={() => onBuild(b.kind)}>
-						<img class:icon-px={b.kind === 'devCard'} src={iconFor(b.kind)} alt="" />
-						<span class="label title">{b.label}</span>
-						<span class="cost">
-							{#each countsList(COSTS[b.kind]) as c}
-								{#each Array(c.n) as _}<img class="res" src={icons[c.res]} alt={c.res} />{/each}
-							{/each}
-						</span>
-					</button>
-				{/each}
-			</div>
+			{#if !ui.trade}
+				<div class="builds panel">
+					{#each builds as b (b.kind)}
+						{@const ok = buildAvailable(view, b.kind)}
+						<button
+							class="build plaque"
+							class:active={ui.build === b.kind}
+							disabled={!ok}
+							onclick={() => onBuild(b.kind)}
+						>
+							<img
+								class="piece"
+								class:icon-px={b.kind === 'devCard'}
+								src={iconFor(b.kind)}
+								alt=""
+							/>
+							<span class="bname title"
+								>{b.label}<small title="Left to build">{stock(b.kind)}</small></span
+							>
+							<span class="cost">
+								{#each countsList(COSTS[b.kind]) as c (c.res)}
+									{#each Array(c.n) as _, k (k)}<img
+											class="res"
+											src={icons[c.res]}
+											alt={c.res}
+										/>{/each}
+								{/each}
+							</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
 			<div class="row">
-				<button class="btn wood" onclick={() => (ui.trade = !ui.trade)}>
-					<img class="icon-px" src={PIXEL.trade} alt="" width="20" /> Trade
+				<button class="btn wood" class:on={ui.trade} onclick={() => (ui.trade = !ui.trade)}>
+					<img class="icon-px" src={PIXEL.trade} alt="" /> Trade
 				</button>
-				<button class="btn red" onclick={() => { ui.build = null; ui.trade = false; client.act({ type: 'endTurn' }); }}>End turn</button>
+				<button
+					class="btn red"
+					onclick={() => {
+						ui.build = null;
+						ui.trade = false;
+						client.act({ type: 'endTurn' });
+					}}><img class="icon-px" src={PIXEL.hourglass} alt="" /> End turn</button
+				>
 			</div>
 		{/if}
 	</div>
@@ -62,8 +92,8 @@
 <style>
 	.actions {
 		position: absolute;
-		right: 14px;
-		bottom: 14px;
+		right: 12px;
+		bottom: 12px;
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
@@ -71,100 +101,125 @@
 		pointer-events: none;
 	}
 	.roll {
-		font-size: 24px;
+		font-size: 26px;
+		gap: 12px;
+		padding: 0 calc(var(--s) * 6);
 		animation: bob 1.4s ease-in-out infinite;
 	}
-	.roll .d {
-		font-size: 28px;
-		line-height: 1;
+	.roll img {
+		height: calc(var(--s) * 10);
 	}
 	.builds {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 6px;
-		padding: 8px;
+		padding: 4px;
 	}
 	.build {
 		pointer-events: auto;
+		position: relative;
 		display: grid;
-		grid-template-columns: 40px 1fr;
+		grid-template-columns: 42px 1fr;
 		grid-template-rows: auto auto;
 		align-items: center;
 		column-gap: 8px;
-		padding: 6px 10px 6px 6px;
-		border-radius: 8px;
-		border: 2px solid rgba(0, 0, 0, 0.45);
-		background: linear-gradient(180deg, rgba(255, 230, 190, 0.14), rgba(0, 0, 0, 0.18));
-		box-shadow: inset 0 1px 0 rgba(255, 230, 190, 0.2);
+		row-gap: 2px;
+		padding: 2px 8px 2px 2px;
+		background: none;
 		color: var(--text);
 		cursor: pointer;
 		text-align: left;
+		min-width: 158px;
 		transition:
-			transform 0.1s,
-			background 0.15s;
-		min-width: 150px;
+			transform 0.12s,
+			filter 0.15s;
 	}
 	.build:hover:not(:disabled) {
 		transform: translateY(-2px);
-		background: linear-gradient(180deg, rgba(255, 230, 190, 0.24), rgba(0, 0, 0, 0.1));
+		filter: brightness(1.18);
 	}
 	.build.active {
-		border-color: var(--gold);
-		background: linear-gradient(180deg, rgba(255, 210, 110, 0.4), rgba(120, 70, 10, 0.3));
+		filter: drop-shadow(0 0 0 #ffd45a) drop-shadow(0 0 4px #ffd45a) brightness(1.2);
+		animation: bob 1.4s ease-in-out infinite;
 	}
 	.build:disabled {
 		cursor: not-allowed;
-		opacity: 0.45;
-		filter: grayscale(0.6);
+		opacity: 0.6;
+		filter: grayscale(0.55);
 	}
-	.build > img {
+	.piece {
 		grid-row: 1 / 3;
-		width: 40px;
-		height: 40px;
+		width: 42px;
+		height: 42px;
 		object-fit: contain;
-		filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4));
+		filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
 	}
-	.label {
+	.bname {
 		font-size: 15px;
+		display: flex;
+		align-items: baseline;
+		gap: 6px;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.bname small {
+		font-size: 11px;
+		color: var(--muted);
+		margin-left: auto;
 	}
 	.cost {
 		display: flex;
 		gap: 1px;
 	}
 	.cost .res {
-		width: 18px;
-		height: 18px;
-		filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+		width: 19px;
+		height: 19px;
+		filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6));
 	}
 	.row {
 		display: flex;
 		gap: 8px;
 	}
+	.row .btn {
+		gap: 8px;
+	}
+	.row .btn img {
+		height: calc(var(--s) * 7);
+	}
+	.btn.wood.on {
+		filter: brightness(1.25) drop-shadow(0 0 4px rgba(255, 210, 90, 0.8));
+	}
 	@media (max-width: 900px) {
 		.actions {
-			right: 8px;
-			bottom: 8px;
-			left: 8px;
+			right: 6px;
+			bottom: 6px;
+			left: 6px;
 			align-items: stretch;
+		}
+		.roll {
+			align-self: flex-end;
+			font-size: 21px;
 		}
 		.builds {
 			grid-template-columns: repeat(4, 1fr);
-			padding: 5px;
-			gap: 4px;
+			padding: 2px;
+			gap: 3px;
 		}
 		.build {
 			min-width: 0;
 			grid-template-columns: 1fr;
 			justify-items: center;
-			padding: 4px;
+			padding: 0 2px;
 		}
-		.build > img {
+		.piece {
 			grid-row: auto;
 			width: 30px;
 			height: 30px;
 		}
-		.label {
+		.bname {
 			font-size: 11px;
+		}
+		.bname small {
+			display: none;
 		}
 		.cost .res {
 			width: 12px;

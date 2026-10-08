@@ -92,6 +92,11 @@ export class GameScene {
 
 	// ------------------------------------------------------------ modes
 
+	/** Shift the view sideways (fraction of the screen width), e.g. to clear a menu panel. */
+	setLensShift(x: number) {
+		this.stage.setLensShift(x);
+	}
+
 	showMenuBoard() {
 		this.mode = 'menu';
 		this.boardKey = '';
