@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { Mat, type VoxelGrid } from './grid';
 
+/** Voxel colors are authored in sRGB; the renderer works in linear light (16-bit to avoid banding). */
+const SRGB_TO_LINEAR = new Float32Array(256).map((_, i) => {
+	const c = i / 255;
+	return (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)) * 65535;
+});
+
 /**
  * Turns a voxel grid into one BufferGeometry per material. Hidden faces are culled and
  * every vertex gets baked ambient occlusion from its neighbours, which gives voxel scenes
@@ -114,10 +120,11 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 						buf.pos.push(pos[0] - cx, pos[1] - cy, pos[2] - cz);
 						buf.nrm.push(f.n[0] * 127, f.n[1] * 127, f.n[2] * 127);
 						const k = AO_CURVE[ao[c]] * jit;
+						const kl = Math.pow(k, 1.6);
 						buf.col.push(
-							Math.min(255, r0 * k),
-							Math.min(255, g0 * k),
-							Math.min(255, b0 * k)
+							Math.min(65535, SRGB_TO_LINEAR[r0] * kl),
+							Math.min(65535, SRGB_TO_LINEAR[g0] * kl),
+							Math.min(65535, SRGB_TO_LINEAR[b0] * kl)
 						);
 					}
 					// Flip the quad diagonal so AO gradients don't show a seam.
@@ -138,7 +145,7 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 		const g = new THREE.BufferGeometry();
 		g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
 		g.setAttribute('normal', new THREE.BufferAttribute(new Int8Array(b.nrm), 3, true));
-		g.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(b.col), 3, true));
+		g.setAttribute('color', new THREE.BufferAttribute(new Uint16Array(b.col), 3, true));
 		g.setIndex(b.count > 65535 ? new THREE.Uint32BufferAttribute(b.idx, 1) : new THREE.Uint16BufferAttribute(b.idx, 1));
 		g.computeBoundingSphere();
 		g.computeBoundingBox();

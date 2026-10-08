@@ -34,7 +34,7 @@ interface PieceObj {
 }
 
 const ROAD_LEN = 8;
-const PIECE_SCALE = 0.74;
+const PIECE_SCALE = 0.58;
 
 /**
  * The 3D side of the game: owns the stage, room, island and pieces, plays the animations
@@ -148,8 +148,8 @@ export class GameScene {
 		const aspect = cam.aspect;
 		const vHalf = THREE.MathUtils.degToRad(cam.fov / 2);
 		const hHalf = Math.atan(Math.tan(vHalf) * aspect);
-		const fit = 88 / Math.tan(hHalf);
-		const radius = THREE.MathUtils.clamp(Math.max(255, fit * 0.92), 200, 700);
+		const fit = 80 / Math.tan(hHalf);
+		const radius = THREE.MathUtils.clamp(Math.max(218, fit * 0.95), 180, 480);
 		return { radius, polar: aspect < 0.8 ? 0.62 : 0.82 };
 	}
 
@@ -177,7 +177,7 @@ export class GameScene {
 			const color = PLAYER_RGB[view.players[owner].color];
 			want.set(`e${e}:${owner}`, () => {
 				const obj = cloneModel(roadModel(color, ROAD_LEN));
-				obj.scale.set(1, 0.7, 0.7);
+				obj.scale.set(0.92, 0.56, 0.56);
 				const { pos, angle } = bv.edgePos(e);
 				obj.position.copy(pos);
 				obj.rotation.y = angle;
@@ -279,7 +279,7 @@ export class GameScene {
 		const bv = this.boardView!;
 		for (let k = 0; k < amount; k++) {
 			const item = cloneModel(resourceItemModel(resource));
-			item.scale.setScalar(0.55);
+			item.scale.setScalar(0.42);
 			const c = bv.hexCenter(hex);
 			const start = new THREE.Vector3(c.x + (Math.random() - 0.5) * 6, bv.groundAt(c.x, c.z, 3) + 3, c.z + (Math.random() - 0.5) * 6);
 			item.position.copy(start);
@@ -289,7 +289,7 @@ export class GameScene {
 			this.anim.tween(1.1, (t) => {
 				item.position.y = start.y + ease.outCubic(t) * 16;
 				item.rotation.y = t * spin * Math.PI;
-				item.scale.setScalar(0.55 * (t < 0.15 ? t / 0.15 : t > 0.8 ? (1 - t) / 0.2 : 1) + 0.001);
+				item.scale.setScalar(0.42 * (t < 0.15 ? t / 0.15 : t > 0.8 ? (1 - t) / 0.2 : 1) + 0.001);
 			}, ease.linear, delay).then(() => {
 				this.stage.scene.remove(item);
 				const screen = this.project(item.position);
@@ -348,7 +348,7 @@ export class GameScene {
 					m.castShadow = false;
 				}
 			});
-			ghost.scale.setScalar(req.kind === 'road' ? 0.85 : PIECE_SCALE);
+			ghost.scale.setScalar(req.kind === 'road' ? 0.7 : PIECE_SCALE);
 			ghost.userData.base = ghost.scale.x;
 			ghost.name = 'ghost';
 			ghost.visible = false;

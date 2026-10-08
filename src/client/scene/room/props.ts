@@ -9,14 +9,18 @@ export function buildLantern(): THREE.Group {
 	const g = new VoxelGrid(13, 25, 13, -6, 0, -6);
 	const iron = hex('#2b221d');
 	const ironHi = hex('#4a3b30');
-	const glass = (x: number, y: number, z: number) => mix(hex('#ffcf6a'), hex('#ff9a3a'), hash3(x, y, z) * 0.5 + (y - 3) / 30);
+	const glass = (x: number, y: number, z: number) => mix(hex('#ffb04a'), hex('#e8762a'), hash3(x, y, z) * 0.4 + (y - 3) / 24);
 	g.box(-5, 0, -5, 5, 2, 5, (x, y, z) => (y === 2 ? ironHi : iron));
 	g.box(-4, 3, -4, 4, 14, 4, glass, Mat.Glow);
 	// candle inside shows as a brighter core
-	g.box(-1, 3, -1, 1, 8, 1, hex('#fff1c8'), Mat.Glow);
+	g.box(-1, 3, -1, 1, 7, 1, hex('#ffe2a0'), Mat.Glow);
 	g.box(0, 9, 0, 0, 11, 0, hex('#fff6d0'), Mat.Fire);
 	// frame: corner posts and mid bars
 	for (const x of [-5, 5]) for (const z of [-5, 5]) g.box(x, 3, z, x, 15, z, iron);
+	g.box(0, 3, -5, 0, 15, -5, iron);
+	g.box(0, 3, 5, 0, 15, 5, iron);
+	g.box(-5, 3, 0, -5, 15, 0, iron);
+	g.box(5, 3, 0, 5, 15, 0, iron);
 	for (const y of [3, 9, 15]) {
 		g.box(-5, y, -5, 5, y, -5, iron);
 		g.box(-5, y, 5, 5, y, 5, iron);
@@ -33,7 +37,7 @@ export function buildLantern(): THREE.Group {
 	g.box(-3, 22, 0, -3, 23, 0, iron);
 	g.box(3, 22, 0, 3, 23, 0, iron);
 	g.box(-2, 24, 0, 2, 24, 0, iron);
-	return voxels(g, 1, { jitter: 0.04, mats: { [Mat.Glow]: { emissive: 2.4 } } });
+	return voxels(g, 1, { jitter: 0.04, mats: { [Mat.Glow]: { emissive: 1.25 } } });
 }
 
 // ---------------------------------------------------------------- mug of coffee
@@ -190,8 +194,10 @@ export function buildCards(kind: keyof typeof CARD_ART, count = 5): THREE.Group 
 	const g = new VoxelGrid(W + 2, count + 2, D + 2, -1, 0, -1);
 	const art = CARD_ART[kind];
 	for (let i = 0; i < count; i++) {
-		const dx = Math.round((hash3(i, 1, 0) - 0.5) * 1.4);
-		const dz = Math.round((hash3(i, 2, 0) - 0.5) * 1.4);
+		// only the top couple of cards are a little askew
+		const loose = i >= count - 2;
+		const dx = loose ? Math.round((hash3(i, 1, 0) - 0.5) * 1.6) : 0;
+		const dz = loose ? Math.round((hash3(i, 2, 0) - 0.5) * 1.6) : 0;
 		const top = i === count - 1;
 		g.box(dx, i, dz, dx + W - 1, i, dz + D - 1, (x, _y, z) => {
 			const lx = x - dx;
@@ -209,11 +215,15 @@ export function buildCards(kind: keyof typeof CARD_ART, count = 5): THREE.Group 
 
 // ---------------------------------------------------------------- plants (foliage sways)
 
-/** Potted plant. `kind` = bush | tall | hanging (vines trail down `hang` voxels). */
-export function buildPlant(kind: 'bush' | 'tall' | 'hanging', seed: number, scale = 2, hang = 0): THREE.Group {
+/**
+ * Potted plant. `kind` = bush | tall | hanging. Hanging plants send vines forward along the
+ * shelf top to `edge` voxels in front of the pot, then trail down `hang` voxels.
+ */
+export function buildPlant(kind: 'bush' | 'tall' | 'hanging', seed: number, scale = 2, hang = 0, edge = 8): THREE.Group {
 	const r = rand(seed);
 	const Y = SWAY_Y + hang + 2;
-	const g = new VoxelGrid(26, Y + 34, 26, -13, SWAY_Y - 2, -13);
+	const H = Math.max(13, edge + 3);
+	const g = new VoxelGrid(2 * H, Y + 34, 2 * H, -H, SWAY_Y - 2, -H);
 	const pot = [hex('#b0603a'), hex('#a25534'), hex('#c06c40')];
 	const potH = kind === 'tall' ? 8 : 6;
 	const pr = kind === 'tall' ? 5 : 4;
@@ -229,7 +239,7 @@ export function buildPlant(kind: 'bush' | 'tall' | 'hanging', seed: number, scal
 	const L = (x: number, y: number, z: number) => g.set(x, y, z, pick(leaf, hash3(x, y, z, seed)), Mat.Sway);
 	const base = Y + potH;
 	if (kind === 'bush' || kind === 'hanging') {
-		const blobs = kind === 'bush' ? 7 : 5;
+		const blobs = kind === 'bush' ? 7 : 4;
 		for (let i = 0; i < blobs; i++) {
 			const a = r() * Math.PI * 2;
 			const d = r() * (kind === 'bush' ? 4 : 3);
@@ -265,24 +275,34 @@ export function buildPlant(kind: 'bush' | 'tall' | 'hanging', seed: number, scal
 		}
 	}
 	if (kind === 'hanging') {
-		// vines trailing over the front edge (+z) and the sides
-		const vines = 6 + Math.floor(r() * 3);
+		// vines run forward over the shelf top, then trail down its front
+		const vines = 5 + Math.floor(r() * 2);
+		const stem = hex('#3c7a2c');
 		for (let i = 0; i < vines; i++) {
-			const a = -Math.PI * 0.1 + (i / vines) * Math.PI * 1.2 + r() * 0.3;
-			let x = Math.round(Math.cos(a) * (pr + 1));
-			let z = Math.round(Math.sin(a) * (pr + 1));
-			const len = hang * (0.45 + r() * 0.55);
+			const u = (i + 0.5) / vines - 0.5;
+			let x = Math.round(u * 2 * pr);
+			let z = pr - 1;
+			const xEnd = Math.round(u * 2 * (H - 2) + (r() - 0.5) * 3);
+			// along the top
+			for (; z <= edge; z++) {
+				if (x !== xEnd && r() < 0.6) x += Math.sign(xEnd - x);
+				g.set(x, Y, z, stem, Mat.Sway);
+				if (r() < 0.5) L(x + (r() < 0.5 ? 1 : -1), Y, z);
+			}
+			const len = hang * (0.4 + r() * 0.6);
 			for (let k = 0; k < len; k++) {
-				const y = base - k;
-				if (r() < 0.15) x += r() < 0.5 ? 1 : -1;
-				if (r() < 0.1) z += 1;
-				g.set(x, y, z, hex('#3c7a2c'), Mat.Sway);
-				if (k % 3 === 0) {
-					const s = r() < 0.5 ? 1 : -1;
-					L(x + s, y, z);
-					L(x, y - 1, z + 1);
+				const y = Y - 1 - k;
+				if (r() < 0.12) x += r() < 0.5 ? 1 : -1;
+				g.set(x, y, edge, stem, Mat.Sway);
+				if (k % 2 === 0) {
+					const sd = (k >> 1) % 2 ? 1 : -1;
+					L(x + sd, y, edge);
+					if (r() < 0.6) L(x, y, edge + 1);
+					if (r() < 0.3) L(x + sd, y - 1, edge + 1);
 				}
 			}
+			// a leafy tip
+			L(x, Y - 1 - Math.ceil(len), edge);
 		}
 	}
 	return voxels(g, scale, { jitter: 0.06, center: [0, Y, 0], shadows: false });

@@ -4,7 +4,7 @@ import { FLOOR_Y, ROOM_HALF, RUG_PLAID, grain, rand, tartan, voxels } from './ut
 
 /** Floor, rug and walls use 6-unit voxels. */
 const S = 6;
-const N = Math.round(ROOM_HALF / S); // 57
+const N = Math.round(ROOM_HALF / S); // 50
 
 const FLOOR = [hex('#5b311d'), hex('#663720'), hex('#512c1a'), hex('#6e3d23'), hex('#4b2817')];
 const WALL = [hex('#3d2216'), hex('#45271a'), hex('#38200f'), hex('#4a2b1b')];
@@ -15,7 +15,7 @@ export function buildFloor(): THREE.Group {
 	const r = rand(5);
 	const rows: { off: number; len: number }[] = [];
 	for (let i = 0; i < 2 * N; i++) rows.push({ off: Math.floor(r() * 20), len: 9 + Math.floor(r() * 9) });
-	const rug = 42; // rug half size in voxels (252 units)
+	const rug = 37; // rug half size in voxels (222 units)
 	for (let z = -N; z < N; z++)
 		for (let x = -N; x < N; x++) {
 			const ax = Math.abs(x + 0.5);
@@ -46,11 +46,11 @@ export function buildFloor(): THREE.Group {
 
 export type Side = 'nx' | 'px' | 'nz' | 'pz';
 
-/** One wall along a side, inner face at ±ROOM_HALF, ~256 units high, 8-unit voxels. */
+/** One wall along a side, inner face at ±ROOM_HALF, 216 units high, 8-unit voxels. */
 export function buildWall(side: Side): THREE.Group {
 	const WS = 8;
-	const H = 32;
-	const NW = Math.ceil(ROOM_HALF / WS); // 43
+	const H = 27;
+	const NW = Math.ceil(ROOM_HALF / WS); // 38
 	// Built as the -z wall, then turned into place.
 	const g = new VoxelGrid(2 * NW + 4, H, 2, -NW - 2, 0, -NW - 2);
 	for (let x = -NW - 2; x < NW + 2; x++)
@@ -60,7 +60,7 @@ export function buildWall(side: Side): THREE.Group {
 			if ((x & 1) === 0) c = shade(c, 0.85);
 			if (y < 2) c = shade(TRIM, 0.95 + hash3(x, y, 0) * 0.1);
 			if (y === 2) c = shade(TRIM, 1.25);
-			if (y === 16) c = shade(TRIM, 1.2 + hash3(x, y, 3) * 0.08);
+			if (y === 14) c = shade(TRIM, 1.2 + hash3(x, y, 3) * 0.08);
 			if (y >= H - 2) c = shade(TRIM, 1.1);
 			g.set(x, y, -NW - 1, c);
 			g.set(x, y, -NW - 2, shade(c, 0.6));

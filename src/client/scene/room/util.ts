@@ -3,10 +3,16 @@ import { Mat, VoxelGrid, hash3, mix, shade } from '../voxel/grid';
 import { type VoxelMaterialOptions, meshesFor } from '../voxel/materials';
 import { meshGrid } from '../voxel/mesher';
 
-/** Floor surface height (the table stands on it, its top at y = 0). */
+/**
+ * The room is modelled in "room units" and its group is scaled by ROOM_SCALE into world
+ * units, so the table (half-width 148 room units) ends up ~104 world units across the
+ * board's hex frame. The table top stays at y = 0.
+ */
+export const ROOM_SCALE = 0.7;
+/** Floor surface height in room units (the table stands on it, its top at y = 0). */
 export const FLOOR_Y = -111;
-/** Half the room's width: walls stand at x, z = ±ROOM_HALF. */
-export const ROOM_HALF = 342;
+/** Half the room's width in room units: walls stand at x, z = ±ROOM_HALF. */
+export const ROOM_HALF = 300;
 
 /**
  * Shared material options. Sway must match the board's options: the voxel shader bakes
@@ -97,9 +103,9 @@ export interface Plaid {
 	accent: number;
 }
 
-export const RED_PLAID: Plaid = { base: 0xa62a24, dark: 0x4e1414, light: 0xe0c08c, accent: 0x2a2234 };
-export const GREEN_PLAID: Plaid = { base: 0x3f6b35, dark: 0x1e3a1e, light: 0xc9b47a, accent: 0x8a2a22 };
-export const RUG_PLAID: Plaid = { base: 0x7e2420, dark: 0x3a1210, light: 0xb08a5e, accent: 0x23263a };
+export const RED_PLAID: Plaid = { base: 0xbc241c, dark: 0x4a0c0c, light: 0xeac48a, accent: 0x2a1626 };
+export const GREEN_PLAID: Plaid = { base: 0x3e7a30, dark: 0x16361a, light: 0xd8c07a, accent: 0x9a2a20 };
+export const RUG_PLAID: Plaid = { base: 0x9c221c, dark: 0x380c0a, light: 0xc89a5e, accent: 0x221c34 };
 
 /** Tartan colour for a woven cell (i, j). */
 export function tartan(i: number, j: number, p: Plaid, period = 12) {
