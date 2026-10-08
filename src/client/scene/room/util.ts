@@ -5,8 +5,8 @@ import { meshGrid } from '../voxel/mesher';
 
 /**
  * The room is modelled in "room units" and its group is scaled by ROOM_SCALE into world
- * units, so the table (half-width 148 room units) ends up ~104 world units across the
- * board's hex frame. The table top stays at y = 0.
+ * units, so the table (half-width 148 room units) ends up ~104 world units, with room
+ * for the board and its sea. The table top stays at y = 0.
  */
 export const ROOM_SCALE = 0.7;
 /** Floor surface height in room units (the table stands on it, its top at y = 0). */

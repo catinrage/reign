@@ -4,10 +4,8 @@
 export const HEX_R = 12;
 /** Size of one terrain micro-voxel: the island is built 20 voxels per hex radius. */
 export const VOXEL = 0.6;
-/** Resting height of the sea surface. */
-export const SEA_Y = 2.7;
-/** Flat-edge distance of the hexagonal sea frame around the island. */
-export const SEA_FRAME = 64;
+/** Top of the sea (four micro-voxels of water). */
+export const SEA_Y = 4 * VOXEL;
 /** Table surface. */
 export const TABLE_Y = 0;
 

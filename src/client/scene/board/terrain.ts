@@ -2,17 +2,17 @@ import * as THREE from 'three';
 import { type Axial, hexKey, worldToHex } from '../../../shared/board/hex';
 import { type Board, getTopology } from '../../../shared/board/topology';
 import type { Terrain } from '../../../shared/rules/config';
-import { HEX_R, SEA_FRAME, VOXEL } from '../layout';
+import { HEX_R, SEA_Y, VOXEL } from '../layout';
 import { Mat, VoxelGrid, fbm, hash3, hex, mix, noise2, pick, shade } from '../voxel/grid';
 import { meshesFor } from '../voxel/materials';
 import { meshGrid } from '../voxel/mesher';
-import { WATER_TOP, buildWater, frameDistance } from './water';
 
 /**
  * Builds the island as one fine voxel grid (20 voxels per hex radius) so every tile reads
  * like a hand-made miniature: dense little pines, a carpet of wheat stalks, terraced clay,
  * a stepped peak, rippled dunes. Beige borders separate the tiles, a sand rim runs round
- * the coast, and the sea is a separate animated mesh inside a hexagonal frame.
+ * the coast, and a shallow sea plate with an irregular outline shades from turquoise to
+ * deep blue.
  *
  * Grid coordinates are voxels; world = voxel * VOXEL.
  */
@@ -22,6 +22,8 @@ const RV = HEX_R / VOXEL;
 /** Land surface: columns fill y = 0..G-1, so the top face is at y = G. */
 const G = 8;
 const BORDER_TOP = G - 1;
+/** Water columns fill y = 0..SEA_TOP-1, a step below the wet sand. */
+const SEA_TOP = Math.round(SEA_Y / VOXEL);
 
 const C = {
 	border: [hex('#f3e2b8'), hex('#eedaa9'), hex('#f7e8c4'), hex('#e9d3a0')],
@@ -53,11 +55,16 @@ const C = {
 	ore: [hex('#cfe0f5'), hex('#9fb8d8')],
 	cactus: [hex('#3f9a3a'), hex('#4fae45')],
 	plank: [hex('#a76b38'), hex('#95602f'), hex('#b37742')],
-	post: hex('#5e3a1e')
+	post: hex('#5e3a1e'),
+	waterShallow: hex('#63abc4'),
+	waterMid: hex('#4d90bd'),
+	waterDeep: hex('#4b7eae'),
+	waterEdge: hex('#3d719e'),
+	foam: hex('#e6f3f8')
 };
 
-/** Grid half-extent in voxels (land, beaches and piers). */
-const HALF = 112;
+/** Grid half-extent in voxels (land, beaches, piers and the sea). */
+const HALF = 140;
 const MAX_Y = 36;
 
 export interface PortSpot {
@@ -170,7 +177,28 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 					const c = top === G - 2 ? pick(C.sand, r) : pick(C.wetSand, r);
 					grid.box(x, 0, z, x, top - 1, z, (_, y) => (y === top - 1 ? c : pick(C.dirt, r)));
 					tops[i] = top - 1;
+					continue;
 				}
+				// The sea, in world units: an irregular outline, turquoise shallows with a little
+				// foam, deepening blue, and a darker rim a step lower at the edge.
+				const wx = x * VOXEL;
+				const wz = z * VOXEL;
+				const dw = d * VOXEL;
+				const outline = 15 + fbm(wx * 0.045, wz * 0.045, seed + 3) * 9;
+				if (dw > outline) continue;
+				const dd = dw + (noise2(wx * 0.3, wz * 0.3, seed) - 0.5) * 2.2;
+				let c: number;
+				if (dd < 2.8) c = mix(C.waterShallow, C.foam, r > 0.82 && dw < 2.6 ? 0.7 : 0.05);
+				else if (dd < 5.5) c = mix(C.waterShallow, C.waterMid, (dd - 2.8) / 2.7);
+				else if (dd < 10) c = mix(C.waterMid, C.waterDeep, (dd - 5.5) / 4.5);
+				else c = C.waterDeep;
+				const rim = dw > outline - 1.5;
+				if (rim) c = C.waterEdge;
+				const top = rim ? SEA_TOP - 2 : SEA_TOP - 1;
+				const surface = shade(c, 0.97 + r * 0.06);
+				const side = shade(c, 0.75);
+				grid.box(x, 0, z, x, top, z, (_, y) => (y === top ? surface : side), Mat.Water);
+				tops[i] = top;
 				continue;
 			}
 			const hx = board.hexes[col.hex];
@@ -288,28 +316,14 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 
 	const geos = meshGrid(grid, { jitter: 0.06 });
 	const group = meshesFor(geos, VOXEL, {
-		[Mat.Sway]: { swayBase: G, roughness: 0.7 }
+		[Mat.Sway]: { swayBase: G, roughness: 0.7 },
+		[Mat.Water]: { roughness: 0.22, bevel: 0.35 }
 	});
 	group.name = 'board';
 
-	// ---- the sea
-	const isLand = (x: number, z: number) => topAt(x, z) >= WATER_TOP - 0.5;
-	const water = buildWater(isLand, (x, z) => {
-		const ix = Math.floor(x) + HALF;
-		const iz = Math.floor(z) + HALF;
-		if (ix < 0 || iz < 0 || ix >= W || iz >= D) return 99;
-		return dist[ix + iz * W];
-	});
-	group.add(water.mesh);
-
-	const frame = SEA_FRAME / VOXEL;
 	const surfaceY = (x: number, z: number) => {
-		const vx = x / VOXEL;
-		const vz = z / VOXEL;
-		const t = topAt(vx, vz);
-		if (t >= 0) return (t + 1) * VOXEL;
-		if (frameDistance(vx, vz) <= frame) return WATER_TOP * VOXEL;
-		return 0;
+		const t = topAt(x / VOXEL, z / VOXEL);
+		return t >= 0 ? (t + 1) * VOXEL : 0;
 	};
 
 	const groundY = (x: number, z: number) => {
@@ -330,8 +344,10 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 	};
 }
 
-/** Plank deck height for piers (just above the water surface). */
-const WATER_DECK = Math.ceil(WATER_TOP);
+/** Plank deck voxel for piers, level with the dry sand and a step above the water. */
+const WATER_DECK = G - 3;
+/** World y of the top of a pier deck. */
+export const DECK_TOP = (WATER_DECK + 1) * VOXEL;
 
 function distanceField(land: Uint8Array, W: number, D: number) {
 	const dist = new Float32Array(W * D).fill(1e9);
