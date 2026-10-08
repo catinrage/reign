@@ -1,0 +1,166 @@
+import type { Board } from '../board/topology';
+import type { DevCardType, PlayerColor, Resource, ResourceCounts } from './config';
+
+export interface DevCard {
+	type: DevCardType;
+	/** Turn number it was bought on; it can't be played that same turn. */
+	boughtTurn: number;
+}
+
+export interface PlayerState {
+	name: string;
+	color: PlayerColor;
+	isBot: boolean;
+	resources: ResourceCounts;
+	devCards: DevCard[];
+	knightsPlayed: number;
+	piecesLeft: { road: number; settlement: number; city: number };
+	longestRoad: number;
+}
+
+export interface Building {
+	owner: number;
+	kind: 'settlement' | 'city';
+}
+
+export type TurnStep =
+	| 'setupSettlement'
+	| 'setupRoad'
+	| 'roll'
+	| 'discard'
+	| 'moveRobber'
+	| 'steal'
+	| 'main'
+	| 'roadBuilding';
+
+export interface TradeOffer {
+	id: number;
+	from: number;
+	give: Partial<ResourceCounts>;
+	want: Partial<ResourceCounts>;
+	/** Per player: undefined = no answer yet. */
+	responses: Record<number, 'accept' | 'decline'>;
+}
+
+export interface GameState {
+	version: number;
+	rng: number;
+	board: Board;
+	players: PlayerState[];
+	phase: 'setup' | 'main' | 'ended';
+	step: TurnStep;
+	current: number;
+	turn: number;
+	/** Setup: index into the snake order 0..n-1, n-1..0. */
+	setupIndex: number;
+	setupLastSettlement: number | null;
+	dice: [number, number] | null;
+	robberHex: number;
+	/** Indexed by vertex id. */
+	buildings: (Building | null)[];
+	/** Indexed by edge id; owner index. */
+	roads: (number | null)[];
+	bank: ResourceCounts;
+	devDeck: DevCardType[];
+	devCardPlayedThisTurn: boolean;
+	roadBuildingLeft: number;
+	/** Step to return to after a knight or road building played before rolling. */
+	resumeStep: 'roll' | 'main';
+	pendingDiscards: Record<number, number>;
+	stealCandidates: number[];
+	trade: TradeOffer | null;
+	longestRoadHolder: number | null;
+	largestArmyHolder: number | null;
+	winner: number | null;
+	log: GameEvent[];
+	nextEventSeq: number;
+}
+
+type Ev<T extends string, P> = { seq: number; type: T } & P;
+
+export type GameEvent =
+	| Ev<'gameStarted', { players: number }>
+	| Ev<'turnStarted', { player: number; turn: number }>
+	| Ev<'built', { player: number; kind: 'road' | 'settlement' | 'city'; at: number; free: boolean }>
+	| Ev<'setupResources', { player: number; gains: ResourceGain[] }>
+	| Ev<'diceRolled', { player: number; dice: [number, number] }>
+	| Ev<'produced', { gains: ResourceGain[]; blocked: number[]; shortages: Resource[] }>
+	| Ev<'nothingProduced', { total: number }>
+	| Ev<'mustDiscard', { players: Record<number, number> }>
+	| Ev<'discarded', { player: number; count: number }>
+	| Ev<'robberMoved', { player: number; hex: number }>
+	/** resource is null for viewers who weren't part of the theft. */
+	| Ev<'stole', { thief: number; victim: number; resource: Resource | null }>
+	| Ev<'nothingToSteal', { player: number }>
+	| Ev<'devCardBought', { player: number; card: DevCardType | null }>
+	| Ev<'devCardPlayed', { player: number; card: DevCardType }>
+	| Ev<'yearOfPlenty', { player: number; resources: Resource[] }>
+	| Ev<'monopoly', { player: number; resource: Resource; taken: Record<number, number> }>
+	| Ev<'bankTrade', { player: number; give: Resource; giveCount: number; get: Resource }>
+	| Ev<'tradeOffered', { offer: TradeOffer }>
+	| Ev<'tradeCompleted', {
+			from: number;
+			to: number;
+			give: Partial<ResourceCounts>;
+			want: Partial<ResourceCounts>;
+	  }>
+	| Ev<'tradeCancelled', { from: number }>
+	| Ev<'longestRoad', { player: number | null; length: number }>
+	| Ev<'largestArmy', { player: number | null; knights: number }>
+	| Ev<'gameOver', { winner: number; points: number[] }>
+	| Ev<'chat', { player: number; text: string }>;
+
+export interface ResourceGain {
+	player: number;
+	hex: number;
+	resource: Resource;
+	amount: number;
+}
+
+export type Action =
+	| { type: 'placeSettlement'; vertex: number }
+	| { type: 'placeRoad'; edge: number }
+	| { type: 'buildCity'; vertex: number }
+	| { type: 'rollDice' }
+	| { type: 'discard'; resources: Partial<ResourceCounts> }
+	| { type: 'moveRobber'; hex: number }
+	| { type: 'steal'; victim: number }
+	| { type: 'buyDevCard' }
+	| { type: 'playKnight' }
+	| { type: 'playRoadBuilding' }
+	| { type: 'playYearOfPlenty'; resources: [Resource, Resource] }
+	| { type: 'playMonopoly'; resource: Resource }
+	| { type: 'bankTrade'; give: Resource; get: Resource }
+	| { type: 'offerTrade'; give: Partial<ResourceCounts>; want: Partial<ResourceCounts> }
+	| { type: 'respondTrade'; offerId: number; accept: boolean }
+	| { type: 'confirmTrade'; offerId: number; with: number }
+	| { type: 'cancelTrade' }
+	| { type: 'endTurn' };
+
+export type ActionResult = { ok: true; events: GameEvent[] } | { ok: false; error: string };
+
+/** What one player is allowed to see. Other players' hands become counts. */
+export interface PlayerView {
+	name: string;
+	color: PlayerColor;
+	isBot: boolean;
+	resourceCount: number;
+	devCardCount: number;
+	knightsPlayed: number;
+	piecesLeft: { road: number; settlement: number; city: number };
+	longestRoad: number;
+	publicPoints: number;
+	/** Only present for yourself (or for everyone once the game is over). */
+	resources?: ResourceCounts;
+	devCards?: DevCard[];
+	totalPoints?: number;
+}
+
+export interface GameView
+	extends Omit<GameState, 'rng' | 'devDeck' | 'players' | 'log'> {
+	devDeckCount: number;
+	players: PlayerView[];
+	log: GameEvent[];
+	/** Index of the viewer, or -1 for a spectator. */
+	me: number;
+}
