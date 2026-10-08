@@ -240,7 +240,7 @@ export function buildPlant(kind: 'bush' | 'tall' | 'hanging', seed: number, scal
 			for (let y = Math.floor(by - br); y <= by + br; y++)
 				for (let z = Math.floor(bz - br); z <= bz + br; z++)
 					for (let x = Math.floor(bx - br); x <= bx + br; x++)
-						if (Math.hypot(x - bx, (y - by) * 1.2, z - bz) < br && hash3(x, y, z, seed + 1) > 0.15) L(x, y, z);
+						if (Math.hypot(x - bx, (y - by) * 1.2, z - bz) < br) L(x, y, z);
 		}
 	}
 	if (kind === 'tall') {
@@ -417,9 +417,9 @@ export function buildLogBasket(): THREE.Group {
 				g.set(x, y, z, shade(pick(wick, hash3(x, y, z)), (x + y + z) & 1 ? 0.85 : 1));
 			}
 	const bark = [hex('#4a2c18'), hex('#5a3620'), hex('#3d2414')];
-	for (let i = 0; i < 7; i++) {
-		const z = -6 + (i % 4) * 4;
-		const y = 7 + Math.floor(i / 4) * 3 + (i % 2);
+	for (let i = 0; i < 5; i++) {
+		const z = -6 + (i % 3) * 5;
+		const y = 7 + Math.floor(i / 3) * 3;
 		g.box(-14, y, z, 13, y + 2, z + 2, (x, yy, zz) => (x <= -13 || x >= 12 ? hex('#c08a58') : pick(bark, hash3(x, yy, zz, i))));
 	}
 	return voxels(g, 2, { jitter: 0.05, drop: (_x, y) => y < 0, shadows: false });
@@ -445,7 +445,7 @@ export function buildWindow(): THREE.Group {
 	g.box(-15, 0, 0, 14, 37, 1, frame);
 	g.box(-13, 2, 0, 12, 35, 0, (x, y) => {
 		const sky = mix(hex('#0d1838'), hex('#28407a'), y / 40);
-		const star = hash3(x, y, 3) < 0.04 ? hex('#cfe0ff') : sky;
+		const star = hash3(x, y, 3) < 0.025 ? hex('#9fb4e0') : sky;
 		const moon = Math.hypot(x - 6, y - 27) < 3.2 ? hex('#f4f0d8') : star;
 		return moon;
 	}, Mat.Glow);
@@ -458,11 +458,65 @@ export function buildWindow(): THREE.Group {
 		const x0 = side < 0 ? -22 : 11;
 		for (let x = x0; x < x0 + 11; x++)
 			for (let y = -1; y <= 41; y++) {
-				const fold = (x + (side < 0 ? 0 : 1)) % 3 === 0 ? 3 : 2;
-				const c = shade(mix(hex('#8a2420'), hex('#a8322a'), (x & 1) * 0.5), y % 8 === 0 ? 0.8 : 0.95 + hash3(x, y, 0) * 0.08);
-				g.box(x, y, 2, x, y, fold, c);
+				const c = shade(mix(hex('#8a2420'), hex('#a8322a'), (x & 1) * 0.5), (x % 3 === 0 ? 0.78 : 1) * (y % 8 === 0 ? 0.85 : 0.95 + hash3(x, y, 0) * 0.08));
+				g.box(x, y, 2, x, y, 2, c);
 			}
 	}
 	g.box(-23, 41, 0, 22, 42, 3, hex('#2a1a12'));
 	return voxels(g, 3, { jitter: 0.03, drop: (_x, y, z) => y < 0 || z < 0, shadows: false, mats: { [Mat.Glow]: { emissive: 0.7 } } });
+}
+
+export interface Clock {
+	group: THREE.Group;
+	update(t: number): void;
+}
+
+/** Grandfather clock with a swinging brass pendulum; 3-unit voxels, faces +z. */
+export function buildClock(): Clock {
+	const g = new VoxelGrid(18, 66, 11, -9, 0, 0);
+	const wood = [hex('#5a2e1c'), hex('#663520'), hex('#4f281a')];
+	const w = (x: number, y: number, z: number) => grain(pick(wood, hash3(x >> 2, 0, z)), y, x + z, 5, 0.18);
+	// plinth, trunk, hood
+	g.box(-8, 0, 0, 7, 8, 9, w);
+	g.box(-6, 9, 1, 5, 44, 8, w);
+	g.box(-8, 45, 0, 7, 60, 9, w);
+	g.box(-9, 61, 0, 8, 62, 10, (x, y, z) => shade(w(x, y, z), 1.1));
+	g.box(-5, 63, 1, 4, 64, 8, w);
+	g.box(-1, 65, 3, 0, 65, 6, hex('#c9a040'));
+	// dial
+	for (let y = 47; y <= 58; y++)
+		for (let x = -6; x <= 5; x++) {
+			const d = Math.hypot(x + 0.5, y - 52.5);
+			if (d < 5.6) g.set(x, y, 10, d > 4.6 ? hex('#c9a040') : hex('#efe4c8'));
+		}
+	g.box(0, 53, 10, 0, 56, 10, hex('#2a2018'));
+	g.box(1, 52, 10, 3, 52, 10, hex('#2a2018'));
+	for (const [x, y] of [
+		[0, 57],
+		[4, 52],
+		[0, 48],
+		[-4, 52]
+	])
+		g.set(x, y, 10, hex('#3a2a1a'));
+	// pendulum window (dark glass recess)
+	g.box(-3, 14, 8, 2, 40, 8, -1);
+	for (let y = 14; y <= 40; y++) for (let x = -3; x <= 2; x++) g.clear(x, y, 8);
+	g.box(-3, 14, 7, 2, 40, 7, (x, y) => shade(hex('#2a1810'), 0.9 + hash3(x, y, 1) * 0.1));
+	const group = voxels(g, 3, { jitter: 0.04, drop: (_x, y, z) => y < 0 || z < 0, shadows: false });
+	// pendulum: rod + bob, pivots near the top of the window
+	const p = new VoxelGrid(3, 26, 1, -1, -26, 0);
+	const brass = hex('#d8b04a');
+	p.box(0, -20, 0, 0, -1, 0, shade(brass, 0.8));
+	p.box(-1, -26, 0, 1, -21, 0, (x, y) => shade(brass, 0.95 + hash3(x, y, 0) * 0.15));
+	const pend = voxels(p, 1.5, { jitter: 0.02, shadows: false });
+	const pivot = new THREE.Group();
+	pivot.position.set(-0.5 * 3 + 0.75, 41 * 3, 7.6 * 3);
+	pivot.add(pend);
+	group.add(pivot);
+	return {
+		group,
+		update(t) {
+			pivot.rotation.z = Math.sin(t * Math.PI) * 0.22;
+		}
+	};
 }

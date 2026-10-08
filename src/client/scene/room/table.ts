@@ -2,23 +2,28 @@ import * as THREE from 'three';
 import { VoxelGrid, hash3, hex, pick, shade } from '../voxel/grid';
 import { FLOOR_Y, RED_PLAID, grain, rand, shadowProxy, tartan, voxels } from './util';
 
-/** Table voxels are 3 world units: top surface at y = 0, x, z in [-150, 150]. */
-const S = 3;
+/** Table voxels are 4 world units: top surface at y = 0, x, z in [-148, 148]. */
+const S = 4;
+/** Chairs use 3-unit voxels. */
+const CS = 3;
 
-const DIM = 0.7;
-const PLANK = ['#8a3e26', '#93432a', '#9c4a2c', '#8e4027', '#97462b'].map((c) => shade(hex(c), DIM));
+const DIM = 0.52;
+const PLANK = ['#8e3a24', '#983e27', '#a0442a', '#923c25', '#9a4229'].map((c) => shade(hex(c), DIM));
 const FRAME = ['#6e301e', '#76341f', '#6a2e1c'].map((c) => shade(hex(c), DIM));
 const LEG = ['#5e2818', '#682c1a'].map((c) => shade(hex(c), DIM));
 
+export const TABLE_HALF = 37 * S;
+
 export function buildTable(): THREE.Group {
-	const half = 50; // voxels
-	const floor = Math.round(FLOOR_Y / S); // -37
-	const g = new VoxelGrid(100, -floor + 1, 100, -half, floor, -half);
+	const half = 37; // voxels
+	const floor = Math.round(FLOOR_Y / S); // -28
+	const g = new VoxelGrid(2 * half, 6, 2 * half, -half, -6, -half);
 	const r = rand(11);
-	// Each plank row (4 voxels wide, running along x) is cut into staggered boards.
+	// Plank rows (4 voxels wide, running along x) are cut into staggered boards.
+	const PW = 4;
 	const rows: { off: number; len: number; seed: number }[] = [];
-	for (let i = 0; i < 30; i++) rows.push({ off: Math.floor(r() * 30), len: 22 + Math.floor(r() * 18), seed: i });
-	const rim = 3;
+	for (let i = 0; i < 30; i++) rows.push({ off: Math.floor(r() * 30), len: 16 + Math.floor(r() * 14), seed: i });
+	const rim = 2;
 	for (let z = -half; z < half; z++)
 		for (let x = -half; x < half; x++) {
 			const ex = Math.min(x + half, half - 1 - x);
@@ -35,33 +40,37 @@ export function buildTable(): THREE.Group {
 				continue;
 			}
 			const zi = z + half - rim;
-			const PW = 5;
 			const row = rows[Math.floor(zi / PW)];
 			const seg = Math.floor((x + half + row.off) / row.len);
 			const segX = (x + half + row.off) % row.len;
 			c = grain(pick(PLANK, hash3(row.seed, seg, 0, 3)), x, Math.floor(zi / PW) * PW + seg, 3, 0.12);
 			if (zi % PW === 0 || segX === 0) c = shade(c, 0.8);
-			if (e === rim) c = shade(c, 0.82);
+			if (e === rim) c = shade(c, 0.84);
 			g.box(x, -2, z, x, -1, z, c);
 		}
 	// Apron under the rim.
-	const ap = half - 3;
+	const ap = half - 2;
 	for (const s of [-1, 1]) {
-		g.box(-ap, -6, s < 0 ? -ap : ap - 1, ap - 1, -4, s < 0 ? -ap : ap - 1, (x, y) => grain(FRAME[1], x, y, 5));
-		g.box(s < 0 ? -ap : ap - 1, -6, -ap, s < 0 ? -ap : ap - 1, -4, ap - 1, (_x, y, z) => grain(FRAME[1], z, y, 6));
+		g.box(-ap, -5, s < 0 ? -ap : ap - 1, ap - 1, -4, s < 0 ? -ap : ap - 1, (x, y) => grain(FRAME[1], x, y, 5));
+		g.box(s < 0 ? -ap : ap - 1, -5, -ap, s < 0 ? -ap : ap - 1, -4, ap - 1, (_x, y, z) => grain(FRAME[1], z, y, 6));
 	}
-	// Legs, slightly flared at the foot.
-	for (const lx of [-ap, ap - 4])
-		for (const lz of [-ap, ap - 4]) {
-			g.box(lx, floor, lz, lx + 3, -4, lz + 3, (x, y, z) => grain(pick(LEG, hash3(x, 0, z)), y, x + z * 3, 2, 0.2));
-			g.box(lx - 0, -9, lz, lx + 3, -7, lz + 3, (x, y, z) => shade(LEG[0], 0.85 + hash3(x, y, z) * 0.1));
-			g.box(lx, floor, lz, lx + 3, floor + 1, lz + 3, (x, y, z) => shade(LEG[0], 0.75 + hash3(x, y, z) * 0.08));
-		}
-	const table = voxels(g, S, { jitter: 0.04, drop: (_x, y) => y < 0 });
+	const table = voxels(g, S, { jitter: 0.035, drop: (_x, y) => y < 0 });
 	// The top has no undersides, so an invisible slab casts its shadow onto the floor.
-	const slab = shadowProxy(300, 8, 300);
+	const slab = shadowProxy(2 * TABLE_HALF, 8, 2 * TABLE_HALF);
 	slab.position.y = -5;
 	table.add(slab);
+	// Legs: one meshed leg, cloned to the four corners.
+	const lg = new VoxelGrid(3, -3 - floor, 3, 0, floor, 0);
+	lg.box(0, floor, 0, 2, -4, 2, (x, y, z) => grain(pick(LEG, hash3(x, 0, z)), y, x + z * 3, 2, 0.2));
+	lg.box(0, -7, 0, 2, -6, 2, (x, y, z) => shade(LEG[0], 0.85 + hash3(x, y, z) * 0.1));
+	lg.box(0, floor, 0, 2, floor + 1, 2, (x, y, z) => shade(LEG[0], 0.75 + hash3(x, y, z) * 0.08));
+	const leg = voxels(lg, S, { jitter: 0.04, drop: (_x, y) => y < 0 });
+	for (const lx of [-ap, ap - 3])
+		for (const lz of [-ap, ap - 3]) {
+			const l = leg.clone(true);
+			l.position.set(lx * S, 0, lz * S);
+			table.add(l);
+		}
 	return table;
 }
 
@@ -88,7 +97,7 @@ export function buildChair(): THREE.Group {
 	// upholstered back panel, padded a little to the front
 	g.box(-6, 18, -8, 5, 45, -7, (x, y) => tartan(x + 40, y + 40, RED_PLAID, 8));
 	g.box(-5, 20, -6, 4, 43, -6, (x, y) => shade(tartan(x + 40, y + 40, RED_PLAID, 8), 1.04));
-	return voxels(g, S, { jitter: 0.04, drop: (_x, y) => y < 0 });
+	return voxels(g, CS, { jitter: 0.04, drop: (_x, y) => y < 0 });
 }
 
 export function placeChairs(group: THREE.Group, dist = 178) {
@@ -105,7 +114,7 @@ export function placeChairs(group: THREE.Group, dist = 178) {
 		const holder = new THREE.Group();
 		holder.add(c);
 		// Chairs are pulled out a bit and turned a few degrees, as if people just stood up.
-		const off = (hash3(i, 3, 7) - 0.5) * 30;
+		const off = [-30, 18, -12, 34][i];
 		holder.position.set(x + (z !== 0 ? off : 0), FLOOR_Y, z + (x !== 0 ? off : 0));
 		holder.rotation.y = rot + (hash3(i, 5, 1) - 0.5) * 0.18;
 		group.add(holder);
