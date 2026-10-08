@@ -1,0 +1,92 @@
+import * as THREE from 'three';
+import type { Animator } from './anim';
+import { DIE_FACES, cloneModel, dieModel } from './board/models';
+import type { Particles } from './effects';
+
+const UP = new THREE.Vector3(0, 1, 0);
+const DIE_SCALE = 0.95;
+const HALF = 4.5 * DIE_SCALE;
+
+/** Two voxel dice that get tossed onto the table and tumble to the rolled faces. */
+export class Dice {
+	readonly dice: THREE.Group[] = [];
+	private rolling = false;
+
+	constructor(
+		readonly scene: THREE.Scene,
+		readonly anim: Animator,
+		readonly particles: Particles,
+		public rest: THREE.Vector3
+	) {
+		for (let i = 0; i < 2; i++) {
+			const d = cloneModel(dieModel());
+			d.scale.setScalar(DIE_SCALE);
+			d.position.copy(rest).add(new THREE.Vector3(i * 12 - 6, HALF, i * 3));
+			d.quaternion.copy(this.faceUp(i === 0 ? 5 : 2, i * 1.3));
+			scene.add(d);
+			this.dice.push(d);
+		}
+	}
+
+	private faceUp(value: number, yaw: number) {
+		const q = new THREE.Quaternion().setFromUnitVectors(DIE_FACES[value], UP);
+		return new THREE.Quaternion().setFromAxisAngle(UP, yaw).multiply(q);
+	}
+
+	/** Toss from `from` (usually toward the camera) and land on `values`. */
+	async roll(values: [number, number], from: THREE.Vector3, rest?: THREE.Vector3) {
+		if (rest) this.rest = rest;
+		this.rolling = true;
+		const duration = 1.35;
+		await Promise.all(
+			this.dice.map((d, i) => {
+				const end = this.rest.clone().add(new THREE.Vector3(i * 12 - 6 + (Math.random() - 0.5) * 4, HALF, i * 4 + (Math.random() - 0.5) * 4));
+				const start = from.clone().add(new THREE.Vector3(i * 6 - 3, 0, i * 3));
+				const qEnd = this.faceUp(values[i], Math.random() * Math.PI * 2);
+				const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+				const spins = (3 + Math.random() * 2) * Math.PI * 2;
+				let bounced = 0;
+				return this.anim.tween(
+					duration + i * 0.08,
+					(t) => {
+						// Horizontal glide with drag, vertical bounces.
+						const h = 1 - Math.pow(1 - t, 2.4);
+						d.position.lerpVectors(start, end, h);
+						let y: number;
+						if (t < 0.45) {
+							const u = t / 0.45;
+							y = THREE.MathUtils.lerp(start.y, HALF, u) + Math.sin(u * Math.PI) * 14;
+						} else if (t < 0.72) {
+							const u = (t - 0.45) / 0.27;
+							y = HALF + Math.sin(u * Math.PI) * 6;
+							if (bounced === 0) this.thud(d, (bounced = 1));
+						} else if (t < 0.88) {
+							const u = (t - 0.72) / 0.16;
+							y = HALF + Math.sin(u * Math.PI) * 1.8;
+							if (bounced === 1) this.thud(d, (bounced = 2));
+						} else {
+							y = HALF;
+							if (bounced === 2) this.thud(d, (bounced = 3));
+						}
+						d.position.y = y;
+						const r = 1 - Math.pow(1 - t, 3);
+						const spin = new THREE.Quaternion().setFromAxisAngle(axis, (1 - r) * spins);
+						d.quaternion.copy(qEnd).premultiply(spin);
+					},
+					(t) => t
+				);
+			})
+		);
+		this.rolling = false;
+	}
+
+	private thud(d: THREE.Object3D, n: number) {
+		const p = d.position.clone();
+		p.y = 0.5;
+		this.particles.dust(p, n === 1 ? 10 : 5);
+	}
+
+	get busy() {
+		return this.rolling;
+	}
+}

@@ -8,7 +8,7 @@
 		"dev:server": "tsx watch src/server/index.ts",
 		"dev:client": "vite",
 		"build": "vite build",
-		"start": "NODE_ENV=production tsx src/server/index.ts",
+		"start": "tsx src/server/index.ts",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run",
 		"format": "prettier --write .",

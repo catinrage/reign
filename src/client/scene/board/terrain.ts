@@ -17,16 +17,16 @@ const C = {
 	border: [hex('#e9cf98'), hex('#e2c48a'), hex('#f0d9a8')],
 	sand: [hex('#f2d08c'), hex('#ebc47c'), hex('#f6daa0'), hex('#e3b96e')],
 	dirt: [hex('#7a5234'), hex('#6c472d'), hex('#835a39')],
-	forestFloor: [hex('#3e7d2b'), hex('#478a31'), hex('#356f25'), hex('#52953a')],
-	pine: [hex('#1f5a26'), hex('#2a6e2f'), hex('#19491f'), hex('#33803a')],
-	leaf: [hex('#3f8f35'), hex('#4ea43e'), hex('#368030'), hex('#5cb247')],
+	forestFloor: [hex('#2f6a22'), hex('#387a28'), hex('#2a5e1e'), hex('#417f2e')],
+	pine: [hex('#17501f'), hex('#1f6226'), hex('#12421a'), hex('#2a7030')],
+	leaf: [hex('#2f7a2a'), hex('#3a8a30'), hex('#296b25'), hex('#46963a')],
 	trunk: [hex('#6b4426'), hex('#5c3920')],
-	grass: [hex('#8cc63f'), hex('#7fb93a'), hex('#99d04b'), hex('#a6d85c')],
+	grass: [hex('#86c23a'), hex('#79b534'), hex('#93cc44'), hex('#a2d455')],
 	flower: [hex('#ffffff'), hex('#ffe066'), hex('#ff9ebb'), hex('#c9a8ff')],
 	bush: [hex('#4b8f32'), hex('#3f7f2b')],
 	soil: [hex('#8c6a3c'), hex('#7d5c33')],
-	wheat: [hex('#d6951c'), hex('#eaa923'), hex('#f3bd31'), hex('#f9d150'), hex('#ffe07a')],
-	clay: [hex('#c4502c'), hex('#d8613a'), hex('#b2442a'), hex('#e07548')],
+	wheat: [hex('#d0800f'), hex('#e69516'), hex('#f2aa1f'), hex('#fbc232'), hex('#ffd455')],
+	clay: [hex('#c4482a'), hex('#d6552f'), hex('#b23c25'), hex('#e0663a')],
 	clayDark: [hex('#9e3b24'), hex('#8c3420')],
 	brick: [hex('#a83d27'), hex('#b8472c')],
 	mortar: hex('#d9a27a'),
@@ -35,9 +35,9 @@ const C = {
 	snow: [hex('#f3f5f8'), hex('#e6eaf0'), hex('#ffffff')],
 	ore: [hex('#b9c7da'), hex('#8fa3bf')],
 	cactus: [hex('#4f8a3a'), hex('#5f9c45')],
-	waterShallow: hex('#3fb0dc'),
-	waterMid: hex('#1f7ccb'),
-	waterDeep: hex('#1856ad'),
+	waterShallow: hex('#2f9fda'),
+	waterMid: hex('#1c6cc6'),
+	waterDeep: hex('#1a4fa6'),
 	waterEdge: hex('#123f86'),
 	foam: hex('#dff3fb'),
 	plank: [hex('#9a6436'), hex('#8a5730'), hex('#a8703e')],
@@ -160,9 +160,9 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 				const n = (noise2(x * 0.3, z * 0.3, seed) - 0.5) * 2.2;
 				const dd = d + n;
 				let c: number;
-				if (dd < 3.2) c = mix(C.waterShallow, C.foam, r > 0.82 && d < 2.6 ? 0.7 : 0.05);
-				else if (dd < 6) c = mix(C.waterShallow, C.waterMid, (dd - 3.2) / 2.8);
-				else if (dd < 11) c = mix(C.waterMid, C.waterDeep, (dd - 6) / 5);
+				if (dd < 2.8) c = mix(C.waterShallow, C.foam, r > 0.82 && d < 2.6 ? 0.7 : 0.05);
+				else if (dd < 5.5) c = mix(C.waterShallow, C.waterMid, (dd - 2.8) / 2.7);
+				else if (dd < 10) c = mix(C.waterMid, C.waterDeep, (dd - 5.5) / 4.5);
 				else c = C.waterDeep;
 				const rim = d > outline - 1.5;
 				if (rim) c = C.waterEdge;
@@ -195,7 +195,7 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 		const cx = th.x * HEX_R;
 		const cz = th.z * HEX_R;
 		const hs = seed + h * 101;
-		const spots = scatter(hs, 28, 4.3, (lx, lz) => hexEdgeDistance(lx, lz) > 2.6 && Math.hypot(lx, lz) > 5.2);
+		const spots = scatter(hs, 28, hx.terrain === 'forest' ? 3.4 : 4.3, (lx, lz) => hexEdgeDistance(lx, lz) > 2.6 && Math.hypot(lx, lz) > 5.2);
 		const topAt = (x: number, z: number) => {
 			const ix = Math.floor(x) - MIN_X;
 			const iz = Math.floor(z) - MIN_Z;
@@ -203,11 +203,11 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 		};
 		switch (hx.terrain) {
 			case 'forest':
-				spots.slice(0, 15).forEach(([lx, lz], k) => {
+				spots.slice(0, 22).forEach(([lx, lz], k) => {
 					const x = Math.floor(cx + lx);
 					const z = Math.floor(cz + lz);
 					const base = topAt(x, z) + 1;
-					if (hash3(k, 1, h, seed) < 0.62) pineTree(grid, x, base, z, hs + k);
+					if (hash3(k, 1, h, seed) < 0.72) pineTree(grid, x, base, z, hs + k);
 					else roundTree(grid, x, base, z, hs + k);
 				});
 				break;
@@ -352,12 +352,12 @@ function terrainColumn(
 		}
 		case 'fields': {
 			fill(g - 1, pick(C.soil, r));
-			const furrow = (Math.floor(x + z * 0.5) % 4 + 4) % 4 === 0;
+			const furrow = (Math.floor(x + z * 0.5) % 6 + 6) % 6 === 0;
 			if (center < 4.2 || col.edge < 2 || furrow) {
 				grid.set(x, g, z, pick(C.soil, hash3(x, 1, z, hs)));
 				return g;
 			}
-			let h = 2 + (r > 0.35 ? 1 : 0) + (r > 0.8 ? 1 : 0);
+			let h = 3 + (r > 0.3 ? 1 : 0) + (r > 0.75 ? 1 : 0);
 			h = Math.max(1, Math.round(h * Math.min(1, edgeFade + 0.35)));
 			for (let k = 0; k < h; k++) {
 				const t = (k + 1) / h;

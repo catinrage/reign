@@ -81,14 +81,16 @@ export function numberToken(n: number): THREE.Group {
 		ctx.fillStyle = red ? '#c7261b' : '#3a2416';
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
-		ctx.font = `700 ${n >= 10 ? 118 : 132}px ${FONT}`;
-		ctx.fillText(String(n), s / 2, s * 0.44);
+		ctx.font = `900 ${n >= 10 ? 112 : 128}px "Nunito Variable", system-ui, sans-serif`;
+		ctx.fillText(String(n), s / 2, s * 0.45);
 		const dots = pips(n);
-		const size = 15;
+		const size = 16;
 		const gap = 24;
 		const start = s / 2 - ((dots - 1) * gap) / 2;
 		for (let i = 0; i < dots; i++) {
-			ctx.fillRect(Math.round(start + i * gap - size / 2), Math.round(s * 0.73), size, size);
+			ctx.beginPath();
+			ctx.arc(start + i * gap, s * 0.76, size / 2, 0, Math.PI * 2);
+			ctx.fill();
 		}
 	});
 	const g = withFace(tex);
