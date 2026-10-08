@@ -66,7 +66,7 @@ export class GameScene {
 		this.stage = new Stage(canvas, quality);
 		this.particles = new Particles(this.stage.scene);
 		this.room = buildRoom(this.stage);
-		this.dice = new Dice(this.stage.scene, this.anim, this.particles, new THREE.Vector3(-60, 0, 100));
+		this.dice = new Dice(this.stage.scene, this.anim, this.particles, new THREE.Vector3(70, 0, -96));
 		this.stage.scene.add(this.ghosts);
 
 		const ringGeo = new THREE.BufferGeometry().setFromPoints(
@@ -239,7 +239,7 @@ export class GameScene {
 				const cam = this.stage.camera.position.clone();
 				const dir = new THREE.Vector3(cam.x, 0, cam.z).normalize();
 				const side = new THREE.Vector3(-dir.z, 0, dir.x);
-				const rest = dir.clone().multiplyScalar(104).addScaledVector(side, 26);
+				const rest = dir.clone().multiplyScalar(84).addScaledVector(side, 62);
 				const from = dir.clone().multiplyScalar(170).addScaledVector(side, 40).setY(40);
 				this.dice.roll(e.dice, from, rest).then(() => this.callbacks.onDiceSettled?.(e.dice));
 				// Highlight producing tokens once the dice land.
@@ -317,6 +317,7 @@ export class GameScene {
 		const bv = this.boardView;
 		const color = PLAYER_RGB[req.color] ?? 0xffffff;
 		const mat = ghostMaterial(color);
+		const markerMat = markerMaterial(color);
 		for (const id of req.options) {
 			let model: THREE.Object3D | null = null;
 			let pos = new THREE.Vector3();
@@ -334,6 +335,11 @@ export class GameScene {
 				rot = ep.angle;
 			}
 			if (!model) continue;
+			// A slot is a small glowing marker; the full ghost piece appears on hover.
+			const slot = new THREE.Group();
+			slot.position.copy(pos);
+			slot.rotation.y = rot;
+			slot.userData = { id, baseY: pos.y, phase: Math.random() * 6 };
 			const ghost = cloneModel(model as THREE.Group);
 			ghost.traverse((o) => {
 				const m = o as THREE.Mesh;
@@ -342,12 +348,28 @@ export class GameScene {
 					m.castShadow = false;
 				}
 			});
-			ghost.position.copy(pos);
-			ghost.rotation.y = rot;
 			ghost.scale.setScalar(req.kind === 'road' ? 0.85 : PIECE_SCALE);
-			ghost.userData = { id, baseY: pos.y, phase: Math.random() * 6, base: ghost.scale.x };
-			if (req.kind === 'city') ghost.position.y += 1;
-			this.ghosts.add(ghost);
+			ghost.userData.base = ghost.scale.x;
+			ghost.name = 'ghost';
+			ghost.visible = false;
+			slot.add(ghost);
+			if (req.kind === 'road') {
+				const bar = new THREE.Mesh(MARKER_BAR, markerMat);
+				bar.position.y = 1.2;
+				bar.name = 'marker';
+				slot.add(bar);
+			} else {
+				const gem = new THREE.Mesh(MARKER_GEM, markerMat);
+				gem.position.y = req.kind === 'city' ? 11 : 4.5;
+				gem.name = 'marker';
+				slot.add(gem);
+				const ring = new THREE.Mesh(MARKER_RING, ringMaterial(color));
+				ring.rotation.x = -Math.PI / 2;
+				ring.position.y = 0.3;
+				ring.name = 'ring';
+				slot.add(ring);
+			}
+			this.ghosts.add(slot);
 			const hit = new THREE.Mesh(
 				req.kind === 'road' ? new THREE.BoxGeometry(9, 6, 4) : new THREE.SphereGeometry(5, 8, 6),
 				new THREE.MeshBasicMaterial({ visible: false })
@@ -357,6 +379,19 @@ export class GameScene {
 			this.ghosts.add(hit);
 			this.ghostHits.push({ mesh: hit, id });
 		}
+	}
+
+	/** Screen positions of the current pick options (used by browser tests). */
+	debugPickPoints(): { id: number; x: number; y: number }[] {
+		if (!this.pick || !this.boardView) return [];
+		if (this.pick.kind === 'robber') {
+			return this.pick.options.map((id) => {
+				const c = this.boardView!.hexCenter(id);
+				c.y = this.boardView!.groundAt(c.x, c.z, 0);
+				return { id, ...this.project(c.add(new THREE.Vector3(5, 0, 4))) };
+			});
+		}
+		return this.ghostHits.map((g) => ({ id: g.id, ...this.project(g.mesh.position) }));
 	}
 
 	private onPointerMove = (e: PointerEvent) => {
@@ -419,13 +454,26 @@ export class GameScene {
 		// hover feedback
 		const id = this.pick ? this.pickAtPointer() : null;
 		this.stage.canvas.style.cursor = id !== null ? 'pointer' : '';
-		for (const g of this.ghosts.children) {
-			if (g.userData.id === undefined) continue;
-			const hovered = g.userData.id === id;
-			const target = g.userData.base * (hovered ? 1.2 : 1);
-			const s = THREE.MathUtils.lerp(g.scale.x, target, 0.25);
-			g.scale.setScalar(s);
-			g.position.y = g.userData.baseY + (hovered ? 2.5 : 1 + Math.sin(t * 3 + g.userData.phase) * 0.8);
+		for (const slot of this.ghosts.children) {
+			if (slot.userData.id === undefined) continue;
+			const hovered = slot.userData.id === id;
+			const ghost = slot.getObjectByName('ghost')!;
+			const marker = slot.getObjectByName('marker');
+			const ring = slot.getObjectByName('ring');
+			ghost.visible = hovered;
+			if (hovered) {
+				const s = THREE.MathUtils.lerp(ghost.scale.x, ghost.userData.base * 1.12, 0.3);
+				ghost.scale.setScalar(s);
+				ghost.position.y = 1.5 + Math.sin(t * 5) * 0.4;
+			} else ghost.scale.setScalar(ghost.userData.base * 0.6);
+			if (marker) {
+				marker.visible = !hovered || this.pick?.kind === 'road';
+				if (this.pick?.kind !== 'road') {
+					marker.rotation.y = t * 1.8 + slot.userData.phase;
+					marker.position.y = (this.pick?.kind === 'city' ? 11 : 4.5) + Math.sin(t * 3 + slot.userData.phase) * 0.7;
+				}
+			}
+			if (ring) ring.scale.setScalar(1 + Math.sin(t * 3 + slot.userData.phase) * 0.12);
 		}
 		if (this.pick?.kind === 'robber' && bv) {
 			if (id !== null) {
@@ -435,17 +483,38 @@ export class GameScene {
 				(this.hexRing.material as THREE.LineBasicMaterial).opacity = 0.6 + Math.sin(t * 6) * 0.3;
 			} else this.hexRing.visible = false;
 		}
-		const mats = new Set<THREE.Material>();
-		this.ghosts.traverse((o) => {
-			const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-			if (m && m.visible !== false && 'emissiveIntensity' in m) mats.add(m);
-		});
-		for (const m of mats) (m as THREE.MeshStandardMaterial).emissiveIntensity = 0.55 + Math.sin(t * 4) * 0.25;
+		const pulse = 0.5 + Math.sin(t * 4) * 0.5;
+		for (const m of ghostCache.values()) m.emissiveIntensity = 0.4 + pulse * 0.3;
+		for (const m of markerCache.values()) m.emissiveIntensity = 0.9 + pulse * 0.9;
 	}
 
 	dispose() {
 		this.stage.dispose();
 	}
+}
+
+const MARKER_GEM = new THREE.OctahedronGeometry(1.5, 0).scale(1, 1.45, 1);
+const MARKER_BAR = new THREE.BoxGeometry(6.5, 0.9, 0.9);
+const MARKER_RING = new THREE.RingGeometry(2.2, 3.1, 6);
+
+const markerCache = new Map<number, THREE.MeshStandardMaterial>();
+function markerMaterial(color: number) {
+	let m = markerCache.get(color);
+	if (!m) {
+		m = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.2, roughness: 0.3, flatShading: true });
+		markerCache.set(color, m);
+	}
+	return m;
+}
+
+const ringCache = new Map<number, THREE.MeshBasicMaterial>();
+function ringMaterial(color: number) {
+	let m = ringCache.get(color);
+	if (!m) {
+		m = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.35), transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide });
+		ringCache.set(color, m);
+	}
+	return m;
 }
 
 const ghostCache = new Map<number, THREE.MeshStandardMaterial>();
@@ -457,8 +526,8 @@ function ghostMaterial(color: number) {
 			emissive: color,
 			emissiveIntensity: 0.6,
 			transparent: true,
-			opacity: 0.55,
-			depthWrite: false,
+			opacity: 0.72,
+			depthWrite: true,
 			roughness: 0.5
 		});
 		ghostCache.set(color, m);
