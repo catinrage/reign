@@ -1,33 +1,27 @@
-import tailwindcss from '@tailwindcss/vite';
-import { svelteTesting } from '@testing-library/svelte/vite';
-import { sveltekit } from '@sveltejs/kit/vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';
 
+const serverPort = Number(process.env.PORT ?? 8787);
+
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit()],
+	root: 'src/client',
+	publicDir: 'public',
+	plugins: [svelte()],
+	build: {
+		outDir: '../../dist/client',
+		emptyOutDir: true,
+		chunkSizeWarningLimit: 2000
+	},
+	server: {
+		port: 5173,
+		host: true,
+		proxy: {
+			'/ws': { target: `ws://localhost:${serverPort}`, ws: true }
+		}
+	},
 	test: {
-		workspace: [
-			{
-				extends: './vite.config.ts',
-				plugins: [svelteTesting()],
-				test: {
-					name: 'client',
-					environment: 'jsdom',
-					clearMocks: true,
-					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-					exclude: ['src/lib/server/**'],
-					setupFiles: ['./vitest-setup-client.ts']
-				}
-			},
-			{
-				extends: './vite.config.ts',
-				test: {
-					name: 'server',
-					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
-				}
-			}
-		]
+		root: '.',
+		include: ['tests/**/*.test.ts'],
+		environment: 'node'
 	}
 });
