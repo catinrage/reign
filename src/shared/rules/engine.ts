@@ -1,0 +1,727 @@
+import { generateStandardBoard } from '../board/generate';
+import { type Board, getTopology } from '../board/topology';
+import { nextRandom, randomInt, shuffle } from '../rng';
+import {
+	BANK_PER_RESOURCE,
+	COSTS,
+	DEV_CARDS,
+	DEV_DECK,
+	DISCARD_THRESHOLD,
+	LARGEST_ARMY_MIN,
+	LONGEST_ROAD_MIN,
+	PIECE_LIMITS,
+	RESOURCES,
+	TERRAIN_RESOURCE,
+	VICTORY_POINTS_TO_WIN,
+	emptyResources,
+	hasResources,
+	totalResources,
+	type DevCardType,
+	type PlayerColor,
+	type Resource,
+	type ResourceCounts
+} from './config';
+import {
+	canPlaceRoad,
+	canPlaceSettlement,
+	longestRoad,
+	playersOnHex,
+	publicPoints,
+	roadSpots,
+	tradeRatios
+} from './queries';
+import type {
+	Action,
+	GameEvent,
+	GameState,
+	PlayerState,
+	ResourceGain,
+	TradeOffer
+} from './types';
+
+export interface NewPlayer {
+	name: string;
+	color: PlayerColor;
+	isBot: boolean;
+}
+
+const LOG_LIMIT = 80;
+
+export function createGame(players: NewPlayer[], seed: number, board?: Board): GameState {
+	const rngHolder = { rng: seed | 0 };
+	const b = board ?? generateStandardBoard(rngHolder);
+	const topo = getTopology(b);
+	const deck: DevCardType[] = [];
+	for (const c of DEV_CARDS) for (let i = 0; i < DEV_DECK[c]; i++) deck.push(c);
+	shuffle(rngHolder, deck);
+	const desert = b.hexes.findIndex((h) => h.terrain === 'desert');
+	const state: GameState = {
+		version: 0,
+		rng: rngHolder.rng,
+		board: b,
+		players: players.map(
+			(p): PlayerState => ({
+				name: p.name,
+				color: p.color,
+				isBot: p.isBot,
+				resources: emptyResources(),
+				devCards: [],
+				knightsPlayed: 0,
+				piecesLeft: { ...PIECE_LIMITS },
+				longestRoad: 0
+			})
+		),
+		phase: 'setup',
+		step: 'setupSettlement',
+		current: 0,
+		turn: 0,
+		setupIndex: 0,
+		setupLastSettlement: null,
+		dice: null,
+		robberHex: desert >= 0 ? desert : 0,
+		buildings: topo.vertices.map(() => null),
+		roads: topo.edges.map(() => null),
+		bank: {
+			wood: BANK_PER_RESOURCE,
+			brick: BANK_PER_RESOURCE,
+			sheep: BANK_PER_RESOURCE,
+			wheat: BANK_PER_RESOURCE,
+			ore: BANK_PER_RESOURCE
+		},
+		devDeck: deck,
+		devCardPlayedThisTurn: false,
+		roadBuildingLeft: 0,
+		resumeStep: 'main',
+		pendingDiscards: {},
+		stealCandidates: [],
+		trade: null,
+		longestRoadHolder: null,
+		largestArmyHolder: null,
+		winner: null,
+		log: [],
+		nextEventSeq: 1
+	};
+	const ctx = new Ctx(state);
+	ctx.emit({ type: 'gameStarted', players: players.length });
+	ctx.emit({ type: 'turnStarted', player: 0, turn: 0 });
+	return state;
+}
+
+/** Copy everything but the board, which never changes and keys the topology cache. */
+function cloneState(s: GameState): GameState {
+	const { board, ...rest } = s;
+	return { ...structuredClone(rest), board };
+}
+
+class RuleError extends Error {}
+
+function fail(msg: string): never {
+	throw new RuleError(msg);
+}
+
+class Ctx {
+	events: GameEvent[] = [];
+	constructor(public s: GameState) {}
+	emit(e: DistributiveOmit<GameEvent, 'seq'>) {
+		const ev = { ...e, seq: this.s.nextEventSeq++ } as GameEvent;
+		this.events.push(ev);
+		this.s.log.push(ev);
+		if (this.s.log.length > LOG_LIMIT) this.s.log.splice(0, this.s.log.length - LOG_LIMIT);
+	}
+}
+
+type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
+
+export type ApplyResult =
+	| { ok: true; state: GameState; events: GameEvent[] }
+	| { ok: false; error: string };
+
+/** Validate and apply one action. Never mutates the input state. */
+export function applyAction(state: GameState, player: number, action: Action): ApplyResult {
+	if (state.phase === 'ended') return { ok: false, error: 'The game is over.' };
+	const s = cloneState(state);
+	const ctx = new Ctx(s);
+	try {
+		dispatch(ctx, player, action);
+	} catch (e) {
+		if (e instanceof RuleError) return { ok: false, error: e.message };
+		throw e;
+	}
+	s.version++;
+	return { ok: true, state: s, events: ctx.events };
+}
+
+/** Chat goes through the log so it survives reconnects. */
+export function addChat(state: GameState, player: number, text: string): GameState {
+	const s = cloneState(state);
+	new Ctx(s).emit({ type: 'chat', player, text: text.slice(0, 200) });
+	s.version++;
+	return s;
+}
+
+function dispatch(ctx: Ctx, p: number, a: Action) {
+	const s = ctx.s;
+	if (!s.players[p]) fail('Unknown player.');
+
+	// Actions that other players may take out of turn.
+	if (a.type === 'discard') return discard(ctx, p, a.resources);
+	if (a.type === 'respondTrade') return respondTrade(ctx, p, a.offerId, a.accept);
+
+	if (p !== s.current) fail("It's not your turn.");
+
+	switch (a.type) {
+		case 'placeSettlement':
+			return s.phase === 'setup' ? setupSettlement(ctx, p, a.vertex) : buildSettlement(ctx, p, a.vertex);
+		case 'placeRoad':
+			if (s.phase === 'setup') return setupRoad(ctx, p, a.edge);
+			if (s.step === 'roadBuilding') return freeRoad(ctx, p, a.edge);
+			return buildRoad(ctx, p, a.edge);
+		case 'buildCity':
+			return buildCity(ctx, p, a.vertex);
+		case 'rollDice':
+			return roll(ctx, p);
+		case 'moveRobber':
+			return moveRobber(ctx, p, a.hex);
+		case 'steal':
+			return steal(ctx, p, a.victim);
+		case 'buyDevCard':
+			return buyDevCard(ctx, p);
+		case 'playKnight':
+		case 'playRoadBuilding':
+		case 'playYearOfPlenty':
+		case 'playMonopoly':
+			return playDevCard(ctx, p, a);
+		case 'bankTrade':
+			return bankTrade(ctx, p, a.give, a.get);
+		case 'offerTrade':
+			return offerTrade(ctx, p, a.give, a.want);
+		case 'confirmTrade':
+			return confirmTrade(ctx, p, a.offerId, a.with);
+		case 'cancelTrade':
+			return cancelTrade(ctx, p);
+		case 'endTurn':
+			return endTurn(ctx, p);
+		default:
+			fail('Unknown action.');
+	}
+}
+
+// ---------------------------------------------------------------- setup
+
+function setupOrder(s: GameState): number[] {
+	const n = s.players.length;
+	const forward = [...Array(n).keys()];
+	return [...forward, ...forward.reverse()];
+}
+
+function setupSettlement(ctx: Ctx, p: number, vertex: number) {
+	const s = ctx.s;
+	if (s.step !== 'setupSettlement') fail('Place a road next to your settlement first.');
+	if (!canPlaceSettlement(s, p, vertex, true)) fail("You can't build a settlement there.");
+	s.buildings[vertex] = { owner: p, kind: 'settlement' };
+	s.players[p].piecesLeft.settlement--;
+	s.setupLastSettlement = vertex;
+	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: true });
+
+	const secondRound = s.setupIndex >= s.players.length;
+	if (secondRound) {
+		const topo = getTopology(s.board);
+		const gains: ResourceGain[] = [];
+		for (const h of topo.vertices[vertex].hexes) {
+			const res = TERRAIN_RESOURCE[s.board.hexes[h].terrain];
+			if (!res || s.bank[res] <= 0) continue;
+			s.bank[res]--;
+			s.players[p].resources[res]++;
+			gains.push({ player: p, hex: h, resource: res, amount: 1 });
+		}
+		if (gains.length) ctx.emit({ type: 'setupResources', player: p, gains });
+	}
+	s.step = 'setupRoad';
+}
+
+function setupRoad(ctx: Ctx, p: number, edge: number) {
+	const s = ctx.s;
+	if (s.step !== 'setupRoad') fail('Place a settlement first.');
+	if (!canPlaceRoad(s, p, edge, s.setupLastSettlement))
+		fail('The road has to touch the settlement you just placed.');
+	s.roads[edge] = p;
+	s.players[p].piecesLeft.road--;
+	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: true });
+	updateLongestRoad(ctx);
+
+	s.setupIndex++;
+	s.setupLastSettlement = null;
+	const order = setupOrder(s);
+	if (s.setupIndex >= order.length) {
+		s.phase = 'main';
+		s.step = 'roll';
+		s.current = 0;
+		s.turn = 1;
+		ctx.emit({ type: 'turnStarted', player: 0, turn: 1 });
+	} else {
+		s.step = 'setupSettlement';
+		const next = order[s.setupIndex];
+		if (next !== s.current) {
+			s.current = next;
+			ctx.emit({ type: 'turnStarted', player: next, turn: 0 });
+		}
+	}
+}
+
+// ---------------------------------------------------------------- dice & robber
+
+function roll(ctx: Ctx, p: number) {
+	const s = ctx.s;
+	if (s.step !== 'roll') fail("You can't roll right now.");
+	const d1 = 1 + randomInt(s, 6);
+	const d2 = 1 + randomInt(s, 6);
+	s.dice = [d1, d2];
+	ctx.emit({ type: 'diceRolled', player: p, dice: [d1, d2] });
+	const total = d1 + d2;
+	if (total === 7) {
+		const pending: Record<number, number> = {};
+		s.players.forEach((pl, i) => {
+			const n = totalResources(pl.resources);
+			if (n > DISCARD_THRESHOLD) pending[i] = Math.floor(n / 2);
+		});
+		s.pendingDiscards = pending;
+		s.resumeStep = 'main';
+		if (Object.keys(pending).length) {
+			s.step = 'discard';
+			ctx.emit({ type: 'mustDiscard', players: pending });
+		} else {
+			s.step = 'moveRobber';
+		}
+		return;
+	}
+	produce(ctx, total);
+	s.step = 'main';
+}
+
+function produce(ctx: Ctx, total: number) {
+	const s = ctx.s;
+	const topo = getTopology(s.board);
+	const owed: ResourceGain[] = [];
+	const blocked: number[] = [];
+	s.board.hexes.forEach((hex, h) => {
+		if (hex.number !== total) return;
+		const res = TERRAIN_RESOURCE[hex.terrain];
+		if (!res) return;
+		if (h === s.robberHex) {
+			if (topo.hexes[h].vertices.some((v) => s.buildings[v])) blocked.push(h);
+			return;
+		}
+		for (const v of topo.hexes[h].vertices) {
+			const b = s.buildings[v];
+			if (b) owed.push({ player: b.owner, hex: h, resource: res, amount: b.kind === 'city' ? 2 : 1 });
+		}
+	});
+	// Bank shortage: if the bank can't pay everyone a resource, nobody gets it,
+	// unless only one player is owed it, who then takes what is left.
+	const shortages: Resource[] = [];
+	const gains: ResourceGain[] = [];
+	for (const res of RESOURCES) {
+		const forRes = owed.filter((g) => g.resource === res);
+		if (!forRes.length) continue;
+		const need = forRes.reduce((n, g) => n + g.amount, 0);
+		if (need <= s.bank[res]) {
+			gains.push(...forRes);
+			continue;
+		}
+		shortages.push(res);
+		const owners = new Set(forRes.map((g) => g.player));
+		if (owners.size === 1) {
+			let left = s.bank[res];
+			for (const g of forRes) {
+				const amount = Math.min(left, g.amount);
+				left -= amount;
+				if (amount > 0) gains.push({ ...g, amount });
+			}
+		}
+	}
+	for (const g of gains) {
+		s.bank[g.resource] -= g.amount;
+		s.players[g.player].resources[g.resource] += g.amount;
+	}
+	if (gains.length || blocked.length) ctx.emit({ type: 'produced', gains, blocked, shortages });
+	else ctx.emit({ type: 'nothingProduced', total });
+}
+
+function discard(ctx: Ctx, p: number, res: Partial<ResourceCounts>) {
+	const s = ctx.s;
+	if (s.step !== 'discard' || !(p in s.pendingDiscards)) fail("You don't need to discard.");
+	const need = s.pendingDiscards[p];
+	const clean = sanitize(res);
+	if (totalResources(clean) !== need) fail(`Choose exactly ${need} cards to discard.`);
+	if (!hasResources(s.players[p].resources, clean)) fail("You don't have those cards.");
+	transfer(s.players[p].resources, s.bank, clean);
+	delete s.pendingDiscards[p];
+	ctx.emit({ type: 'discarded', player: p, count: need });
+	if (Object.keys(s.pendingDiscards).length === 0) s.step = 'moveRobber';
+}
+
+function moveRobber(ctx: Ctx, p: number, hex: number) {
+	const s = ctx.s;
+	if (s.step !== 'moveRobber') fail("You can't move the robber now.");
+	if (!s.board.hexes[hex]) fail('Pick a tile on the island.');
+	if (hex === s.robberHex) fail('The robber has to move to a different tile.');
+	s.robberHex = hex;
+	ctx.emit({ type: 'robberMoved', player: p, hex });
+	const victims = playersOnHex(s, hex, p).filter(
+		(v) => totalResources(s.players[v].resources) > 0
+	);
+	if (victims.length === 0) {
+		ctx.emit({ type: 'nothingToSteal', player: p });
+		s.step = s.resumeStep;
+	} else if (victims.length === 1) {
+		doSteal(ctx, p, victims[0]);
+	} else {
+		s.stealCandidates = victims;
+		s.step = 'steal';
+	}
+}
+
+function steal(ctx: Ctx, p: number, victim: number) {
+	const s = ctx.s;
+	if (s.step !== 'steal') fail("You can't steal right now.");
+	if (!s.stealCandidates.includes(victim)) fail("You can't steal from that player.");
+	doSteal(ctx, p, victim);
+}
+
+function doSteal(ctx: Ctx, p: number, victim: number) {
+	const s = ctx.s;
+	const hand: Resource[] = [];
+	for (const r of RESOURCES) for (let i = 0; i < s.players[victim].resources[r]; i++) hand.push(r);
+	const res = hand[randomInt(s, hand.length)];
+	s.players[victim].resources[res]--;
+	s.players[p].resources[res]++;
+	ctx.emit({ type: 'stole', thief: p, victim, resource: res });
+	s.stealCandidates = [];
+	s.step = s.resumeStep;
+}
+
+// ---------------------------------------------------------------- building
+
+function requireMain(s: GameState) {
+	if (s.step === 'roll') fail('Roll the dice first.');
+	if (s.step !== 'main') fail("You can't do that right now.");
+}
+
+function pay(s: GameState, p: number, cost: Partial<ResourceCounts>) {
+	if (!hasResources(s.players[p].resources, cost)) fail("You don't have enough resources.");
+	transfer(s.players[p].resources, s.bank, cost);
+}
+
+function buildRoad(ctx: Ctx, p: number, edge: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (s.players[p].piecesLeft.road <= 0) fail('You have no roads left.');
+	if (!canPlaceRoad(s, p, edge)) fail("You can't build a road there.");
+	pay(s, p, COSTS.road);
+	s.roads[edge] = p;
+	s.players[p].piecesLeft.road--;
+	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: false });
+	updateLongestRoad(ctx);
+	checkWin(ctx);
+}
+
+function freeRoad(ctx: Ctx, p: number, edge: number) {
+	const s = ctx.s;
+	if (!canPlaceRoad(s, p, edge)) fail("You can't build a road there.");
+	s.roads[edge] = p;
+	s.players[p].piecesLeft.road--;
+	s.roadBuildingLeft--;
+	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: true });
+	updateLongestRoad(ctx);
+	if (
+		s.roadBuildingLeft <= 0 ||
+		s.players[p].piecesLeft.road <= 0 ||
+		roadSpots(s, p).length === 0
+	) {
+		s.roadBuildingLeft = 0;
+		s.step = s.resumeStep;
+	}
+	checkWin(ctx);
+}
+
+function buildSettlement(ctx: Ctx, p: number, vertex: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (s.players[p].piecesLeft.settlement <= 0) fail('You have no settlements left.');
+	if (!canPlaceSettlement(s, p, vertex, false)) fail("You can't build a settlement there.");
+	pay(s, p, COSTS.settlement);
+	s.buildings[vertex] = { owner: p, kind: 'settlement' };
+	s.players[p].piecesLeft.settlement--;
+	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: false });
+	// A new settlement can cut someone else's road.
+	updateLongestRoad(ctx);
+	checkWin(ctx);
+}
+
+function buildCity(ctx: Ctx, p: number, vertex: number) {
+	const s = ctx.s;
+	requireMain(s);
+	const b = s.buildings[vertex];
+	if (!b || b.owner !== p || b.kind !== 'settlement') fail('Cities replace one of your settlements.');
+	if (s.players[p].piecesLeft.city <= 0) fail('You have no cities left.');
+	pay(s, p, COSTS.city);
+	s.buildings[vertex] = { owner: p, kind: 'city' };
+	s.players[p].piecesLeft.city--;
+	s.players[p].piecesLeft.settlement++;
+	ctx.emit({ type: 'built', player: p, kind: 'city', at: vertex, free: false });
+	checkWin(ctx);
+}
+
+// ---------------------------------------------------------------- development cards
+
+function buyDevCard(ctx: Ctx, p: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (s.devDeck.length === 0) fail('The development deck is empty.');
+	pay(s, p, COSTS.devCard);
+	const card = s.devDeck.pop()!;
+	s.players[p].devCards.push({ type: card, boughtTurn: s.turn });
+	ctx.emit({ type: 'devCardBought', player: p, card });
+	checkWin(ctx);
+}
+
+function playDevCard(
+	ctx: Ctx,
+	p: number,
+	a: Extract<
+		Action,
+		{ type: 'playKnight' | 'playRoadBuilding' | 'playYearOfPlenty' | 'playMonopoly' }
+	>
+) {
+	const s = ctx.s;
+	if (s.step !== 'roll' && s.step !== 'main') fail("You can't play a card right now.");
+	if (s.devCardPlayedThisTurn) fail('You can only play one development card per turn.');
+	const type: DevCardType =
+		a.type === 'playKnight'
+			? 'knight'
+			: a.type === 'playRoadBuilding'
+				? 'roadBuilding'
+				: a.type === 'playYearOfPlenty'
+					? 'yearOfPlenty'
+					: 'monopoly';
+	const pl = s.players[p];
+	const idx = pl.devCards.findIndex((c) => c.type === type && c.boughtTurn < s.turn);
+	if (idx < 0) {
+		if (pl.devCards.some((c) => c.type === type)) fail("You can't play a card on the turn you bought it.");
+		fail("You don't have that card.");
+	}
+
+	if (a.type === 'playYearOfPlenty') {
+		const want = sanitize(countList(a.resources));
+		if (totalResources(want) !== 2) fail('Pick two resources.');
+		if (!hasResources(s.bank, want)) fail("The bank doesn't have those resources.");
+	}
+	if (a.type === 'playRoadBuilding') {
+		if (pl.piecesLeft.road <= 0 || roadSpots(s, p).length === 0) fail('You have nowhere to build a road.');
+	}
+
+	pl.devCards.splice(idx, 1);
+	s.devCardPlayedThisTurn = true;
+	ctx.emit({ type: 'devCardPlayed', player: p, card: type });
+	const resume = s.step as 'roll' | 'main';
+
+	switch (a.type) {
+		case 'playKnight':
+			pl.knightsPlayed++;
+			updateLargestArmy(ctx);
+			s.resumeStep = resume;
+			s.step = 'moveRobber';
+			break;
+		case 'playRoadBuilding':
+			s.resumeStep = resume;
+			s.roadBuildingLeft = 2;
+			s.step = 'roadBuilding';
+			break;
+		case 'playYearOfPlenty': {
+			const want = sanitize(countList(a.resources));
+			transfer(s.bank, pl.resources, want);
+			ctx.emit({ type: 'yearOfPlenty', player: p, resources: [...a.resources] });
+			break;
+		}
+		case 'playMonopoly': {
+			if (!RESOURCES.includes(a.resource)) fail('Pick a resource.');
+			const taken: Record<number, number> = {};
+			s.players.forEach((other, i) => {
+				if (i === p) return;
+				const n = other.resources[a.resource];
+				if (n > 0) {
+					taken[i] = n;
+					other.resources[a.resource] = 0;
+					pl.resources[a.resource] += n;
+				}
+			});
+			ctx.emit({ type: 'monopoly', player: p, resource: a.resource, taken });
+			break;
+		}
+	}
+	checkWin(ctx);
+}
+
+// ---------------------------------------------------------------- trading
+
+function bankTrade(ctx: Ctx, p: number, give: Resource, get: Resource) {
+	const s = ctx.s;
+	requireMain(s);
+	if (!RESOURCES.includes(give) || !RESOURCES.includes(get) || give === get) fail('Pick two different resources.');
+	const ratio = tradeRatios(s, p)[give];
+	if (s.players[p].resources[give] < ratio) fail(`You need ${ratio} of that to trade.`);
+	if (s.bank[get] <= 0) fail("The bank is out of that resource.");
+	s.players[p].resources[give] -= ratio;
+	s.bank[give] += ratio;
+	s.bank[get]--;
+	s.players[p].resources[get]++;
+	ctx.emit({ type: 'bankTrade', player: p, give, giveCount: ratio, get });
+}
+
+function offerTrade(ctx: Ctx, p: number, give: Partial<ResourceCounts>, want: Partial<ResourceCounts>) {
+	const s = ctx.s;
+	requireMain(s);
+	const g = sanitize(give);
+	const w = sanitize(want);
+	if (totalResources(g) === 0 || totalResources(w) === 0) fail('A trade needs something on both sides.');
+	if (RESOURCES.some((r) => (g[r] ?? 0) > 0 && (w[r] ?? 0) > 0)) fail("You can't give and ask for the same resource.");
+	if (!hasResources(s.players[p].resources, g)) fail("You don't have what you're offering.");
+	const offer: TradeOffer = {
+		id: (s.trade?.id ?? s.version) + 1,
+		from: p,
+		give: g,
+		want: w,
+		responses: {}
+	};
+	s.trade = offer;
+	ctx.emit({ type: 'tradeOffered', offer: structuredClone(offer) });
+}
+
+function respondTrade(ctx: Ctx, p: number, offerId: number, accept: boolean) {
+	const s = ctx.s;
+	if (!s.trade || s.trade.id !== offerId) fail('That offer is no longer open.');
+	if (p === s.trade.from) fail("You can't answer your own offer.");
+	if (accept && !hasResources(s.players[p].resources, s.trade.want)) fail("You don't have what they're asking for.");
+	s.trade.responses[p] = accept ? 'accept' : 'decline';
+}
+
+function confirmTrade(ctx: Ctx, p: number, offerId: number, other: number) {
+	const s = ctx.s;
+	requireMain(s);
+	const t = s.trade;
+	if (!t || t.id !== offerId || t.from !== p) fail('That offer is no longer open.');
+	if (t.responses[other] !== 'accept') fail("That player hasn't accepted.");
+	if (!hasResources(s.players[p].resources, t.give)) fail("You no longer have what you offered.");
+	if (!hasResources(s.players[other].resources, t.want)) fail('They no longer have what you asked for.');
+	transfer(s.players[p].resources, s.players[other].resources, t.give);
+	transfer(s.players[other].resources, s.players[p].resources, t.want);
+	s.trade = null;
+	ctx.emit({ type: 'tradeCompleted', from: p, to: other, give: t.give, want: t.want });
+}
+
+function cancelTrade(ctx: Ctx, p: number) {
+	const s = ctx.s;
+	if (!s.trade || s.trade.from !== p) fail('There is no offer to cancel.');
+	s.trade = null;
+	ctx.emit({ type: 'tradeCancelled', from: p });
+}
+
+// ---------------------------------------------------------------- turn flow
+
+function endTurn(ctx: Ctx, p: number) {
+	const s = ctx.s;
+	requireMain(s);
+	s.trade = null;
+	s.dice = null;
+	s.devCardPlayedThisTurn = false;
+	s.current = (p + 1) % s.players.length;
+	s.turn++;
+	s.step = 'roll';
+	ctx.emit({ type: 'turnStarted', player: s.current, turn: s.turn });
+	checkWin(ctx);
+}
+
+function updateLongestRoad(ctx: Ctx) {
+	const s = ctx.s;
+	const lengths = s.players.map((_, i) => longestRoad(s, i));
+	lengths.forEach((l, i) => (s.players[i].longestRoad = l));
+	const max = Math.max(...lengths);
+	const prev = s.longestRoadHolder;
+	let holder = prev;
+	if (max < LONGEST_ROAD_MIN) holder = null;
+	else if (prev !== null && lengths[prev] === max) holder = prev;
+	else {
+		const top = lengths.flatMap((l, i) => (l === max ? [i] : []));
+		holder = top.length === 1 ? top[0] : null;
+	}
+	if (holder !== prev) {
+		s.longestRoadHolder = holder;
+		ctx.emit({ type: 'longestRoad', player: holder, length: holder === null ? max : lengths[holder] });
+	}
+}
+
+function updateLargestArmy(ctx: Ctx) {
+	const s = ctx.s;
+	const prev = s.largestArmyHolder;
+	const best = prev === null ? LARGEST_ARMY_MIN - 1 : s.players[prev].knightsPlayed;
+	s.players.forEach((pl, i) => {
+		if (i !== s.largestArmyHolder && pl.knightsPlayed > best && pl.knightsPlayed >= LARGEST_ARMY_MIN) {
+			s.largestArmyHolder = i;
+		}
+	});
+	if (s.largestArmyHolder !== prev) {
+		const h = s.largestArmyHolder!;
+		ctx.emit({ type: 'largestArmy', player: h, knights: s.players[h].knightsPlayed });
+	}
+}
+
+export function totalPoints(s: GameState, p: number): number {
+	return publicPoints(s, p) + s.players[p].devCards.filter((c) => c.type === 'victoryPoint').length;
+}
+
+/** You can only win on your own turn, so only the current player is checked. */
+function checkWin(ctx: Ctx) {
+	const s = ctx.s;
+	if (s.phase !== 'main') return;
+	if (totalPoints(s, s.current) >= VICTORY_POINTS_TO_WIN) {
+		s.phase = 'ended';
+		s.winner = s.current;
+		s.trade = null;
+		ctx.emit({
+			type: 'gameOver',
+			winner: s.current,
+			points: s.players.map((_, i) => totalPoints(s, i))
+		});
+	}
+}
+
+// ---------------------------------------------------------------- utils
+
+function sanitize(r: Partial<ResourceCounts>): Partial<ResourceCounts> {
+	const out: Partial<ResourceCounts> = {};
+	for (const k of RESOURCES) {
+		const v = Math.floor(Number(r?.[k] ?? 0));
+		if (!Number.isFinite(v) || v < 0) fail('Invalid amount.');
+		if (v > 0) out[k] = v;
+	}
+	return out;
+}
+
+function countList(list: Resource[]): Partial<ResourceCounts> {
+	const out: Partial<ResourceCounts> = {};
+	for (const r of list) {
+		if (!RESOURCES.includes(r)) fail('Pick a resource.');
+		out[r] = (out[r] ?? 0) + 1;
+	}
+	return out;
+}
+
+function transfer(from: ResourceCounts, to: ResourceCounts, amounts: Partial<ResourceCounts>) {
+	for (const r of RESOURCES) {
+		const n = amounts[r] ?? 0;
+		from[r] -= n;
+		to[r] += n;
+	}
+}
+
+export { nextRandom };
