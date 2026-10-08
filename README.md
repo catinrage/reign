@@ -18,7 +18,7 @@ pnpm install
 pnpm dev          # game server on :8787 + Vite on :5173 (open http://localhost:5173)
 ```
 
-Click **Create a game**, then **Copy invite link** and send it to friends on the same network,
+Click **Create a game**, then **Copy invite link** and send it to friends on the same network (open the game via your PC's LAN address, e.g. `http://192.168.1.20:5173`, so the link points there),
 or click **Quick game vs 3 bots** to play solo.
 
 Production build (one process serves the page and the WebSocket):
@@ -34,7 +34,7 @@ any host that supports WebSockets (Render, Fly.io, Railway, a VPS…).
 ## Controls
 
 - Drag to rotate the table, right-drag (or two fingers) to pan, wheel/pinch to zoom.
-- Glowing ghost pieces show where you can build; click one to place it.
+- Glowing gems and rings mark where you can build; hover to preview the piece, click to place it.
 - During setup and when moving the robber, the board highlights the valid spots for you.
 - `Esc` cancels build mode or closes the trade panel.
 
