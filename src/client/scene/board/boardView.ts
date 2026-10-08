@@ -3,7 +3,7 @@ import { type Board, getTopology } from '../../../shared/board/topology';
 import { HEX_R, SEA_Y } from '../layout';
 import { getIcons } from '../icons';
 import { cloneModel, robberModel, sheepModel, shipModel } from './models';
-import { type BoardBuild, buildBoard } from './terrain';
+import { type BoardBuild, DECK_TOP, buildBoard } from './terrain';
 import { harborToken, numberToken } from './tokens';
 
 /** Number tokens are a little smaller than a third of a tile, as in the reference. */
@@ -56,7 +56,7 @@ export class BoardView {
 		const icons = getIcons();
 		for (const p of this.build.ports) {
 			const tok = harborToken(p.kind === 'any' ? null : icons.canvases[p.kind], p.ratio, p.kind);
-			tok.position.set(p.x, SEA_Y + 1.1, p.z);
+			tok.position.set(p.x, DECK_TOP + 0.2, p.z);
 			tok.scale.setScalar(0.62);
 			this.faces.push(tok);
 			this.group.add(tok);

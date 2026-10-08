@@ -28,7 +28,7 @@ export interface Room {
 }
 
 const N = <T extends THREE.Object3D>(o: T, name: string) => ((o.name = name), o);
-/** Table-top layout in room units: everything sits on the rim outside the board's hex frame. */
+/** Table-top layout in room units: everything sits on the rim outside the board's sea. */
 const MUG = { x: -104, z: -126 };
 const LANTERN = { x: -128, z: -100 };
 const OUTWARD: Record<Side, [number, number]> = { nx: [-1, 0], px: [1, 0], nz: [0, -1], pz: [0, 1] };

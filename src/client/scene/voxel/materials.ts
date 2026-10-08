@@ -133,7 +133,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 					float h = voxHash(cell);
 					float wave = sin(uTime * 1.3 + h * 6.2831 + cell.x * 0.35 + cell.z * 0.21);
 					diffuseColor.rgb *= 0.94 + wave * 0.07;
-					float sparkle = step(0.992, voxHash(cell + floor(uTime * 1.5 + h * 3.0)));
+					float sparkle = step(0.997, voxHash(cell + floor(uTime * 1.5 + h * 3.0)));
 					diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85, 0.95, 1.0), sparkle * step(0.5, vVoxN.y) * 0.75);
 				}`
 			);
