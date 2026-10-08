@@ -6,7 +6,7 @@ const page = await browser.newPage({ viewport: { width: Number(w), height: Numbe
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-await page.goto('http://localhost:8787/?autoplay');
+await page.goto(`${process.env.BASE ?? 'http://localhost:8787'}/?autoplay`);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
 await page.click('text=Quick game vs 3 bots');
 await page.waitForFunction(() => window.__client?.view, null, { timeout: 30000 });

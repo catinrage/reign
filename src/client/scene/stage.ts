@@ -53,7 +53,7 @@ export class Stage {
 		this.scene.fog = new THREE.Fog('#1a0e08', 520, 1250);
 		const pmrem = new THREE.PMREMGenerator(this.renderer);
 		this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-		this.scene.environmentIntensity = 0.18;
+		this.scene.environmentIntensity = 0.38;
 
 		this.camera = new THREE.PerspectiveCamera(32, 1, 4, 2400);
 		this.rig = new CameraRig(this.camera, canvas);
@@ -66,7 +66,7 @@ export class Stage {
 		this.composer.addPass(new RenderPass(this.scene, this.camera));
 		this.dof = new DepthOfFieldEffect(this.camera, {
 			focusDistance: 300,
-			focusRange: 190,
+			focusRange: 250,
 			bokehScale: quality === 'high' ? 3.2 : 2,
 			resolutionScale: 0.5
 		});
@@ -78,9 +78,9 @@ export class Stage {
 			mipmapBlur: true,
 			radius: 0.72
 		});
-		const tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
-		const grade = new HueSaturationEffect({ saturation: 0.12, hue: 0 });
-		const contrast = new BrightnessContrastEffect({ brightness: 0.0, contrast: 0.08 });
+		const tone = new ToneMappingEffect({ mode: ToneMappingMode.NEUTRAL });
+		const grade = new HueSaturationEffect({ saturation: 0.04, hue: 0 });
+		const contrast = new BrightnessContrastEffect({ brightness: 0, contrast: 0.06 });
 		const vignette = new VignetteEffect({ offset: 0.32, darkness: 0.62 });
 		this.composer.addPass(new EffectPass(this.camera, this.dof));
 		this.composer.addPass(new EffectPass(this.camera, this.bloom, tone, grade, contrast, vignette));

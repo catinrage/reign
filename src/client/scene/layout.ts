@@ -1,11 +1,13 @@
-/** World layout. One world unit is one board micro-voxel. */
+/** World layout, in world units. Pieces, tokens and dice are built at one voxel per unit. */
 
-/** Hex circumradius in voxels. */
+/** Hex circumradius. */
 export const HEX_R = 12;
-/** Top face height of flat land. */
-export const LAND_Y = 4;
-/** Top face height of the sea. */
-export const SEA_Y = 2;
+/** Size of one terrain micro-voxel: the island is built 20 voxels per hex radius. */
+export const VOXEL = 0.6;
+/** Resting height of the sea surface. */
+export const SEA_Y = 2.7;
+/** Flat-edge distance of the hexagonal sea frame around the island. */
+export const SEA_FRAME = 64;
 /** Table surface. */
 export const TABLE_Y = 0;
 

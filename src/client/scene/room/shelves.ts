@@ -15,17 +15,17 @@ const BOOKS = [
 	hex('#3d6b3a'),
 	hex('#2b3f6b'),
 	hex('#34508a'),
-	hex('#c99a3a'),
-	hex('#b5832c'),
+	hex('#a8802e'),
+	hex('#8e6a2a'),
 	hex('#6a4024'),
 	hex('#7d5030'),
 	hex('#2f6b6a'),
-	hex('#d8c8a0'),
+	hex('#b8a882'),
 	hex('#5a3a6a'),
 	hex('#c0602a'),
 	hex('#1f2a3a')
 ];
-const GOLD = hex('#e0b44c');
+const GOLD = hex('#b8913e');
 const JAR = [hex('#d9cfb8'), hex('#7f9fa8'), hex('#b8693a')];
 
 export interface BookcaseSpec {
@@ -114,8 +114,8 @@ function fillRow(g: VoxelGrid, r: () => number, x0: number, x1: number, y0: numb
 			g.box(bx, y0, 3, bx, y0 + h - 1, front, (xx, yy, zz) => {
 				let col = shade(c, 0.92 + hash3(xx, yy, zz) * 0.1);
 				if (zz === front) {
-					if (band < 0.5 && (yy === y0 + h - 2 || yy === y0 + 1)) col = GOLD;
-					else if (band > 0.8 && yy === y0 + Math.floor(h / 2)) col = shade(c, 1.5);
+					if (band < 0.3 && (yy === y0 + h - 2 || yy === y0 + 1)) col = GOLD;
+					else if (band > 0.85 && yy === y0 + Math.floor(h / 2)) col = shade(c, 1.35);
 				}
 				if (yy === y0 + h - 1) col = shade(col, 1.08);
 				return col;

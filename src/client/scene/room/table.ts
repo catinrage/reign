@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { VoxelGrid, hash3, hex, pick, shade } from '../voxel/grid';
-import { FLOOR_Y, RED_PLAID, grain, rand, shadowProxy, tartan, voxels } from './util';
+import { FLOOR_Y, GREEN_PLAID, RED_PLAID, grain, rand, shadowProxy, tartan, voxels } from './util';
 
-/** Table voxels are 4 world units: top surface at y = 0, x, z in [-148, 148]. */
+/** Table voxels are 4 room units: top surface at y = 0, x, z in [-148, 148] (room units). */
 const S = 4;
 /** Chairs use 3-unit voxels. */
 const CS = 3;
 
-const DIM = 0.52;
-const PLANK = ['#8e3a24', '#983e27', '#a0442a', '#923c25', '#9a4229'].map((c) => shade(hex(c), DIM));
+const DIM = 0.56;
+const PLANK = ['#9c3a1e', '#aa4220', '#b44a24', '#983820', '#a84626', '#90341c'].map((c) => shade(hex(c), DIM));
 const FRAME = ['#6e301e', '#76341f', '#6a2e1c'].map((c) => shade(hex(c), DIM));
 const LEG = ['#5e2818', '#682c1a'].map((c) => shade(hex(c), DIM));
 
@@ -43,8 +43,8 @@ export function buildTable(): THREE.Group {
 			const row = rows[Math.floor(zi / PW)];
 			const seg = Math.floor((x + half + row.off) / row.len);
 			const segX = (x + half + row.off) % row.len;
-			c = grain(pick(PLANK, hash3(row.seed, seg, 0, 3)), x, Math.floor(zi / PW) * PW + seg, 3, 0.12);
-			if (zi % PW === 0 || segX === 0) c = shade(c, 0.8);
+			c = grain(pick(PLANK, hash3(row.seed, seg, 0, 3)), x, Math.floor(zi / PW) * PW + seg, 3, 0.07);
+			if (zi % PW === 0 || segX === 0) c = shade(c, 0.74);
 			if (e === rim) c = shade(c, 0.84);
 			g.box(x, -2, z, x, -1, z, c);
 		}
@@ -54,7 +54,7 @@ export function buildTable(): THREE.Group {
 		g.box(-ap, -5, s < 0 ? -ap : ap - 1, ap - 1, -4, s < 0 ? -ap : ap - 1, (x, y) => grain(FRAME[1], x, y, 5));
 		g.box(s < 0 ? -ap : ap - 1, -5, -ap, s < 0 ? -ap : ap - 1, -4, ap - 1, (_x, y, z) => grain(FRAME[1], z, y, 6));
 	}
-	const table = voxels(g, S, { jitter: 0.035, drop: (_x, y) => y < 0 });
+	const table = voxels(g, S, { jitter: 0.015, drop: (_x, y) => y < 0 });
 	// The top has no undersides, so an invisible slab casts its shadow onto the floor.
 	const slab = shadowProxy(2 * TABLE_HALF, 8, 2 * TABLE_HALF);
 	slab.position.y = -5;
@@ -75,7 +75,7 @@ export function buildTable(): THREE.Group {
 }
 
 /** A high-backed wooden chair with a red plaid seat and back, facing +z. */
-export function buildChair(): THREE.Group {
+export function buildChair(blanket = false): THREE.Group {
 	const g = new VoxelGrid(18, 53, 18, -9, 0, -9);
 	const wood = [hex('#6e3420'), hex('#7a3b22'), hex('#663019')];
 	const w = (x: number, y: number, z: number) => grain(pick(wood, hash3(x, 0, z, 1)), y, x + z, 4, 0.16);
@@ -97,11 +97,23 @@ export function buildChair(): THREE.Group {
 	// upholstered back panel, padded a little to the front
 	g.box(-6, 18, -8, 5, 45, -7, (x, y) => tartan(x + 40, y + 40, RED_PLAID, 8));
 	g.box(-5, 20, -6, 4, 43, -6, (x, y) => shade(tartan(x + 40, y + 40, RED_PLAID, 8), 1.04));
+	if (blanket) {
+		// green plaid throw over the top of the back, longer on one side
+		const p = (x: number, y: number) => tartan(x + 7, y, GREEN_PLAID, 6);
+		g.box(-7, 52, -9, 5, 52, -6, (x, _y, z) => p(x, z + 60));
+		for (let x = -7; x <= 5; x++) {
+			const front = 38 - Math.round((x + 7) * 0.9) - ((x & 3) === 0 ? 1 : 0);
+			const back = 30 - Math.round((x + 7) * 0.5);
+			g.box(x, front, -6, x, 51, -6, (xx, y) => shade(p(xx, y), 1.05));
+			g.box(x, back, -9, x, 51, -9, (xx, y) => shade(p(xx, y), 0.9));
+		}
+	}
 	return voxels(g, CS, { jitter: 0.04, drop: (_x, y) => y < 0 });
 }
 
 export function placeChairs(group: THREE.Group, dist = 178) {
 	const chair = buildChair();
+	const throwChair = buildChair(true);
 	const spots: [number, number, number][] = [
 		[0, -dist, 0],
 		[0, dist, Math.PI],
@@ -110,7 +122,7 @@ export function placeChairs(group: THREE.Group, dist = 178) {
 	];
 	const out: THREE.Object3D[] = [];
 	spots.forEach(([x, z, rot], i) => {
-		const c = i === 0 ? chair : chair.clone(true);
+		const c = i === 3 ? throwChair : i === 0 ? chair : chair.clone(true);
 		const holder = new THREE.Group();
 		holder.add(c);
 		// Chairs are pulled out a bit and turned a few degrees, as if people just stood up.

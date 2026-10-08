@@ -18,10 +18,10 @@ export class Lighting {
 		readonly scene: THREE.Scene,
 		quality: Quality
 	) {
-		this.hemi = new THREE.HemisphereLight('#ffd2a0', '#3b2012', 0.38);
+		this.hemi = new THREE.HemisphereLight('#ffe0b8', '#4a2a18', 0.9);
 		scene.add(this.hemi);
 
-		this.key = new THREE.DirectionalLight('#ffc78f', 1.7);
+		this.key = new THREE.DirectionalLight('#ffd09a', 2.4);
 		this.key.position.set(-190, 300, 150);
 		this.key.target.position.set(0, 0, 0);
 		this.key.castShadow = true;
@@ -64,7 +64,7 @@ export class Lighting {
 		}
 		sharedUniforms.uFlicker.value = 1 + flick * 2;
 		sharedUniforms.uNight.value = this.night;
-		this.key.intensity = 1.7 * (1 - this.night * 0.85);
-		this.hemi.intensity = 0.38 * (1 - this.night * 0.6);
+		this.key.intensity = 2.4 * (1 - this.night * 0.85);
+		this.hemi.intensity = 0.9 * (1 - this.night * 0.6);
 	}
 }

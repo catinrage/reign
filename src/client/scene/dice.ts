@@ -4,7 +4,7 @@ import { DIE_FACES, cloneModel, dieModel } from './board/models';
 import type { Particles } from './effects';
 
 const UP = new THREE.Vector3(0, 1, 0);
-const DIE_SCALE = 0.95;
+const DIE_SCALE = 0.78;
 const HALF = 4.5 * DIE_SCALE;
 
 /** Two voxel dice that get tossed onto the table and tumble to the rolled faces. */

@@ -6,6 +6,9 @@ import { cloneModel, robberModel, sheepModel, shipModel } from './models';
 import { type BoardBuild, buildBoard } from './terrain';
 import { harborToken, numberToken } from './tokens';
 
+/** Number tokens are a little smaller than a third of a tile, as in the reference. */
+const TOKEN_SCALE = 0.82;
+
 /**
  * Everything that belongs to one island: terrain, number and harbor tokens, ships,
  * grazing sheep and the robber. Knows where vertices, edges and hexes are in the world.
@@ -41,6 +44,7 @@ export class BoardView {
 				return;
 			}
 			const t = numberToken(h.number);
+			t.scale.setScalar(TOKEN_SCALE);
 			const c = this.hexCenter(i);
 			t.position.set(c.x, this.build.tokenY[i], c.z);
 			t.userData.baseY = t.position.y;
@@ -52,17 +56,17 @@ export class BoardView {
 		const icons = getIcons();
 		for (const p of this.build.ports) {
 			const tok = harborToken(p.kind === 'any' ? null : icons.canvases[p.kind], p.ratio, p.kind);
-			tok.position.set(p.x, SEA_Y + 1.2, p.z);
-			tok.scale.setScalar(0.78);
+			tok.position.set(p.x, SEA_Y + 1.1, p.z);
+			tok.scale.setScalar(0.62);
 			this.faces.push(tok);
 			this.group.add(tok);
 			const ship = cloneModel(shipModel());
 			const side = new THREE.Vector3(Math.cos(p.angle), 0, -Math.sin(p.angle));
 			const out = new THREE.Vector3(Math.sin(p.angle), 0, Math.cos(p.angle));
-			const pos = new THREE.Vector3(p.x, SEA_Y - 0.6, p.z).addScaledVector(side, 9.5).addScaledVector(out, 2.5);
+			const pos = new THREE.Vector3(p.x, SEA_Y - 0.5, p.z).addScaledVector(side, 7.5).addScaledVector(out, 1.5);
 			ship.position.copy(pos);
 			ship.rotation.y = p.angle + Math.PI / 2;
-			ship.scale.setScalar(0.8);
+			ship.scale.setScalar(0.62);
 			this.ships.push({ obj: ship, base: pos.clone(), phase: Math.random() * 10 });
 			this.group.add(ship);
 		}
@@ -70,16 +74,16 @@ export class BoardView {
 		const sheepBase = sheepModel();
 		for (const s of this.build.sheepSpots) {
 			const obj = cloneModel(sheepBase);
-			obj.scale.setScalar(0.85);
+			obj.scale.setScalar(0.46);
 			const home = new THREE.Vector2(s.x, s.z);
-			obj.position.set(s.x, this.build.surfaceY(s.x, s.z), s.z);
+			obj.position.set(s.x, this.build.groundY(s.x, s.z), s.z);
 			obj.rotation.y = Math.random() * Math.PI * 2;
 			this.sheep.push({ obj, home, pos: home.clone(), target: home.clone(), wait: Math.random() * 4, phase: Math.random() * 10 });
 			this.group.add(obj);
 		}
 
 		this.robber = cloneModel(robberModel());
-		this.robber.scale.setScalar(0.95);
+		this.robber.scale.setScalar(0.78);
 		this.group.add(this.robber);
 		void topo;
 	}
@@ -93,14 +97,14 @@ export class BoardView {
 	robberSpot(h: number) {
 		const c = this.hexCenter(h);
 		const hasToken = this.board.hexes[h].number !== null;
-		if (hasToken) c.add(new THREE.Vector3(-4.2, 0, -5.4));
+		if (hasToken) c.add(new THREE.Vector3(-5, 0, 2.4));
 		c.y = this.groundAt(c.x, c.z, 2);
 		return c;
 	}
 
 	groundAt(x: number, z: number, r = 1.5) {
 		let y = 0;
-		for (let dz = -r; dz <= r; dz += 1) for (let dx = -r; dx <= r; dx += 1) y = Math.max(y, this.build.surfaceY(x + dx, z + dz));
+		for (let dz = -r; dz <= r; dz += 1) for (let dx = -r; dx <= r; dx += 1) y = Math.max(y, this.build.groundY(x + dx, z + dz));
 		return y;
 	}
 
@@ -164,7 +168,7 @@ export class BoardView {
 				sh.obj.rotation.y += angleDelta(sh.obj.rotation.y, want) * Math.min(1, dt * 5);
 				walking = true;
 			}
-			const ground = this.build.surfaceY(sh.pos.x, sh.pos.y);
+			const ground = this.build.groundY(sh.pos.x, sh.pos.y);
 			sh.obj.position.set(sh.pos.x, ground + (walking ? Math.abs(Math.sin(t * 9 + sh.phase)) * 0.4 : 0), sh.pos.y);
 		}
 	}
