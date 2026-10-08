@@ -99,7 +99,7 @@ export interface Plaid {
 
 export const RED_PLAID: Plaid = { base: 0xa62a24, dark: 0x4e1414, light: 0xe0c08c, accent: 0x2a2234 };
 export const GREEN_PLAID: Plaid = { base: 0x3f6b35, dark: 0x1e3a1e, light: 0xc9b47a, accent: 0x8a2a22 };
-export const RUG_PLAID: Plaid = { base: 0x8e2a22, dark: 0x3f1512, light: 0xcfae7c, accent: 0x23263a };
+export const RUG_PLAID: Plaid = { base: 0x7e2420, dark: 0x3a1210, light: 0xb08a5e, accent: 0x23263a };
 
 /** Tartan colour for a woven cell (i, j). */
 export function tartan(i: number, j: number, p: Plaid, period = 12) {

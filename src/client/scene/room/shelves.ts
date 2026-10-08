@@ -36,7 +36,7 @@ export interface BookcaseSpec {
 
 /** A tall dark-wood bookcase crammed with colourful books and a few knick-knacks. */
 export function buildBookcase({ width: W, height: H, seed }: BookcaseSpec): THREE.Group {
-	const D = 9;
+	const D = 8;
 	const g = new VoxelGrid(W + 2, H + 1, D + 1, -1, 0, 0);
 	const r = rand(seed);
 	const fw = (x: number, y: number, z: number) => grain(pick(FRAME, hash3(x, 0, z, seed)), y, x * 3 + z, 4, 0.18);
@@ -52,7 +52,7 @@ export function buildBookcase({ width: W, height: H, seed }: BookcaseSpec): THRE
 	g.box(0, H, 0, W - 1, H, D - 1, fh);
 	// shelves
 	const shelfYs: number[] = [];
-	const rowH = 9;
+	const rowH = 10;
 	for (let y = 3; y + rowH <= H - 3; y += rowH) shelfYs.push(y);
 	for (const y of shelfYs) {
 		if (y > 3) g.box(2, y - 1, 0, W - 3, y - 1, D - 1, fh);
@@ -81,7 +81,7 @@ function fillRow(g: VoxelGrid, r: () => number, x0: number, x1: number, y0: numb
 			const z0 = D - 5;
 			g.box(x + 1, y0, z0, x + 2, y0 + h - 1, z0 + 1, (xx, yy, zz) => shade(c, 0.9 + hash3(xx, yy, zz) * 0.15));
 			g.box(x + 1, y0 + h, z0, x + 2, y0 + h, z0 + 1, shade(c, 0.7));
-			if (r() < 0.4) g.set(x + 1, y0 + h + 1, z0 + 1, hex('#ffd27a'), Mat.Glow);
+			if (r() < 0.25) g.set(x + 1, y0 + h + 1, z0 + 1, hex('#ffb85a'), Mat.Glow);
 			x += 4;
 			continue;
 		}
@@ -100,21 +100,27 @@ function fillRow(g: VoxelGrid, r: () => number, x0: number, x1: number, y0: numb
 			x += 6;
 			continue;
 		}
-		// upright book
-		const w = Math.min(room, r() < 0.6 ? 1 : 2);
+		// a run of upright books: sets share a height and often a colour
+		const n = Math.min(room, 2 + Math.floor(r() * 5));
 		const h = Math.max(4, maxH - Math.floor(r() * 3) - (r() < 0.2 ? 1 : 0));
-		const c = pick(BOOKS, r());
-		const front = D - 3 - (r() < 0.25 ? 1 : 0);
+		const set = r() < 0.45;
+		const base = pick(BOOKS, r());
+		const front = D - 3 - (r() < 0.2 ? 1 : 0);
 		const band = r();
-		g.box(x, y0, 3, x + w - 1, y0 + h - 1, front, (xx, yy, zz) => {
-			let col = shade(c, 0.9 + hash3(xx, yy, zz) * 0.14);
-			if (zz === front) {
-				if (band < 0.45 && (yy === y0 + h - 2 || yy === y0 + 1)) col = GOLD;
-				else if (band > 0.8 && yy === y0 + Math.floor(h / 2)) col = shade(c, 1.5);
-			}
-			if (yy === y0 + h - 1) col = shade(col, 1.08);
-			return col;
-		});
+		const w = n;
+		for (let i = 0; i < n; i++) {
+			const c = set ? shade(base, 0.9 + (i % 2) * 0.12) : pick(BOOKS, r());
+			const bx = x + i;
+			g.box(bx, y0, 3, bx, y0 + h - 1, front, (xx, yy, zz) => {
+				let col = shade(c, 0.92 + hash3(xx, yy, zz) * 0.1);
+				if (zz === front) {
+					if (band < 0.5 && (yy === y0 + h - 2 || yy === y0 + 1)) col = GOLD;
+					else if (band > 0.8 && yy === y0 + Math.floor(h / 2)) col = shade(c, 1.5);
+				}
+				if (yy === y0 + h - 1) col = shade(col, 1.08);
+				return col;
+			});
+		}
 		x += w;
 	}
 }

@@ -23,7 +23,7 @@ export function buildFloor(): THREE.Group {
 			let c: number;
 			if (ax < rug && az < rug - 2) {
 				const e = Math.min(rug - ax, rug - 2 - az);
-				c = tartan(x + 100, z + 100, RUG_PLAID, 14);
+				c = tartan(x + 100, z + 100, RUG_PLAID, 10);
 				if (e < 2.5) c = e < 1.5 ? shade(RUG_PLAID.dark, 1.1) : shade(RUG_PLAID.light, 0.85);
 				c = shade(c, 0.92 + hash3(x, 1, z) * 0.08);
 			} else if (ax < rug && az < rug) {

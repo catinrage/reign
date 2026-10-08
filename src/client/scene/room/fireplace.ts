@@ -8,6 +8,8 @@ import { grain, rand, voxels } from './util';
  * voxel frames that the room swaps every few frames, plus rising embers.
  */
 export const FIRE_S = 3;
+/** Where the fire light sits, in the fireplace's local space (world units). */
+export const FIRE_LIGHT = { x: 22.5 * 3, y: 12 * 3, z: 9 * 3 + 20 };
 
 const BRICK = [hex('#a0866c'), hex('#8e735c'), hex('#b39a7e'), hex('#7d6550'), hex('#9a7a60'), hex('#ab8f72')];
 const MORTAR = hex('#4a3a2f');
@@ -105,7 +107,7 @@ export function buildFireplace(): Fireplace {
 	const fireOrigin = new THREE.Vector3((OX0 + 1) * FIRE_S, 5 * FIRE_S, 4 * FIRE_S);
 	const fw = Math.round(((OX1 - OX0 - 1) * FIRE_S) / FS); // ~44
 	const fd = Math.round((7 * FIRE_S) / FS); // 14
-	for (let f = 0; f < 6; f++) frames.push(fireFrame(fw, 34, fd, f, FS, fireOrigin));
+	for (let f = 0; f < 4; f++) frames.push(fireFrame(fw, 34, fd, f, FS, fireOrigin));
 	for (const fr of frames) group.add(fr);
 	frames.forEach((fr, i) => (fr.visible = i === 0));
 
