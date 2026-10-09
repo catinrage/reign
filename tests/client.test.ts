@@ -171,6 +171,52 @@ describe('client: rolls and dealt cards', () => {
 		expect(client.onTheWay(0)).toBe(0);
 	});
 
+	it('counts the cards a Monopoly or a Year of Plenty brings as they land', () => {
+		const g = botGame(17);
+		while (g.state.phase === 'setup') receive(g.step());
+		vi.advanceTimersByTime(6000);
+		// Player 0 holds both cards; the others hold wheat to lose.
+		const s0 = g.state;
+		const s: GameState = {
+			...s0,
+			current: 0,
+			step: 'main',
+			players: s0.players.map((pl, i) => ({
+				...pl,
+				resources: { ...pl.resources, wheat: i === 0 ? 0 : i + 1 },
+				devCards:
+					i === 0
+						? [
+								{ type: 'monopoly', boughtTurn: -1 },
+								{ type: 'yearOfPlenty', boughtTurn: -1 }
+							]
+						: pl.devCards
+			}))
+		};
+		receive(s);
+		expect(client.dealt).toEqual([]);
+
+		const mono = applyAction(s, 0, { type: 'playMonopoly', resource: 'wheat' });
+		if (!mono.ok) throw new Error(mono.error);
+		receive(mono.state);
+		// The cards taken from the others are on their way to player 0, and count as they land.
+		expect(client.onTheWay(0, 'wheat')).toBe(5);
+		expect(client.onTheWay(1) + client.onTheWay(2)).toBe(0);
+		client.arrived(0, 'wheat');
+		expect(client.onTheWay(0, 'wheat')).toBe(4);
+
+		const plenty = applyAction({ ...mono.state, devCardPlayedThisTurn: false }, 0, {
+			type: 'playYearOfPlenty',
+			resources: ['ore', 'ore']
+		});
+		if (!plenty.ok) throw new Error(plenty.error);
+		receive(plenty.state);
+		expect(client.onTheWay(0, 'ore')).toBe(2);
+		// Whatever hasn't arrived by then counts anyway.
+		vi.advanceTimersByTime(5000);
+		expect(client.dealt).toEqual([]);
+	});
+
 	it('starts over with a new game, whose events count from the start again', () => {
 		const g = botGame(16);
 		const { roll } = rollNext(g);

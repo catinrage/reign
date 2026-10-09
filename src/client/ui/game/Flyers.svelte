@@ -34,7 +34,7 @@
 		setTimeout(() => (list = list.filter((f) => f.id !== id)), FLIGHT_MS + 50);
 	}
 
-	/** Resource icons that fly from the board to the player who got them. */
+	/** Resource icons that fly to the player who got them: from the board, the bank or a hand. */
 	export const flyers = {
 		/** Into your hand. `onArrive` runs as the card reaches its slot. */
 		add(resource: string, from: Point, onArrive?: () => void) {
@@ -49,6 +49,19 @@
 			const to = centerOf(`[data-plaque-cards="${player}"]`, `[data-plaque="${player}"]`);
 			if (to) launch(resource, from, to, 0.34, onArrive);
 			else onArrive?.();
+		},
+		/**
+		 * A card one player takes from another (a Monopoly), from the giver's cards to the taker's:
+		 * your hand's slot for `resource` when it's you (`me`), a plaque for anyone else.
+		 */
+		pass(resource: string, from: number, to: number, me: number, onArrive?: () => void) {
+			const start =
+				from === me
+					? centerOf(`[data-hand="${resource}"]`)
+					: centerOf(`[data-plaque-cards="${from}"]`, `[data-plaque="${from}"]`);
+			if (!start) onArrive?.();
+			else if (to === me) flyers.add(resource, start, onArrive);
+			else flyers.toPlayer(to, resource, start, onArrive);
 		}
 	};
 </script>

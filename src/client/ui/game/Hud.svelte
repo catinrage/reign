@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getTopology } from '../../../shared/board/topology';
+	import type { Resource } from '../../../shared/rules/config';
 	import { roadSpots, settlementSpots, citySpots } from '../../../shared/rules/queries';
 	import type { GameEvent } from '../../../shared/rules/types';
 	import type { PickKind } from '../../scene/gameScene';
@@ -165,6 +166,7 @@
 				break;
 			case 'monopoly':
 				if (e.player !== me && e.taken[me]) client.toast(`${view.players[e.player].name} took all your ${e.resource}!`, 'error');
+				flyTaken(e.player, e.resource, e.taken);
 				break;
 			case 'longestRoad':
 				if (e.player === me) client.toast('You hold the Longest Road! +2', 'good');
@@ -183,6 +185,24 @@
 				sfx.card();
 				break;
 		}
+	}
+
+	/**
+	 * A Monopoly: the cards fly one after another from each hand they were taken from to the
+	 * player who took them, and count there as they land, like cards dealt off the tiles.
+	 */
+	function flyTaken(taker: number, resource: Resource, taken: Record<number, number>) {
+		const from = Object.entries(taken).flatMap(([p, n]) => Array<number>(n).fill(Number(p)));
+		const gap = Math.min(0.12, 1.6 / from.length);
+		from.forEach((giver, k) =>
+			setTimeout(() => {
+				const me = client.view?.me;
+				if (me === undefined) return client.arrived(taker, resource);
+				if (taker === me) sfx.coin();
+				else sfx.pop();
+				flyers.pass(resource, giver, taker, me, () => client.arrived(taker, resource));
+			}, k * gap * 1000)
+		);
 	}
 
 	$effect(() => {
