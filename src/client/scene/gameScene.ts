@@ -759,14 +759,17 @@ export class GameScene {
 	}
 
 	/**
-	 * Where on screen the cards paid in a bank trade land: on the bank's pile of `resource`, or on
-	 * the harbor.
+	 * Where on screen the cards paid to the bank land (in a trade, for a build or a development
+	 * card, or thrown back on a 7): on the bank's pile of `resource`, or on the harbor whose rate a
+	 * trade got. When that is out of sight, off screen or under one of the interface's panels, they
+	 * fly off the edge of the screen toward it rather than onto a panel (a player's plaque, say).
 	 */
 	tradeTarget(resource: string, harbor: number) {
-		return this.onScreen(this.tradeSpot(resource, harbor));
+		const at = this.onScreen(this.tradeSpot(resource, harbor), -60);
+		return this.underHud(at) ? this.pastEdge(at) : at;
 	}
 
-	/** A card paid in a bank trade reached the pile or the harbor. */
+	/** A card paid to the bank reached the pile or the harbor. */
 	tradeLanded(resource: string, harbor: number) {
 		this.particles.sparkle(this.tradeSpot(resource, harbor), '#fff1b8', 5);
 	}
@@ -809,18 +812,41 @@ export class GameScene {
 	}
 
 	/**
-	 * Where `p` is on screen, kept clear of the edges so a card flying from or to it stays in
-	 * sight: when `p` is out of view, the nearest point toward it.
+	 * Where `p` is on screen, kept `margin` px clear of the edges so a card flying from it starts in
+	 * sight: when `p` is out of view, the nearest point toward it. A negative margin lets a card
+	 * flying to `p` leave the screen on its side instead.
 	 */
-	private onScreen(p: THREE.Vector3) {
+	private onScreen(p: THREE.Vector3, margin = 40) {
 		const v = p.clone().project(this.stage.camera);
 		// Behind the camera the projection comes out mirrored: turn it round and push it off screen.
 		if (v.z > 1) v.multiplyScalar(-1e3);
-		const el = this.stage.canvas;
+		const { clientWidth: w, clientHeight: h } = this.stage.canvas;
 		return {
-			x: THREE.MathUtils.clamp(((v.x + 1) / 2) * el.clientWidth, 40, el.clientWidth - 40),
-			y: THREE.MathUtils.clamp(((1 - v.y) / 2) * el.clientHeight, 40, el.clientHeight - 40)
+			x: THREE.MathUtils.clamp(((v.x + 1) / 2) * w, margin, w - margin),
+			y: THREE.MathUtils.clamp(((1 - v.y) / 2) * h, margin, h - margin)
 		};
+	}
+
+	/** Just past the edge of the screen, on the line from its middle through `p`. */
+	private pastEdge(p: { x: number; y: number }) {
+		const { clientWidth: w, clientHeight: h } = this.stage.canvas;
+		const dx = p.x - w / 2;
+		const dy = p.y - h / 2;
+		const k = Math.min((w / 2 + 60) / Math.abs(dx), (h / 2 + 60) / Math.abs(dy));
+		return Number.isFinite(k) ? { x: w / 2 + dx * k, y: h / 2 + dy * k } : p;
+	}
+
+	/** Whether a point on screen is under one of the interface's panels. */
+	private underHud(p: { x: number; y: number }) {
+		const r = this.stage.canvas.getBoundingClientRect();
+		for (const node of document.querySelectorAll('.hud > *, .hud > * > *')) {
+			if (node.classList.contains('flyer')) continue;
+			const b = node.getBoundingClientRect();
+			// Leave out what has no size, and overlays as big as the screen.
+			if (!b.width || !b.height || b.width * b.height > r.width * r.height * 0.5) continue;
+			if (p.x > b.left && p.x < b.right && p.y > b.top && p.y < b.bottom) return true;
+		}
+		return false;
 	}
 
 	// ------------------------------------------------------------ picking

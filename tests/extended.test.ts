@@ -180,6 +180,15 @@ describe('the eight newer traits', () => {
 		expect(paymentFor(g, 0, 'road', hand(1, 0, 0, 0, 1))).toEqual({ wood: 1, ore: 1 });
 		expect(paymentFor(g, 0, 'road', hand(1, 0, 0, 0, 0))).toBeNull();
 		expect(paymentFor(g, 1, 'city', hand(0, 3, 0, 2, 0))).toBeNull();
+		// A build tells everyone what she really handed the bank.
+		const s = structuredClone(g);
+		s.board = g.board;
+		s.step = 'main';
+		s.current = 0;
+		s.players[0].resources = hand(0, 3, 0, 2, 0);
+		const vertex = s.buildings.findIndex((b) => b?.owner === 0);
+		const built = act(s, 0, { type: 'buildCity', vertex }).log.at(-1);
+		expect(built).toEqual(expect.objectContaining({ kind: 'city', paid: { wheat: 2, brick: 3 } }));
 	});
 
 	it("Bard's trading partner takes a bonus card, once per turn", () => {

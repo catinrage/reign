@@ -357,7 +357,7 @@ function setupSettlement(ctx: Ctx, p: number, vertex: number) {
 	s.buildings[vertex] = { owner: p, kind: 'settlement' };
 	s.players[p].piecesLeft.settlement--;
 	s.setupLastSettlement = vertex;
-	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: true });
+	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: true, paid: {} });
 
 	const secondRound = s.setupIndex >= s.players.length;
 	if (secondRound) {
@@ -382,7 +382,7 @@ function setupRoad(ctx: Ctx, p: number, edge: number) {
 		fail('The road has to touch the settlement you just placed.');
 	s.roads[edge] = p;
 	s.players[p].piecesLeft.road--;
-	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: true });
+	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: true, paid: {} });
 	updateLongestRoad(ctx);
 
 	s.setupIndex++;
@@ -569,7 +569,7 @@ function discard(ctx: Ctx, p: number, res: Partial<ResourceCounts>) {
 	if (!hasResources(s.players[p].resources, clean)) fail("You don't have those cards.");
 	transfer(s.players[p].resources, s.bank, clean);
 	delete s.pendingDiscards[p];
-	ctx.emit({ type: 'discarded', player: p, count: need });
+	ctx.emit({ type: 'discarded', player: p, count: need, resources: clean });
 	if (s.players[p].character !== 'abbess') for (const r of RESOURCES) for (let i = 0; i < (clean[r] ?? 0); i++) (s.alms ??= []).push(r);
 	if (Object.keys(s.pendingDiscards).length === 0) {
 		giveAlms(ctx);
@@ -682,10 +682,12 @@ function requireMain(s: GameState) {
 	if (s.step !== 'main') fail("You can't do that right now.");
 }
 
-function pay(s: GameState, p: number, kind: BuildKind) {
+/** The player pays the bank for a build; returns the cards they handed over. */
+function pay(s: GameState, p: number, kind: BuildKind): Partial<ResourceCounts> {
 	const cards = paymentFor(s, p, kind, s.players[p].resources);
 	if (!cards) fail("You don't have enough resources.");
 	transfer(s.players[p].resources, s.bank, cards);
+	return cards;
 }
 
 /** The Baron's toll on a road that touches one of his. */
@@ -704,10 +706,10 @@ function buildRoad(ctx: Ctx, p: number, edge: number) {
 	requireMain(s);
 	if (s.players[p].piecesLeft.road <= 0) fail('You have no roads left.');
 	if (!canPlaceRoad(s, p, edge)) fail("You can't build a road there.");
-	pay(s, p, 'road');
+	const paid = pay(s, p, 'road');
 	s.roads[edge] = p;
 	s.players[p].piecesLeft.road--;
-	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: false });
+	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: false, paid });
 	roadToll(ctx, p, edge);
 	updateLongestRoad(ctx);
 	checkWin(ctx);
@@ -719,7 +721,7 @@ function freeRoad(ctx: Ctx, p: number, edge: number) {
 	s.roads[edge] = p;
 	s.players[p].piecesLeft.road--;
 	s.roadBuildingLeft--;
-	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: true });
+	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: true, paid: {} });
 	roadToll(ctx, p, edge);
 	updateLongestRoad(ctx);
 	if (
@@ -738,10 +740,10 @@ function buildSettlement(ctx: Ctx, p: number, vertex: number) {
 	requireMain(s);
 	if (s.players[p].piecesLeft.settlement <= 0) fail('You have no settlements left.');
 	if (!canPlaceSettlement(s, p, vertex, false)) fail("You can't build a settlement there.");
-	pay(s, p, 'settlement');
+	const paid = pay(s, p, 'settlement');
 	s.buildings[vertex] = { owner: p, kind: 'settlement' };
 	s.players[p].piecesLeft.settlement--;
-	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: false });
+	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: false, paid });
 	// A new settlement can cut someone else's road.
 	updateLongestRoad(ctx);
 	checkWin(ctx);
@@ -753,11 +755,11 @@ function buildCity(ctx: Ctx, p: number, vertex: number) {
 	const b = s.buildings[vertex];
 	if (!b || b.owner !== p || b.kind !== 'settlement') fail('Cities replace one of your settlements.');
 	if (s.players[p].piecesLeft.city <= 0) fail('You have no cities left.');
-	pay(s, p, 'city');
+	const paid = pay(s, p, 'city');
 	s.buildings[vertex] = { owner: p, kind: 'city' };
 	s.players[p].piecesLeft.city--;
 	s.players[p].piecesLeft.settlement++;
-	ctx.emit({ type: 'built', player: p, kind: 'city', at: vertex, free: false });
+	ctx.emit({ type: 'built', player: p, kind: 'city', at: vertex, free: false, paid });
 	checkWin(ctx);
 }
 
@@ -771,9 +773,9 @@ function buildWorkshop(ctx: Ctx, p: number, hex: number) {
 	if (s.workshops[hex] !== null) fail('That tile already has a workshop.');
 	if (!playersOnHex(s, hex).includes(p)) fail('Build it on a tile beside one of your settlements or cities.');
 	if (workshopCount(s, p) >= WORKSHOP_LIMIT) fail(`You can build at most ${WORKSHOP_LIMIT} workshops.`);
-	pay(s, p, 'workshop');
+	const paid = pay(s, p, 'workshop');
 	s.workshops[hex] = p;
-	ctx.emit({ type: 'built', player: p, kind: 'workshop', at: hex, free: false });
+	ctx.emit({ type: 'built', player: p, kind: 'workshop', at: hex, free: false, paid });
 }
 
 function paveRoad(ctx: Ctx, p: number, edge: number) {
@@ -783,9 +785,9 @@ function paveRoad(ctx: Ctx, p: number, edge: number) {
 	if (!Number.isInteger(edge) || s.roads[edge] === undefined) fail('Pick a road on the island.');
 	if (s.roads[edge] !== p) fail('Pave one of your own roads.');
 	if (s.stoneRoads[edge]) fail('That road is already paved.');
-	pay(s, p, 'stoneRoad');
+	const paid = pay(s, p, 'stoneRoad');
 	s.stoneRoads[edge] = true;
-	ctx.emit({ type: 'built', player: p, kind: 'stoneRoad', at: edge, free: false });
+	ctx.emit({ type: 'built', player: p, kind: 'stoneRoad', at: edge, free: false, paid });
 	updateLongestRoad(ctx);
 	checkWin(ctx);
 }
@@ -814,10 +816,10 @@ function buyDevCard(ctx: Ctx, p: number) {
 	const s = ctx.s;
 	requireMain(s);
 	if (s.devDeck.length === 0) fail('The development deck is empty.');
-	pay(s, p, 'devCard');
+	const paid = pay(s, p, 'devCard');
 	const card = s.devDeck.pop()!;
 	s.players[p].devCards.push({ type: card, boughtTurn: s.turn });
-	ctx.emit({ type: 'devCardBought', player: p, card });
+	ctx.emit({ type: 'devCardBought', player: p, card, paid });
 	checkWin(ctx);
 }
 
@@ -949,7 +951,7 @@ function usePower(ctx: Ctx, p: number, a: PowerAction) {
 			s.buildings[v] = { owner: p, kind: 'city' };
 			pl.piecesLeft.city--;
 			pl.piecesLeft.settlement++;
-			ctx.emit({ type: 'built', player: p, kind: 'city', at: v, free: false });
+			ctx.emit({ type: 'built', player: p, kind: 'city', at: v, free: false, paid: { ore: 1 } });
 			break;
 		}
 		case 'scholar': {
@@ -958,7 +960,7 @@ function usePower(ctx: Ctx, p: number, a: PowerAction) {
 			const card = s.devDeck.pop()!;
 			// Dated the turn before, so it can be played straight away.
 			pl.devCards.push({ type: card, boughtTurn: s.turn - 1 });
-			ctx.emit({ type: 'devCardBought', player: p, card });
+			ctx.emit({ type: 'devCardBought', player: p, card, paid: {} });
 			break;
 		}
 		case 'veteran':

@@ -149,8 +149,14 @@ export type GameEvent =
 	| Ev<'turnStarted', { player: number; turn: number }>
 	/** The turn clock ran out; the steps the turn still needed were played for them. */
 	| Ev<'turnTimedOut', { player: number }>
-	/** `at` is a vertex, an edge, or for a workshop the hex it stands on. */
-	| Ev<'built', { player: number; kind: BuiltKind; at: number; free: boolean }>
+	/**
+	 * `at` is a vertex, an edge, or for a workshop the hex it stands on. `paid` is what the player
+	 * handed the bank for it (nothing when it was free).
+	 */
+	| Ev<
+			'built',
+			{ player: number; kind: BuiltKind; at: number; free: boolean; paid: Partial<ResourceCounts> }
+	  >
 	/** A player tore down their workshop on `hex`; `refund` is what the bank gave back (nothing if it ran out). */
 	| Ev<'tornDown', { player: number; hex: number; refund: Partial<ResourceCounts> }>
 	| Ev<'setupResources', { player: number; gains: ResourceGain[] }>
@@ -159,7 +165,8 @@ export type GameEvent =
 	| Ev<'produced', { gains: ResourceGain[]; blocked: number[]; shortages: Resource[]; hexed?: number[] }>
 	| Ev<'nothingProduced', { total: number }>
 	| Ev<'mustDiscard', { players: Record<number, number> }>
-	| Ev<'discarded', { player: number; count: number }>
+	/** The cards a player threw back to the bank on a 7. */
+	| Ev<'discarded', { player: number; count: number; resources: Partial<ResourceCounts> }>
 	| Ev<'robberMoved', { player: number; hex: number }>
 	/** resource is null for viewers who weren't part of the theft. */
 	| Ev<'stole', { thief: number; victim: number; resource: Resource | null }>
@@ -176,7 +183,8 @@ export type GameEvent =
 	| Ev<'draftStarted', { order: number[] }>
 	| Ev<'characterPicked', { player: number; character: CharacterId }>
 	| Ev<'nothingToSteal', { player: number }>
-	| Ev<'devCardBought', { player: number; card: DevCardType | null }>
+	/** card is null for viewers other than the buyer; `paid` is what they handed the bank. */
+	| Ev<'devCardBought', { player: number; card: DevCardType | null; paid: Partial<ResourceCounts> }>
 	| Ev<'devCardPlayed', { player: number; card: DevCardType }>
 	| Ev<'yearOfPlenty', { player: number; resources: Resource[] }>
 	| Ev<'monopoly', { player: number; resource: Resource; taken: Record<number, number> }>

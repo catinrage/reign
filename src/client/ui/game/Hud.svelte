@@ -228,6 +228,13 @@
 			case 'largestArmy':
 				if (e.player === me) client.toast('You command the Largest Army! +2', 'good');
 				break;
+			case 'built':
+				flyToBank(e.player, e.paid);
+				break;
+			case 'discarded':
+				if (e.player === me) sfx.card();
+				flyToBank(e.player, e.resources);
+				break;
 			case 'bankTrade':
 				if (e.player === me) sfx.card();
 				flyBankTrade(e.player, e.give, e.giveCount, e.get);
@@ -241,6 +248,9 @@
 				sfx.win();
 				break;
 			case 'devCardBought':
+				sfx.card();
+				flyToBank(e.player, e.paid);
+				break;
 			case 'characterPicked':
 				sfx.card();
 				break;
@@ -275,25 +285,42 @@
 		);
 	}
 
-	/** Time between cards that fly off one after another in a trade, in ms. */
+	/** Time between cards that fly off one after another in a trade or a payment, in ms. */
 	const CARD_GAP_MS = 120;
 
+	/** Each card in a set of cards, kind by kind. */
+	function oneByOne(cards: Partial<ResourceCounts>): Resource[] {
+		return RESOURCES.flatMap((r) => Array<Resource>(cards[r] ?? 0).fill(r));
+	}
+
 	/**
-	 * A trade with the bank: the cards paid fly one after another from the trader to the bank's
-	 * pile of their kind on the table, or to the harbor whose rate they got. As the last one lands,
-	 * the card bought rises off its own pile (or the harbor) and flies back, counting as it lands.
+	 * Cards a player hands to the bank, for a build, a development card or a trade, or thrown back
+	 * on a 7: they fly one after another from the player's cards to the bank's pile of their kind on
+	 * the table, or to `harbor` when a trade got its rate.
+	 */
+	function flyToBank(player: number, cards: Partial<ResourceCounts>, harbor = -1) {
+		const scene = sceneRef.current;
+		if (!scene) return;
+		oneByOne(cards).forEach((resource, k) =>
+			setTimeout(() => {
+				const me = client.view?.me;
+				if (me === undefined) return;
+				const to = scene.tradeTarget(resource, harbor);
+				flyers.away(resource, player, me, to, () => scene.tradeLanded(resource, harbor));
+			}, k * CARD_GAP_MS)
+		);
+	}
+
+	/**
+	 * A trade with the bank: the cards paid fly to the bank's pile of their kind on the table, or to
+	 * the harbor whose rate they got. As the last one lands, the card bought rises off its own pile
+	 * (or the harbor) and flies back, counting as it lands.
 	 */
 	function flyBankTrade(player: number, give: Resource, count: number, get: Resource) {
 		const scene = sceneRef.current;
 		if (!scene) return client.arrived(player, get);
 		const harbor = tradeHarbor(view, player, give, count);
-		const to = scene.tradeTarget(give, harbor);
-		for (let k = 0; k < count; k++)
-			setTimeout(() => {
-				const me = client.view?.me;
-				if (me !== undefined)
-					flyers.away(give, player, me, to, () => scene.tradeLanded(give, harbor));
-			}, k * CARD_GAP_MS);
+		flyToBank(player, { [give]: count }, harbor);
 		setTimeout(() => scene.tradeOut(get, harbor, player), (count - 1) * CARD_GAP_MS + FLIGHT_MS);
 	}
 
@@ -308,7 +335,7 @@
 		want: Partial<ResourceCounts>
 	) {
 		const send = (cards: Partial<ResourceCounts>, giver: number, taker: number, after: number) =>
-			RESOURCES.flatMap((r) => Array<Resource>(cards[r] ?? 0).fill(r)).forEach((resource, k) =>
+			oneByOne(cards).forEach((resource, k) =>
 				setTimeout(
 					() => {
 						const me = client.view?.me;
