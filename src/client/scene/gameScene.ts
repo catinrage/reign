@@ -38,7 +38,7 @@ interface PieceObj {
 }
 
 const ROAD_LEN = 8;
-const PIECE_SCALE = 0.58;
+const PIECE_SCALE = 0.64;
 
 /**
  * The 3D side of the game: owns the stage, room, island and pieces, plays the animations
@@ -193,6 +193,7 @@ export class GameScene {
 		const prev = this.view;
 		this.view = view;
 		this.syncPieces(view, !first);
+		this.syncMarks(view);
 		if (!first && prev && prev.robberHex !== view.robberHex) this.moveRobber(view.robberHex);
 		const fresh = view.log.filter((e) => e.seq > this.lastSeq);
 		if (fresh.length) this.lastSeq = fresh[fresh.length - 1].seq;
@@ -234,7 +235,7 @@ export class GameScene {
 			const color = PLAYER_RGB[view.players[owner].color];
 			want.set(`e${e}:${owner}`, () => {
 				const obj = cloneModel(roadModel(color, ROAD_LEN));
-				obj.scale.set(0.92, 0.56, 0.56);
+				obj.scale.set(0.92, 0.64, 0.64);
 				const { pos, angle } = bv.edgePos(e);
 				obj.position.copy(pos);
 				obj.rotation.y = angle;
@@ -256,6 +257,25 @@ export class GameScene {
 			this.pieces.set(key, { key, obj });
 			if (animate) this.dropIn(obj, key.startsWith('e'));
 		}
+	}
+
+	/** Ring the numbers of the tiles you're on, and show who holds each harbor. */
+	private syncMarks(view: GameView) {
+		const bv = this.boardView!;
+		const topo = getTopology(view.board);
+		const me = view.players[view.me];
+		const mine = new Set<number>();
+		view.buildings.forEach((b, v) => {
+			if (b && b.owner === view.me) for (const h of topo.vertices[v].hexes) mine.add(h);
+		});
+		bv.setMine(mine, me ? PLAYER_RGB[me.color] : null);
+		bv.setPortOwners(
+			bv.build.ports.map((p) => {
+				const e = topo.edges[p.edge];
+				const b = view.buildings[e.a] ?? view.buildings[e.b];
+				return b ? PLAYER_RGB[view.players[b.owner].color] : null;
+			})
+		);
 	}
 
 	private dropIn(obj: THREE.Object3D, isRoad: boolean) {
@@ -482,10 +502,11 @@ export class GameScene {
 			const ghost = cloneModel(model as THREE.Group);
 			ghost.traverse((o) => {
 				const m = o as THREE.Mesh;
-				if (m.isMesh) {
-					m.material = mat;
-					m.castShadow = false;
-				}
+				if (!m.isMesh) return;
+				// The ghost is see-through, so its outline would show inside it.
+				if (m.name === 'outline') m.visible = false;
+				m.material = mat;
+				m.castShadow = false;
 			});
 			ghost.scale.setScalar(req.kind === 'road' ? 0.7 : PIECE_SCALE);
 			ghost.userData.base = ghost.scale.x;

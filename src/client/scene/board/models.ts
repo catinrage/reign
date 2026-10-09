@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Mat, VoxelGrid, hash3, hex, mix, pick, shade } from '../voxel/grid';
-import { meshesFor } from '../voxel/materials';
+import { type VoxelMaterialOptions, meshesFor } from '../voxel/materials';
 import { meshGrid } from '../voxel/mesher';
+import { addOutline } from '../voxel/outline';
 
 /**
  * Small voxel models: player pieces, robber, sheep, ships, dice and resource items.
@@ -10,13 +11,29 @@ import { meshGrid } from '../voxel/mesher';
 
 const cache = new Map<string, THREE.Group>();
 
-function build(key: string, size: [number, number, number], fill: (g: VoxelGrid) => void, center?: [number, number, number], scale = 1): THREE.Group {
+interface BuildOptions {
+	jitter?: number;
+	mats?: Partial<Record<Mat, VoxelMaterialOptions>>;
+	/** A dark rim round the silhouette (see `addOutline`). */
+	outline?: boolean;
+}
+
+function build(
+	key: string,
+	size: [number, number, number],
+	fill: (g: VoxelGrid) => void,
+	center?: [number, number, number],
+	scale = 1,
+	opts: BuildOptions = {}
+): THREE.Group {
 	let g = cache.get(key);
 	if (!g) {
 		const grid = new VoxelGrid(size[0], size[1], size[2]);
 		fill(grid);
 		const c = center ?? [size[0] / 2, 0, size[2] / 2];
-		g = meshesFor(meshGrid(grid, { jitter: 0.05 }), scale, { [Mat.Glow]: { emissive: 1.6 } }, c);
+		const mats = { [Mat.Glow]: { emissive: 1.6 }, ...opts.mats };
+		g = meshesFor(meshGrid(grid, { jitter: opts.jitter ?? 0.05 }), scale, mats, c);
+		if (opts.outline) addOutline(g);
 		cache.set(key, g);
 	}
 	return g;
@@ -32,6 +49,12 @@ export function cloneModel(g: THREE.Group): THREE.Group {
 const WINDOW = hex('#ffd77a');
 const DOOR = hex('#4a2c18');
 const STONE = [hex('#8e8a84'), hex('#a29d96')];
+
+/**
+ * Player pieces are outlined and lit a little from within, so a green house still stands out
+ * in a forest and a yellow road in a wheat field.
+ */
+const PIECE: BuildOptions = { outline: true, mats: { [Mat.Solid]: { lift: 0.2 } } };
 
 export function settlementModel(color: number): THREE.Group {
 	return build(`settlement:${color}`, [7, 7, 7], (g) => {
@@ -54,7 +77,7 @@ export function settlementModel(color: number): THREE.Group {
 		g.box(2, 4, 5, 4, 4, 5, wall);
 		// chimney
 		g.box(5, 4, 2, 5, 6, 2, (x, y, z) => pick(STONE, hash3(x, y, z)));
-	});
+	}, undefined, 1, PIECE);
 }
 
 export function cityModel(color: number): THREE.Group {
@@ -81,7 +104,7 @@ export function cityModel(color: number): THREE.Group {
 		g.set(8, 2, 4, WINDOW, Mat.Glow);
 		// stone foundation
 		g.box(1, 0, 2, 8, 0, 6, (x, y, z) => (x === 5 || x === 6) && z === 6 ? DOOR : pick(STONE, hash3(x, y, z, 2)));
-	});
+	}, undefined, 1, PIECE);
 }
 
 /** Road along local +x, centered. Length in voxels. */
@@ -91,7 +114,7 @@ export function roadModel(color: number, length = 8): THREE.Group {
 			const plank = Math.floor(x / 2) % 2 === 0 ? 1 : 0.9;
 			return shade(color, (y === 1 ? 1.05 : 0.82) * plank);
 		});
-	}, [length / 2, 0, 1]);
+	}, [length / 2, 0, 1], 1, PIECE);
 }
 
 // ---------------------------------------------------------------- robber
@@ -136,8 +159,9 @@ export function sheepModel(): THREE.Group {
 	}, [3.5, 0, 2]);
 }
 
-export function shipModel(): THREE.Group {
-	return build('ship', [14, 14, 7], (g) => {
+/** A little ship for a harbor. Its sails and pennant take the color of the harbor's owner. */
+export function shipModel(color?: number): THREE.Group {
+	return build(`ship:${color ?? 'none'}`, [14, 14, 7], (g) => {
 		const wood = (x: number, y: number, z: number) => pick([hex('#7a4a28'), hex('#6a3f22'), hex('#8a5632')], hash3(x, y, z));
 		// hull
 		g.box(3, 0, 2, 10, 0, 4, wood);
@@ -151,12 +175,18 @@ export function shipModel(): THREE.Group {
 		g.box(7, 3, 3, 7, 12, 3, hex('#5a3519'));
 		g.box(3, 3, 3, 3, 9, 3, hex('#5a3519'));
 		// sails
-		const sail = (x: number, y: number, z: number) => pick([hex('#f7f3ea'), hex('#ece6d8')], hash3(x, y, z));
+		const white = (x: number, y: number, z: number) => pick([hex('#f7f3ea'), hex('#ece6d8')], hash3(x, y, z));
+		const sail =
+			color === undefined
+				? white
+				: (x: number, y: number, z: number) =>
+						y === 8 ? white(x, y, z) : shade(color, 0.96 + hash3(x, y, z) * 0.1);
 		g.box(8, 6, 0, 8, 11, 6, sail);
 		g.box(9, 7, 1, 9, 10, 5, sail);
 		g.box(4, 5, 1, 4, 8, 5, sail);
-		g.box(7, 13, 3, 7, 13, 3, hex('#d8352a'));
-		g.box(6, 13, 3, 6, 13, 3, hex('#d8352a'));
+		const pennant = color ?? hex('#efe6d2');
+		g.box(7, 13, 3, 7, 13, 3, pennant);
+		g.box(6, 13, 3, 6, 13, 3, pennant);
 	}, [7, 1, 3.5]);
 }
 
@@ -181,36 +211,55 @@ const PIP_LAYOUT: Record<number, [number, number][]> = {
 	6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]]
 };
 
+/** Voxels along each side of a die. */
+export const DIE_VOXELS = 12;
+
+/**
+ * A white die with pips that read from across the table: each pip is a 2x2 block of near
+ * black, and the 1 is one big red pip. The body is plain white with soft bevels, so the
+ * voxel grid doesn't speckle the faces.
+ */
 export function dieModel(): THREE.Group {
-	const N = 9;
-	return build('die', [N, N, N], (g) => {
-		const body = (x: number, y: number, z: number) => pick([hex('#f7f2e6'), hex('#efe8d8')], hash3(x, y, z));
-		g.box(0, 0, 0, N - 1, N - 1, N - 1, body);
-		// round the corners and edges a bit
-		for (let y = 0; y < N; y++)
-			for (let z = 0; z < N; z++)
-				for (let x = 0; x < N; x++) {
-					const ex = x === 0 || x === N - 1;
-					const ey = y === 0 || y === N - 1;
-					const ez = z === 0 || z === N - 1;
-					if ((ex && ey) || (ey && ez) || (ex && ez)) g.clear(x, y, z);
+	const N = DIE_VOXELS;
+	return build(
+		'die',
+		[N, N, N],
+		(g) => {
+			g.box(0, 0, 0, N - 1, N - 1, N - 1, hex('#f7f2e6'));
+			// round the corners and edges a bit
+			for (let y = 0; y < N; y++)
+				for (let z = 0; z < N; z++)
+					for (let x = 0; x < N; x++) {
+						const ex = x === 0 || x === N - 1;
+						const ey = y === 0 || y === N - 1;
+						const ez = z === 0 || z === N - 1;
+						if ((ex && ey) || (ey && ez) || (ex && ez)) g.clear(x, y, z);
+					}
+			const ink = hex('#1c1411');
+			const red = hex('#d3281c');
+			// Voxel at (u, w) on a face.
+			const at = (n: THREE.Vector3, u: number, w: number): [number, number, number] => {
+				if (n.y !== 0) return [u, n.y > 0 ? N - 1 : 0, w];
+				if (n.x !== 0) return [n.x > 0 ? N - 1 : 0, u, w];
+				return [u, w, n.z > 0 ? N - 1 : 0];
+			};
+			for (const [num, n] of Object.entries(DIE_FACES)) {
+				const v = Number(num);
+				const cells: [number, number][] = [];
+				if (v === 1) {
+					for (let w = 4; w < 8; w++)
+						for (let u = 4; u < 8; u++) if (!((u === 4 || u === 7) && (w === 4 || w === 7))) cells.push([u, w]);
+				} else {
+					for (const [a, b] of PIP_LAYOUT[v])
+						for (const [du, dw] of [[0, 0], [1, 0], [0, 1], [1, 1]]) cells.push([5 + a * 3 + du, 5 + b * 3 + dw]);
 				}
-		const pip = hex('#3a1f1a');
-		const red = hex('#c2271d');
-		const c = (N - 1) / 2;
-		for (const [num, n] of Object.entries(DIE_FACES)) {
-			const v = Number(num);
-			for (const [a, b] of PIP_LAYOUT[v]) {
-				const u = c + a * 2.5;
-				const w = c + b * 2.5;
-				const col = v === 1 ? red : pip;
-				const set = (x: number, y: number, z: number) => g.set(Math.round(x), Math.round(y), Math.round(z), col);
-				if (n.y !== 0) set(u, n.y > 0 ? N - 1 : 0, w);
-				else if (n.x !== 0) set(n.x > 0 ? N - 1 : 0, u, w);
-				else set(u, w, n.z > 0 ? N - 1 : 0);
+				for (const [u, w] of cells) g.set(...at(n, u, w), v === 1 ? red : ink);
 			}
-		}
-	}, [N / 2, N / 2, N / 2]);
+		},
+		[N / 2, N / 2, N / 2],
+		1,
+		{ jitter: 0.02, mats: { [Mat.Solid]: { bevel: 0.2, bevelWidth: 0.08 } } }
+	);
 }
 
 // ---------------------------------------------------------------- resource items (icons, trays)
