@@ -44,6 +44,8 @@ const ROLL_ENDS = new Set(['diceRolled', 'produced', 'nothingProduced', 'mustDis
 const PIGEON_KEEP = 400;
 /** A player sends at most one pigeon this often. */
 const PIGEON_GAP_MS = 600;
+/** How long a bot points at the robber's new tile before the robber jumps there. */
+const BOT_AIM_MS = 900;
 
 export class Room {
 	seats: Seat[] = [];
@@ -71,6 +73,11 @@ export class Room {
 	/** Private notes sent by pigeon. Each is only ever sent to its writer and its reader. */
 	private pigeons: PigeonNote[] = [];
 	private pigeonId = 0;
+	/**
+	 * The tile the player moving the robber points at, shown on everyone's board. `bot` marks a
+	 * bot's pick, which it then moves to.
+	 */
+	private aim: { player: number; hex: number; bot: boolean } | null = null;
 
 	/** `cheats` lets players use dev cheats; only the local dev server turns it on. */
 	constructor(
@@ -159,6 +166,8 @@ export class Room {
 				view: viewFor(this.game, this.seatIndex(seat)),
 				clock: this.clockInfo()
 			});
+			const aim = this.aim;
+			if (aim && aim.player !== this.seatIndex(seat)) send(ws, { t: 'aim', player: aim.player, hex: aim.hex });
 		}
 		return seat;
 	}
@@ -311,6 +320,14 @@ export class Room {
 				this.heldBy = held;
 				return this.pauseChanged();
 			}
+			case 'aim': {
+				const g = this.game;
+				const player = this.seatIndex(seat);
+				if (!g || g.step !== 'moveRobber' || g.current !== player) return;
+				const hex = msg.hex;
+				if (hex !== null && (!Number.isInteger(hex) || !g.board.hexes[hex] || hex === g.robberHex)) return;
+				return this.setAim(player, hex, false);
+			}
 			case 'cheat': {
 				if (!this.cheats) return send(ws, { t: 'error', message: 'Cheats only work on the dev server.' });
 				if (!this.game) return;
@@ -318,6 +335,7 @@ export class Room {
 				if (!res.ok) return send(ws, { t: 'error', message: res.error });
 				if (msg.cheat.type === 'fastBots') this.fastBots = !!msg.cheat.on;
 				this.game = res.state;
+				this.aim = null;
 				if (this.botTimer) {
 					// The table changed under a bot that was about to move: let it look again.
 					clearTimeout(this.botTimer);
@@ -434,8 +452,22 @@ export class Room {
 		for (const s of this.seats) for (const ws of s.sockets) send(ws, { t: 'lobby', lobby });
 	}
 
+	/** Tell everyone but the player aiming which tile the robber is aimed at (null: none). */
+	private setAim(player: number, hex: number | null, bot: boolean) {
+		const was = this.aim;
+		this.aim = hex === null ? null : { player, hex, bot };
+		if (was ? was.player === player && was.hex === hex : hex === null) return;
+		this.seats.forEach((s, i) => {
+			if (i === player) return;
+			for (const ws of s.sockets) send(ws, { t: 'aim', player, hex });
+		});
+	}
+
 	private broadcastGame() {
 		if (!this.game) return;
+		// Once the robber has moved (or the turn moved on), nobody is aiming it.
+		const g = this.game;
+		if (this.aim && (g.step !== 'moveRobber' || g.current !== this.aim.player)) this.aim = null;
 		this.syncClock();
 		const clock = this.clockInfo();
 		this.seats.forEach((s, i) => {
@@ -537,11 +569,23 @@ export class Room {
 		if (last && ROLL_ENDS.has(last.type)) delay += 1300;
 		if (last?.type === 'turnStarted') delay += 400;
 		if (next.action.type === 'respondTrade') delay += 600;
+		// A bot that has pointed at the robber's tile moves it there after a moment.
+		if (this.botAim(next.player) !== null) delay = BOT_AIM_MS;
 		if (this.fastBots) delay = 60;
 		this.botTimer = setTimeout(() => {
 			this.botTimer = null;
 			if (!this.game || this.paused) return;
-			const move = this.nextBotMove();
+			let move = this.nextBotMove();
+			if (move?.action.type === 'moveRobber' && !this.fastBots) {
+				const aimed = this.botAim(move.player);
+				if (aimed === null) {
+					// Like a person would, the bot first points at the tile (everyone sees it light
+					// up), and moves the robber there on its next go.
+					this.setAim(move.player, move.action.hex, true);
+					return this.scheduleBots();
+				}
+				move = { player: move.player, action: { type: 'moveRobber', hex: aimed } };
+			}
 			if (move) {
 				const res = applyAction(this.game, move.player, move.action);
 				if (res.ok) this.game = res.state;
@@ -556,6 +600,14 @@ export class Room {
 			}
 			this.scheduleBots();
 		}, delay);
+	}
+
+	/** The tile a bot moving the robber has pointed at, if it still can move it there. */
+	private botAim(player: number): number | null {
+		const g = this.game;
+		const aim = this.aim;
+		if (!g || !aim?.bot || aim.player !== player || g.step !== 'moveRobber' || g.current !== player) return null;
+		return aim.hex !== g.robberHex && g.board.hexes[aim.hex] ? aim.hex : null;
 	}
 
 	private nextBotMove() {

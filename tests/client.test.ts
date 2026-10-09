@@ -185,6 +185,21 @@ describe('client: rolls and dealt cards', () => {
 		const first = rollNext(next).roll;
 		expect(client.tossing?.seq).toBe(first.seq);
 	});
+
+	it('keeps the tile another player aims the robber at until the robber moves', () => {
+		const g = botGame(7);
+		let s = g.state;
+		for (let i = 0; i < 5000 && s.step !== 'moveRobber'; i++) receive((s = g.step()));
+		expect(s.step).toBe('moveRobber');
+		const hex = s.board.hexes.findIndex((_, h) => h !== s.robberHex);
+		(client as any).onMessage({ t: 'aim', player: s.current, hex });
+		expect(client.aim).toEqual({ player: s.current, hex });
+		// A state that changes nothing about the robber keeps it.
+		receive(s);
+		expect(client.aim).toEqual({ player: s.current, hex });
+		receive(g.step());
+		expect(client.aim).toBeNull();
+	});
 });
 
 describe('client: following an invite link', () => {
