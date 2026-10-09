@@ -1,12 +1,40 @@
 import { getTopology } from '../board/topology';
-import { RESOURCES, TERRAIN_RESOURCE, type Resource, pips } from './config';
+import {
+	COSTS,
+	DISCARD_THRESHOLD,
+	LONGEST_ROAD_MIN,
+	RESOURCES,
+	TERRAIN_RESOURCE,
+	type BuildKind,
+	type Resource,
+	type ResourceCounts,
+	pips
+} from './config';
 import type { GameState, GameView } from './types';
 
 /** Read-only helpers shared by the engine, the bots and the client's highlighting. */
 type Shared = Pick<
 	GameState | GameView,
 	'board' | 'buildings' | 'roads' | 'robberHex' | 'longestRoadHolder' | 'largestArmyHolder'
->;
+> & { players: { character: GameState['players'][number]['character'] }[] };
+
+/** What a build costs this player: the standard price, bent by their character's trait. */
+export function costOf(s: Shared, player: number, kind: BuildKind): Partial<ResourceCounts> {
+	const ch = s.players[player]?.character;
+	if (ch === 'mason' && kind === 'city') return { wheat: 2, ore: 2 };
+	if (ch === 'scholar' && kind === 'devCard') return { wheat: 1, ore: 1 };
+	return COSTS[kind];
+}
+
+/** A 7 makes this player discard half their hand when they hold more than this many cards. */
+export function discardLimit(s: Shared, player: number): number {
+	return s.players[player]?.character === 'steward' ? 9 : DISCARD_THRESHOLD;
+}
+
+/** Roads this player needs to claim Longest Road. */
+export function longestRoadMin(s: Shared, player: number): number {
+	return s.players[player]?.character === 'explorer' ? 4 : LONGEST_ROAD_MIN;
+}
 
 export function isVertexFree(s: Shared, vertex: number): boolean {
 	const topo = getTopology(s.board);
@@ -58,7 +86,8 @@ export function citySpots(s: Shared, player: number): number[] {
 /** Trade ratio per resource with the bank, given the harbors a player has built on. */
 export function tradeRatios(s: Shared, player: number): Record<Resource, number> {
 	const topo = getTopology(s.board);
-	const ratios = { wood: 4, brick: 4, sheep: 4, wheat: 4, ore: 4 } as Record<Resource, number>;
+	const base = s.players[player]?.character === 'merchant' ? 3 : 4;
+	const ratios = { wood: base, brick: base, sheep: base, wheat: base, ore: base } as Record<Resource, number>;
 	s.buildings.forEach((b, v) => {
 		if (!b || b.owner !== player) return;
 		const port = topo.vertices[v].port;

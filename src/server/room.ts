@@ -8,8 +8,11 @@ import type {
 	TurnClock
 } from '../shared/protocol';
 import { MAX_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../shared/protocol';
+import { type MapChoice, presetById, validateCustomMap } from '../shared/board/maps';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
+import { CHARACTERS, type CharacterId, isCharacter } from '../shared/rules/characters';
+import { DEFAULT_SETTINGS, GAME_MODES, POINT_GOALS, type GameSettings } from '../shared/rules/modes';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
 import type { Action, GameState } from '../shared/rules/types';
@@ -21,6 +24,7 @@ interface Seat {
 	name: string;
 	color: PlayerColor;
 	isBot: boolean;
+	character: CharacterId | null;
 	sockets: Set<WebSocket>;
 	lastSeen: number;
 }
@@ -36,6 +40,8 @@ export class Room {
 	createdAt = Date.now();
 	/** Seconds each turn may last, 0 for no limit. The host picks it in the lobby. */
 	turnTime = 0;
+	/** Mode, map and points to win. The host picks them in the lobby. */
+	settings: GameSettings = structuredClone(DEFAULT_SETTINGS);
 	private botTimer: NodeJS.Timeout | null = null;
 	private botActionsThisTurn = 0;
 	private botTurnKey = '';
@@ -67,6 +73,7 @@ export class Room {
 			maxPlayers: MAX_PLAYERS,
 			paused: this.paused,
 			turnTime: this.turnTime,
+			settings: this.settings,
 			clock: this.clockInfo(),
 			seats: this.seats.map(
 				(s): LobbySeat => ({
@@ -75,7 +82,8 @@ export class Room {
 					color: s.color,
 					isBot: s.isBot,
 					connected: s.isBot || s.sockets.size > 0,
-					isHost: s.id === this.hostId
+					isHost: s.id === this.hostId,
+					character: s.character
 				})
 			)
 		};
@@ -93,6 +101,7 @@ export class Room {
 				name: cleanName(name) || `Player ${this.seats.length + 1}`,
 				color: this.freeColor(),
 				isBot: false,
+				character: this.freeCharacter(),
 				sockets: new Set(),
 				lastSeen: Date.now()
 			};
@@ -159,6 +168,7 @@ export class Room {
 					name: BOT_NAMES.find((n) => !used.has(n)) ?? 'Bot',
 					color: this.freeColor(),
 					isBot: true,
+					character: this.freeCharacter(),
 					sockets: new Set(),
 					lastSeen: Date.now()
 				});
@@ -172,6 +182,28 @@ export class Room {
 				if (!isHost || this.started || !TURN_TIMES.includes(msg.seconds)) return;
 				this.turnTime = msg.seconds;
 				return this.broadcastLobby();
+			case 'setMode':
+				if (!isHost || this.lockedSettings || !GAME_MODES.includes(msg.mode)) return;
+				this.settings.mode = msg.mode;
+				return this.broadcastLobby();
+			case 'setMap': {
+				if (!isHost || this.lockedSettings) return;
+				const map = cleanMap(msg.map);
+				if (typeof map === 'string') return send(ws, { t: 'error', message: map });
+				this.settings.map = map;
+				return this.broadcastLobby();
+			}
+			case 'setPointsToWin':
+				if (!isHost || this.lockedSettings || !POINT_GOALS.includes(msg.points)) return;
+				this.settings.pointsToWin = msg.points;
+				return this.broadcastLobby();
+			case 'setCharacter':
+				if (this.lockedSettings || !isCharacter(msg.character)) return;
+				if (this.seats.some((s) => s !== seat && s.character === msg.character)) {
+					return send(ws, { t: 'error', message: 'Someone already plays that character.' });
+				}
+				seat.character = msg.character;
+				return this.broadcastLobby();
 			case 'start':
 				if (!isHost || (this.game && this.game.phase !== 'ended')) return;
 				if (this.seats.length < MIN_PLAYERS) {
@@ -181,8 +213,10 @@ export class Room {
 				// Random seating order makes the first player fair.
 				this.seats.sort(() => Math.random() - 0.5);
 				this.game = createGame(
-					this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot })),
-					randomSeed()
+					this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot, character: s.character })),
+					randomSeed(),
+					undefined,
+					this.settings
 				);
 				this.broadcastLobby();
 				this.broadcastGame();
@@ -234,6 +268,17 @@ export class Room {
 
 	private seatIndex(seat: Seat) {
 		return this.seats.indexOf(seat);
+	}
+
+	/** Lobby settings can change before the first game and between games, never during one. */
+	private get lockedSettings() {
+		return !!this.game && this.game.phase !== 'ended';
+	}
+
+	/** A character nobody at the table plays yet, picked at random. */
+	private freeCharacter(): CharacterId | null {
+		const free = CHARACTERS.filter((c) => !this.seats.some((s) => s.character === c));
+		return free.length ? free[Math.floor(Math.random() * free.length)] : null;
 	}
 
 	private freeColor(): PlayerColor {
@@ -412,6 +457,19 @@ function forcedMove(g: GameState): { player: number; action: Action } | null {
 	const who = g.step === 'discard' ? Number(Object.keys(g.pendingDiscards)[0]) : g.current;
 	const action = botAction(g, who);
 	return action && { player: who, action };
+}
+
+/** A map choice from a client, checked; or why it can't be played. */
+function cleanMap(map: MapChoice): MapChoice | string {
+	if (map && 'preset' in map && typeof map.preset === 'string') {
+		return presetById(map.preset) ? { preset: map.preset } : 'Unknown map.';
+	}
+	if (!map || !('custom' in map) || !map.custom || !Array.isArray(map.custom.tiles)) return 'That map is empty.';
+	const custom = {
+		name: cleanName(map.custom.name) || 'Custom map',
+		tiles: map.custom.tiles.slice(0, 200).map((t) => ({ q: Number(t?.q), r: Number(t?.r), terrain: t?.terrain ?? null }))
+	};
+	return validateCustomMap(custom) ?? { custom };
 }
 
 function cleanName(name: unknown): string {

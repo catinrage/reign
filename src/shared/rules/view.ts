@@ -18,6 +18,7 @@ export function viewFor(s: GameState, me: number): GameView {
 				name: p.name,
 				color: p.color,
 				isBot: p.isBot,
+				character: p.character,
 				resourceCount: totalResources(p.resources),
 				devCardCount: p.devCards.length,
 				knightsPlayed: p.knightsPlayed,

@@ -1,6 +1,5 @@
 import { getTopology } from '../board/topology';
 import {
-	COSTS,
 	RESOURCES,
 	TERRAIN_RESOURCE,
 	hasResources,
@@ -12,6 +11,7 @@ import {
 import { totalPoints } from './engine';
 import {
 	citySpots,
+	costOf,
 	playersOnHex,
 	roadSpots,
 	settlementSpots,
@@ -83,7 +83,7 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 			if (r) return { type: 'playMonopoly', resource: r };
 		}
 		if (playableCard(s, me, 'yearOfPlenty')) {
-			const need = missingFor(res, COSTS.city).concat(missingFor(res, COSTS.settlement));
+			const need = missingFor(res, costOf(s, me, 'city')).concat(missingFor(res, costOf(s, me, 'settlement')));
 			const pick = [need[0] ?? 'ore', need[1] ?? need[0] ?? 'wheat'] as [Resource, Resource];
 			if (s.bank[pick[0]] > 1 && s.bank[pick[1]] > 1) return { type: 'playYearOfPlenty', resources: pick };
 		}
@@ -92,20 +92,20 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 		}
 	}
 
-	if (hasResources(res, COSTS.city) && pl.piecesLeft.city > 0) {
+	if (hasResources(res, costOf(s, me, 'city')) && pl.piecesLeft.city > 0) {
 		const spots = citySpots(s, me);
 		if (spots.length) return { type: 'buildCity', vertex: best(spots, (v) => vertexValue(s, v)) };
 	}
 	const settleSpots = settlementSpots(s, me, false);
-	if (hasResources(res, COSTS.settlement) && pl.piecesLeft.settlement > 0 && settleSpots.length) {
+	if (hasResources(res, costOf(s, me, 'settlement')) && pl.piecesLeft.settlement > 0 && settleSpots.length) {
 		return { type: 'placeSettlement', vertex: best(settleSpots, (v) => spotScore(s, me, v)) };
 	}
 	const roadsOk = roadSpots(s, me);
 	const wantsRoad = settleSpots.length === 0 || pl.longestRoad >= 4;
-	if (hasResources(res, COSTS.road) && pl.piecesLeft.road > 0 && roadsOk.length && wantsRoad) {
+	if (hasResources(res, costOf(s, me, 'road')) && pl.piecesLeft.road > 0 && roadsOk.length && wantsRoad) {
 		return { type: 'placeRoad', edge: best(roadsOk, (e) => roadScore(s, me, e)) };
 	}
-	if (hasResources(res, COSTS.devCard) && s.devDeck.length > 0) {
+	if (hasResources(res, costOf(s, me, 'devCard')) && s.devDeck.length > 0) {
 		const keepForCity = citySpots(s, me).length > 0 && res.ore < 4;
 		if (!keepForCity || totalResources(res) > 7) return { type: 'buyDevCard' };
 	}
@@ -218,9 +218,9 @@ function bankTradeTowards(s: GameState, me: number): Action | null {
 	const res = s.players[me].resources;
 	const ratios = tradeRatios(s, me);
 	const goals: Partial<ResourceCounts>[] = [];
-	if (citySpots(s, me).length && s.players[me].piecesLeft.city > 0) goals.push(COSTS.city);
-	if (settlementSpots(s, me, false).length && s.players[me].piecesLeft.settlement > 0) goals.push(COSTS.settlement);
-	goals.push(COSTS.devCard);
+	if (citySpots(s, me).length && s.players[me].piecesLeft.city > 0) goals.push(costOf(s, me, 'city'));
+	if (settlementSpots(s, me, false).length && s.players[me].piecesLeft.settlement > 0) goals.push(costOf(s, me, 'settlement'));
+	goals.push(costOf(s, me, 'devCard'));
 	for (const goal of goals) {
 		const need = missingFor(res, goal);
 		if (need.length !== 1) continue;
