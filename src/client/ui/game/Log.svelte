@@ -8,8 +8,13 @@
 
 	const view = $derived(client.view!);
 	const icons = getIcons().urls;
+	/** `/clear` hides every entry up to this seq, on this screen only. */
+	let clearedAt = $state(0);
+	// A fresh game restarts the log's numbering, so an old mark no longer applies.
+	const cut = $derived((view.log.at(-1)?.seq ?? 0) >= clearedAt ? clearedAt : 0);
 	const lines = $derived(
 		view.log
+			.filter((e) => e.seq > cut)
 			.map((e) => ({ seq: e.seq, chat: e.type === 'chat', parts: eventParts(e, view) }))
 			.filter((l) => l.parts)
 			.slice(-40)
@@ -26,6 +31,11 @@
 	function send() {
 		const t = text.trim();
 		if (!t) return;
+		if (t.toLowerCase() === '/clear') {
+			clearedAt = view.log.at(-1)?.seq ?? 0;
+			text = '';
+			return;
+		}
 		client.send({ t: 'chat', text: t });
 		text = '';
 	}
@@ -39,6 +49,7 @@
 	</button>
 	{#if ui.logOpen}
 		<div class="lines well" bind:this={box}>
+			{#if cut && !lines.length}<div class="line hint">Chronicle cleared.</div>{/if}
 			{#each lines as l (l.seq)}
 				<div class="line" class:chat={l.chat}>
 					{#if l.chat}<img class="icon-px bubble" src={PIXEL.chat} alt="" />{/if}
@@ -140,6 +151,10 @@
 			-1px 0 0 #1a0c05,
 			0 1px 0 #1a0c05,
 			0 -1px 0 #1a0c05;
+	}
+	.line.hint {
+		color: var(--muted);
+		font-style: italic;
 	}
 	.line.chat {
 		color: #fff;
