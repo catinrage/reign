@@ -3,6 +3,22 @@
  * cloth ribbons and chunky pixel buttons, all drawn as pixel art (see ui/art.ts) and
  * scaled in whole pixels so they stay crisp next to the voxel world.
  */
+/* Pixelify Sans's C with a wider mouth, so outlined text doesn't read "Copy" as "Oopy"
+ * (built by scripts/fonts/open-c.py). It holds the C alone; everything else is Pixelify. */
+@font-face {
+	font-family: 'Reign Px';
+	font-weight: 500;
+	font-display: swap;
+	src: url('./fonts/reign-px-500.woff2') format('woff2');
+	unicode-range: U+0043;
+}
+@font-face {
+	font-family: 'Reign Px';
+	font-weight: 700;
+	font-display: swap;
+	src: url('./fonts/reign-px-700.woff2') format('woff2');
+	unicode-range: U+0043;
+}
 :root {
 	--wood-0: #140904;
 	--wood-1: #2e180b;
@@ -19,7 +35,7 @@
 	--red: #e04b35;
 	--text: #fbeedb;
 	--muted: #d2b894;
-	--px: 'Pixelify Sans', 'Nunito Variable', sans-serif;
+	--px: 'Reign Px', 'Pixelify Sans', 'Nunito Variable', sans-serif;
 	--body: 'Nunito Variable', system-ui, sans-serif;
 	/* One pixel of interface art. */
 	--s: 3px;

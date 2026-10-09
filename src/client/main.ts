@@ -7,6 +7,7 @@ import { runSandbox } from './sandbox';
 async function boot() {
 	await Promise.all([
 		document.fonts.load('700 40px "Pixelify Sans"'),
+		document.fonts.load('700 40px "Reign Px"', 'C'),
 		document.fonts.load('900 40px "Nunito Variable"')
 	]).catch(() => {});
 	const canvas = document.getElementById('world') as HTMLCanvasElement;

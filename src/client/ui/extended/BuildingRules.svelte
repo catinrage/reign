@@ -33,7 +33,7 @@
 	}
 </script>
 
-<button class="pick plaque" onclick={() => (open = true)}>
+<button class="pick plaque" title={client.isHost ? 'Choose buildings' : 'See what they do'} onclick={() => (open = true)}>
 	<span class="face well"><img src={icons[`${on[0] ?? EXTRA_BUILDINGS[0]}:${color}`]} alt="" class:dim={!on.length} /></span>
 	<span class="pick-body">
 		<span class="label">Buildings</span>

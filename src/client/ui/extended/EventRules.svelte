@@ -23,7 +23,7 @@
 	const pool = $derived(eventPool(rules));
 	let open = $state(false);
 
-	const summary = $derived(!rules.on || !pool.length ? 'Off' : rules.every === 1 ? 'Every round' : 'Every other round');
+	const summary = $derived(!rules.on || !pool.length ? 'Off' : rules.every === 1 ? 'Every round' : 'Every other');
 	const detail = $derived(
 		!rules.on ? 'No event cards.' : pool.length ? `${rules.wild ? 'Wild' : 'Gentle'} deck, ${pool.length} cards` : 'Every card is pulled.'
 	);
@@ -36,7 +36,7 @@
 	}
 </script>
 
-<button class="pick plaque" onclick={() => (open = true)}>
+<button class="pick plaque" title={client.isHost ? 'Choose events' : 'See the deck'} onclick={() => (open = true)}>
 	<span class="face well"><img src={EVENT_ART.comet} alt="" class:dim={!rules.on || !pool.length} /></span>
 	<span class="pick-body">
 		<span class="label">Events</span>
