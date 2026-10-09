@@ -3,6 +3,7 @@
 // Each chapter is saved twice: the top of the page, and the whole page scrolled into one tall shot.
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 
 const [dir = 'shots/tutorial', w = '1600', h = '900', only = ''] = process.argv.slice(2);
 mkdirSync(dir, { recursive: true });
@@ -15,7 +16,9 @@ page.setDefaultTimeout(240000);
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 page.on('console', (m) => m.type() === 'error' && console.log('[console]', m.text()));
 await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
-await page.goto(process.env.URL || 'http://localhost:5173/');
+const url = process.env.URL || 'http://localhost:5173/';
+await signIn(page, url);
+await page.goto(url);
 await page
 	.waitForFunction(() => window.__ready === true, null, { timeout: 120000 })
 	.catch(() => console.log('not ready'));

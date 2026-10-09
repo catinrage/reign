@@ -7,6 +7,7 @@
 // (COLORS picks the plaques to hover; every one by default.)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [dir = '/tmp/plaque', base = 'http://localhost:8787', w = '1600', h = '900'] =
 	process.argv.slice(2);
 mkdirSync(dir, { recursive: true });
@@ -21,6 +22,7 @@ await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 const until = (fn, arg) => page.waitForFunction(fn, arg, { timeout: 300000, polling: 100 });
+await signIn(page, base);
 await page.goto(`${base}/?autoplay`);
 await until(() => window.__ready === true);
 await page.evaluate(() => window.__client.setName('Komeil'));
