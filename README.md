@@ -37,6 +37,15 @@ pnpm dev          # game server on :8787 + Vite on :5173 (open http://localhost:
 Click **Create a game**, then **Copy invite link** and send it to friends on the same network (open the game via your PC's LAN address, e.g. `http://192.168.1.20:5173`, so the link points there),
 or click **Quick game vs 3 bots** to play solo.
 
+### Dev cheats
+
+Under `pnpm dev` the server starts with `--dev`, and every game gets a cheat panel: press `` ` ``
+or click the hammer under the menu button. It hands any player cards or a playable development
+card, rigs the next roll (2 to 12), finishes the setup for everyone, makes bots play fast and
+wins the game on the spot. Each use leaves a `[cheat]` line in the chronicle. `pnpm start` (and
+anything with `NODE_ENV=production`) never turns it on, and the server refuses cheat messages
+there.
+
 Production build (one process serves the page and the WebSocket):
 
 ```bash

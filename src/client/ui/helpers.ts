@@ -169,6 +169,8 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return [P(e.winner), T(e.winner === view.me ? ' win the game!' : ' won the game!')];
 		case 'chat':
 			return [P(e.player), T(`: ${e.text}`)];
+		case 'cheat':
+			return [T('[cheat] '), P(e.player), T(` ${e.text}`)];
 		case 'gameStarted':
 			return view.mode === 'extended'
 				? [T(`Reign Extended on ${view.mapName}, first to ${view.pointsToWin} points. Place your settlements!`)]

@@ -11,6 +11,7 @@ import { MAX_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../shared/protocol';
 import { type MapChoice, presetById, validateCustomMap } from '../shared/board/maps';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
+import { applyCheat } from '../shared/rules/cheats';
 import { CHARACTERS, type CharacterId, isCharacter } from '../shared/rules/characters';
 import { DEFAULT_SETTINGS, GAME_MODES, POINT_GOALS, type GameSettings } from '../shared/rules/modes';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
@@ -45,6 +46,8 @@ export class Room {
 	/** Mode, map and points to win. The host picks them in the lobby. */
 	settings: GameSettings = structuredClone(DEFAULT_SETTINGS);
 	private botTimer: NodeJS.Timeout | null = null;
+	/** Dev cheat: bots move almost at once instead of pausing like a person would. */
+	private fastBots = false;
 	private botActionsThisTurn = 0;
 	private botTurnKey = '';
 	/** Seats that have the game menu open. */
@@ -55,7 +58,11 @@ export class Room {
 	 */
 	private clock = { turn: '', left: 0, ends: 0, timer: null as NodeJS.Timeout | null };
 
-	constructor(public code: string) {}
+	/** `cheats` lets players use dev cheats; only the local dev server turns it on. */
+	constructor(
+		public code: string,
+		public cheats = false
+	) {}
 
 	get started() {
 		return this.game !== null;
@@ -118,7 +125,13 @@ export class Room {
 		if (!this.hostId || !this.seats.find((s) => s.id === this.hostId && !s.isBot)) {
 			this.hostId = seat.id;
 		}
-		send(ws, { t: 'welcome', code: this.code, seat: seat.id, token: seat.token });
+		send(ws, {
+			t: 'welcome',
+			code: this.code,
+			seat: seat.id,
+			token: seat.token,
+			...(this.cheats ? { cheats: true } : {})
+		});
 		this.broadcastLobby();
 		if (this.game) {
 			send(ws, {
@@ -266,6 +279,21 @@ export class Room {
 					this.botTimer = null;
 				}
 				this.broadcastLobby();
+				return this.scheduleBots();
+			}
+			case 'cheat': {
+				if (!this.cheats) return send(ws, { t: 'error', message: 'Cheats only work on the dev server.' });
+				if (!this.game) return;
+				const res = applyCheat(this.game, this.seatIndex(seat), msg.cheat);
+				if (!res.ok) return send(ws, { t: 'error', message: res.error });
+				if (msg.cheat.type === 'fastBots') this.fastBots = !!msg.cheat.on;
+				this.game = res.state;
+				if (this.botTimer) {
+					// The table changed under a bot that was about to move: let it look again.
+					clearTimeout(this.botTimer);
+					this.botTimer = null;
+				}
+				this.broadcastGame();
 				return this.scheduleBots();
 			}
 			case 'leave':
@@ -427,6 +455,7 @@ export class Room {
 		if (last?.type === 'diceRolled') delay += 1300;
 		if (last?.type === 'turnStarted') delay += 400;
 		if (next.action.type === 'respondTrade') delay += 600;
+		if (this.fastBots) delay = 60;
 		this.botTimer = setTimeout(() => {
 			this.botTimer = null;
 			if (!this.game || this.paused) return;

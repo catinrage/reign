@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "concurrently -k -n server,client -c yellow,cyan \"pnpm dev:server\" \"pnpm dev:client\"",
-		"dev:server": "tsx watch src/server/index.ts",
+		"dev:server": "tsx watch src/server/index.ts --dev",
 		"dev:client": "vite",
 		"build": "vite build",
 		"start": "tsx src/server/index.ts",
