@@ -49,7 +49,7 @@
 							class:me={r.i === view.me}
 							style="animation-delay:{0.25 + k * 0.12}s"
 						>
-							<span class="medal coin {MEDAL[k]}">{k + 1}</span>
+							<span class="medal coin {MEDAL[k] ?? 'iron'}">{k + 1}</span>
 							<span class="shield" style="--shield: var(--art-shield-{r.color})"
 								>{r.name.slice(0, 1).toUpperCase()}</span
 							>

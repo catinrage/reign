@@ -4,14 +4,14 @@ import { MAP_PRESETS } from '../src/shared/board/maps';
 import { getTopology } from '../src/shared/board/topology';
 import { botAction } from '../src/shared/rules/bot';
 import { CHARACTERS, type CharacterId } from '../src/shared/rules/characters';
-import { BANK_PER_RESOURCE, RESOURCES } from '../src/shared/rules/config';
+import { BANK_PER_RESOURCE, BANK_PER_RESOURCE_LARGE, RESOURCES } from '../src/shared/rules/config';
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
 import type { GameSettings } from '../src/shared/rules/modes';
 import { costOf, tradeRatios } from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
 
-const COLORS = ['red', 'blue', 'yellow', 'green'] as const;
+const COLORS = ['red', 'blue', 'yellow', 'green', 'white', 'orange'] as const;
 const players = (chars: (CharacterId | null)[]) =>
 	chars.map((character, i) => ({ name: `P${i}`, color: COLORS[i], isBot: true, character }));
 
@@ -153,6 +153,24 @@ describe('full Reign Extended bot games', () => {
 				expect(totalPoints(s, s.winner!)).toBeGreaterThanOrEqual(s.pointsToWin);
 				for (const r of RESOURCES) {
 					expect(s.bank[r] + s.players.reduce((n, p) => n + p.resources[r], 0)).toBe(BANK_PER_RESOURCE);
+				}
+			}
+		});
+	}
+});
+
+describe('five and six players', () => {
+	for (const n of [5, 6]) {
+		it(`finishes ${n}-player games with the bigger bank and deck`, () => {
+			for (let seed = 1; seed <= 4; seed++) {
+				const chars = CHARACTERS.slice(seed % 3, (seed % 3) + n) as CharacterId[];
+				let s = createGame(players(chars), seed * 977, undefined, extended(seed % 2 ? 'great' : 'realm'));
+				expect(s.devDeck).toHaveLength(34);
+				expect(s.bank.ore).toBe(BANK_PER_RESOURCE_LARGE);
+				s = playOut(s);
+				expect(s.phase, `${n} players, seed ${seed}`).toBe('ended');
+				for (const r of RESOURCES) {
+					expect(s.bank[r] + s.players.reduce((k, p) => k + p.resources[r], 0)).toBe(BANK_PER_RESOURCE_LARGE);
 				}
 			}
 		});

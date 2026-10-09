@@ -84,7 +84,10 @@ export type ServerMessage =
 	| { t: 'error'; message: string }
 	| { t: 'pong' };
 
-export const MAX_PLAYERS = 4;
+/** The most any table seats; how many a game actually takes depends on the mode and island. */
+export const MAX_PLAYERS = 6;
+/** Classic and the standard-size islands seat four. */
+export const CLASSIC_PLAYERS = 4;
 export const MIN_PLAYERS = 2;
 /** Turn time limits the host can pick, in seconds; 0 is unlimited. */
 export const TURN_TIMES = [0, 30, 60, 90, 120, 180];

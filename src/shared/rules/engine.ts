@@ -4,8 +4,10 @@ import { type Board, getTopology } from '../board/topology';
 import { nextRandom, randomInt, shuffle } from '../rng';
 import {
 	BANK_PER_RESOURCE,
+	BANK_PER_RESOURCE_LARGE,
 	DEV_CARDS,
 	DEV_DECK,
+	DEV_DECK_LARGE,
 	LARGEST_ARMY_MIN,
 	PIECE_LIMITS,
 	RESOURCES,
@@ -68,8 +70,12 @@ export function createGame(
 	const tiles = extended ? mapTiles(opts.map) : null;
 	const b = board ?? (tiles ? generateBoard(tiles, rngHolder) : generateStandardBoard(rngHolder));
 	const topo = getTopology(b);
+	// Five or six players share a bigger bank and deck, as in the 5-6 player extension.
+	const large = players.length > 4;
+	const counts = large ? DEV_DECK_LARGE : DEV_DECK;
+	const bank = large ? BANK_PER_RESOURCE_LARGE : BANK_PER_RESOURCE;
 	const deck: DevCardType[] = [];
-	for (const c of DEV_CARDS) for (let i = 0; i < DEV_DECK[c]; i++) deck.push(c);
+	for (const c of DEV_CARDS) for (let i = 0; i < counts[c]; i++) deck.push(c);
 	shuffle(rngHolder, deck);
 	const desert = b.hexes.findIndex((h) => h.terrain === 'desert');
 	const state: GameState = {
@@ -102,13 +108,7 @@ export function createGame(
 		robberHex: desert >= 0 ? desert : 0,
 		buildings: topo.vertices.map(() => null),
 		roads: topo.edges.map(() => null),
-		bank: {
-			wood: BANK_PER_RESOURCE,
-			brick: BANK_PER_RESOURCE,
-			sheep: BANK_PER_RESOURCE,
-			wheat: BANK_PER_RESOURCE,
-			ore: BANK_PER_RESOURCE
-		},
+		bank: { wood: bank, brick: bank, sheep: bank, wheat: bank, ore: bank },
 		devDeck: deck,
 		devCardPlayedThisTurn: false,
 		roadBuildingLeft: 0,

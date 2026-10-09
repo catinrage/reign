@@ -172,6 +172,14 @@ export function presetById(id: string): MapPreset | undefined {
 	return MAP_PRESETS.find((p) => p.id === id);
 }
 
+/**
+ * How many players an island seats: four on the standard size, five from 25 tiles and six from
+ * 30 (the size of the 5-6 player board).
+ */
+export function mapSeats(tileCount: number): number {
+	return tileCount >= 30 ? 6 : tileCount >= 25 ? 5 : 4;
+}
+
 /** The tiles a map choice stands for, or null if it isn't valid. */
 export function mapTiles(choice: MapChoice): MapTile[] | null {
 	if ('preset' in choice) return presetById(choice.preset)?.tiles ?? null;
