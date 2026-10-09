@@ -11,16 +11,20 @@
 	}
 	let list = $state<Flyer[]>([]);
 	let nextId = 0;
+	/** How long a card takes to fly to the hand (the `fly` animation below). */
+	const FLIGHT_MS = 850;
 
 	/** Resource icons that fly from the board into your hand. */
 	export const flyers = {
-		add(resource: string, from: { x: number; y: number }) {
+		/** `onArrive` runs as the card reaches its slot in the hand. */
+		add(resource: string, from: { x: number; y: number }, onArrive?: () => void) {
 			const slot = document.querySelector(`[data-hand="${resource}"]`)?.getBoundingClientRect();
 			const tx = slot ? slot.left + slot.width / 2 : window.innerWidth / 2;
 			const ty = slot ? slot.top + slot.height / 2 : window.innerHeight - 60;
 			const id = ++nextId;
 			list = [...list, { id, src: getIcons().urls[resource], x: from.x, y: from.y, tx, ty }];
-			setTimeout(() => (list = list.filter((f) => f.id !== id)), 900);
+			setTimeout(() => onArrive?.(), FLIGHT_MS);
+			setTimeout(() => (list = list.filter((f) => f.id !== id)), FLIGHT_MS + 50);
 		}
 	};
 </script>

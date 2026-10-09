@@ -6,7 +6,6 @@ class UiState {
 	trade = $state(false);
 	flash = $state(false);
 	logOpen = $state(typeof window === 'undefined' || window.innerWidth > 900);
-	rolling = $state(false);
 	/** The in-game menu (pauses a game vs bots). */
 	menu = $state(false);
 }

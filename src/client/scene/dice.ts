@@ -45,10 +45,13 @@ export class Dice {
 		return new THREE.Quaternion().setFromAxisAngle(UP, yaw).multiply(q);
 	}
 
-	/** Toss from `from` (the thrower's side) so the dice land at `ends`, showing `values`. */
+	/**
+	 * Toss from `from` (the thrower's side) so the dice land at `ends`, showing `values`. They come
+	 * to rest about a second after the roll, when the interface shows the result.
+	 */
 	async roll(values: [number, number], from: THREE.Vector3, ends: [THREE.Vector3, THREE.Vector3]) {
 		this.rolling = true;
-		const duration = 1.35;
+		const duration = 0.95;
 		const mid = ends[0].clone().add(ends[1]).multiplyScalar(0.5);
 		await Promise.all(
 			this.dice.map((d, i) => {
@@ -58,10 +61,11 @@ export class Dice {
 				const start = from.clone().add(ends[i].clone().sub(mid).setY(0));
 				const qEnd = this.faceUp(values[i], Math.random() * Math.PI * 2);
 				const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
-				const spins = (3 + Math.random() * 2) * Math.PI * 2;
+				// Fewer turns for the shorter toss, so they spin as fast as before.
+				const spins = (2.2 + Math.random() * 1.4) * Math.PI * 2;
 				let bounced = 0;
 				return this.anim.tween(
-					duration + i * 0.08,
+					duration + i * 0.06,
 					(t) => {
 						// Horizontal glide with drag, vertical bounces.
 						const h = 1 - Math.pow(1 - t, 2.4);

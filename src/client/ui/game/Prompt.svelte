@@ -16,19 +16,22 @@
 	const ended = $derived(view.phase === 'ended');
 </script>
 
-<div class="wrap" class:timed={!!client.clock}>
-	{#key text}
-		<div class="prompt">
-			<div class="ribbon" class:mine style="--rib: var(--art-ribbon-{ended ? 'gold' : color})">
-				{#if !mine && !ended}<img class="icon-px" src={PIXEL.hourglass} alt="" />{/if}
-				<span class="text">{text}</span>
-			</div>
-			{#if ui.build}
-				<button class="btn small wood" onclick={() => (ui.build = null)}>Cancel</button>
-			{/if}
+<div class="wrap">
+	<div class="prompt">
+		<!-- The banner drops in anew with each prompt; the clock under it stays put. -->
+		<div class="banner">
+			{#key text}
+				<div class="ribbon" class:mine style="--rib: var(--art-ribbon-{ended ? 'gold' : color})">
+					{#if !mine && !ended}<img class="icon-px" src={PIXEL.hourglass} alt="" />{/if}
+					<span class="text">{text}</span>
+				</div>
+			{/key}
+			<TurnClock {color} />
 		</div>
-	{/key}
-	<TurnClock />
+		{#if ui.build}
+			<button class="btn small wood" onclick={() => (ui.build = null)}>Cancel</button>
+		{/if}
+	</div>
 </div>
 
 <style>
@@ -46,15 +49,22 @@
 		align-items: center;
 		gap: 8px;
 		max-width: calc(100vw - 580px);
-		animation: drop-in 0.4s cubic-bezier(0.2, 1.3, 0.4, 1);
+	}
+	.banner {
+		position: relative;
+		display: flex;
+		min-width: 0;
 	}
 	.ribbon {
 		max-width: 100%;
 		font-size: 19px;
 		pointer-events: auto;
+		animation: drop-in 0.4s cubic-bezier(0.2, 1.3, 0.4, 1);
 	}
 	.ribbon.mine {
-		animation: glow 1.8s ease-in-out infinite 0.4s;
+		animation:
+			drop-in 0.4s cubic-bezier(0.2, 1.3, 0.4, 1),
+			glow 1.8s ease-in-out infinite 0.4s;
 	}
 	.ribbon img {
 		width: 20px;
@@ -68,16 +78,12 @@
 	}
 	.prompt .btn {
 		pointer-events: auto;
-	}
-	@media (min-width: 901px) {
-		/* Leave room for the turn clock beside the ribbon. */
-		.timed .prompt {
-			max-width: calc(100vw - 720px);
-		}
+		animation: drop-in 0.4s cubic-bezier(0.2, 1.3, 0.4, 1);
 	}
 	@media (max-width: 900px) {
+		/* Under the plaques, clear of the turn tab that hangs from one of them. */
 		.wrap {
-			top: 62px;
+			top: 68px;
 		}
 		.prompt {
 			max-width: calc(100vw - 32px);

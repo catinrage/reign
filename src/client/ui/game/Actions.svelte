@@ -35,7 +35,7 @@
 
 {#if view.me >= 0 && view.phase !== 'ended'}
 	<div class="actions">
-		{#if mine && view.step === 'roll'}
+		{#if mine && view.step === 'roll' && !client.rollAsked && !client.tossing}
 			<button class="btn big shine roll" onclick={() => client.act({ type: 'rollDice' })}>
 				<img src={PIXEL.die} alt="" /> Roll dice
 			</button>

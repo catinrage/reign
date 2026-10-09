@@ -13,6 +13,7 @@ import { CHARACTER_INFO } from '../../shared/rules/characters';
 import { citySpots, costOf, roadSpots, settlementSpots } from '../../shared/rules/queries';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { PLAYER_CSS } from '../scene/layout';
+import { tint } from './art';
 
 export const RES_BG: Record<Resource, [string, string]> = {
 	wood: ['#4f8f35', '#2f6a22'],
@@ -26,6 +27,32 @@ export { RESOURCES, RESOURCE_LABEL, DEV_CARD_LABEL, COSTS, PLAYER_CSS };
 
 export function playerColor(view: GameView | null, i: number): string {
 	return PLAYER_CSS[view?.players[i]?.color ?? 'white'] ?? '#fff';
+}
+
+/** Relative luminance (0 black to 1 white) of a #rrggbb color. */
+function luminance(hex: string): number {
+	const lin = (k: number) => {
+		const c = parseInt(hex.slice(k, k + 2), 16) / 255;
+		return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+	};
+	return 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5);
+}
+
+const inkCache = new Map<string, string>();
+/**
+ * A player's color for their name written on the dark wood: lifted toward white just enough that
+ * the darker colors (blue, red, green) read as easily as the light ones.
+ */
+export function playerInk(view: GameView | null, i: number): string {
+	const hex = playerColor(view, i);
+	let ink = inkCache.get(hex);
+	if (!ink) {
+		let t = 0;
+		while (t < 0.6 && luminance(tint(hex, t)) < 0.3) t += 0.05;
+		ink = tint(hex, t);
+		inkCache.set(hex, ink);
+	}
+	return ink;
 }
 
 export function canAfford(view: GameView, kind: BuildKind): boolean {

@@ -35,6 +35,8 @@ interface Seat {
 /** Seconds a disconnected player can stall the table before a bot covers for them. */
 const AFK_TAKEOVER_MS = 45_000;
 const BOT_NAMES = ['Ada', 'Bram', 'Cleo', 'Dorn', 'Esme', 'Finn', 'Gale', 'Hollis'];
+/** The events a roll can end with: what it produced, or on a 7 the discards it calls for. */
+const ROLL_ENDS = new Set(['diceRolled', 'produced', 'nothingProduced', 'mustDiscard']);
 
 export class Room {
 	seats: Seat[] = [];
@@ -473,7 +475,8 @@ export class Room {
 		}
 		const last = this.game.log[this.game.log.length - 1];
 		let delay = 650 + Math.random() * 500;
-		if (last?.type === 'diceRolled') delay += 1300;
+		// After a roll, whatever it ended with, bots give the dice time to land before moving on.
+		if (last && ROLL_ENDS.has(last.type)) delay += 1300;
 		if (last?.type === 'turnStarted') delay += 400;
 		if (next.action.type === 'respondTrade') delay += 600;
 		if (this.fastBots) delay = 60;
