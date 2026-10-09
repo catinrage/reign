@@ -22,26 +22,35 @@ export class Lighting {
 		scene.add(this.hemi);
 
 		this.key = new THREE.DirectionalLight('#ffd09a', 2.4);
-		this.key.position.set(-190, 300, 150);
 		this.key.target.position.set(0, 0, 0);
 		this.key.castShadow = true;
 		const size = quality === 'high' ? 4096 : 2048;
 		this.key.shadow.mapSize.set(size, size);
-		const cam = this.key.shadow.camera;
-		cam.left = -190;
-		cam.right = 190;
-		cam.top = 190;
-		cam.bottom = -190;
-		cam.near = 50;
-		cam.far = 900;
 		this.key.shadow.bias = -0.0003;
-		this.key.shadow.normalBias = 0.35;
 		this.key.shadow.radius = 3;
+		this.fitShadows(1);
 		scene.add(this.key, this.key.target);
 
 		this.fill = new THREE.DirectionalLight('#9fb3ff', 0.22);
 		this.fill.position.set(200, 140, -160);
 		scene.add(this.fill);
+	}
+
+	/**
+	 * Cast the key light's shadows over a table `scale` times the standard one: the light stands
+	 * back that much further, on the same line, with its shadow box grown to match.
+	 */
+	fitShadows(scale: number) {
+		this.key.position.set(-190, 300, 150).multiplyScalar(scale);
+		const cam = this.key.shadow.camera;
+		cam.left = -190 * scale;
+		cam.right = 190 * scale;
+		cam.top = 190 * scale;
+		cam.bottom = -190 * scale;
+		cam.near = 50 * scale;
+		cam.far = 900 * scale;
+		cam.updateProjectionMatrix();
+		this.key.shadow.normalBias = 0.35 * scale;
 	}
 
 	addFlame(position: THREE.Vector3, color: string, intensity: number, distance: number) {

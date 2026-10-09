@@ -127,12 +127,13 @@ export function buildRoom(stage: Stage): Room {
 	later(buildSides);
 	later(buildTop);
 
-	/** The camera stays in the room. */
-	const keepCameraIn = () => {
+	/** The camera stays in the room, and the fog, focus and shadows grow with it. */
+	const fitStage = () => {
 		const top = FLOOR_Y + roomH - BEAM_DEPTH - CAMERA_BEAMS;
 		stage.rig.bounds = { half: (roomHalf - CAMERA_WALL) * K, top: top * K };
+		stage.fitRoom(roomHalf / ROOM_HALF);
 	};
-	keepCameraIn();
+	fitStage();
 
 	const shelfW = 30;
 	const shelves: THREE.Group[] = [];
@@ -360,7 +361,7 @@ export function buildRoom(stage: Stage): Room {
 			if (ceiling) buildTop();
 			buildFlue();
 			placeLights();
-			keepCameraIn();
+			fitStage();
 		},
 		update(dt, t) {
 			for (const u of updaters) u(dt, t);
