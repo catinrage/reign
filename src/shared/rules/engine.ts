@@ -1,14 +1,12 @@
-import { generateStandardBoard } from '../board/generate';
+import { generateBoard, generateStandardBoard } from '../board/generate';
+import { mapName, mapTiles } from '../board/maps';
 import { type Board, getTopology } from '../board/topology';
 import { nextRandom, randomInt, shuffle } from '../rng';
 import {
 	BANK_PER_RESOURCE,
-	COSTS,
 	DEV_CARDS,
 	DEV_DECK,
-	DISCARD_THRESHOLD,
 	LARGEST_ARMY_MIN,
-	LONGEST_ROAD_MIN,
 	PIECE_LIMITS,
 	RESOURCES,
 	TERRAIN_RESOURCE,
@@ -21,10 +19,15 @@ import {
 	type Resource,
 	type ResourceCounts
 } from './config';
+import type { CharacterId } from './characters';
+import { DEFAULT_SETTINGS, type GameSettings } from './modes';
 import {
 	canPlaceRoad,
 	canPlaceSettlement,
+	costOf,
+	discardLimit,
 	longestRoad,
+	longestRoadMin,
 	playersOnHex,
 	publicPoints,
 	roadSpots,
@@ -43,13 +46,27 @@ export interface NewPlayer {
 	name: string;
 	color: PlayerColor;
 	isBot: boolean;
+	/** Reign Extended only; ignored in Classic. */
+	character?: CharacterId | null;
 }
 
 const LOG_LIMIT = 80;
 
-export function createGame(players: NewPlayer[], seed: number, board?: Board): GameState {
+/**
+ * Deal a new game. Classic always plays the standard island to 10 points with no characters.
+ * Reign Extended deals the chosen map (unless a board is given) and gives players their characters.
+ */
+export function createGame(
+	players: NewPlayer[],
+	seed: number,
+	board?: Board,
+	settings: Partial<GameSettings> = {}
+): GameState {
 	const rngHolder = { rng: seed | 0 };
-	const b = board ?? generateStandardBoard(rngHolder);
+	const opts = { ...DEFAULT_SETTINGS, ...settings };
+	const extended = opts.mode === 'extended';
+	const tiles = extended ? mapTiles(opts.map) : null;
+	const b = board ?? (tiles ? generateBoard(tiles, rngHolder) : generateStandardBoard(rngHolder));
 	const topo = getTopology(b);
 	const deck: DevCardType[] = [];
 	for (const c of DEV_CARDS) for (let i = 0; i < DEV_DECK[c]; i++) deck.push(c);
@@ -58,15 +75,19 @@ export function createGame(players: NewPlayer[], seed: number, board?: Board): G
 	const state: GameState = {
 		version: 0,
 		rng: rngHolder.rng,
+		mode: opts.mode,
+		pointsToWin: extended ? opts.pointsToWin : VICTORY_POINTS_TO_WIN,
+		mapName: tiles ? mapName(opts.map) : 'Classic Isle',
 		board: b,
 		players: players.map(
 			(p): PlayerState => ({
 				name: p.name,
 				color: p.color,
 				isBot: p.isBot,
+				character: extended ? (p.character ?? null) : null,
 				resources: emptyResources(),
 				devCards: [],
-				knightsPlayed: 0,
+				knightsPlayed: extended && p.character === 'veteran' ? 1 : 0,
 				piecesLeft: { ...PIECE_LIMITS },
 				longestRoad: 0
 			})
@@ -298,7 +319,14 @@ function roll(ctx: Ctx, p: number) {
 		const pending: Record<number, number> = {};
 		s.players.forEach((pl, i) => {
 			const n = totalResources(pl.resources);
-			if (n > DISCARD_THRESHOLD) pending[i] = Math.floor(n / 2);
+			if (n > discardLimit(s, i)) pending[i] = Math.floor(n / 2);
+		});
+		// The Shepherd's flock: a Wool from the bank on every 7.
+		s.players.forEach((pl, i) => {
+			if (pl.character !== 'shepherd' || s.bank.sheep <= 0) return;
+			s.bank.sheep--;
+			pl.resources.sheep++;
+			ctx.emit({ type: 'traitGain', player: i, character: 'shepherd', resource: 'sheep' });
 		});
 		s.pendingDiscards = pending;
 		s.resumeStep = 'main';
@@ -406,12 +434,17 @@ function steal(ctx: Ctx, p: number, victim: number) {
 
 function doSteal(ctx: Ctx, p: number, victim: number) {
 	const s = ctx.s;
-	const hand: Resource[] = [];
-	for (const r of RESOURCES) for (let i = 0; i < s.players[victim].resources[r]; i++) hand.push(r);
-	const res = hand[randomInt(s, hand.length)];
-	s.players[victim].resources[res]--;
-	s.players[p].resources[res]++;
-	ctx.emit({ type: 'stole', thief: p, victim, resource: res });
+	// The Rogue takes a second card if there is one.
+	const times = s.players[p].character === 'rogue' ? 2 : 1;
+	for (let k = 0; k < times; k++) {
+		const hand: Resource[] = [];
+		for (const r of RESOURCES) for (let i = 0; i < s.players[victim].resources[r]; i++) hand.push(r);
+		if (!hand.length) break;
+		const res = hand[randomInt(s, hand.length)];
+		s.players[victim].resources[res]--;
+		s.players[p].resources[res]++;
+		ctx.emit({ type: 'stole', thief: p, victim, resource: res });
+	}
 	s.stealCandidates = [];
 	s.step = s.resumeStep;
 }
@@ -433,7 +466,7 @@ function buildRoad(ctx: Ctx, p: number, edge: number) {
 	requireMain(s);
 	if (s.players[p].piecesLeft.road <= 0) fail('You have no roads left.');
 	if (!canPlaceRoad(s, p, edge)) fail("You can't build a road there.");
-	pay(s, p, COSTS.road);
+	pay(s, p, costOf(s, p, 'road'));
 	s.roads[edge] = p;
 	s.players[p].piecesLeft.road--;
 	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: false });
@@ -465,7 +498,7 @@ function buildSettlement(ctx: Ctx, p: number, vertex: number) {
 	requireMain(s);
 	if (s.players[p].piecesLeft.settlement <= 0) fail('You have no settlements left.');
 	if (!canPlaceSettlement(s, p, vertex, false)) fail("You can't build a settlement there.");
-	pay(s, p, COSTS.settlement);
+	pay(s, p, costOf(s, p, 'settlement'));
 	s.buildings[vertex] = { owner: p, kind: 'settlement' };
 	s.players[p].piecesLeft.settlement--;
 	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: false });
@@ -480,7 +513,7 @@ function buildCity(ctx: Ctx, p: number, vertex: number) {
 	const b = s.buildings[vertex];
 	if (!b || b.owner !== p || b.kind !== 'settlement') fail('Cities replace one of your settlements.');
 	if (s.players[p].piecesLeft.city <= 0) fail('You have no cities left.');
-	pay(s, p, COSTS.city);
+	pay(s, p, costOf(s, p, 'city'));
 	s.buildings[vertex] = { owner: p, kind: 'city' };
 	s.players[p].piecesLeft.city--;
 	s.players[p].piecesLeft.settlement++;
@@ -494,7 +527,7 @@ function buyDevCard(ctx: Ctx, p: number) {
 	const s = ctx.s;
 	requireMain(s);
 	if (s.devDeck.length === 0) fail('The development deck is empty.');
-	pay(s, p, COSTS.devCard);
+	pay(s, p, costOf(s, p, 'devCard'));
 	const card = s.devDeck.pop()!;
 	s.players[p].devCards.push({ type: card, boughtTurn: s.turn });
 	ctx.emit({ type: 'devCardBought', player: p, card });
@@ -661,18 +694,20 @@ function updateLongestRoad(ctx: Ctx) {
 	const s = ctx.s;
 	const lengths = s.players.map((_, i) => longestRoad(s, i));
 	lengths.forEach((l, i) => (s.players[i].longestRoad = l));
-	const max = Math.max(...lengths);
+	// A road only counts once it is long enough for that player (the Explorer needs fewer).
+	const counted = lengths.map((l, i) => (l >= longestRoadMin(s, i) ? l : 0));
+	const max = Math.max(...counted);
 	const prev = s.longestRoadHolder;
 	let holder = prev;
-	if (max < LONGEST_ROAD_MIN) holder = null;
-	else if (prev !== null && lengths[prev] === max) holder = prev;
+	if (max === 0) holder = null;
+	else if (prev !== null && counted[prev] === max) holder = prev;
 	else {
-		const top = lengths.flatMap((l, i) => (l === max ? [i] : []));
+		const top = counted.flatMap((l, i) => (l === max ? [i] : []));
 		holder = top.length === 1 ? top[0] : null;
 	}
 	if (holder !== prev) {
 		s.longestRoadHolder = holder;
-		ctx.emit({ type: 'longestRoad', player: holder, length: holder === null ? max : lengths[holder] });
+		ctx.emit({ type: 'longestRoad', player: holder, length: holder === null ? Math.max(...lengths) : lengths[holder] });
 	}
 }
 
@@ -699,7 +734,7 @@ export function totalPoints(s: GameState, p: number): number {
 function checkWin(ctx: Ctx) {
 	const s = ctx.s;
 	if (s.phase !== 'main') return;
-	if (totalPoints(s, s.current) >= VICTORY_POINTS_TO_WIN) {
+	if (totalPoints(s, s.current) >= s.pointsToWin) {
 		s.phase = 'ended';
 		s.winner = s.current;
 		s.trade = null;

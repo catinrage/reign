@@ -1,5 +1,7 @@
 import type { Board } from '../board/topology';
+import type { CharacterId } from './characters';
 import type { DevCardType, PlayerColor, Resource, ResourceCounts } from './config';
+import type { GameMode } from './modes';
 
 export interface DevCard {
 	type: DevCardType;
@@ -11,6 +13,8 @@ export interface PlayerState {
 	name: string;
 	color: PlayerColor;
 	isBot: boolean;
+	/** Reign Extended: the character this player picked, whose trait bends a rule for them. */
+	character: CharacterId | null;
 	resources: ResourceCounts;
 	devCards: DevCard[];
 	knightsPlayed: number;
@@ -45,6 +49,11 @@ export interface TradeOffer {
 export interface GameState {
 	version: number;
 	rng: number;
+	mode: GameMode;
+	/** Victory points needed to win: always 10 in Classic, the host's pick in Reign Extended. */
+	pointsToWin: number;
+	/** Name of the map the island was dealt from. */
+	mapName: string;
 	board: Board;
 	players: PlayerState[];
 	phase: 'setup' | 'main' | 'ended';
@@ -93,6 +102,8 @@ export type GameEvent =
 	| Ev<'robberMoved', { player: number; hex: number }>
 	/** resource is null for viewers who weren't part of the theft. */
 	| Ev<'stole', { thief: number; victim: number; resource: Resource | null }>
+	/** A character's trait handed a player something from the bank. */
+	| Ev<'traitGain', { player: number; character: CharacterId; resource: Resource }>
 	| Ev<'nothingToSteal', { player: number }>
 	| Ev<'devCardBought', { player: number; card: DevCardType | null }>
 	| Ev<'devCardPlayed', { player: number; card: DevCardType }>
@@ -146,6 +157,7 @@ export interface PlayerView {
 	name: string;
 	color: PlayerColor;
 	isBot: boolean;
+	character: CharacterId | null;
 	resourceCount: number;
 	devCardCount: number;
 	knightsPlayed: number;

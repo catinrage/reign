@@ -1,4 +1,7 @@
+import type { MapChoice } from './board/maps';
+import type { CharacterId } from './rules/characters';
 import type { PlayerColor } from './rules/config';
+import type { GameMode, GameSettings } from './rules/modes';
 import type { Action, GameView } from './rules/types';
 
 export interface LobbySeat {
@@ -8,6 +11,8 @@ export interface LobbySeat {
 	isBot: boolean;
 	connected: boolean;
 	isHost: boolean;
+	/** The character this seat plays in Reign Extended (each one at most once per table). */
+	character: CharacterId | null;
 }
 
 /**
@@ -30,6 +35,8 @@ export interface LobbyInfo {
 	paused: boolean;
 	/** Seconds each turn may last (0 = no limit), picked by the host before the game starts. */
 	turnTime: number;
+	/** Mode, map and points to win, picked by the host before the game starts. */
+	settings: GameSettings;
 	/** The current turn's clock, or null when turns are unlimited or no game is running. */
 	clock: TurnClock | null;
 }
@@ -42,6 +49,10 @@ export type ClientMessage =
 	| { t: 'addBot' }
 	| { t: 'removeSeat'; seat: string }
 	| { t: 'setTurnTime'; seconds: number }
+	| { t: 'setMode'; mode: GameMode }
+	| { t: 'setMap'; map: MapChoice }
+	| { t: 'setPointsToWin'; points: number }
+	| { t: 'setCharacter'; character: CharacterId }
 	| { t: 'start' }
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }
