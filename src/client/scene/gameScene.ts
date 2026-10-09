@@ -359,6 +359,10 @@ export class GameScene {
 			case 'setupResources':
 				for (const g of e.gains) this.popResource(g.hex, g.resource, g.player, g.amount);
 				break;
+			case 'yearOfPlenty':
+				// After any dice still in the air, as the interface counts the cards only then.
+				this.diceLanded.then(() => this.popFromBank(e.resources, e.player));
+				break;
 			case 'gameOver': {
 				const color = PLAYER_RGB[this.view.players[e.winner].color];
 				this.particles.confetti(new THREE.Vector3(0, 40, 0), [color, '#ffd75e', '#ffffff', '#ff6f61', '#6fd3ff']);
@@ -470,25 +474,58 @@ export class GameScene {
 	private popResource(hex: number, resource: string, player: number, amount: number) {
 		const bv = this.boardView!;
 		for (let k = 0; k < amount; k++) {
-			const item = cloneModel(resourceItemModel(resource));
-			item.scale.setScalar(0.42);
 			const c = bv.hexCenter(hex);
 			const start = new THREE.Vector3(c.x + (Math.random() - 0.5) * 6, bv.groundAt(c.x, c.z, 3) + 3, c.z + (Math.random() - 0.5) * 6);
-			item.position.copy(start);
-			this.stage.scene.add(item);
-			const spin = Math.random() * 2 + 2;
-			const delay = k * 0.15 + Math.random() * 0.1;
-			this.anim.tween(1.1, (t) => {
-				item.position.y = start.y + ease.outCubic(t) * 16;
-				item.rotation.y = t * spin * Math.PI;
-				item.scale.setScalar(0.42 * (t < 0.15 ? t / 0.15 : t > 0.8 ? (1 - t) / 0.2 : 1) + 0.001);
-			}, ease.linear, delay).then(() => {
-				this.stage.scene.remove(item);
-				const screen = this.project(item.position);
-				this.callbacks.onResourcePopped?.(player, resource, screen);
-				this.particles.sparkle(item.position, '#fff1b8', 6);
-			});
+			this.riseAndFly(start, resource, player, k * 0.15 + Math.random() * 0.1);
 		}
+	}
+
+	/** A Year of Plenty: each card rises off the bank's pile of its kind on the table. */
+	private popFromBank(resources: string[], player: number) {
+		const piles: THREE.Object3D[] = [];
+		this.room.props.traverse((o) => {
+			if (o.userData.cards) piles.push(o);
+		});
+		resources.forEach((resource, k) => {
+			const pile = piles.find((o) => o.userData.cards === resource);
+			// Before the room has its piles, from over the middle of the island.
+			const top = pile ? new THREE.Box3().setFromObject(pile) : null;
+			const start = top ? top.getCenter(new THREE.Vector3()).setY(top.max.y + 1) : new THREE.Vector3(0, 30, 0);
+			start.x += (Math.random() - 0.5) * 2;
+			start.z += (Math.random() - 0.5) * 2;
+			// The piles sit on the table's rim, often near the edge of the screen: a lower rise
+			// keeps the card in sight.
+			this.riseAndFly(start, resource, player, k * 0.25, 9);
+		});
+	}
+
+	/**
+	 * A resource rises `rise` units from `start`, spinning, then the interface flies it to
+	 * `player`'s hand (`onResourcePopped`).
+	 */
+	private riseAndFly(start: THREE.Vector3, resource: string, player: number, delay: number, rise = 16) {
+		const item = cloneModel(resourceItemModel(resource));
+		// Unseen until its turn to rise.
+		item.scale.setScalar(0.001);
+		item.position.copy(start);
+		this.stage.scene.add(item);
+		const spin = Math.random() * 2 + 2;
+		this.anim.tween(1.1, (t) => {
+			item.position.y = start.y + ease.outCubic(t) * rise;
+			item.rotation.y = t * spin * Math.PI;
+			item.scale.setScalar(0.42 * (t < 0.15 ? t / 0.15 : t > 0.8 ? (1 - t) / 0.2 : 1) + 0.001);
+		}, ease.linear, delay).then(() => {
+			this.stage.scene.remove(item);
+			// It flies on from where it is, or from the nearest edge if it rose out of sight.
+			const el = this.stage.canvas;
+			const at = this.project(item.position);
+			const screen = {
+				x: THREE.MathUtils.clamp(at.x, 40, el.clientWidth - 40),
+				y: THREE.MathUtils.clamp(at.y, 40, el.clientHeight - 40)
+			};
+			this.callbacks.onResourcePopped?.(player, resource, screen);
+			this.particles.sparkle(item.position, '#fff1b8', 6);
+		});
 	}
 
 	project(p: THREE.Vector3) {

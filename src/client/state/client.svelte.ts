@@ -1,7 +1,7 @@
 import type { ClientMessage, LobbyInfo, PigeonNote, ServerMessage, TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
 import type { Resource } from '../../shared/rules/config';
-import type { Action, GameEvent, GameView, ResourceGain } from '../../shared/rules/types';
+import type { Action, GameEvent, GameView } from '../../shared/rules/types';
 
 /**
  * The one connection to the game server plus everything the interface renders from.
@@ -19,7 +19,14 @@ export interface Roll {
 	dice: [number, number];
 }
 
-/** Cards of one resource dealt on the board to a player, still on their way to the hand. */
+/** Cards of one resource a player got. */
+interface Gain {
+	player: number;
+	resource: Resource;
+	amount: number;
+}
+
+/** Cards of one resource a player got, still on their way to the hand. */
 interface Dealt {
 	batch: number;
 	player: number;
@@ -87,7 +94,10 @@ class GameClient {
 	tossing = $state.raw<Roll | null>(null);
 	/** The last roll the interface has shown. It stays after the turn is over. */
 	lastRoll = $state.raw<Roll | null>(null);
-	/** Cards dealt on the board (a roll, a second settlement) that haven't reached a hand yet. */
+	/**
+	 * Cards on their way to a hand (dealt off the tiles by a roll or a second settlement, taken
+	 * with a Monopoly, picked with a Year of Plenty) that haven't reached it yet.
+	 */
 	dealt = $state.raw<Dealt[]>([]);
 	/** This player asked for a roll and the server hasn't answered yet. */
 	rollAsked = $state(false);
@@ -293,16 +303,23 @@ class GameClient {
 			this.dealt = [];
 			return;
 		}
-		const gains: ResourceGain[] = [];
+		// Cards that fly to a hand: dealt off the tiles, taken with a Monopoly, picked from the bank
+		// with a Year of Plenty.
+		const gains: Gain[] = [];
 		for (const e of view.log) {
-			if (e.seq > after && (e.type === 'produced' || e.type === 'setupResources')) {
-				gains.push(...e.gains);
+			if (e.seq <= after) continue;
+			if (e.type === 'produced' || e.type === 'setupResources') gains.push(...e.gains);
+			else if (e.type === 'monopoly') {
+				const amount = Object.values(e.taken).reduce((a, b) => a + b, 0);
+				if (amount) gains.push({ player: e.player, resource: e.resource, amount });
+			} else if (e.type === 'yearOfPlenty') {
+				for (const resource of e.resources) gains.push({ player: e.player, resource, amount: 1 });
 			}
 		}
 		if (gains.length) this.deal(gains);
 	}
 
-	private deal(gains: ResourceGain[]) {
+	private deal(gains: Gain[]) {
 		const batch = ++this.dealBatch;
 		this.dealt = [
 			...this.dealt,
@@ -314,7 +331,7 @@ class GameClient {
 		}, DEAL_TIMEOUT_MS);
 	}
 
-	/** A dealt card reached its hand: it flew into yours, or rose from its tile for another. */
+	/** A dealt card reached its hand: it flew into yours, or onto another player's plaque. */
 	arrived(player: number, resource: string) {
 		const i = this.dealt.findIndex((d) => d.player === player && d.resource === resource);
 		if (i < 0) return;

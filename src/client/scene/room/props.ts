@@ -210,7 +210,10 @@ export function buildCards(kind: keyof typeof CARD_ART, count = 5): THREE.Group 
 			return a >= 0 ? a : shade(art.bg, 0.95 + hash3(lx, i, lz) * 0.08);
 		});
 	}
-	return voxels(g, 1, { jitter: 0.02, drop: (_x, y) => y < 0 });
+	const pile = voxels(g, 1, { jitter: 0.02, drop: (_x, y) => y < 0 });
+	// The scene finds the bank's piles by this, for cards taken from the bank to rise off them.
+	pile.userData.cards = kind;
+	return pile;
 }
 
 // ---------------------------------------------------------------- plants (foliage sways)
