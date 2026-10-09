@@ -36,17 +36,47 @@ for (const [axis, u, v] of [
 	}
 }
 
+/** One material's quads, in typed arrays that double in size as they fill up. */
 class Buffers {
-	pos: number[] = [];
-	nrm: number[] = [];
-	col: number[] = [];
-	idx: number[] = [];
+	pos = new Float32Array(12 * 1024);
+	nrm = new Int8Array(12 * 1024);
+	col = new Uint16Array(12 * 1024);
+	idx = new Uint32Array(6 * 1024);
+	/** Vertices written. */
 	count = 0;
+	/** Indices written. */
+	indices = 0;
+
+	/** Make room for one more quad. */
+	reserve() {
+		if ((this.count + 4) * 3 <= this.pos.length) return;
+		this.pos = grow(this.pos);
+		this.nrm = grow(this.nrm);
+		this.col = grow(this.col);
+		this.idx = grow(this.idx);
+	}
 }
+
+function grow<T extends Float32Array | Int8Array | Uint16Array | Uint32Array>(a: T): T {
+	const b = new (a.constructor as new (n: number) => T)(a.length * 2);
+	b.set(a);
+	return b;
+}
+
+const CORNERS: [number, number][] = [
+	[0, 0],
+	[1, 0],
+	[1, 1],
+	[0, 1]
+];
+const ORDER_POS = [0, 1, 2, 3];
+const ORDER_NEG = [0, 3, 2, 1];
 
 export interface MeshOptions {
 	/** Per-voxel brightness jitter, 0..1. */
 	jitter?: number;
+	/** Leave out the downward faces on the grid's floor, for things that lie on a surface. */
+	skipFloor?: boolean;
 }
 
 export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THREE.BufferGeometry> {
@@ -65,6 +95,9 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 
 	const p = [0, 0, 0];
 	const q = [0, 0, 0];
+	const pos = [0, 0, 0];
+	const ao = [0, 0, 0, 0];
+	const skipFloor = !!opts.skipFloor;
 
 	for (let y = 0; y < ny; y++) {
 		for (let z = 0; z < nz; z++) {
@@ -89,16 +122,10 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 					const nyp = y + f.n[1];
 					const nzp = z + f.n[2];
 					if (solidAt(nxp, nyp, nzp)) continue;
-					const ao = [0, 0, 0, 0];
-					const corners: [number, number][] = [
-						[0, 0],
-						[1, 0],
-						[1, 1],
-						[0, 1]
-					];
+					if (skipFloor && nyp < 0) continue;
 					for (let c = 0; c < 4; c++) {
-						const su = corners[c][0] ? 1 : -1;
-						const sv = corners[c][1] ? 1 : -1;
+						const su = CORNERS[c][0] ? 1 : -1;
+						const sv = CORNERS[c][1] ? 1 : -1;
 						q[0] = nxp;
 						q[1] = nyp;
 						q[2] = nzp;
@@ -110,31 +137,41 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 						const s2 = solidAt(q[0], q[1], q[2]) ? 1 : 0;
 						ao[c] = s1 && s2 ? 0 : 3 - (s1 + s2 + cc);
 					}
+					buf.reserve();
 					const base = buf.count;
-					const order = f.sign > 0 ? [0, 1, 2, 3] : [0, 3, 2, 1];
+					const order = f.sign > 0 ? ORDER_POS : ORDER_NEG;
 					for (const c of order) {
-						const pos = [p[0], p[1], p[2]];
+						pos[0] = p[0];
+						pos[1] = p[1];
+						pos[2] = p[2];
 						if (f.sign > 0) pos[f.axis] += 1;
-						pos[f.u] += corners[c][0];
-						pos[f.v] += corners[c][1];
-						buf.pos.push(pos[0] - cx, pos[1] - cy, pos[2] - cz);
-						buf.nrm.push(f.n[0] * 127, f.n[1] * 127, f.n[2] * 127);
+						pos[f.u] += CORNERS[c][0];
+						pos[f.v] += CORNERS[c][1];
+						const o = buf.count * 3;
+						buf.pos[o] = pos[0] - cx;
+						buf.pos[o + 1] = pos[1] - cy;
+						buf.pos[o + 2] = pos[2] - cz;
+						buf.nrm[o] = f.n[0] * 127;
+						buf.nrm[o + 1] = f.n[1] * 127;
+						buf.nrm[o + 2] = f.n[2] * 127;
 						const k = AO_CURVE[ao[c]] * jit;
 						const kl = Math.pow(k, 1.6);
-						buf.col.push(
-							Math.min(65535, SRGB_TO_LINEAR[r0] * kl),
-							Math.min(65535, SRGB_TO_LINEAR[g0] * kl),
-							Math.min(65535, SRGB_TO_LINEAR[b0] * kl)
-						);
+						buf.col[o] = Math.min(65535, SRGB_TO_LINEAR[r0] * kl);
+						buf.col[o + 1] = Math.min(65535, SRGB_TO_LINEAR[g0] * kl);
+						buf.col[o + 2] = Math.min(65535, SRGB_TO_LINEAR[b0] * kl);
+						buf.count++;
 					}
 					// Flip the quad diagonal so AO gradients don't show a seam.
-					const a = order.map((c) => ao[c]);
-					if (a[0] + a[2] > a[1] + a[3]) {
-						buf.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-					} else {
-						buf.idx.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
-					}
-					buf.count += 4;
+					const ix = buf.idx;
+					const i = buf.indices;
+					const d = ao[order[0]] + ao[order[2]] > ao[order[1]] + ao[order[3]] ? 0 : 1;
+					ix[i] = base + d;
+					ix[i + 1] = base + d + 1;
+					ix[i + 2] = base + d + 2;
+					ix[i + 3] = base + d;
+					ix[i + 4] = base + d + 2;
+					ix[i + 5] = base + ((d + 3) & 3);
+					buf.indices += 6;
 				}
 			}
 		}
@@ -143,10 +180,12 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 	const out = new Map<Mat, THREE.BufferGeometry>();
 	for (const [mat, b] of buffers) {
 		const g = new THREE.BufferGeometry();
-		g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
-		g.setAttribute('normal', new THREE.BufferAttribute(new Int8Array(b.nrm), 3, true));
-		g.setAttribute('color', new THREE.BufferAttribute(new Uint16Array(b.col), 3, true));
-		g.setIndex(b.count > 65535 ? new THREE.Uint32BufferAttribute(b.idx, 1) : new THREE.Uint16BufferAttribute(b.idx, 1));
+		const n = b.count * 3;
+		g.setAttribute('position', new THREE.BufferAttribute(b.pos.slice(0, n), 3));
+		g.setAttribute('normal', new THREE.BufferAttribute(b.nrm.slice(0, n), 3, true));
+		g.setAttribute('color', new THREE.BufferAttribute(b.col.slice(0, n), 3, true));
+		const idx = b.idx.slice(0, b.indices);
+		g.setIndex(new THREE.BufferAttribute(b.count > 65535 ? idx : Uint16Array.from(idx), 1));
 		g.computeBoundingSphere();
 		g.computeBoundingBox();
 		out.set(mat, g);

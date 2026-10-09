@@ -14,7 +14,9 @@ import { meshGrid } from '../voxel/mesher';
  * the coast, and a shallow sea plate with an irregular outline shades from turquoise to
  * deep blue.
  *
- * Grid coordinates are voxels; world = voxel * VOXEL.
+ * Sizes, heights and distances below are in VOXEL units (0.6 world). With `detail` 2 each
+ * of those is built from 2×2×2 voxels half the size: the same island with finer grain,
+ * smoother slopes and rounder trees. Grid coordinates are voxels; world = voxel * VOXEL / detail.
  */
 
 /** Hex circumradius in voxels. */
@@ -120,9 +122,12 @@ function hexEdgeDistance(lx: number, lz: number): number {
 	return inR - Math.max(a, b, c);
 }
 
-export function buildBoard(board: Board, seed: number): BoardBuild {
+export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
+	const S = detail;
+	const vox = VOXEL / S;
+	const half = HALF * S;
 	const topo = getTopology(board);
-	const grid = new VoxelGrid(HALF * 2, MAX_Y, HALF * 2, -HALF, 0, -HALF);
+	const grid = new VoxelGrid(half * 2, MAX_Y * S, half * 2, -half, 0, -half);
 	const W = grid.nx;
 	const D = grid.nz;
 	const hexIndex = new Map<string, number>();
@@ -134,13 +139,13 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 	const land = new Uint8Array(W * D);
 	for (let iz = 0; iz < D; iz++) {
 		for (let ix = 0; ix < W; ix++) {
-			const x = ix - HALF + 0.5;
-			const z = iz - HALF + 0.5;
-			const ax: Axial = worldToHex((x * VOXEL) / HEX_R, (z * VOXEL) / HEX_R);
+			const x = ix - half + 0.5;
+			const z = iz - half + 0.5;
+			const ax: Axial = worldToHex((x * vox) / HEX_R, (z * vox) / HEX_R);
 			const h = hexIndex.get(hexKey(ax));
 			if (h === undefined) continue;
-			const lx = x - centers[h].x;
-			const lz = z - centers[h].z;
+			const lx = x / S - centers[h].x;
+			const lz = z / S - centers[h].z;
 			cols[ix + iz * W] = { hex: h, lx, lz, edge: hexEdgeDistance(lx, lz), corner: cornerDistance(lx, lz) };
 			land[ix + iz * W] = 1;
 		}
@@ -149,14 +154,14 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 	const dist = distanceField(land, W, D);
 	const tops = new Int16Array(W * D).fill(-1);
 	const topAt = (x: number, z: number) => {
-		const ix = Math.floor(x) + HALF;
-		const iz = Math.floor(z) + HALF;
+		const ix = Math.floor(x) + half;
+		const iz = Math.floor(z) + half;
 		if (ix < 0 || iz < 0 || ix >= W || iz >= D) return -1;
 		return tops[ix + iz * W];
 	};
 	const raise = (x: number, z: number, y: number) => {
-		const ix = Math.floor(x) + HALF;
-		const iz = Math.floor(z) + HALF;
+		const ix = Math.floor(x) + half;
+		const iz = Math.floor(z) + half;
 		if (ix < 0 || iz < 0 || ix >= W || iz >= D) return;
 		const i = ix + iz * W;
 		if (y > tops[i]) tops[i] = y;
@@ -165,26 +170,26 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 	// ---- per-column ground: tiles, borders, beaches
 	for (let iz = 0; iz < D; iz++) {
 		for (let ix = 0; ix < W; ix++) {
-			const x = ix - HALF;
-			const z = iz - HALF;
+			const x = ix - half;
+			const z = iz - half;
 			const i = ix + iz * W;
 			const r = hash3(x, 0, z, seed);
 			const col = cols[i];
 			if (!col) {
-				const d = dist[i];
+				const d = dist[i] / S;
 				// Sand rim around the coast, a step lower where it meets the water.
-				const beach = 1.6 + (noise2(x * 0.18, z * 0.18, seed + 5) - 0.5) * 1.2;
+				const beach = 1.6 + (noise2((x / S) * 0.18, (z / S) * 0.18, seed + 5) - 0.5) * 1.2;
 				if (d < beach) {
 					const top = d < beach - 0.9 ? G - 2 : G - 3;
 					const c = top === G - 2 ? pick(C.sand, r) : pick(C.wetSand, r);
-					grid.box(x, 0, z, x, top - 1, z, (_, y) => (y === top - 1 ? c : pick(C.dirt, r)));
-					tops[i] = top - 1;
+					grid.box(x, 0, z, x, top * S - 1, z, (_, y) => (y >= (top - 1) * S ? c : pick(C.dirt, r)));
+					tops[i] = top * S - 1;
 					continue;
 				}
 				// The sea, in world units: an irregular outline, turquoise shallows with a little
 				// foam, deepening blue, and a darker rim a step lower at the edge.
-				const wx = x * VOXEL;
-				const wz = z * VOXEL;
+				const wx = x * vox;
+				const wz = z * vox;
 				const dw = d * VOXEL;
 				const outline = 15 + fbm(wx * 0.045, wz * 0.045, seed + 3) * 9;
 				if (dw > outline) continue;
@@ -196,10 +201,10 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 				else c = C.waterDeep;
 				const rim = dw > outline - 1.5;
 				if (rim) c = C.waterEdge;
-				const top = rim ? SEA_TOP - 2 : SEA_TOP - 1;
+				const top = (rim ? SEA_TOP - 1 : SEA_TOP) * S - 1;
 				const surface = shade(c, 0.97 + r * 0.06);
 				const side = shade(c, 0.75);
-				grid.box(x, 0, z, x, top, z, (_, y) => (y === top ? surface : side), Mat.Water);
+				grid.box(x, 0, z, x, top, z, (_, y) => (y > top - S ? surface : side), Mat.Water);
 				tops[i] = top;
 				continue;
 			}
@@ -207,11 +212,12 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 			const hs = seed + col.hex * 101;
 			if (col.edge < 1.05) {
 				const c = pick(C.border, r);
-				grid.box(x, 0, z, x, BORDER_TOP - 1, z, (_, y) => (y === BORDER_TOP - 1 ? c : y > BORDER_TOP - 4 ? shade(c, 0.86) : pick(C.dirt, r)));
-				tops[i] = BORDER_TOP - 1;
+				const top = BORDER_TOP * S - 1;
+				grid.box(x, 0, z, x, top, z, (_, y) => (y > top - S ? c : y > top - 3 * S ? shade(c, 0.86) : pick(C.dirt, r)));
+				tops[i] = top;
 				continue;
 			}
-			tops[i] = terrainColumn(grid, hx.terrain, x, z, col, hs, r);
+			tops[i] = terrainColumn(grid, hx.terrain, x, z, col, hs, r, S);
 		}
 	}
 
@@ -226,7 +232,7 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 		const cx = centers[h].x;
 		const cz = centers[h].z;
 		const hs = seed + h * 101;
-		const at = (lx: number, lz: number) => [Math.floor(cx + lx), Math.floor(cz + lz)] as const;
+		const at = (lx: number, lz: number) => [Math.floor((cx + lx) * S), Math.floor((cz + lz) * S)] as const;
 		switch (hx.terrain) {
 			case 'forest': {
 				const spots = scatter(hs, 64, 3.3, (lx, lz) => clear(lx, lz, 3.1) && Math.hypot(lx, lz) > 8.2);
@@ -234,8 +240,8 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 					const [x, z] = at(lx, lz);
 					const base = topAt(x, z) + 1;
 					const r = hash3(k, 1, h, seed);
-					if (r < 0.78) pineTree(grid, x, base, z, hs + k, raise);
-					else roundTree(grid, x, base, z, hs + k, raise);
+					if (r < 0.78) pineTree(grid, x, base, z, hs + k, raise, S);
+					else roundTree(grid, x, base, z, hs + k, raise, S);
 				});
 				break;
 			}
@@ -243,7 +249,7 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 				const spots = scatter(hs, 14, 5, (lx, lz) => clear(lx, lz, 3) && Math.hypot(lx, lz) > 6.5);
 				spots.slice(0, 5).forEach(([lx, lz], k) => {
 					const [x, z] = at(lx, lz);
-					bush(grid, x, topAt(x, z) + 1, z, hs + k, raise);
+					bush(grid, x, topAt(x, z) + 1, z, hs + k, raise, S);
 				});
 				for (const [lx, lz] of spots.slice(5, 10)) sheepSpots.push({ hex: h, x: (cx + lx) * VOXEL, z: (cz + lz) * VOXEL });
 				break;
@@ -252,7 +258,7 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 				const spots = scatter(hs, 3, 8, (lx, lz) => clear(lx, lz, 4) && Math.hypot(lx, lz) > 8);
 				spots.slice(0, 1).forEach(([lx, lz]) => {
 					const [x, z] = at(lx, lz);
-					hayBale(grid, x, G, z, raise);
+					hayBale(grid, x, G * S, z, raise, S);
 				});
 				break;
 			}
@@ -260,7 +266,7 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 				const spots = scatter(hs, 6, 5, (lx, lz) => clear(lx, lz, 3) && Math.hypot(lx, lz) > 6);
 				spots.slice(0, 3).forEach(([lx, lz], k) => {
 					const [x, z] = at(lx, lz);
-					brickStack(grid, x, topAt(x, z) + 1, z, hs + k, raise);
+					brickStack(grid, x, topAt(x, z) + 1, z, hs + k, raise, S);
 				});
 				break;
 			}
@@ -268,19 +274,19 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 				const spots = scatter(hs, 10, 4, (lx, lz) => clear(lx, lz, 3) && Math.hypot(lx, lz) > 7.5);
 				spots.slice(0, 3).forEach(([lx, lz], k) => {
 					const [x, z] = at(lx, lz);
-					cactus(grid, x, topAt(x, z) + 1, z, hs + k, raise);
+					cactus(grid, x, topAt(x, z) + 1, z, hs + k, raise, S);
 				});
 				spots.slice(3, 8).forEach(([lx, lz], k) => {
 					const [x, z] = at(lx, lz);
-					pebble(grid, x, topAt(x, z) + 1, z, hs + k * 7, raise);
+					pebble(grid, x, topAt(x, z) + 1, z, hs + k * 7, raise, S);
 				});
 				break;
 			}
 		}
 		// Number tokens sit on the highest ground near the center.
 		let ty = 0;
-		for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) ty = Math.max(ty, topAt(cx + dx, cz + dz) + 1);
-		tokenY.push(ty * VOXEL + (hx.terrain === 'forest' ? 1.4 : 0.5));
+		for (let dz = -3 * S; dz <= 3 * S; dz++) for (let dx = -3 * S; dx <= 3 * S; dx++) ty = Math.max(ty, topAt(cx * S + dx, cz * S + dz) + 1);
+		tokenY.push(ty * vox + (hx.terrain === 'forest' ? 1.4 : 0.5));
 	});
 
 	// ---- harbors: two piers from the tile corners out to a round landing
@@ -294,14 +300,16 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 		const mz = ((a.z + b.z) / 2) * k;
 		const px = mx + out.x * 14;
 		const pz = mz + out.z * 14;
-		for (const v of [a, b]) pier(grid, v.x * k + out.x * 1.5, v.z * k + out.z * 1.5, px, pz, seed);
-		for (let dz = -5; dz <= 5; dz++)
-			for (let dx = -5; dx <= 5; dx++) {
-				if (dx * dx + dz * dz > 22) continue;
-				const x = Math.floor(px + dx);
-				const z = Math.floor(pz + dz);
-				const ring = dx * dx + dz * dz > 14;
-				grid.set(x, WATER_DECK, z, ring ? shade(pick(C.plank, hash3(x, 3, z, seed)), 0.82) : pick(C.plank, hash3(x, 3, z, seed)));
+		for (const v of [a, b]) pier(grid, v.x * k + out.x * 1.5, v.z * k + out.z * 1.5, px, pz, seed, S);
+		const deck = (WATER_DECK + 1) * S - 1;
+		for (let dz = -5 * S; dz <= 5 * S; dz++)
+			for (let dx = -5 * S; dx <= 5 * S; dx++) {
+				const d2 = (dx * dx + dz * dz) / (S * S);
+				if (d2 > 22) continue;
+				const x = Math.floor(px * S + dx);
+				const z = Math.floor(pz * S + dz);
+				const ring = d2 > 14;
+				grid.set(x, deck, z, ring ? shade(pick(C.plank, hash3(x, 3, z, seed)), 0.82) : pick(C.plank, hash3(x, 3, z, seed)));
 			}
 		for (const [dx, dz] of [
 			[-4, -4],
@@ -309,31 +317,33 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 			[-4, 3],
 			[3, 3]
 		]) {
-			const x = Math.floor(px + dx);
-			const z = Math.floor(pz + dz);
-			grid.box(x, 0, z, x, WATER_DECK + 1, z, C.post);
+			const x = Math.floor((px + dx) * S);
+			const z = Math.floor((pz + dz) * S);
+			grid.box(x, 0, z, x + S - 1, (WATER_DECK + 2) * S - 1, z + S - 1, C.post);
 		}
 		return { x: px * VOXEL, z: pz * VOXEL, angle: Math.atan2(out.x, out.z), kind: p.kind, ratio: p.kind === 'any' ? 3 : 2 };
 	});
 
-	const geos = meshGrid(grid, { jitter: 0.06 });
-	const group = meshesFor(geos, VOXEL, {
-		[Mat.Solid]: { tileGray: true },
-		[Mat.Sway]: { swayBase: G, roughness: 0.7, tileGray: true },
-		[Mat.Water]: { roughness: 0.22, bevel: 0.35 }
+	// The board lies on the table, so the faces underneath it are never seen.
+	const geos = meshGrid(grid, { jitter: 0.06, skipFloor: true });
+	const aa = S > 1;
+	const group = meshesFor(geos, vox, {
+		[Mat.Solid]: { tileGray: true, antialias: aa },
+		[Mat.Sway]: { swayBase: G * S, swayScale: S, roughness: 0.7, tileGray: true, antialias: aa },
+		[Mat.Water]: { roughness: 0.22, bevel: 0.35, antialias: aa }
 	});
-	sharedUniforms.uGrayVoxel.value = VOXEL;
+	sharedUniforms.uGrayVoxel.value = vox;
 	group.name = 'board';
 
 	const surfaceY = (x: number, z: number) => {
-		const t = topAt(x / VOXEL, z / VOXEL);
-		return t >= 0 ? (t + 1) * VOXEL : 0;
+		const t = topAt(x / vox, z / vox);
+		return t >= 0 ? (t + 1) * vox : 0;
 	};
 
 	const groundY = (x: number, z: number) => {
-		const ix = Math.floor(x / VOXEL) + HALF;
-		const iz = Math.floor(z / VOXEL) + HALF;
-		if (ix >= 0 && iz >= 0 && ix < W && iz < D && ground[ix + iz * W] >= 0) return (ground[ix + iz * W] + 1) * VOXEL;
+		const ix = Math.floor(x / vox) + half;
+		const iz = Math.floor(z / vox) + half;
+		if (ix >= 0 && iz >= 0 && ix < W && iz < D && ground[ix + iz * W] >= 0) return (ground[ix + iz * W] + 1) * vox;
 		return surfaceY(x, z);
 	};
 
@@ -387,69 +397,89 @@ const MOUNTAIN_PEAKS = [
 	{ h: 13, r: 6 }
 ];
 
-/** Fills one column and returns the y of its top voxel. */
-function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, col: Col, hs: number, r: number): number {
-	const fill = (topY: number, topColor: number, mat: Mat = Mat.Solid) => {
-		grid.box(x, 0, z, x, topY - 1, z, (_, y) => (y >= topY - 2 ? shade(topColor, 0.72) : pick(C.dirt, r)));
-		grid.set(x, topY, z, topColor, mat);
-		return topY;
+/**
+ * Fills one column and returns the y of its top voxel. `x`, `z` and heights are in grid voxels;
+ * noise, distances and layer depths are in VOXEL units, so every detail gives the same island.
+ */
+function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, col: Col, hs: number, r: number, S: number): number {
+	/** The top voxel of a VOXEL-sized layer. */
+	const layerTop = (y: number) => (y + 1) * S - 1;
+	const fill = (top: number, topColor: number, mat: Mat = Mat.Solid) => {
+		grid.box(x, 0, z, x, top - S, z, (_, y) => (y > top - 3 * S ? shade(topColor, 0.72) : pick(C.dirt, r)));
+		for (let y = top - S + 1; y <= top; y++) grid.set(x, y, z, topColor, mat);
+		return top;
 	};
+	const X = x / S;
+	const Z = z / S;
 	const center = Math.hypot(col.lx, col.lz);
 	const edgeFade = Math.min(1, Math.max(0, (col.edge - 1.1) / 4));
 	/** Tall ground fades out near the corners, so settlements and cities stand on the flat. */
 	const cornerFade = Math.min(1, Math.max(0, (col.corner - 4) / 3));
 	const g = G - 1;
+	/** Top voxel of the flat land. */
+	const gt = layerTop(g);
 	switch (terrain) {
 		case 'forest': {
-			const bump = fbm(x * 0.09, z * 0.09, hs) > 0.6 ? 1 : 0;
+			const bump = fbm(X * 0.09, Z * 0.09, hs) > 0.6 ? 1 : 0;
 			const c = r > 0.9 ? pick(C.bush, hash3(x, 9, z, hs)) : pick(C.forestFloor, r);
-			return fill(g + bump * (edgeFade > 0.5 ? 1 : 0), c);
+			return fill(layerTop(g + bump * (edgeFade > 0.5 ? 1 : 0)), c);
 		}
 		case 'pasture': {
-			const n = fbm(x * 0.07, z * 0.07, hs);
+			const n = fbm(X * 0.07, Z * 0.07, hs);
 			const bump = n > 0.62 && edgeFade > 0.6 ? 1 : 0;
 			const c = mix(pick(C.grass, r), C.grassHi[0], Math.max(0, n - 0.45) * 0.9);
-			const top = fill(g + bump, c);
+			const top = fill(layerTop(g + bump), c);
 			if (center > 5.5 && col.edge > 2 && col.corner > 4.5) {
+				const blade = pick(C.grassHi, hash3(x, 6, z, hs));
 				if (r > 0.982) {
-					grid.set(x, top + 1, z, pick(C.flower, hash3(x, 5, z, hs)));
-					return top + 1;
+					const flower = pick(C.flower, hash3(x, 5, z, hs));
+					if (S === 1) {
+						grid.set(x, top + 1, z, flower);
+						return top + 1;
+					}
+					// Small voxels give each flower a stem.
+					grid.set(x, top + 1, z, blade, Mat.Sway);
+					grid.set(x, top + 2, z, flower, Mat.Sway);
+					return top + 2;
 				}
 				if (r > 0.94) {
-					grid.set(x, top + 1, z, pick(C.grassHi, hash3(x, 6, z, hs)), Mat.Sway);
-					return top + 1;
+					// Grass tufts, up to a VOXEL tall where the voxels are small.
+					const h = 1 + Math.floor(hash3(x, 7, z, hs) * S);
+					for (let k = 1; k <= h; k++) grid.set(x, top + k, z, blade, Mat.Sway);
+					return top + h;
 				}
 			}
 			return top;
 		}
 		case 'fields': {
-			fill(g - 1, pick(C.soil, r));
+			fill(layerTop(g - 1), pick(C.soil, r));
 			// Rows of stalks run diagonally; every fourth row is a furrow.
-			const row = Math.floor((x * 0.6 + z * 0.8) / 1.25);
+			const row = Math.floor((X * 0.6 + Z * 0.8) / 1.25);
 			const furrow = ((row % 4) + 4) % 4 === 0;
 			if (center < 4.6 || col.edge < 1.9 || col.corner < 3.5 || furrow) {
-				grid.set(x, g, z, pick(C.soil, hash3(x, 1, z, hs)));
-				return g;
+				const c = pick(C.soil, hash3(x, 1, z, hs));
+				for (let y = g * S; y <= gt; y++) grid.set(x, y, z, c);
+				return gt;
 			}
-			const n = fbm(x * 0.15, z * 0.15, hs + 3);
-			let h = 2 + Math.round(n * 2.4 + r * 1.2);
+			const n = fbm(X * 0.15, Z * 0.15, hs + 3);
+			let h = 2 * S + Math.round((n * 2.4 + r * 1.2) * S);
 			h = Math.max(1, Math.round(h * Math.min(1, edgeFade + 0.4, (col.corner - 3) / 3)));
 			for (let k = 0; k < h; k++) {
-				const top = k === h - 1;
+				const top = k >= h - S;
 				const c = top ? pick(C.wheatTip, hash3(x, k, z, hs)) : C.wheat[Math.min(4, Math.floor(((k + 1) / h) * 4))];
-				grid.set(x, g + k, z, c, Mat.Sway);
+				grid.set(x, g * S + k, z, c, Mat.Sway);
 			}
-			return g + h - 1;
+			return g * S + h - 1;
 		}
 		case 'hills': {
-			const n = fbm(x * 0.075, z * 0.075, hs, 3);
-			const m = fbm(x * 0.2, z * 0.2, hs + 9, 2);
-			let h = Math.max(0, Math.round(((n - 0.36) * 13 + (m - 0.5) * 2) * edgeFade * cornerFade));
-			if (center < 4.8) h = Math.min(h, 1);
-			const top = g + h;
+			const n = fbm(X * 0.075, Z * 0.075, hs, 3);
+			const m = fbm(X * 0.2, Z * 0.2, hs + 9, 2);
+			let h = Math.max(0, Math.round(((n - 0.36) * 13 + (m - 0.5) * 2) * edgeFade * cornerFade * S));
+			if (center < 4.8) h = Math.min(h, S);
+			const top = gt + h;
 			grid.box(x, 0, z, x, top, z, (_, y) => {
-				if (y === top) return h > 2 && hash3(x, y, z, hs) > 0.6 ? pick(C.clayHi, r) : pick(C.clay, r);
-				if (y > g - 2) return pick(C.clayDark.concat(C.clay), hash3(x, y, z, hs));
+				if (y > top - S) return h > 2 * S && hash3(x, y, z, hs) > 0.6 ? pick(C.clayHi, r) : pick(C.clay, r);
+				if (y >= (g - 1) * S) return pick(C.clayDark.concat(C.clay), hash3(x, y, z, hs));
 				return pick(C.dirt, r);
 			});
 			return top;
@@ -468,30 +498,32 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 				const dist = Math.hypot(col.lx - Math.cos(a) * d, col.lz - Math.sin(a) * d);
 				h = Math.max(h, peak.h * Math.pow(Math.max(0, 1 - dist / peak.r), 1.05));
 			}
-			h += (fbm(x * 0.22, z * 0.22, hs) - 0.5) * 2;
+			h += (fbm(X * 0.22, Z * 0.22, hs) - 0.5) * 2;
 			h *= Math.min(1, Math.max(0, (col.edge - 1) / 3)) * cornerFade;
 			if (center < 5) h = ledge;
-			h = Math.max(0, Math.floor(h));
+			h = Math.max(0, Math.floor(h * S));
 			// Terraces: snap the slopes to two-voxel steps away from the summits.
-			if (h > 3 && h < 14) h = h - (h % 2);
-			const top = g + h;
+			if (h > 3 * S && h < 14 * S) h = h - (h % 2);
+			const top = gt + h;
 			grid.box(x, 0, z, x, top, z, (_, y) => {
 				const rh = hash3(x, y, z, hs);
-				const rel = y - g;
+				const rel = (y - gt) / S;
 				if (rel >= 15 + (rh > 0.5 ? 1 : 0)) return pick(C.snow, rh);
 				if (y === top && rel >= 12 && rh > 0.35) return pick(C.snow, rh);
 				if (rh > 0.975 && rel > 1) return pick(C.ore, rh);
 				if (y === top) return rel > 1 ? pick(C.rockHi.concat(C.rock), rh) : pick(C.rock, rh);
 				if (rh > 0.78) return pick(C.rockDark, rh);
-				return y < g - 1 ? pick(C.dirt, r) : pick(C.rock, rh);
+				return y < (g - 1) * S ? pick(C.dirt, r) : pick(C.rock, rh);
 			});
 			return top;
 		}
 		case 'desert': {
 			const ring = Math.floor(center / 2.2) % 2 === 0;
-			const dune = fbm(x * 0.08, z * 0.08, hs) > 0.62 && center > 8 && edgeFade > 0.5 ? 1 : 0;
+			const f = fbm(X * 0.08, Z * 0.08, hs);
+			// Dunes, with a half step round their edge where the voxels are small enough.
+			const dune = center > 8 && edgeFade > 0.5 ? (f > 0.62 ? S : f > 0.6 ? Math.floor(S / 2) : 0) : 0;
 			const c = pick(C.sand, r);
-			return fill(g + dune, ring && center < 15 ? shade(c, 0.9) : c);
+			return fill(gt + dune, ring && center < 15 ? shade(c, 0.9) : c);
 		}
 	}
 }
@@ -517,23 +549,28 @@ function put(g: VoxelGrid, raise: Raise, x: number, y: number, z: number, c: num
 	raise(x, z, y);
 }
 
-function pineTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise) {
+/**
+ * The features are drawn at any detail S: `x`, `y`, `z` are grid voxels, while sizes and
+ * distances are in VOXEL units (divide grid offsets by S), so finer grids round them off.
+ */
+function pineTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	const tall = hash3(s, 1, 1);
-	const trunkH = 1 + (tall > 0.5 ? 1 : 0);
+	const trunkH = (1 + (tall > 0.5 ? 1 : 0)) * S;
 	for (let k = 0; k < trunkH; k++) put(g, raise, x, y + k, z, pick(C.trunk, hash3(x, y + k, z, s)));
-	const height = 6 + Math.floor(tall * 4);
+	const height = (6 + Math.floor(tall * 4)) * S;
 	const base = 1.45 + hash3(s, 2, 1) * 0.45;
+	const reach = 3 * S;
 	let yy = y + trunkH;
 	for (let l = 0; l < height; l++) {
 		const t = l / height;
 		// Tiered cone: each tier of three layers starts wide and tapers.
-		const rad = base * (1 - t * 0.85) + (2 - (l % 3)) * 0.3;
-		for (let dz = -3; dz <= 3; dz++)
-			for (let dx = -3; dx <= 3; dx++) {
-				const d = Math.hypot(dx, dz);
+		const rad = base * (1 - t * 0.85) + (2 - ((l / S) % 3)) * 0.3;
+		for (let dz = -reach; dz <= reach; dz++)
+			for (let dx = -reach; dx <= reach; dx++) {
+				const d = Math.hypot(dx, dz) / S;
 				if (d > rad) continue;
 				const rr = hash3(x + dx, yy, z + dz, s);
-				const lit = dx - dz < -0.5 && d > rad - 1.1;
+				const lit = (dx - dz) / S < -0.5 && d > rad - 1.1;
 				const c = lit && rr > 0.35 ? pick(C.pineHi, rr) : pick(C.pine, rr);
 				put(g, raise, x + dx, yy, z + dz, c);
 			}
@@ -542,24 +579,40 @@ function pineTree(g: VoxelGrid, x: number, y: number, z: number, s: number, rais
 	put(g, raise, x, yy, z, pick(C.pineHi, hash3(s, 3, 3)));
 }
 
-function roundTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise) {
-	const trunkH = 2;
+function roundTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+	const trunkH = 2 * S;
 	for (let k = 0; k < trunkH; k++) put(g, raise, x, y + k, z, pick(C.trunk, hash3(x, y + k, z, s)));
 	const rad = 2.1 + hash3(s, 2, 2) * 0.6;
-	const cy = y + trunkH + rad - 0.4;
-	for (let dy = -3; dy <= 3; dy++)
-		for (let dz = -3; dz <= 3; dz++)
-			for (let dx = -3; dx <= 3; dx++) {
-				const d = Math.hypot(dx, dy * 1.1, dz);
+	const cy = y + trunkH + rad * S - 0.4 * S;
+	const reach = 3 * S;
+	for (let dy = -reach; dy <= reach; dy++)
+		for (let dz = -reach; dz <= reach; dz++)
+			for (let dx = -reach; dx <= reach; dx++) {
+				const d = Math.hypot(dx, dy * 1.1, dz) / S;
 				if (d > rad) continue;
 				const yy = Math.round(cy + dy);
 				const rr = hash3(x + dx, yy, z + dz, s);
-				const c = dy >= 1 && rr > 0.3 ? pick(C.leafHi, rr) : dy <= -1 ? shade(pick(C.leaf, rr), 0.82) : pick(C.leaf, rr);
+				const up = dy / S;
+				const c = up >= 1 && rr > 0.3 ? pick(C.leafHi, rr) : up <= -1 ? shade(pick(C.leaf, rr), 0.82) : pick(C.leaf, rr);
 				put(g, raise, x + dx, yy, z + dz, c);
 			}
 }
 
-function bush(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise) {
+function bush(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+	if (S > 1) {
+		// Small voxels round the bush off into a lumpy mound, lighter on top.
+		const lump = (dx: number, dz: number) => 0.25 * (hash3(Math.round((dx * 2) / S), Math.round((dz * 2) / S), 4, s) - 0.5);
+		for (let dy = 0; dy < 2 * S; dy++)
+			for (let dz = -2 * S; dz <= 2 * S; dz++)
+				for (let dx = -2 * S; dx <= 2 * S; dx++) {
+					const d = Math.hypot(dx / S / 1.55, dz / S / 1.55, (dy + 0.5) / S / 2) + lump(dx, dz);
+					if (d > 1) continue;
+					const above = Math.hypot(dx / S / 1.55, dz / S / 1.55, (dy + 1.5) / S / 2) + lump(dx, dz) > 1;
+					const c = pick(C.bush, hash3(x + dx, y + dy, z + dz, s));
+					put(g, raise, x + dx, y + dy, z + dz, above ? shade(c, 1.18) : c);
+				}
+		return;
+	}
 	for (let dz = -1; dz <= 1; dz++)
 		for (let dx = -1; dx <= 1; dx++) {
 			if (Math.abs(dx) + Math.abs(dz) > 1 && hash3(dx, dz, 2, s) > 0.5) continue;
@@ -568,58 +621,78 @@ function bush(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: R
 		}
 }
 
-function hayBale(g: VoxelGrid, x: number, y: number, z: number, raise: Raise) {
+/**
+ * Draws a VOXEL-sized block of a feature at (dx, dy, dz) VOXEL units from (x, y, z): one voxel
+ * at detail 1, S×S×S smaller ones above that, each colored on its own for a finer grain.
+ */
+function block(g: VoxelGrid, raise: Raise, S: number, x: number, y: number, z: number, dx: number, dy: number, dz: number, color: (x: number, y: number, z: number) => number) {
+	for (let j = 0; j < S; j++)
+		for (let k = 0; k < S; k++)
+			for (let i = 0; i < S; i++) {
+				const vx = x + dx * S + i;
+				const vy = y + dy * S + j;
+				const vz = z + dz * S + k;
+				put(g, raise, vx, vy, vz, color(vx, vy, vz));
+			}
+}
+
+function hayBale(g: VoxelGrid, x: number, y: number, z: number, raise: Raise, S: number) {
 	for (let dz = 0; dz <= 2; dz++)
 		for (let dx = 0; dx <= 3; dx++)
 			for (let dy = 0; dy <= 2; dy++) {
 				if ((dz === 0 || dz === 2) && dy === 2) continue;
 				const band = dx === 1 || dx === 2;
-				put(g, raise, x + dx, y + dy, z + dz, band && dy === 2 ? hex('#c9952f') : dy === 2 || dz === 1 ? hex('#f6d465') : hex('#e6bb4a'));
+				const c = band && dy === 2 ? hex('#c9952f') : dy === 2 || dz === 1 ? hex('#f6d465') : hex('#e6bb4a');
+				block(g, raise, S, x, y, z, dx, dy, dz, (vx, vy, vz) => (S > 1 ? shade(c, 0.94 + hash3(vx, vy, vz, 17) * 0.12) : c));
 			}
 }
 
-function brickStack(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise) {
+function brickStack(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	const h = 2 + Math.floor(hash3(s, 9, 9) * 2);
 	for (let dy = 0; dy < h; dy++)
 		for (let dz = 0; dz <= 1; dz++)
 			for (let dx = 0; dx <= 3; dx++) {
 				if (dy === h - 1 && dx === 3) continue;
 				const joint = (dx + (dy % 2) * 2) % 4 === 0 && dz === 0;
-				put(g, raise, x + dx, y + dy, z + dz, joint ? C.mortar : pick(C.brick, hash3(x + dx, y + dy, z + dz, s)));
+				block(g, raise, S, x, y, z, dx, dy, dz, (vx, vy, vz) => (joint ? C.mortar : pick(C.brick, hash3(vx, vy, vz, s))));
 			}
 }
 
-function cactus(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise) {
+function cactus(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	const h = 4 + Math.floor(hash3(s, 1, 5) * 3);
-	for (let k = 0; k < h; k++) put(g, raise, x, y + k, z, pick(C.cactus, hash3(x, y + k, z, s)));
+	const at = (dx: number, dy: number, color: (x: number, y: number, z: number) => number) => block(g, raise, S, x, y, z, dx, dy, 0, color);
+	for (let k = 0; k < h; k++) at(0, k, (vx, vy, vz) => pick(C.cactus, hash3(vx, vy, vz, s)));
 	const dir = hash3(s, 2, 5) > 0.5 ? 1 : -1;
-	put(g, raise, x + dir, y + 2, z, C.cactus[0]);
-	put(g, raise, x + dir, y + 3, z, C.cactus[1]);
+	const arm = (c: number) => (vx: number, vy: number, vz: number) => (S > 1 ? pick(C.cactus, hash3(vx, vy, vz, s)) : c);
+	at(dir, 2, arm(C.cactus[0]));
+	at(dir, 3, arm(C.cactus[1]));
 	if (h > 4) {
-		put(g, raise, x - dir, y + 1, z, C.cactus[1]);
-		put(g, raise, x - dir, y + 2, z, C.cactus[0]);
+		at(-dir, 1, arm(C.cactus[1]));
+		at(-dir, 2, arm(C.cactus[0]));
 	}
-	put(g, raise, x, y + h, z, hex('#ff8fb4'));
+	at(0, h, () => hex('#ff8fb4'));
 }
 
-function pebble(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise) {
-	put(g, raise, x, y, z, pick(C.rock, hash3(s, 1, 1)));
-	if (hash3(s, 2, 2) > 0.5) put(g, raise, x + 1, y, z, pick(C.rockDark, hash3(s, 3, 3)));
+function pebble(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+	block(g, raise, S, x, y, z, 0, 0, 0, () => pick(C.rock, hash3(s, 1, 1)));
+	if (hash3(s, 2, 2) > 0.5) block(g, raise, S, x, y, z, 1, 0, 0, () => pick(C.rockDark, hash3(s, 3, 3)));
 }
 
-function pier(g: VoxelGrid, x0: number, z0: number, x1: number, z1: number, seed: number) {
+function pier(g: VoxelGrid, x0: number, z0: number, x1: number, z1: number, seed: number, S: number) {
 	const len = Math.hypot(x1 - x0, z1 - z0);
 	const nx = -(z1 - z0) / len;
 	const nz = (x1 - x0) / len;
-	for (let t = 0; t <= len; t += 0.35) {
+	const deck = (WATER_DECK + 1) * S - 1;
+	for (let t = 0; t <= len; t += 0.35 / S) {
 		const x = x0 + ((x1 - x0) * t) / len;
 		const z = z0 + ((z1 - z0) * t) / len;
 		const plankIdx = Math.floor(t / 1.6);
-		for (const w of [-1, 0, 1]) {
-			const px = Math.floor(x + nx * w);
-			const pz = Math.floor(z + nz * w);
+		for (let wi = -S; wi <= S; wi++) {
+			const w = wi / S;
+			const px = Math.floor((x + nx * w) * S);
+			const pz = Math.floor((z + nz * w) * S);
 			const c = pick(C.plank, hash3(plankIdx, 0, 0, seed + Math.floor(x0)));
-			g.set(px, WATER_DECK, pz, w === 0 ? c : shade(c, 0.9));
+			g.set(px, deck, pz, Math.abs(w) < 1 ? c : shade(c, 0.9));
 		}
 	}
 }
