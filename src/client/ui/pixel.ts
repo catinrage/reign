@@ -143,6 +143,11 @@ export const PIXEL = {
 		['kkkkkk', 'kpppPk', 'kpyyPk', 'kpyyPk', 'kpppPk', 'kkkkkk'],
 		{ ...base, p: '#7a4ec2', P: '#5a3496', y: '#f2c14e' }
 	),
+	/** A padlock: something only you can see. */
+	lock: svg(['..kkk..', '.k...k.', '.k...k.', 'kkkkkkk', 'kyyyyyk', 'kyykyyk', 'kyykyyk', 'kyyyyyk', 'kkkkkkk'], {
+		k: '#2a1404',
+		y: '#f2c14e'
+	}),
 	bot: svg(
 		['...kk...', '..kyyk..', 'kkkkkkkk', 'kssssssk', 'ksrssrsk', 'kssssssk', 'ksskkssk', 'kkkkkkkk'],
 		{ ...base, s: '#cfd6df', r: '#ff5a3c', y: '#f2c14e' }
