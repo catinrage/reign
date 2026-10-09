@@ -890,6 +890,12 @@ export class GameScene {
 		return null;
 	}
 
+	/** The settlement or city on a corner. */
+	private vertexPiece(v: number): THREE.Object3D | null {
+		for (const p of this.pieces.values()) if (p.key.startsWith(`v${v}:`)) return p.obj;
+		return null;
+	}
+
 	/** A workshop that just paid gives a little hop and a sparkle. */
 	private workshopPays(obj: THREE.Object3D) {
 		const base = obj.position.y;
@@ -1045,6 +1051,7 @@ export class GameScene {
 
 	setPick(req: PickRequest | null) {
 		if (this.pick?.kind === 'tearDown') for (const p of this.pieces.values()) if (p.key.startsWith('w')) p.obj.rotation.z = 0;
+		if (isCityPath(this.pick?.kind)) for (const p of this.pieces.values()) if (p.key.startsWith('v')) p.obj.visible = true;
 		this.pick = req;
 		this.ghosts.clear();
 		this.ghostHits = [];
@@ -1460,6 +1467,11 @@ export class GameScene {
 				ghost.scale.setScalar(s);
 				ghost.position.y = 1.5 + Math.sin(t * 5) * 0.4;
 			} else ghost.scale.setScalar(ghost.userData.base * 0.6);
+			// A city about to take a path makes way for its ghost, which would be lost inside it.
+			if (isCityPath(this.pick?.kind)) {
+				const city = this.vertexPiece(slot.userData.id);
+				if (city) city.visible = !hovered;
+			}
 			if (marker) {
 				const edge = this.pick?.kind === 'road' || this.pick?.kind === 'stoneRoad';
 				// A road's bar glows on through its see-through ghost; the stone ghost hides it.

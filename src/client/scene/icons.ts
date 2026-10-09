@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { CITY_PATHS, type CityPath } from '../../shared/rules/buildings';
 import { RESOURCES, type Resource } from '../../shared/rules/config';
+import { pathObject } from './board/cityPaths';
 import { cityModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
 import { storehouseObject } from './board/storehouse';
 import { workshopObject } from './board/workshops';
@@ -34,6 +36,14 @@ function posedWorkshop(res: Resource, color: number) {
 	const sails = w.getObjectByName('sails');
 	if (sails) sails.rotation.z = Math.PI / 4;
 	return w;
+}
+
+/** A city path standing still for its picture, its flag streaming out. */
+function posedPath(path: CityPath, color: number) {
+	const obj = pathObject(path, color);
+	const flag = obj.getObjectByName('flag');
+	if (flag) flag.rotation.y = -0.5;
+	return obj;
 }
 
 export function getIcons(): IconSet {
@@ -112,6 +122,7 @@ export function getIcons(): IconSet {
 		shoot(`storehouse:${color}`, settlementWithStorehouse(rgbVal), -0.9, true);
 		// Every workshop shares the Mill's picture in the menus.
 		shoot(`workshop:${color}`, posedWorkshop('wheat', rgbVal), -0.5, true);
+		for (const path of CITY_PATHS) shoot(`${path}:${color}`, posedPath(path, rgbVal), -0.6, true);
 	}
 	// And each kind of workshop on its own, in red, for the tutorial.
 	for (const r of RESOURCES) shoot(`workshop:${r}`, posedWorkshop(r, PLAYER_RGB.red), -0.5, true);

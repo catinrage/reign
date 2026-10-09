@@ -11,6 +11,8 @@ export type PowerFlow = { stage: 'dialog' } | { stage: 'pick'; first?: number } 
 class UiState {
 	/** What a click on the board builds; 'tearDown' picks one of your workshops to tear down. */
 	build = $state<Exclude<BuildKind, 'devCard'> | 'tearDown' | null>(null);
+	/** The build panel shows the city paths (a castle, a guild hall, a fortress) instead of the builds. */
+	paths = $state(false);
 	trade = $state(false);
 	power = $state<PowerFlow | null>(null);
 	flash = $state(false);

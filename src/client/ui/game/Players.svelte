@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { CHARACTER_INFO, POWER_INFO, traitText } from '../../../shared/rules/characters';
-	import { discardLimit, powerWait, safeCards } from '../../../shared/rules/queries';
+	import { armySize, discardLimit, fortressOf, powerWait, safeCards } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import Portrait from '../extended/Portrait.svelte';
 	import { PLAYER_CSS } from '../helpers';
@@ -48,6 +48,7 @@
 		{@const offline = seats[i] && !seats[i].connected}
 		{@const road = view.longestRoadHolder === i}
 		{@const army = view.largestArmyHolder === i}
+		{@const fort = fortressOf(view, i) !== null}
 		{@const limit = discardLimit(view, i)}
 		{@const safe = safeCards(view, i)}
 		{@const ch = p.character ? CHARACTER_INFO[p.character] : null}
@@ -108,8 +109,17 @@
 					<span title={t('Development cards')}
 						><img class="icon-px" src={PIXEL.dev} alt="" />{p.devCardCount}</span
 					>
-					<span class:hot={army} title={army ? t('Knights played (Largest Army, +2)') : t('Knights played')}
-						><img class="icon-px" src={PIXEL.army} alt="" />{p.knightsPlayed}</span
+					<!-- A fortress's knights count double: the plaque shows what they count for. -->
+					<span
+						class:hot={army}
+						title={fort
+							? army
+								? t('{n, plural, one {# knight} other {# knights}} played, counting double with a fortress (Largest Army, +2)', { n: p.knightsPlayed })
+								: t('{n, plural, one {# knight} other {# knights}} played, counting double with a fortress', { n: p.knightsPlayed })
+							: army
+								? t('Knights played (Largest Army, +2)')
+								: t('Knights played')}
+						><img class="icon-px" src={PIXEL.army} alt="" />{armySize(view, i)}</span
 					>
 					<span class:hot={road} title={road ? t('Longest road (Longest Road, +2)') : t('Longest road')}
 						><img class="icon-px" src={PIXEL.road} alt="" />{p.longestRoad}</span

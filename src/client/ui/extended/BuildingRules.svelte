@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		BUILDING_INFO,
+		CITY_PATHS,
 		EXTRA_BUILDINGS,
 		cleanBuildingRules,
 		type ExtraBuilding
@@ -57,6 +58,13 @@
 		</p>
 		<div class="list">
 			{#each EXTRA_BUILDINGS as b (b)}
+				{#if b === CITY_PATHS[0]}
+					<!-- The city paths are three ways for a city to grow, each switched on its own. -->
+					<div class="sub">
+						<span class="title">{t('City paths')}</span>
+						<span>{t('Each of your cities can grow down one of these paths, for good.')}</span>
+					</div>
+				{/if}
 				<div class="row plaque" class:off={!rules[b]}>
 					<img class="icon" src={icons[`${b}:${color}`]} alt="" />
 					<div class="body">
@@ -187,6 +195,21 @@
 		width: 20px;
 		height: 20px;
 		filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6));
+	}
+	.sub {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		margin: 6px 2px 0;
+		font-size: 13px;
+		color: #f1dfc2;
+	}
+	.sub .title {
+		font-size: 15px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--gold);
+		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
 	}
 	.state {
 		font-size: 16px;

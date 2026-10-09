@@ -1,11 +1,18 @@
 <script lang="ts">
-	import { BUILDING_INFO, EXTRA_BUILDINGS, WORKSHOP_REFUND, isExtraBuilding } from '../../../shared/rules/buildings';
+	import {
+		BUILDING_INFO,
+		CITY_PATHS,
+		EXTRA_BUILDINGS,
+		WORKSHOP_REFUND,
+		isCityPath,
+		isExtraBuilding
+	} from '../../../shared/rules/buildings';
 	import type { BuildKind } from '../../../shared/rules/config';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
 	import { POWER_INFO } from '../../../shared/rules/characters';
 	import { costOf, ownWorkshops, powerReady } from '../../../shared/rules/queries';
-	import { buildAvailable, buildNote, countsList, extraStock, myTurn } from '../helpers';
+	import { buildAvailable, buildNote, countsList, extraStock, myTurn, openCities, pathAvailable, pathNote } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 	import { RESOURCE_LABEL } from '../../../shared/rules/config';
@@ -24,15 +31,16 @@
 		{ kind: 'city', label: msg('City') },
 		{ kind: 'devCard', label: msg('Dev card') }
 	];
-	/** Reign Extended buildings the host put in this game. */
-	const reign = $derived<Build[]>(
-		EXTRA_BUILDINGS.filter((b) => view.buildingRules?.[b]).map((b) => ({ kind: b, label: BUILDING_INFO[b].label }))
-	);
+	const extra = (b: (typeof EXTRA_BUILDINGS)[number]): Build => ({ kind: b, label: BUILDING_INFO[b].label });
+	/** Reign Extended buildings the host put in this game (the city paths have a menu of their own). */
+	const reign = $derived<Build[]>(EXTRA_BUILDINGS.filter((b) => view.buildingRules?.[b] && !isCityPath(b)).map(extra));
+	/** The city paths in this game: one plaque opens them. */
+	const paths = $derived<Build[]>(CITY_PATHS.filter((b) => view.buildingRules?.[b]).map(extra));
 	/** Your workshops, any of which you can tear down to build it somewhere better. */
 	const owned = $derived(ownWorkshops(view, view.me));
 	/** Phones fit five plaques to a row; past that they take two rows. */
 	const cols = $derived.by(() => {
-		const n = builds.length + reign.length + (owned.length ? 1 : 0);
+		const n = ui.paths ? paths.length + 1 : builds.length + reign.length + (paths.length ? 1 : 0) + (owned.length ? 1 : 0);
 		return n <= 5 ? n : Math.ceil(n / 2);
 	});
 
@@ -40,6 +48,16 @@
 		if (kind === 'devCard') return client.act({ type: 'buyDevCard' });
 		ui.power = null;
 		ui.build = ui.build === kind ? null : kind;
+	}
+	/** The city paths take the panel over, each with its price and what it does, and Back. */
+	function openPaths() {
+		ui.power = null;
+		ui.build = null;
+		ui.paths = true;
+	}
+	function closePaths() {
+		if (isCityPath(ui.build)) ui.build = null;
+		ui.paths = false;
 	}
 
 	/** My character's power, when it can be used right now (before or after the roll, as it says). */
@@ -93,6 +111,37 @@
 	</button>
 {/snippet}
 
+{#snippet cityPath()}
+	{@const ok = pathAvailable(view)}
+	<!-- Opens the paths even when none can be taken yet: each says its price and why not. -->
+	<button
+		class="build plaque"
+		class:dim={!ok}
+		title={t(
+			'Take one of your cities down a path, for good: a castle worth 3 points, a guild hall that trades the goods you name at 2:1, or a fortress where your knights count double.'
+		)}
+		data-tip-head={t('City path')}
+		data-tip-note={ok ? undefined : pathNote(view)}
+		onclick={openPaths}
+	>
+		<span class="piece grown"
+			><img src={icons[`city:${color}`]} alt="" /><img class="icon-px arrow" src={PIXEL.grow} alt="" /></span
+		>
+		<span class="bname title">{t('City path')}<small title={t('Your cities without a path')}>{openCities(view)}</small></span>
+		<span class="cost">
+			{#each paths as p (p.kind)}<img class="res" src={icons[`${p.kind}:${color}`]} alt={t(p.label)} />{/each}
+		</span>
+	</button>
+{/snippet}
+
+{#snippet back()}
+	<button class="build plaque" title={t('Back to the other builds')} onclick={closePaths}>
+		<span class="piece"><img class="icon-px return" src={PIXEL.play} alt="" /></span>
+		<span class="bname title">{t('Back')}</span>
+		<span class="cost hint">{t('Other builds')}</span>
+	</button>
+{/snippet}
+
 {#snippet tearDown()}
 	<button
 		class="build plaque"
@@ -126,11 +175,18 @@
 		{#if mine && view.step === 'main'}
 			{#if !ui.trade}
 				<div class="builds panel" style:--cols={cols}>
-					{#each builds as b (b.kind)}{@render plaque(b)}{/each}
-					{#if reign.length}
-						<div class="sep"><i></i><span>Reign</span><i></i></div>
-						{#each reign as b (b.kind)}{@render plaque(b)}{/each}
-						{#if owned.length}{@render tearDown()}{/if}
+					{#if ui.paths}
+						<div class="sep keep"><i></i><span>{t('City paths')}</span><i></i></div>
+						{#each paths as b (b.kind)}{@render plaque(b)}{/each}
+						{@render back()}
+					{:else}
+						{#each builds as b (b.kind)}{@render plaque(b)}{/each}
+						{#if reign.length || paths.length}
+							<div class="sep"><i></i><span>Reign</span><i></i></div>
+							{#each reign as b (b.kind)}{@render plaque(b)}{/each}
+							{#if paths.length}{@render cityPath()}{/if}
+							{#if owned.length}{@render tearDown()}{/if}
+						{/if}
 					{/if}
 				</div>
 			{/if}
@@ -142,6 +198,7 @@
 					class="btn red"
 					onclick={() => {
 						ui.build = null;
+						ui.paths = false;
 						ui.trade = false;
 						client.act({ type: 'endTurn' });
 					}}><img class="icon-px" src={PIXEL.hourglass} alt="" /> {t('End turn')}</button
@@ -224,10 +281,15 @@
 		animation: bob 1.4s ease-in-out infinite;
 	}
 	.build:disabled,
-	.build[aria-disabled='true'] {
+	.build[aria-disabled='true'],
+	.build.dim {
 		cursor: not-allowed;
 		opacity: 0.6;
 		filter: grayscale(0.55);
+	}
+	/* The City path plaque opens its menu even when no path can be taken: each one says why. */
+	.build.dim {
+		cursor: pointer;
 	}
 	.build[aria-disabled='true']:hover {
 		transform: none;
@@ -297,6 +359,37 @@
 	.cost.back {
 		align-items: center;
 	}
+	/* City path: your city with an arrow up out of it. */
+	.grown {
+		position: relative;
+		display: block;
+	}
+	.grown img:first-child {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+	.grown .arrow {
+		position: absolute;
+		right: -1px;
+		bottom: 0;
+		width: 17px;
+		height: 19px;
+		filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.85));
+	}
+	/* Back: an arrow pointing back to the builds. */
+	.piece .return {
+		display: block;
+		width: 22px;
+		height: 22px;
+		margin: 10px auto;
+		transform: scaleX(-1);
+		filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.85));
+	}
+	.cost.hint {
+		font-size: 12px;
+		color: var(--muted);
+	}
 	.cost.back b {
 		font-family: var(--px);
 		font-size: 14px;
@@ -339,8 +432,8 @@
 			padding: 2px;
 			gap: 3px;
 		}
-		/* No room for a heading: the Reign buildings join the others. */
-		.sep {
+		/* No room for a heading: the Reign buildings join the others. The city paths keep theirs. */
+		.sep:not(.keep) {
 			display: none;
 		}
 		.build {
@@ -357,6 +450,18 @@
 		.torn .hammer {
 			width: 15px;
 			height: 15px;
+		}
+		.grown .arrow {
+			width: 12px;
+			height: 13px;
+		}
+		.piece .return {
+			width: 16px;
+			height: 16px;
+			margin: 7px auto;
+		}
+		.cost.hint {
+			display: none;
 		}
 		.cost.back b {
 			font-size: 10px;

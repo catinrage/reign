@@ -84,13 +84,18 @@ describe('build turns', () => {
 	});
 
 	it('words the tooltip of each kind of piece', () => {
-		const end = botGame(11, true).at(-1)!;
+		const states = botGame(11, true);
+		const end = states.at(-1)!;
 		const view = viewFor(end, 0);
-		// A plain city: no path taken, no storehouse added.
-		const city = end.buildings.findIndex((b, v) => b?.kind === 'city' && !end.cityPaths[v] && !end.storehouses[v]);
-		const tip = pieceTip(view, { place: 'vertex', at: city })!;
+		// A plain city (no path taken, no storehouse added), as it stood when there first was one:
+		// by the end of a game the bots may have grown every city down a path.
+		let city = -1;
+		const plain = (s: GameState) =>
+			(city = s.buildings.findIndex((b, v) => b?.kind === 'city' && !s.cityPaths[v] && !s.storehouses[v])) >= 0;
+		const then = states.find(plain)!;
+		const tip = pieceTip(viewFor(then, 0), { place: 'vertex', at: city })!;
 		expect(tip.head).toBe('City');
-		const owner = end.buildings[city]!.owner;
+		const owner = then.buildings[city]!.owner;
 		expect(tip.text).toMatch(new RegExp(`^Owner: ${owner === 0 ? 'You' : `P${owner}`}\\n`));
 		expect(tip.text).toMatch(/Settled (during setup|on turn \d+)\nBecame a city on turn \d+$/);
 		const road = end.roads.findIndex((o, e) => o !== null && !end.stoneRoads[e]);

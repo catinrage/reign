@@ -1,6 +1,8 @@
 <script lang="ts">
 	import {
 		BUILDING_INFO,
+		CASTLE_POINTS,
+		CITY_PATHS,
 		EXTRA_BUILDINGS,
 		STOREHOUSE_SAFE,
 		WORKSHOP_LIMIT,
@@ -14,7 +16,7 @@
 	import { PIXEL } from '../../pixel';
 
 	const icons = getIcons().urls;
-	const LIMIT: Record<string, number> = { workshop: WORKSHOP_LIMIT, storehouse: 1 };
+	const LIMIT: Record<string, number> = { workshop: WORKSHOP_LIMIT, storehouse: 1, fortress: 1 };
 	/** The tile each workshop stands on, and what it does there. */
 	const KINDS: Record<Resource, { tile: string; work: string }> = {
 		wheat: { tile: msg('Fields'), work: msg('Its sails turn in the wind.') },
@@ -24,6 +26,12 @@
 		sheep: { tile: msg('Pasture'), work: msg('Two sheep wander the pen.') }
 	};
 	const order: Resource[] = ['wheat', 'wood', 'brick', 'ore', 'sheep'];
+	/** What each city path looks like on the island. */
+	const LOOKS: Record<(typeof CITY_PATHS)[number], string> = {
+		castle: msg('A keep with round towers, its banner streaming from the top.'),
+		guildHall: msg('A timber hall over market stalls, its goods piled out front and its sign swinging.'),
+		fortress: msg('Low walls round a yard where the quintain spins, with a tower and a barracks.')
+	};
 </script>
 
 {#snippet bBuildings()}<b>{t('Buildings')}</b>{/snippet}
@@ -31,6 +39,7 @@
 {#snippet bTearDown()}<b>{t('Tear down')}</b>{/snippet}
 {#snippet bStoneRoad()}<b>{t('Stone road')}</b>{/snippet}
 {#snippet bStorehouse()}<b>{t('Storehouse')}</b>{/snippet}
+{#snippet bCityPath()}<b>{t('City path')}</b>{/snippet}
 
 <p>
 	<Rich
@@ -159,6 +168,51 @@
 	>
 </p>
 
+<h3>{t('City paths')}</h3>
+<ul class="rows">
+	<li>
+		<img class="icon-px" src={PIXEL.grow} alt="" /><span
+			><Rich
+				text={t('Once you have rolled, pick {cityPath} in the build panel, choose a castle, a guild hall or a fortress, and click one of your cities. Each city takes one path, for good, and still produces like a city.')}
+				slots={{ cityPath: bCityPath }}
+			/></span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.crown} alt="" /><span
+			>{t('A castle is worth {points} points instead of 2. You can make a castle of every city you have.', { points: CASTLE_POINTS })}</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.trade} alt="" /><span
+			>{t("A guild hall trades the goods you name with the bank at 2:1, like a harbor of your own. Each of your guild halls trades different goods, and not ones you trade at 2:1 already.")}</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.army} alt="" /><span
+			>{t('In a fortress your knights count double towards the Largest Army: two knights played count as four. You can have one.')}</span
+		>
+	</li>
+</ul>
+
+<div class="kinds paths">
+	{#each CITY_PATHS as b (b)}
+		<div class="kind">
+			<img class="piece" src={icons[`${b}:red`]} alt="" />
+			<div class="what">
+				<b class="title">{t(BUILDING_INFO[b].label)}</b>
+				<span class="rule">{t(LOOKS[b])}</span>
+			</div>
+		</div>
+	{/each}
+</div>
+
+<p class="tip">
+	<img class="icon-px" src={PIXEL.star} alt="" /><span
+		>{t('Pick the path that fits your game: a castle when the race is close, a guild hall for the goods you have the most of, and a fortress when you hold knights.')}</span
+	>
+</p>
+
 <style>
 	.costs {
 		display: flex;
@@ -231,9 +285,32 @@
 		font-size: 13.5px;
 		color: var(--ink-soft);
 	}
+	/* The three city paths side by side, each picture over its name. */
+	.kinds.paths {
+		grid-template-columns: repeat(3, 1fr);
+	}
+	.paths .kind {
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		gap: 6px;
+	}
+	.paths .piece {
+		width: 76px;
+		height: 76px;
+	}
 	@media (max-width: 760px) {
-		.kinds {
+		.kinds,
+		.kinds.paths {
 			grid-template-columns: 1fr;
+		}
+		.paths .kind {
+			flex-direction: row;
+			text-align: left;
+		}
+		.paths .piece {
+			width: 58px;
+			height: 58px;
 		}
 	}
 </style>
