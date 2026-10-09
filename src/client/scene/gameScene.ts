@@ -34,9 +34,28 @@ export interface SceneCallbacks {
 	onResourcePopped?: (player: number, resource: string, screen: { x: number; y: number }) => void;
 	/** The dice of the roll event `seq` came to rest on the table. */
 	onDiceSettled?: (dice: [number, number], seq: number) => void;
-	onHover?: (label: string | null) => void;
+	/**
+	 * The built piece under the pointer changed (null: none), for its tooltip. With a mouse it
+	 * follows the pointer while nothing is being placed; on touch a tap on a piece sends it with
+	 * `tap` set.
+	 */
+	onPieceHover?: (spot: BoardSpot | null, tap: boolean) => void;
 	/** The tile under the pointer changed while this player picks where the robber goes (null: none). */
 	onAim?: (hex: number | null) => void;
+}
+
+/** Where a piece stands: a settlement or city on a vertex, a road on an edge, a workshop on a tile. */
+export interface BoardSpot {
+	place: 'vertex' | 'edge' | 'hex';
+	at: number;
+}
+
+/** A piece's key starts with where it stands: v12 (vertex), e5 (edge), w3 (a tile's workshop). */
+const SPOT_PLACE: Record<string, BoardSpot['place']> = { v: 'vertex', e: 'edge', w: 'hex' };
+function spotOf(key: string): BoardSpot | null {
+	const m = /^([a-z])(\d+)/.exec(key);
+	const place = m && SPOT_PLACE[m[1]];
+	return place ? { place, at: Number(m[2]) } : null;
 }
 
 interface PieceObj {
@@ -87,6 +106,13 @@ export class GameScene {
 	private theirAim: { hex: number; color: string } | null = null;
 	private raycaster = new THREE.Raycaster();
 	private pointer = new THREE.Vector2(-9, -9);
+	/** The last pointer's kind, and whether a button is held (dragging the view). */
+	private pointerType = '';
+	private pointerHeld = false;
+	/** The piece under the pointer as last reported to `onPieceHover` ('' for none). */
+	private hoverKey = '';
+	private hoverAt = new THREE.Vector2(-9, -9);
+	private hoverIdle = 0;
 	private mode: 'menu' | 'game' = 'menu';
 	private callbacks: SceneCallbacks = {};
 	private smokeClock = 0;
@@ -119,6 +145,7 @@ export class GameScene {
 		this.stage.onFrame((dt, t) => this.frame(dt, t));
 		canvas.addEventListener('pointermove', this.onPointerMove);
 		canvas.addEventListener('pointerup', this.onPointerUp);
+		canvas.addEventListener('pointerleave', this.onPointerLeave);
 		this.showMenuBoard();
 		this.stage.start();
 	}
@@ -304,6 +331,7 @@ export class GameScene {
 			this.stage.scene.add(obj);
 			// Keys end with the owner's seat.
 			const owner = Number(key.slice(key.lastIndexOf(':') + 1));
+			obj.userData.pieceKey = key;
 			this.pieces.set(key, { key, obj, owner, ground: obj.position.y, lift: 0, glow: null });
 			if (animate) this.dropIn(obj, key.startsWith('e'));
 		}
@@ -687,9 +715,26 @@ export class GameScene {
 	private onPointerMove = (e: PointerEvent) => {
 		const r = this.stage.canvas.getBoundingClientRect();
 		this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+		this.pointerType = e.pointerType;
+		this.pointerHeld = e.buttons !== 0;
+	};
+
+	private onPointerLeave = () => {
+		this.pointer.set(-9, -9);
 	};
 
 	private onPointerUp = (e: PointerEvent) => {
+		this.pointerHeld = false;
+		// A tap on a piece (when nothing is being placed) shows its tooltip on touch screens.
+		if (e.pointerType === 'touch' && !this.pick && !this.stage.rig.dragged) {
+			this.onPointerMove(e);
+			const piece = this.pieceAtPointer();
+			const spot = piece && spotOf(piece.key);
+			if (spot) this.callbacks.onPieceHover?.(spot, true);
+			return;
+		}
+		// After dragging the view, the piece still under the pointer gets its tooltip back.
+		if (e.pointerType !== 'touch') this.hoverKey = '';
 		if (e.button !== 0 || this.stage.rig.dragged || !this.pick) return;
 		this.onPointerMove(e);
 		const id = this.pickAtPointer();
@@ -713,6 +758,53 @@ export class GameScene {
 		const hits = this.raycaster.intersectObjects(this.ghostHits.map((g) => g.mesh), false);
 		if (!hits.length) return null;
 		return this.ghostHits.find((g) => g.mesh === hits[0].object)?.id ?? null;
+	}
+
+	/** The built piece under the pointer, if any. */
+	private pieceAtPointer(): PieceObj | null {
+		if (this.mode !== 'game' || !this.pieces.size) return null;
+		this.raycaster.setFromCamera(this.pointer, this.stage.camera);
+		const objs = [...this.pieces.values()].map((p) => p.obj);
+		for (const hit of this.raycaster.intersectObjects(objs, true)) {
+			let o: THREE.Object3D | null = hit.object;
+			while (o && o.userData.pieceKey === undefined) o = o.parent;
+			const piece = o && this.pieces.get(o.userData.pieceKey);
+			if (piece) return piece;
+		}
+		return null;
+	}
+
+	/**
+	 * Where a piece's tooltip points: just over the top of the piece on `spot`, in page pixels
+	 * (null when there is no such piece any more, or it is off screen).
+	 */
+	pieceTipPoint(spot: BoardSpot): { x: number; y: number } | null {
+		const prefix = { vertex: 'v', edge: 'e', hex: 'w' }[spot.place] + spot.at + ':';
+		let piece: PieceObj | null = null;
+		for (const p of this.pieces.values()) if (p.key.startsWith(prefix)) piece = p;
+		if (!piece) return null;
+		const box = new THREE.Box3().setFromObject(piece.obj);
+		const top = box.getCenter(new THREE.Vector3()).setY(box.max.y);
+		const v = top.project(this.stage.camera);
+		if (v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return null;
+		const r = this.stage.canvas.getBoundingClientRect();
+		return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+	}
+
+	/** Report the piece under a mouse pointer when it changes, for its tooltip. */
+	private hoverPiece() {
+		const live = !this.pick && this.pointerType !== 'touch' && !this.pointerHeld;
+		// Look again when the pointer moves, and now and then for pieces moving under it.
+		const moved = !this.hoverAt.equals(this.pointer);
+		if (live && !moved && ++this.hoverIdle < 12) return;
+		this.hoverAt.copy(this.pointer);
+		this.hoverIdle = 0;
+		const piece = live ? this.pieceAtPointer() : null;
+		const spot = piece && spotOf(piece.key);
+		const key = spot ? `${spot.place}${spot.at}` : '';
+		if (key === this.hoverKey) return;
+		this.hoverKey = key;
+		this.callbacks.onPieceHover?.(spot, false);
 	}
 
 	/** Little puffs from the chimneys of settlements and cities. */
@@ -873,6 +965,7 @@ export class GameScene {
 		}
 
 		// hover feedback
+		this.hoverPiece();
 		const id = this.pick ? this.pickAtPointer() : null;
 		this.stage.canvas.style.cursor = id !== null ? 'pointer' : '';
 		for (const slot of this.ghosts.children) {

@@ -9,6 +9,7 @@
 	import { sceneRef } from '../sceneRef';
 	import { sfx } from '../sound';
 	import Actions from './Actions.svelte';
+	import BoardTip from './BoardTip.svelte';
 	import CheatPanel from './CheatPanel.svelte';
 	import Dialogs from './Dialogs.svelte';
 	import DiceBadge from './DiceBadge.svelte';
@@ -221,6 +222,8 @@
 		scene?.setCallbacks({
 			// The dice came to rest: the interface catches up with the roll.
 			onDiceSettled: (_dice, seq) => client.landed(seq),
+			// A piece on the board under the pointer (or tapped): its tooltip says what it is.
+			onPieceHover: (spot, tap) => (ui.piece = spot ? { spot, tap } : null),
 			// The robber's tile under this player's pointer: everyone else sees it light up.
 			onAim: (hex) => {
 				client.aimAt(hex);
@@ -272,6 +275,7 @@
 	<Victory />
 	{#if view.phase === 'draft' && view.draft}<DraftPanel />{/if}
 	<Flyers />
+	<BoardTip />
 	<GameMenu />
 	{#if !client.spectating}
 		<PigeonLoft />

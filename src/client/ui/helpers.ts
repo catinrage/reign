@@ -13,6 +13,7 @@ import {
 } from '../../shared/rules/config';
 import { CHARACTER_INFO } from '../../shared/rules/characters';
 import {
+	builtKey,
 	citySpots,
 	costOf,
 	roadSpots,
@@ -21,6 +22,7 @@ import {
 	workshopSpots
 } from '../../shared/rules/queries';
 import type { BuiltKind, GameEvent, GameView } from '../../shared/rules/types';
+import type { BoardSpot } from '../scene/gameScene';
 import { PLAYER_CSS } from '../scene/layout';
 import { tint } from './art';
 
@@ -114,6 +116,51 @@ export function workshopName(view: GameView, hex: number): string {
 function builtName(view: GameView, kind: BuiltKind, at: number): string {
 	if (kind === 'workshop') return `a ${workshopName(view, at)}`;
 	return `a ${kind}`;
+}
+
+/** A piece's name, as its tooltip heads it: "Road", "City", "Mill". */
+export function pieceName(view: GameView, kind: BuiltKind, at: number): string {
+	if (kind === 'workshop') return workshopName(view, at);
+	return kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+
+/** When a piece went up, in words: "during setup", "on turn 6" (null if the game never said). */
+export function builtWhen(view: GameView, kind: BuiltKind, at: number): string | null {
+	const turn = view.builtTurns?.[builtKey(kind, at)];
+	if (turn === undefined) return null;
+	return turn === 0 ? 'during setup' : `on turn ${turn}`;
+}
+
+/**
+ * What the tooltip of a piece on the board says: its name over who owns it and the turn it went
+ * up on. A city also says when it was settled. Null when nothing stands on the spot.
+ */
+export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text: string } | null {
+	const { place, at } = spot;
+	let owner: number | null | undefined;
+	let kind: BuiltKind;
+	if (place === 'vertex') {
+		const b = view.buildings[at];
+		owner = b?.owner;
+		kind = b?.kind ?? 'settlement';
+	} else if (place === 'edge') {
+		owner = view.roads[at];
+		kind = 'road';
+	} else {
+		owner = view.workshops?.[at];
+		kind = 'workshop';
+	}
+	if (owner === null || owner === undefined || !view.players[owner]) return null;
+	const lines = [`Owner: ${name(view, owner)}`];
+	const when = (k: BuiltKind, verb: string) => {
+		const w = builtWhen(view, k, at);
+		if (w) lines.push(`${verb} ${w}`);
+	};
+	if (kind === 'city') {
+		when('settlement', 'Settled');
+		when('city', 'Became a city');
+	} else when(kind, 'Built');
+	return { head: pieceName(view, kind, at), text: lines.join('\n') };
 }
 
 export function myTurn(view: GameView | null): boolean {

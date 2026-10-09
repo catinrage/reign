@@ -84,6 +84,11 @@ export interface GameState {
 	buildingRules: BuildingRules;
 	/** Indexed by hex id: who owns the workshop on that tile, if anyone. */
 	workshops: (number | null)[];
+	/**
+	 * The turn each piece went up on (0: during setup), keyed by `builtKey`: a city keeps the
+	 * settlement's entry beside its own. The board's tooltips show it.
+	 */
+	builtTurns: Record<string, number>;
 	bank: ResourceCounts;
 	devDeck: DevCardType[];
 	devCardPlayedThisTurn: boolean;
