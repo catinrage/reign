@@ -91,6 +91,8 @@ export function promptText(view: GameView): string {
 	const who = cur?.name ?? '';
 	if (view.phase === 'ended') return `${view.winner === view.me ? 'You win' : `${view.players[view.winner!].name} wins`}!`;
 	switch (view.step) {
+		case 'pickCharacter':
+			return mine ? 'Pick your character' : `${who} is picking a character`;
 		case 'setupSettlement': {
 			const second = view.setupIndex >= view.players.length;
 			return mine ? `Place your ${second ? 'second' : 'first'} settlement` : `${who} is placing a settlement`;
@@ -166,6 +168,10 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return e.resource
 				? [P(e.thief), T(' stole '), R(e.resource), T(' from '), P(e.victim)]
 				: [P(e.thief), T(' stole a card from '), P(e.victim)];
+		case 'draftStarted':
+			return [T('Character draft: the first to place a settlement picks last')];
+		case 'characterPicked':
+			return [P(e.player), T(` picked ${CHARACTER_INFO[e.character].name} ${CHARACTER_INFO[e.character].title}`)];
 		case 'traitGain':
 			return [P(e.player), T(` (${CHARACTER_INFO[e.character].trait}) took `), R(e.resource)];
 		case 'nothingToSteal':
@@ -200,7 +206,7 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return [T('[cheat] '), P(e.player), T(` ${e.text}`)];
 		case 'gameStarted':
 			return view.mode === 'extended'
-				? [T(`Reign Extended on ${view.mapName}, first to ${view.pointsToWin} points. Place your settlements!`)]
+				? [T(`Reign Extended on ${view.mapName}, first to ${view.pointsToWin} points.${view.draft ? '' : ' Place your settlements!'}`)]
 				: [T('The game begins. Place your settlements!')];
 	}
 	return null;

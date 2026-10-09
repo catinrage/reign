@@ -1,4 +1,5 @@
 import { mapSeats, mapTiles, type MapChoice } from '../board/maps';
+import { CHARACTERS, type CharacterId } from './characters';
 
 /**
  * Reign has two modes. Classic is the standard game on the standard island, exactly as before.
@@ -54,6 +55,16 @@ export interface GameSettings {
 	/** Ignored in Classic, which always deals the standard island. */
 	map: MapChoice;
 	pointsToWin: number;
+	/** Reign Extended: whether players draft characters when the game starts. */
+	characters: boolean;
+	/** Characters the host left out of the draft. */
+	leftOut: CharacterId[];
+}
+
+/** The characters players can draft with these settings. */
+export function characterPool(settings: Pick<GameSettings, 'characters' | 'leftOut'>): CharacterId[] {
+	if (!settings.characters) return [];
+	return CHARACTERS.filter((c) => !settings.leftOut.includes(c));
 }
 
 /** How many players a game with these settings seats. Classic always seats four. */
@@ -65,5 +76,7 @@ export function seatsFor(settings: GameSettings): number {
 export const DEFAULT_SETTINGS: GameSettings = {
 	mode: 'classic',
 	map: { preset: 'great' },
-	pointsToWin: 10
+	pointsToWin: 10,
+	characters: true,
+	leftOut: []
 };

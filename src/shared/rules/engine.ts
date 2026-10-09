@@ -24,7 +24,7 @@ import {
 	type ResourceCounts
 } from './config';
 import type { CharacterId } from './characters';
-import { DEFAULT_SETTINGS, pieceLimits, type GameSettings } from './modes';
+import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
 	canPlaceRoad,
 	canPlaceSettlement,
@@ -58,7 +58,9 @@ export const LOG_LIMIT = 80;
 
 /**
  * Deal a new game. Classic always plays the standard island to 10 points with no characters.
- * Reign Extended deals the chosen map (unless a board is given) and gives players their characters.
+ * Reign Extended deals the chosen map (unless a board is given) and opens the character draft,
+ * unless the host turned characters off or the players come with characters already (tests and
+ * dev tools).
  */
 export function createGame(
 	players: NewPlayer[],
@@ -81,6 +83,8 @@ export function createGame(
 	for (const c of DEV_CARDS) for (let i = 0; i < counts[c]; i++) deck.push(c);
 	shuffle(rngHolder, deck);
 	const desert = b.hexes.findIndex((h) => h.terrain === 'desert');
+	const pool = extended ? characterPool(opts) : [];
+	const drafting = pool.length >= n && !players.some((p) => p.character);
 	const state: GameState = {
 		version: 0,
 		rng: rngHolder.rng,
@@ -96,15 +100,17 @@ export function createGame(
 				character: extended ? (p.character ?? null) : null,
 				resources: emptyResources(),
 				devCards: [],
-				knightsPlayed: extended && p.character === 'veteran' ? 1 : 0,
+				knightsPlayed: 0,
 				piecesLeft: extended ? pieceLimits(opts.pointsToWin) : { ...PIECE_LIMITS },
 				longestRoad: 0
 			})
 		),
-		phase: 'setup',
-		step: 'setupSettlement',
-		current: 0,
+		phase: drafting ? 'draft' : 'setup',
+		step: drafting ? 'pickCharacter' : 'setupSettlement',
+		// The draft runs backwards from the first player, who places first and so picks last.
+		current: drafting ? n - 1 : 0,
 		turn: 0,
+		draft: drafting ? { pool, order: players.map((_, i) => n - 1 - i), picked: 0 } : null,
 		setupIndex: 0,
 		setupLastSettlement: null,
 		dice: null,
@@ -127,8 +133,17 @@ export function createGame(
 	};
 	const ctx = new Ctx(state);
 	ctx.emit({ type: 'gameStarted', players: players.length });
-	ctx.emit({ type: 'turnStarted', player: 0, turn: 0 });
+	if (drafting) ctx.emit({ type: 'draftStarted', order: state.draft!.order });
+	else {
+		for (const pl of state.players) characterArrives(pl);
+		ctx.emit({ type: 'turnStarted', player: 0, turn: 0 });
+	}
 	return state;
+}
+
+/** What a character brings to the table the moment it's theirs: the Veteran's Knight. */
+function characterArrives(pl: PlayerState) {
+	if (pl.character === 'veteran') pl.knightsPlayed = 1;
 }
 
 /** Copy everything but the board, which never changes and keys the topology cache. */
@@ -208,8 +223,13 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 	if (a.type === 'respondTrade') return respondTrade(ctx, p, a.offerId, a.accept);
 
 	if (p !== s.current) fail("It's not your turn.");
+	if ((s.phase === 'draft') !== (a.type === 'pickCharacter')) {
+		fail(s.phase === 'draft' ? 'Pick your character first.' : 'The character draft is over.');
+	}
 
 	switch (a.type) {
+		case 'pickCharacter':
+			return pickCharacter(ctx, p, a.character);
 		case 'placeSettlement':
 			return s.phase === 'setup' ? setupSettlement(ctx, p, a.vertex) : buildSettlement(ctx, p, a.vertex);
 		case 'placeRoad':
@@ -244,6 +264,28 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 		default:
 			fail('Unknown action.');
 	}
+}
+
+// ---------------------------------------------------------------- draft
+
+function pickCharacter(ctx: Ctx, p: number, character: CharacterId) {
+	const s = ctx.s;
+	const d = s.draft!;
+	if (!d.pool.includes(character)) fail("That character isn't in this game.");
+	if (s.players.some((pl) => pl.character === character)) fail('Someone already picked that character.');
+	s.players[p].character = character;
+	characterArrives(s.players[p]);
+	ctx.emit({ type: 'characterPicked', player: p, character });
+	d.picked++;
+	if (d.picked < d.order.length) {
+		s.current = d.order[d.picked];
+		return;
+	}
+	// Everyone has a character: setup starts with the player who picked last.
+	s.phase = 'setup';
+	s.step = 'setupSettlement';
+	s.current = 0;
+	ctx.emit({ type: 'turnStarted', player: 0, turn: 0 });
 }
 
 // ---------------------------------------------------------------- setup

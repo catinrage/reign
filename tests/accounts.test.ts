@@ -151,7 +151,8 @@ describe('match history', () => {
 		let h = (await accounts.history(a.id))!;
 		expect(h.matches[0]).toMatchObject({ status: 'playing', code: 'ABCDE' });
 
-		await accounts.matchFinished(id, 31, 2, [7, 7, 10]);
+		// Characters are drafted after the start, so they're written down at the end.
+		await accounts.matchFinished(id, 31, 2, [7, 7, 10], ['mason', null, 'rogue']);
 		h = (await accounts.history(a.id))!;
 		expect(h.stats).toEqual({ played: 1, finished: 1, won: 0 });
 		const m = h.matches[0];
@@ -161,6 +162,7 @@ describe('match history', () => {
 			['Cleo', 7, 2],
 			['Bram', 10, 1]
 		]);
+		expect(m.players.map((p) => p.character)).toEqual(['mason', null, 'rogue']);
 		expect(m.players[1]).toMatchObject({ isBot: true, user: null });
 		expect(m.players[2].user).toMatchObject({ id: b.id, nickname: 'Bram' });
 		expect((await accounts.history(b.id))!.stats).toEqual({ played: 1, finished: 1, won: 1 });

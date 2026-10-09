@@ -10,6 +10,7 @@ import {
 	type ResourceCounts,
 	pips
 } from './config';
+import type { CharacterId } from './characters';
 import type { GameState, GameView } from './types';
 
 /** Read-only helpers shared by the engine, the bots and the client's highlighting. */
@@ -165,4 +166,10 @@ export function vertexValue(s: Shared, vertex: number): number {
 		if (TERRAIN_RESOURCE[hex.terrain]) v += pips(hex.number);
 	}
 	return v;
+}
+
+/** Characters still free in the character draft. */
+export function draftLeft(s: Pick<GameState | GameView, 'draft' | 'players'>): CharacterId[] {
+	if (!s.draft) return [];
+	return s.draft.pool.filter((c) => !s.players.some((p) => p.character === c));
 }

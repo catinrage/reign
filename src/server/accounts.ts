@@ -392,26 +392,34 @@ export class Accounts {
 	 * A game finished: everyone's points. The winner places first; the others place by points, and
 	 * players level on points share a place.
 	 */
-	async matchFinished(id: string, turns: number, winner: number, points: number[]) {
+	async matchFinished(id: string, turns: number, winner: number, points: number[], characters: (CharacterId | null)[] = []) {
 		const place = (seat: number) =>
 			seat === winner ? 1 : 2 + points.filter((p, i) => i !== winner && i !== seat && p > points[seat]).length;
 		await this.db.transaction(async (q) => {
 			await q(`update matches set status = 'finished', ended_at = now(), turns = $2 where id = $1`, [id, turns]);
 			for (const [seat, p] of points.entries()) {
-				await q('update match_players set points = $3, place = $4 where match_id = $1 and seat = $2', [id, seat, p, place(seat)]);
+				await q(
+					'update match_players set points = $3, place = $4, character = coalesce($5, character) where match_id = $1 and seat = $2',
+					[id, seat, p, place(seat), characters[seat] ?? null]
+				);
 			}
 		});
 	}
 
 	/** A game stopped before anyone won. */
-	async matchAbandoned(id: string, turns: number, points: number[]) {
+	async matchAbandoned(id: string, turns: number, points: number[], characters: (CharacterId | null)[] = []) {
 		await this.db.transaction(async (q) => {
 			await q(`update matches set status = 'abandoned', ended_at = now(), turns = $2 where id = $1 and status = 'playing'`, [
 				id,
 				turns
 			]);
 			for (const [seat, p] of points.entries()) {
-				await q('update match_players set points = $3 where match_id = $1 and seat = $2', [id, seat, p]);
+				await q('update match_players set points = $3, character = coalesce($4, character) where match_id = $1 and seat = $2', [
+					id,
+					seat,
+					p,
+					characters[seat] ?? null
+				]);
 			}
 		});
 	}

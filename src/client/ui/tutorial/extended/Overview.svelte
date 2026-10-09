@@ -87,7 +87,8 @@
 	</li>
 	<li>
 		<img class="icon-px" src={TUT_ICON.mask} alt="" /><span
-			>Everyone picks a <b>character</b>. Bots are given one at random.</span
+			>Turn <b>characters</b> on or off, and leave out any you don't want. Everyone drafts one when the
+			game starts.</span
 		>
 	</li>
 </ul>

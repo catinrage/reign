@@ -12,6 +12,7 @@
 	import CheatPanel from './CheatPanel.svelte';
 	import Dialogs from './Dialogs.svelte';
 	import DiceBadge from './DiceBadge.svelte';
+	import DraftPanel from './DraftPanel.svelte';
 	import Flyers, { flyers } from './Flyers.svelte';
 	import Hand from './Hand.svelte';
 	import Log from './Log.svelte';
@@ -182,6 +183,7 @@
 				sfx.win();
 				break;
 			case 'devCardBought':
+			case 'characterPicked':
 				sfx.card();
 				break;
 		}
@@ -259,6 +261,7 @@
 		<Dialogs />
 	{/if}
 	<Victory />
+	{#if view.phase === 'draft' && view.draft}<DraftPanel />{/if}
 	<Flyers />
 	<GameMenu />
 	{#if !client.spectating}

@@ -1,9 +1,17 @@
 <script lang="ts">
 	import { mapName, presetById } from '../../shared/board/maps';
-	import { CHARACTER_INFO } from '../../shared/rules/characters';
+	import { CHARACTERS } from '../../shared/rules/characters';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
 	import { RANDOM_SHAPE_INFO } from '../../shared/board/random';
-	import { GAME_MODES, MODE_INFO, POINT_GOALS, POINTS_MIN, maxPointsFor, suggestedPoints } from '../../shared/rules/modes';
+	import {
+		GAME_MODES,
+		MODE_INFO,
+		POINT_GOALS,
+		POINTS_MIN,
+		characterPool,
+		maxPointsFor,
+		suggestedPoints
+	} from '../../shared/rules/modes';
 	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
 	import { account } from '../state/account.svelte';
 	import { client } from '../state/client.svelte';
@@ -34,7 +42,7 @@
 	let inviting = $state(false);
 	const settings = $derived(lobby.settings);
 	const extended = $derived(settings.mode === 'extended');
-	const myChar = $derived(mySeat?.character ? CHARACTER_INFO[mySeat.character] : null);
+	const pool = $derived(characterPool({ ...settings, characters: true }));
 	const mapTiles = $derived(
 		'preset' in settings.map ? (presetById(settings.map.preset)?.tiles ?? []) : settings.map.custom.tiles
 	);
@@ -129,21 +137,14 @@
 					<div class="seats" class:many>
 						{#each lobby.seats as s (s.id)}
 							<div class="seat plaque" class:me={s.id === client.seat} class:ext={extended}>
-								{#if extended}
-									<span class="face">
-										<Portrait id={s.character} size={many ? 30 : 46} />
-										<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
-									</span>
-								{:else if s.avatar}
+								{#if s.avatar}
 									<span class="face">
 										<Avatar id={s.avatar} size={40} />
 										<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
 									</span>
 								{:else}
 									<span class="shield" style="--shield: var(--art-shield-{s.color})">
-										{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{s.name
-												.slice(0, 1)
-												.toUpperCase()}{/if}
+										{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{s.name.slice(0, 1).toUpperCase()}{/if}
 									</span>
 								{/if}
 								<span class="name title">
@@ -151,11 +152,7 @@
 										<span>
 											{s.name}
 											{#if s.id === client.seat}<em>you</em>{/if}
-											{#if extended && s.isBot}<img class="icon-px botmark" src={PIXEL.bot} alt="bot" />{/if}
 										</span>
-										{#if extended && s.character}
-											<small>{CHARACTER_INFO[s.character].name} {CHARACTER_INFO[s.character].title}</small>
-										{/if}
 									</span>
 								</span>
 								{#if s.isHost}<img class="icon-px tag" src={PIXEL.crown} alt="host" title="Host" />{/if}
@@ -272,21 +269,26 @@
 
 					{#if extended}
 						<div class="extended">
-							{#if mySeat}
-								<button class="pick plaque" onclick={() => (picking = 'character')}>
-									<Portrait id={mySeat.character} size={78} />
-									<span class="pick-body">
-										<span class="label">Your character</span>
-										{#if myChar}
-											<span class="pick-name title">{myChar.name} <small>{myChar.title}</small></span>
-											<span class="trait"><b>{myChar.trait}.</b> {myChar.text}</span>
-										{:else}
-											<span class="pick-name title">Pick a character</span>
-										{/if}
-										<span class="change">Change</span>
-									</span>
-								</button>
-							{/if}
+							<button class="pick plaque" onclick={() => (picking = 'character')}>
+								<span class="map-well well cast" class:off={!settings.characters}>
+									{#each CHARACTERS as c (c)}
+										<span class:out={!pool.includes(c)}><Portrait id={c} size={21} framed={false} /></span>
+									{/each}
+								</span>
+								<span class="pick-body">
+									<span class="label">Characters</span>
+									<span class="pick-name title"
+										>{settings.characters ? 'Drafted' : 'Off'}
+										{#if settings.characters}<small>{pool.length} of {CHARACTERS.length}</small>{/if}</span
+									>
+									<span class="trait"
+										>{settings.characters
+											? 'Everyone picks one when the game starts. The first to place a settlement picks last.'
+											: 'No characters: everyone plays by the plain rules.'}</span
+									>
+									<span class="change">{client.isHost ? 'Change' : 'See them all'}</span>
+								</span>
+							</button>
 							<div class="island">
 								<button class="pick plaque" disabled={!client.isHost} onclick={() => (picking = 'map')}>
 									<span class="map-well well"><MapPreview tiles={mapTiles} width={92} height={70} /></span>
@@ -697,43 +699,14 @@
 	.many .name {
 		font-size: 16px;
 	}
-	.many .who small {
-		font-size: 11.5px;
-	}
 	/* Same button, drawn at a smaller pixel size. */
 	.many .kick {
 		--s: 2.2px;
-	}
-	.face {
-		position: relative;
-		flex: none;
-	}
-	.shield.mini {
-		position: absolute;
-		right: -6px;
-		bottom: -5px;
-		--s: 1.4px;
-		width: 16px;
-		height: 19px;
-		padding: 0;
 	}
 	.who {
 		display: flex;
 		flex-direction: column;
 		line-height: 1.1;
-	}
-	.who small {
-		font-family: var(--body);
-		font-weight: 700;
-		font-size: 12.5px;
-		color: var(--muted);
-		text-shadow: none;
-	}
-	.botmark {
-		width: 15px;
-		height: 15px;
-		vertical-align: -1px;
-		opacity: 0.8;
 	}
 	.extended {
 		display: flex;
@@ -777,9 +750,6 @@
 		line-height: 1.3;
 		color: #f1dfc2;
 	}
-	.trait b {
-		color: var(--gold);
-	}
 	.change {
 		font-family: var(--px);
 		font-weight: 700;
@@ -800,6 +770,16 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
+	}
+	.cast {
+		display: grid;
+		grid-template-columns: repeat(4, 21px);
+		gap: 2px;
+		place-content: center;
+	}
+	.cast.off,
+	.cast .out {
+		filter: grayscale(0.9) brightness(0.5);
 	}
 	.island {
 		position: relative;

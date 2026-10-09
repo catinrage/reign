@@ -218,3 +218,35 @@ describe('random islands at their biggest goal', () => {
 			}
 		});
 });
+
+describe('character draft', () => {
+	it('drafts in reverse settlement order, then plays out', () => {
+		for (let seed = 1; seed <= 3; seed++) {
+			const n = 3 + seed;
+			let s = createGame(players(Array(n).fill(null)), seed * 71, undefined, {
+				...extended('realm'),
+				characters: true,
+				leftOut: ['merchant']
+			});
+			expect(s.phase).toBe('draft');
+			expect(s.draft!.order).toEqual([...Array(n).keys()].reverse());
+			expect(s.draft!.pool).not.toContain('merchant');
+			expect(applyAction(s, s.current, { type: 'placeSettlement', vertex: 0 }).ok).toBe(false);
+			expect(applyAction(s, s.current, { type: 'pickCharacter', character: 'merchant' }).ok).toBe(false);
+			expect(applyAction(s, (s.current + 1) % n, { type: 'pickCharacter', character: 'mason' }).ok).toBe(false);
+			s = act(s, s.current, { type: 'pickCharacter', character: 'veteran' });
+			expect(s.players[n - 1].character).toBe('veteran');
+			expect(s.players[n - 1].knightsPlayed).toBe(1);
+			expect(applyAction(s, s.current, { type: 'pickCharacter', character: 'veteran' }).ok).toBe(false);
+			s = playOut(s);
+			expect(s.phase).toBe('ended');
+			expect(new Set(s.players.map((p) => p.character)).size).toBe(n);
+		}
+	});
+
+	it('skips the draft when characters are off', () => {
+		const s = createGame(players([null, null]), 5, undefined, { ...extended(), characters: false });
+		expect(s.phase).toBe('setup');
+		expect(s.draft).toBeNull();
+	});
+});
