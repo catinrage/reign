@@ -13,6 +13,11 @@ export interface LobbySeat {
 	isHost: boolean;
 	/** The character this seat plays in Reign Extended (each one at most once per table). */
 	character: CharacterId | null;
+	/**
+	 * Ready to start. The host can only start once every other player is ready; the host and
+	 * bots always count as ready. Cleared when a game starts and when the host changes a setting.
+	 */
+	ready: boolean;
 }
 
 /**
@@ -53,6 +58,7 @@ export type ClientMessage =
 	| { t: 'setMap'; map: MapChoice }
 	| { t: 'setPointsToWin'; points: number }
 	| { t: 'setCharacter'; character: CharacterId }
+	| { t: 'setReady'; ready: boolean }
 	| { t: 'start' }
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }

@@ -51,6 +51,7 @@ describe('game menu pause', () => {
 		const host = room.join(a.ws, 'Ada');
 		const guest = room.join(b.ws, 'Bram');
 		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
 		room.handle(host, { t: 'start' }, a.ws);
 		room.handle(host, { t: 'pause', paused: true }, a.ws);
 		expect(room.lobbyInfo().paused).toBe(false);
@@ -90,6 +91,7 @@ function twoPlayers(turnTime: number) {
 	const guest = room.join(b.ws, 'Bram');
 	if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
 	room.handle(host, { t: 'setTurnTime', seconds: turnTime }, a.ws);
+	room.handle(guest, { t: 'setReady', ready: true }, b.ws);
 	room.handle(host, { t: 'start' }, a.ws);
 	const act = (action: Action) => {
 		const seat = room.seats[room.game!.current];
@@ -132,6 +134,7 @@ describe('turn timer', () => {
 		expect(last(b.sent, 'lobby').lobby.turnTime).toBe(90);
 		expect(last(b.sent, 'lobby').lobby.clock).toBeNull();
 
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
 		room.handle(host, { t: 'start' }, a.ws);
 		room.handle(host, { t: 'setTurnTime', seconds: 30 }, a.ws);
 		expect(room.lobbyInfo().turnTime).toBe(90);
@@ -330,6 +333,7 @@ describe('Reign Extended lobby', () => {
 		room.handle(host, { t: 'setPointsToWin', points: 12 }, a.ws);
 		room.handle(host, { t: 'setPointsToWin', points: 99 }, a.ws);
 		expect(room.lobbyInfo().settings).toEqual({ mode: 'extended', map: { preset: 'realm' }, pointsToWin: 12 });
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
 		room.handle(host, { t: 'start' }, a.ws);
 		expect(room.game!.board.hexes).toHaveLength(37);
 		expect(room.game!.pointsToWin).toBe(12);
@@ -367,6 +371,86 @@ describe('Reign Extended lobby', () => {
 		room.handle(host, { t: 'setMap', map: { custom: { name: 'Tiny', tiles } } }, a.ws);
 		expect(room.lobbyInfo().settings.map).toEqual({ preset: 'great' });
 		expect(a.sent.some((m) => m.t === 'error')).toBe(true);
+		room.dispose();
+	});
+});
+
+describe('ready check', () => {
+	afterEach(() => vi.useRealTimers());
+
+	function table() {
+		vi.useFakeTimers();
+		const room = new Room('READY');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'addBot' }, a.ws);
+		return { room, host, guest, a, b };
+	}
+
+	it('keeps the host from starting until every player is ready', () => {
+		const { room, host, guest, a, b } = table();
+		const ready = () => room.lobbyInfo().seats.map((s) => s.ready);
+		// The host and bots count as ready; the guest has to say so.
+		expect(ready()).toEqual([true, false, true]);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game).toBeNull();
+		expect(last(a.sent, 'error').message).toBe('Waiting for Bram to be ready.');
+
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		expect(last(a.sent, 'lobby').lobby.seats[1].ready).toBe(true);
+		room.handle(guest, { t: 'setReady', ready: false }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game).toBeNull();
+
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game).not.toBeNull();
+		room.dispose();
+	});
+
+	it('asks again when the host changes the game', () => {
+		const { room, host, guest, a, b } = table();
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		// Picking what is already set changes nothing.
+		room.handle(host, { t: 'setTurnTime', seconds: 0 }, a.ws);
+		expect(guest.ready).toBe(true);
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		expect(guest.ready).toBe(false);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'setMap', map: { preset: 'realm' } }, a.ws);
+		expect(guest.ready).toBe(false);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'setPointsToWin', points: 12 }, a.ws);
+		expect(guest.ready).toBe(false);
+		room.dispose();
+	});
+
+	it('needs everyone ready again for a rematch, unless they left', () => {
+		const { room, host, guest, a, b } = table();
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(guest.ready).toBe(false);
+		// Ready can't be changed mid-game.
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		expect(guest.ready).toBe(false);
+
+		room.game = { ...room.game!, phase: 'ended' };
+		const first = room.game;
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game).toBe(first);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game).not.toBe(first);
+
+		// A player who walked away doesn't hold the table up.
+		room.game = { ...room.game!, phase: 'ended' };
+		const second = room.game;
+		room.handle(guest, { t: 'leave' }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game).not.toBe(second);
 		room.dispose();
 	});
 });
