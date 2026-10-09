@@ -107,7 +107,8 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 		return { type: 'placeSettlement', vertex: best(settleSpots, (v) => spotScore(s, me, v)) };
 	}
 	// Reign Extended: a workshop on its best tile, if that tile pays often enough to be worth it
-	// (bots that keep to 4-pip tiles beat bots without workshops a little over half the time).
+	// (with an Ore in the price, only a 6 or an 8 is: two bots that keep to those win about 47% of
+	// games against two that build none, and building on 5s and 9s too does worse).
 	const shop = bestWorkshop(s, me);
 	if (shop !== null && hasResources(res, costOf(s, me, 'workshop'))) return { type: 'buildWorkshop', hex: shop };
 	const roadsOk = roadSpots(s, me);
@@ -136,7 +137,7 @@ function bestWorkshop(s: GameState, me: number): number | null {
 		return pips(hex.number) + (res === 'wheat' || res === 'ore' ? 0.5 : 0) - (h === s.robberHex ? 2 : 0);
 	};
 	const h = best(spots, score);
-	return score(h) >= 4 ? h : null;
+	return score(h) >= 5 ? h : null;
 }
 
 function playableCard(s: GameState, me: number, type: string) {

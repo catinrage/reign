@@ -137,7 +137,9 @@ describe('workshops', () => {
 		const s = midGame(extended());
 		const h = workshopSpots(s, s.current)[0];
 		const poor = structuredClone(s);
-		poor.players[poor.current].resources = { wood: 1, brick: 0, sheep: 2, wheat: 2, ore: 2 };
+		// A Lumber, a Brick and an Ore: two of them aren't enough.
+		expect(COSTS.workshop).toEqual({ wood: 1, brick: 1, ore: 1 });
+		poor.players[poor.current].resources = { wood: 1, brick: 1, sheep: 2, wheat: 2, ore: 0 };
 		expect(error(poor, poor.current, { type: 'buildWorkshop', hex: h })).toBe("You don't have enough resources.");
 		const early = structuredClone(s);
 		early.step = 'roll';
