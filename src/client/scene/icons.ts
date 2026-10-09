@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { RESOURCES } from '../../shared/rules/config';
+import { RESOURCES, type Resource } from '../../shared/rules/config';
 import { cityModel, resourceItemModel, roadModel, settlementModel } from './board/models';
+import { workshopObject } from './board/workshops';
 import { PLAYER_RGB } from './layout';
 import { sharedUniforms } from './voxel/materials';
 
@@ -14,6 +15,14 @@ export interface IconSet {
 }
 
 let icons: IconSet | null = null;
+
+/** A workshop standing still for its picture, the Mill's sails turned to a cross. */
+function posedWorkshop(res: Resource, color: number) {
+	const w = workshopObject(res, color);
+	const sails = w.getObjectByName('sails');
+	if (sails) sails.rotation.z = Math.PI / 4;
+	return w;
+}
 
 export function getIcons(): IconSet {
 	if (icons) return icons;
@@ -37,20 +46,40 @@ export function getIcons(): IconSet {
 	// small canvas while shooting, or they swell into a dark square round the piece.
 	const viewport = sharedUniforms.uViewport.value.clone();
 	sharedUniforms.uViewport.value.set(size, size);
-	const shoot = (key: string, model: THREE.Object3D, yaw = -0.6) => {
+	// `tight` frames the model's own voxels as the camera sees them, centred, instead of the sphere
+	// round its box: a tall, thin model (a mill with its sails) then fills its picture like the rest.
+	const shoot = (key: string, model: THREE.Object3D, yaw = -0.6, tight = false) => {
 		const holder = new THREE.Group();
 		holder.add(model);
 		model.rotation.y = yaw;
 		scene.add(holder);
 		const box = new THREE.Box3().setFromObject(holder);
 		const center = box.getCenter(new THREE.Vector3());
-		const sz = box.getSize(new THREE.Vector3()).length() * 0.5;
-		camera.left = -sz;
-		camera.right = sz;
-		camera.top = sz;
-		camera.bottom = -sz;
 		camera.position.copy(center).add(new THREE.Vector3(0, 0.75, 1).normalize().multiplyScalar(40));
 		camera.lookAt(center);
+		camera.updateMatrixWorld();
+		const sz = box.getSize(new THREE.Vector3()).length() * 0.5;
+		let [left, right, bottom, top] = [-sz, sz, -sz, sz];
+		if (tight) {
+			[left, right, bottom, top] = [Infinity, -Infinity, Infinity, -Infinity];
+			const v = new THREE.Vector3();
+			holder.updateMatrixWorld(true);
+			holder.traverseVisible((o) => {
+				const pos = (o as THREE.Mesh).isMesh ? (o as THREE.Mesh).geometry.getAttribute('position') : undefined;
+				if (!pos) return;
+				for (let i = 0; i < pos.count; i++) {
+					v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+					[left, right, bottom, top] = [Math.min(left, v.x), Math.max(right, v.x), Math.min(bottom, v.y), Math.max(top, v.y)];
+				}
+			});
+			const half = Math.max(right - left, top - bottom) * 0.6;
+			const [cx, cy] = [(left + right) / 2, (bottom + top) / 2];
+			[left, right, bottom, top] = [cx - half, cx + half, cy - half, cy + half];
+		}
+		camera.left = left;
+		camera.right = right;
+		camera.top = top;
+		camera.bottom = bottom;
 		camera.updateProjectionMatrix();
 		renderer.setClearColor(0x000000, 0);
 		renderer.render(scene, camera);
@@ -67,7 +96,11 @@ export function getIcons(): IconSet {
 		shoot(`settlement:${color}`, settlementModel(rgbVal).clone());
 		shoot(`city:${color}`, cityModel(rgbVal).clone());
 		shoot(`road:${color}`, roadModel(rgbVal).clone(), -0.9);
+		// Every workshop shares the Mill's picture in the menus.
+		shoot(`workshop:${color}`, posedWorkshop('wheat', rgbVal), -0.5, true);
 	}
+	// And each kind of workshop on its own, in red, for the tutorial.
+	for (const r of RESOURCES) shoot(`workshop:${r}`, posedWorkshop(r, PLAYER_RGB.red), -0.5, true);
 	sharedUniforms.uViewport.value.copy(viewport);
 	renderer.dispose();
 	renderer.forceContextLoss();

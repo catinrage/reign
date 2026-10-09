@@ -8,7 +8,9 @@
 	const view = $derived(client.view!);
 	const text = $derived(
 		ui.build && view.step === 'main'
-			? `Click a glowing spot to place your ${ui.build}`
+			? ui.build === 'workshop'
+				? 'Click a glowing tile to build your workshop'
+				: `Click a glowing spot to place your ${ui.build}`
 			: promptText(view)
 	);
 	const mine = $derived(myTurn(view));

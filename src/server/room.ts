@@ -14,6 +14,7 @@ import { type CustomMap, type MapChoice, mapName, mapTiles, presetById, validate
 import { cleanRandomOptions } from '../shared/board/random';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
+import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
 import {
@@ -350,6 +351,11 @@ export class Room {
 				if (!isHost || this.lockedSettings || !validHandLimit(msg.cards)) return;
 				if (this.settings.handLimit !== msg.cards) this.unready();
 				this.settings.handLimit = msg.cards;
+				return this.broadcastLobby();
+			case 'setBuilding':
+				if (!isHost || this.lockedSettings || !isExtraBuilding(msg.building)) return;
+				if (this.settings.buildings[msg.building] !== !!msg.on) this.unready();
+				this.settings.buildings[msg.building] = !!msg.on;
 				return this.broadcastLobby();
 			case 'setCharacters':
 				if (!isHost || this.lockedSettings) return;

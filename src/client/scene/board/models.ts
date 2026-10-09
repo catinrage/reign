@@ -18,7 +18,7 @@ interface BuildOptions {
 	outline?: boolean;
 }
 
-function build(
+export function build(
 	key: string,
 	size: [number, number, number],
 	fill: (g: VoxelGrid) => void,
@@ -46,15 +46,15 @@ export function cloneModel(g: THREE.Group): THREE.Group {
 
 // ---------------------------------------------------------------- player pieces
 
-const WINDOW = hex('#ffd77a');
-const DOOR = hex('#4a2c18');
-const STONE = [hex('#8e8a84'), hex('#a29d96')];
+export const WINDOW = hex('#ffd77a');
+export const DOOR = hex('#4a2c18');
+export const STONE = [hex('#8e8a84'), hex('#a29d96')];
 
 /**
  * Player pieces are outlined and lit a little from within, so a green house still stands out
  * in a forest and a yellow road in a wheat field.
  */
-const PIECE: BuildOptions = { outline: true, mats: { [Mat.Solid]: { lift: 0.2 } } };
+export const PIECE: BuildOptions = { outline: true, mats: { [Mat.Solid]: { lift: 0.2 } } };
 
 export function settlementModel(color: number): THREE.Group {
 	return build(`settlement:${color}`, [7, 7, 7], (g) => {

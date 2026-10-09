@@ -1,4 +1,5 @@
 import { getTopology } from '../board/topology';
+import { WORKSHOP_LIMIT } from './buildings';
 import {
 	COSTS,
 	DISCARD_THRESHOLD,
@@ -16,7 +17,15 @@ import type { GameState, GameView } from './types';
 /** Read-only helpers shared by the engine, the bots and the client's highlighting. */
 type Shared = Pick<
 	GameState | GameView,
-	'board' | 'buildings' | 'roads' | 'robberHex' | 'longestRoadHolder' | 'largestArmyHolder' | 'handLimit'
+	| 'board'
+	| 'buildings'
+	| 'roads'
+	| 'robberHex'
+	| 'longestRoadHolder'
+	| 'largestArmyHolder'
+	| 'handLimit'
+	| 'buildingRules'
+	| 'workshops'
 > & { players: { character: GameState['players'][number]['character'] }[] };
 
 /** What a build costs this player: the standard price, bent by their character's trait. */
@@ -81,6 +90,26 @@ export function citySpots(s: Shared, player: number): number[] {
 	const out: number[] = [];
 	s.buildings.forEach((b, v) => {
 		if (b && b.owner === player && b.kind === 'settlement') out.push(v);
+	});
+	return out;
+}
+
+/** How many workshops a player has built. */
+export function workshopCount(s: Shared, player: number): number {
+	return s.workshops.filter((o) => o === player).length;
+}
+
+/**
+ * Tiles a player can build a workshop on: ones that produce, beside one of their settlements or
+ * cities, with no workshop yet, while they have workshops left to build.
+ */
+export function workshopSpots(s: Shared, player: number): number[] {
+	if (!s.buildingRules.workshop || workshopCount(s, player) >= WORKSHOP_LIMIT) return [];
+	const topo = getTopology(s.board);
+	const out: number[] = [];
+	s.board.hexes.forEach((hex, h) => {
+		if (!TERRAIN_RESOURCE[hex.terrain] || s.workshops[h] !== null) return;
+		if (topo.hexes[h].vertices.some((v) => s.buildings[v]?.owner === player)) out.push(h);
 	});
 	return out;
 }

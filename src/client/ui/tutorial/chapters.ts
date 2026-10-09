@@ -11,6 +11,7 @@ import Robber from './classic/Robber.svelte';
 import Setup from './classic/Setup.svelte';
 import Trading from './classic/Trading.svelte';
 import Turn from './classic/Turn.svelte';
+import Buildings from './extended/Buildings.svelte';
 import Characters from './extended/Characters.svelte';
 import MapMaker from './extended/MapMaker.svelte';
 import Maps from './extended/Maps.svelte';
@@ -128,6 +129,14 @@ export const CHAPTERS: Chapter[] = [
 		lede: 'Every player plays a character whose trait bends one rule in their favor.',
 		icon: TUT_ICON.mask,
 		page: Characters
+	},
+	{
+		id: 'buildings',
+		mode: 'extended',
+		title: 'New buildings',
+		lede: 'Workshops and more: buildings that do new jobs, if the host plays them.',
+		icon: PIXEL.hammer,
+		page: Buildings
 	},
 	{
 		id: 'maps',

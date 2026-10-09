@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { BUILDING_INFO, WORKSHOP_LIMIT } from '../../../shared/rules/buildings';
 	import type { BuildKind } from '../../../shared/rules/config';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
-	import { costOf } from '../../../shared/rules/queries';
-	import { buildAvailable, countsList, myTurn } from '../helpers';
+	import { costOf, workshopCount } from '../../../shared/rules/queries';
+	import { buildAvailable, buildNote, countsList, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 
@@ -13,12 +14,15 @@
 	const left = $derived(view.players[view.me]?.piecesLeft);
 	const icons = getIcons().urls;
 
-	const builds: { kind: BuildKind; label: string }[] = [
+	type Build = { kind: BuildKind; label: string };
+	const builds: Build[] = [
 		{ kind: 'road', label: 'Road' },
 		{ kind: 'settlement', label: 'Settlement' },
 		{ kind: 'city', label: 'City' },
 		{ kind: 'devCard', label: 'Dev card' }
 	];
+	/** Reign Extended buildings the host put in this game. */
+	const reign = $derived<Build[]>(view.buildingRules?.workshop ? [{ kind: 'workshop', label: 'Workshop' }] : []);
 
 	function onBuild(kind: BuildKind) {
 		if (kind === 'devCard') return client.act({ type: 'buyDevCard' });
@@ -29,9 +33,37 @@
 	}
 	function stock(kind: BuildKind) {
 		if (kind === 'devCard') return view.devDeckCount;
+		if (kind === 'workshop') return WORKSHOP_LIMIT - workshopCount(view, view.me);
 		return left?.[kind] ?? 0;
 	}
 </script>
+
+{#snippet plaque(b: Build)}
+	{@const ok = buildAvailable(view, b.kind)}
+	{@const extra = b.kind === 'workshop'}
+	<!-- Reign buildings are new to most players, so they explain themselves and why they can't
+	     be built yet (aria-disabled keeps that tooltip working, on phones too). -->
+	<button
+		class="build plaque"
+		class:active={ui.build === b.kind}
+		disabled={!ok && !extra}
+		aria-disabled={extra ? !ok : undefined}
+		title={extra ? BUILDING_INFO.workshop.text : undefined}
+		data-tip-head={extra ? b.label : undefined}
+		data-tip-note={extra && !ok ? buildNote(view, b.kind) : undefined}
+		onclick={() => ok && onBuild(b.kind)}
+	>
+		<img class="piece" class:icon-px={b.kind === 'devCard'} src={iconFor(b.kind)} alt="" />
+		<span class="bname title"
+			>{b.label}<small title={extra ? undefined : 'Left to build'}>{stock(b.kind)}</small></span
+		>
+		<span class="cost">
+			{#each countsList(costOf(view, view.me, b.kind)) as c (c.res)}
+				{#each Array(c.n) as _, k (k)}<img class="res" src={icons[c.res]} alt={c.res} />{/each}
+			{/each}
+		</span>
+	</button>
+{/snippet}
 
 {#if view.me >= 0 && view.phase !== 'ended'}
 	<div class="actions">
@@ -42,35 +74,12 @@
 		{/if}
 		{#if mine && view.step === 'main'}
 			{#if !ui.trade}
-				<div class="builds panel">
-					{#each builds as b (b.kind)}
-						{@const ok = buildAvailable(view, b.kind)}
-						<button
-							class="build plaque"
-							class:active={ui.build === b.kind}
-							disabled={!ok}
-							onclick={() => onBuild(b.kind)}
-						>
-							<img
-								class="piece"
-								class:icon-px={b.kind === 'devCard'}
-								src={iconFor(b.kind)}
-								alt=""
-							/>
-							<span class="bname title"
-								>{b.label}<small title="Left to build">{stock(b.kind)}</small></span
-							>
-							<span class="cost">
-								{#each countsList(costOf(view, view.me, b.kind)) as c (c.res)}
-									{#each Array(c.n) as _, k (k)}<img
-											class="res"
-											src={icons[c.res]}
-											alt={c.res}
-										/>{/each}
-								{/each}
-							</span>
-						</button>
-					{/each}
+				<div class="builds panel" class:reign={reign.length}>
+					{#each builds as b (b.kind)}{@render plaque(b)}{/each}
+					{#if reign.length}
+						<div class="sep"><i></i><span>Reign</span><i></i></div>
+						{#each reign as b (b.kind)}{@render plaque(b)}{/each}
+					{/if}
 				</div>
 			{/if}
 			<div class="row">
@@ -143,10 +152,34 @@
 		filter: drop-shadow(0 0 0 #ffd45a) drop-shadow(0 0 4px #ffd45a) brightness(1.2);
 		animation: bob 1.4s ease-in-out infinite;
 	}
-	.build:disabled {
+	.build:disabled,
+	.build[aria-disabled='true'] {
 		cursor: not-allowed;
 		opacity: 0.6;
 		filter: grayscale(0.55);
+	}
+	.build[aria-disabled='true']:hover {
+		transform: none;
+	}
+	/* The Reign buildings sit under a small heading of their own. */
+	.sep {
+		grid-column: 1 / -1;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: 1px 2px -1px;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 11px;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--gold);
+		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+	}
+	.sep i {
+		flex: 1;
+		height: 2px;
+		background: linear-gradient(90deg, transparent, rgba(255, 212, 90, 0.55), transparent);
 	}
 	.piece {
 		grid-row: 1 / 3;
@@ -204,6 +237,13 @@
 			grid-template-columns: repeat(4, 1fr);
 			padding: 2px;
 			gap: 3px;
+		}
+		/* No room for a heading: the Reign buildings join the row. */
+		.builds.reign {
+			grid-template-columns: repeat(5, 1fr);
+		}
+		.sep {
+			display: none;
 		}
 		.build {
 			min-width: 0;

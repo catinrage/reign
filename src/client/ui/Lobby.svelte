@@ -20,6 +20,7 @@
 	import Avatar from './account/Avatar.svelte';
 	import Friends from './account/Friends.svelte';
 	import { ACCOUNT_ICONS } from './account/icons';
+	import BuildingRules from './extended/BuildingRules.svelte';
 	import CharacterPicker from './extended/CharacterPicker.svelte';
 	import MapPicker from './extended/MapPicker.svelte';
 	import MapPreview from './extended/MapPreview.svelte';
@@ -375,6 +376,7 @@
 									<span class="chosen">{settings.handLimit} cards</span>
 								{/if}
 							</div>
+							<BuildingRules />
 						</div>
 					{/if}
 

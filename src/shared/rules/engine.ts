@@ -24,6 +24,7 @@ import {
 	type Resource,
 	type ResourceCounts
 } from './config';
+import { WORKSHOP_LIMIT, allBuildings, cleanBuildingRules } from './buildings';
 import type { CharacterId } from './characters';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
@@ -36,7 +37,8 @@ import {
 	playersOnHex,
 	publicPoints,
 	roadSpots,
-	tradeRatios
+	tradeRatios,
+	workshopCount
 } from './queries';
 import type {
 	Action,
@@ -119,6 +121,8 @@ export function createGame(
 		robberHex: desert >= 0 ? desert : 0,
 		buildings: topo.vertices.map(() => null),
 		roads: topo.edges.map(() => null),
+		buildingRules: extended ? cleanBuildingRules(opts.buildings) : allBuildings(false),
+		workshops: b.hexes.map(() => null),
 		bank: { wood: bank, brick: bank, sheep: bank, wheat: bank, ore: bank },
 		devDeck: deck,
 		devCardPlayedThisTurn: false,
@@ -240,6 +244,8 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 			return buildRoad(ctx, p, a.edge);
 		case 'buildCity':
 			return buildCity(ctx, p, a.vertex);
+		case 'buildWorkshop':
+			return buildWorkshop(ctx, p, a.hex);
 		case 'rollDice':
 			return roll(ctx, p);
 		case 'moveRobber':
@@ -406,6 +412,9 @@ function produce(ctx: Ctx, total: number) {
 			const b = s.buildings[v];
 			if (b) owed.push({ player: b.owner, hex: h, resource: res, amount: b.kind === 'city' ? 2 : 1 });
 		}
+		// A workshop adds a card for its owner, who always has a building on the tile.
+		const w = s.workshops[h];
+		if (w !== null) owed.push({ player: w, hex: h, resource: res, amount: 1, workshop: true });
 	});
 	// Bank shortage: if the bank can't pay everyone a resource, nobody gets it,
 	// unless only one player is owed it, who then takes what is left.
@@ -566,6 +575,21 @@ function buildCity(ctx: Ctx, p: number, vertex: number) {
 	s.players[p].piecesLeft.settlement++;
 	ctx.emit({ type: 'built', player: p, kind: 'city', at: vertex, free: false });
 	checkWin(ctx);
+}
+
+function buildWorkshop(ctx: Ctx, p: number, hex: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (!s.buildingRules.workshop) fail('Workshops are not part of this game.');
+	const tile = Number.isInteger(hex) ? s.board.hexes[hex] : undefined;
+	if (!tile) fail('Pick a tile on the island.');
+	if (!TERRAIN_RESOURCE[tile.terrain]) fail('Workshops go on tiles that produce something.');
+	if (s.workshops[hex] !== null) fail('That tile already has a workshop.');
+	if (!playersOnHex(s, hex).includes(p)) fail('Build it on a tile beside one of your settlements or cities.');
+	if (workshopCount(s, p) >= WORKSHOP_LIMIT) fail(`You can build at most ${WORKSHOP_LIMIT} workshops.`);
+	pay(s, p, costOf(s, p, 'workshop'));
+	s.workshops[hex] = p;
+	ctx.emit({ type: 'built', player: p, kind: 'workshop', at: hex, free: false });
 }
 
 // ---------------------------------------------------------------- development cards

@@ -1,17 +1,26 @@
 import { getTopology } from '../../shared/board/topology';
+import { WORKSHOP_LIMIT, WORKSHOP_NAME } from '../../shared/rules/buildings';
 import {
 	COSTS,
 	DEV_CARD_LABEL,
 	RESOURCES,
 	RESOURCE_LABEL,
+	TERRAIN_RESOURCE,
 	hasResources,
 	type BuildKind,
 	type Resource,
 	type ResourceCounts
 } from '../../shared/rules/config';
 import { CHARACTER_INFO } from '../../shared/rules/characters';
-import { citySpots, costOf, roadSpots, settlementSpots } from '../../shared/rules/queries';
-import type { GameEvent, GameView } from '../../shared/rules/types';
+import {
+	citySpots,
+	costOf,
+	roadSpots,
+	settlementSpots,
+	workshopCount,
+	workshopSpots
+} from '../../shared/rules/queries';
+import type { BuiltKind, GameEvent, GameView } from '../../shared/rules/types';
 import { PLAYER_CSS } from '../scene/layout';
 import { tint } from './art';
 
@@ -74,7 +83,37 @@ export function buildAvailable(view: GameView, kind: BuildKind): boolean {
 			return p.piecesLeft.city > 0 && citySpots(view, view.me).length > 0;
 		case 'devCard':
 			return view.devDeckCount > 0;
+		case 'workshop':
+			return workshopSpots(view, view.me).length > 0;
 	}
+}
+
+/** A list of cards in words: "1 Lumber, 1 Brick and 1 Ore". */
+export function cardsText(r: Partial<ResourceCounts>): string {
+	const parts = countsList(r).map((c) => `${c.n} ${RESOURCE_LABEL[c.res]}`);
+	return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? '');
+}
+
+/** Why a build can't be made right now, for its tooltip ('' when it can). */
+export function buildNote(view: GameView, kind: BuildKind): string {
+	if (kind === 'workshop') {
+		if (workshopCount(view, view.me) >= WORKSHOP_LIMIT) return `You have built all ${WORKSHOP_LIMIT} of your workshops.`;
+		if (!workshopSpots(view, view.me).length) return 'Every tile beside your buildings already has a workshop.';
+	}
+	if (!canAfford(view, kind)) return `You need ${cardsText(costOf(view, view.me, kind))}.`;
+	return '';
+}
+
+/** The workshop a tile would get: a Mill on fields, a Kiln on hills... */
+export function workshopName(view: GameView, hex: number): string {
+	const res = TERRAIN_RESOURCE[view.board.hexes[hex]?.terrain ?? 'desert'];
+	return res ? WORKSHOP_NAME[res] : 'Workshop';
+}
+
+/** What was built, as the log says it: "a road", "a Mill". */
+function builtName(view: GameView, kind: BuiltKind, at: number): string {
+	if (kind === 'workshop') return `a ${workshopName(view, at)}`;
+	return `a ${kind}`;
 }
 
 export function myTurn(view: GameView | null): boolean {
@@ -132,7 +171,7 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 		case 'turnTimedOut':
 			return [P(e.player), T(' ran out of time')];
 		case 'built':
-			return [P(e.player), T(` built a ${e.kind}`)];
+			return [P(e.player), T(` built ${builtName(view, e.kind, e.at)}`)];
 		case 'diceRolled':
 			return [P(e.player), T(` rolled ${e.dice[0] + e.dice[1]}`)];
 		case 'produced': {
