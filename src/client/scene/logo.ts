@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import type { Quality } from './stage';
 import { Mat, VoxelGrid, hash3, hex, mix } from './voxel/grid';
 import { meshesFor } from './voxel/materials';
 import { meshGrid } from './voxel/mesher';
@@ -178,14 +179,19 @@ export class LogoView {
 	private t0 = performance.now();
 	private size: { w: number; h: number };
 
-	constructor(readonly canvas: HTMLCanvasElement) {
+	/** At very low quality the logo is drawn with fewer pixels and no smoothing. */
+	constructor(
+		readonly canvas: HTMLCanvasElement,
+		quality: Quality = 'high'
+	) {
+		const plain = quality === 'veryLow';
 		this.renderer = new THREE.WebGLRenderer({
 			canvas,
 			alpha: true,
-			antialias: true,
+			antialias: !plain,
 			powerPreference: 'low-power'
 		});
-		this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+		this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, plain ? 1 : 2));
 		this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 		this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
 		this.renderer.toneMappingExposure = 0.9;

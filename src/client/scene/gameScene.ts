@@ -20,7 +20,7 @@ import { type Room, buildRoom } from './room/room';
 import { TABLE_HALF } from './room/table';
 import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
-import { sharedUniforms } from './voxel/materials';
+import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
 
 /**
  * `stoneRoad` picks one of your roads to pave, `storehouse` one of your buildings to add a
@@ -1646,6 +1646,7 @@ function rimMaterial(color: THREE.Color, width: number) {
 			uniform float uOpacity;
 			void main() {
 				gl_FragColor = vec4(uColor, uOpacity);
+				${FRAG_OUTPUT}
 			}`,
 		side: THREE.BackSide,
 		transparent: true,
@@ -1692,6 +1693,7 @@ function beamMaterial(color: THREE.Color, core: THREE.Color) {
 				float a8 = a2 * a2 * a2 * a2;
 				vec3 light = uColor * a2 + uCore * a8 * a8 * a8;
 				gl_FragColor = vec4(light, along * uOpacity);
+				${FRAG_OUTPUT}
 			}`,
 		side: THREE.DoubleSide,
 		transparent: true,

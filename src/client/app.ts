@@ -7,25 +7,17 @@ import { OFFLINE } from './offline/flag';
 import { client } from './state/client.svelte';
 import App from './ui/App.svelte';
 import { installArt } from './ui/art';
-import { applySettings } from './ui/settings.svelte';
+import { applySettings, settings } from './ui/settings.svelte';
 import { sceneRef } from './ui/sceneRef';
 import { armAudio } from './ui/sound';
 import { installTooltips } from './ui/tooltip';
 
 export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
-	let quality: 'high' | 'low' = 'high';
-	let detail = 1;
-	try {
-		quality = (localStorage.getItem('reign:quality') as 'high' | 'low') ?? 'high';
-		detail = localStorage.getItem('reign:detail') === '2' ? 2 : 1;
-	} catch {
-		/* ignore */
-	}
 	installArt();
 	installTooltips();
 	applySettings();
 	getIcons();
-	sceneRef.current = new GameScene(canvas, quality, detail);
+	sceneRef.current = new GameScene(canvas, settings.quality, settings.detail);
 	(window as any).__scene = sceneRef.current;
 	mount(App, { target: el });
 	armAudio();

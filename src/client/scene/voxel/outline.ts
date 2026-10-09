@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { sharedUniforms } from './materials';
+import { FRAG_OUTPUT, sharedUniforms } from './materials';
 
 /**
  * Dark outlines for small voxel models. The model's surface is copied with smoothed normals
@@ -35,6 +35,7 @@ function outlineMaterial() {
 			uniform vec3 uColor;
 			void main() {
 				gl_FragColor = vec4(uColor, 1.0);
+				${FRAG_OUTPUT}
 			}`,
 		side: THREE.BackSide
 	});

@@ -476,6 +476,11 @@
 	animation: fade-in 0.25s ease-out;
 	overflow: auto;
 }
+/* Blurring the moving table behind a dialog every frame is too much for old devices. */
+body.very-low .modal-backdrop {
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+}
 /* A framed dialog: a ribbon title over the top edge, a close medallion and a body that scrolls. */
 .modal {
 	position: relative;

@@ -115,7 +115,7 @@ export function buildFireplace(): Fireplace {
 	frames.forEach((fr, i) => (fr.visible = i === 0));
 
 	// rising embers
-	const emberMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.3, 0.35), toneMapped: false });
+	const emberMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.3, 0.35) });
 	const emberGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
 	const embers: { m: THREE.Mesh; phase: number; x: number; z: number; speed: number }[] = [];
 	for (let i = 0; i < 14; i++) {

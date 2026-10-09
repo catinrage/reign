@@ -5,13 +5,13 @@ import { islandReach } from './scene/board/terrain';
 import { TABLE_HALF } from './scene/room/table';
 import { ROOM_SCALE } from './scene/room/util';
 import { BoardView } from './scene/board/boardView';
-import { Stage } from './scene/stage';
+import { type Quality, Stage } from './scene/stage';
 
 /** Visual test bed: ?sandbox renders a random island without a server (&map=<preset> for a Reign Extended map). */
 export function runSandbox(canvas: HTMLCanvasElement) {
 	const params = new URLSearchParams(location.search);
 	const seed = Number(params.get('seed') ?? 7);
-	const stage = new Stage(canvas, (params.get('q') as 'high' | 'low') ?? 'high');
+	const stage = new Stage(canvas, (params.get('q') as Quality) ?? 'high');
 	const preset = presetById(params.get('map') ?? '');
 	const board = preset ? generateBoard(preset.tiles, { rng: seed }) : generateStandardBoard({ rng: seed });
 	const view = new BoardView(board, seed, Number(params.get('detail') ?? 1));
