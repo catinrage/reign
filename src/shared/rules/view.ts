@@ -41,6 +41,7 @@ export function viewFor(s: GameState, me: number): GameView {
 export function redactEvent(e: GameEvent, me: number, reveal = false): GameEvent {
 	if (reveal) return e;
 	if (e.type === 'stole' && me !== e.thief && me !== e.victim) return { ...e, resource: null };
+	if (e.type === 'traitToll' && me !== e.from && me !== e.to) return { ...e, resource: null };
 	if (e.type === 'devCardBought' && me !== e.player) return { ...e, card: null };
 	return e;
 }

@@ -15,6 +15,7 @@ import { CHARACTER_INFO } from '../../shared/rules/characters';
 import {
 	builtKey,
 	citySpots,
+	canPay,
 	costOf,
 	roadSpots,
 	settlementSpots,
@@ -67,8 +68,8 @@ export function playerInk(view: GameView | null, i: number): string {
 }
 
 export function canAfford(view: GameView, kind: BuildKind): boolean {
-	const mine = view.players[view.me]?.resources;
-	return !!mine && hasResources(mine, costOf(view, view.me, kind));
+	// The Alchemist may pay Brick as Ore and Ore as Brick.
+	return canPay(view, view.me, kind, view.players[view.me]?.resources);
 }
 
 /** Whether a build is possible right now (resources, pieces and a legal spot). */
@@ -260,6 +261,14 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return [P(e.player), T(` picked ${CHARACTER_INFO[e.character].name} ${CHARACTER_INFO[e.character].title}`)];
 		case 'traitGain':
 			return [P(e.player), T(` (${CHARACTER_INFO[e.character].trait}) took `), R(e.resource)];
+		case 'pickOwed':
+			return [P(e.player), T(` may take a resource of choice (${CHARACTER_INFO[e.character].trait})`)];
+		case 'traitToll': {
+			const why = e.character === 'witch' ? " (the Witch's purse)" : " (the Baron's toll)";
+			return e.resource
+				? [P(e.from), T(' paid '), R(e.resource), T(' to '), P(e.to), T(why)]
+				: [P(e.from), T(' paid a card to '), P(e.to), T(why)];
+		}
 		case 'nothingToSteal':
 			return [T('Nobody to rob there')];
 		case 'devCardBought':

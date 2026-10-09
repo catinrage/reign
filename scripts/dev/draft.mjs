@@ -3,6 +3,7 @@
 // character pointed at and chosen, and the table once everyone has picked.
 // Usage: node scripts/dev/draft.mjs <outDir> [bots] [width] [height] [base]
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [dir, bots = '3', w = '1600', h = '900', base = 'http://localhost:5173'] = process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium',
@@ -17,10 +18,10 @@ const shot = async (name, wait = 1500) => {
 };
 const until = (fn, timeout = 300000) => page.waitForFunction(fn, null, { timeout, polling: 300 });
 
+await signIn(page, base, 'Komeil');
 await page.goto(`${base}/`);
 await until(() => window.__ready === true);
 await page.waitForTimeout(2000);
-await page.fill('.name-row .input', 'Komeil');
 await page.click('.sign .btn.green', { force: true });
 await until(() => !!window.__client.lobby);
 // LEAVE=a,b picks who to leave out (default the Rogue and the Steward); HAND=n sets the hand limit.

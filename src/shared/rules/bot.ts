@@ -10,6 +10,7 @@ import {
 	type ResourceCounts
 } from './config';
 import {
+	canPay,
 	citySpots,
 	costOf,
 	discardLimit,
@@ -35,6 +36,11 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 	if (s.step === 'discard' && s.pendingDiscards[me]) {
 		return { type: 'discard', resources: pickDiscard(pl.resources, s.pendingDiscards[me]) };
 	}
+	// A card a trait owes it: taken straight away, whatever it needs most.
+	if (s.phase !== 'draft' && s.picks?.[me]?.length) {
+		const r = pickWanted(s, me);
+		if (r) return { type: 'takePick', resource: r };
+	}
 	if (s.trade && s.trade.from !== me && s.trade.responses[me] === undefined) {
 		return { type: 'respondTrade', offerId: s.trade.id, accept: wantsTrade(s, me) };
 	}
@@ -59,7 +65,13 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 		case 'moveRobber':
 			return { type: 'moveRobber', hex: robberTarget(s, me) };
 		case 'steal':
-			return { type: 'steal', victim: best(s.stealCandidates, (p) => publicPoints(s, p) * 10 + totalResources(s.players[p].resources)) };
+			return {
+				type: 'steal',
+				victim: best(s.stealCandidates, (p) =>
+					// Robbing the Witch costs a card, so only as a last resort.
+					s.players[p].character === 'witch' ? -100 : publicPoints(s, p) * 10 + totalResources(s.players[p].resources)
+				)
+			};
 		case 'roadBuilding': {
 			const spots = roadSpots(s, me);
 			return { type: 'placeRoad', edge: best(spots, (e) => roadScore(s, me, e)) };
@@ -98,25 +110,25 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 		}
 	}
 
-	if (hasResources(res, costOf(s, me, 'city')) && pl.piecesLeft.city > 0) {
+	if (canPay(s, me, 'city', res) && pl.piecesLeft.city > 0) {
 		const spots = citySpots(s, me);
 		if (spots.length) return { type: 'buildCity', vertex: best(spots, (v) => vertexValue(s, v)) };
 	}
 	const settleSpots = settlementSpots(s, me, false);
-	if (hasResources(res, costOf(s, me, 'settlement')) && pl.piecesLeft.settlement > 0 && settleSpots.length) {
+	if (canPay(s, me, 'settlement', res) && pl.piecesLeft.settlement > 0 && settleSpots.length) {
 		return { type: 'placeSettlement', vertex: best(settleSpots, (v) => spotScore(s, me, v)) };
 	}
 	// Reign Extended: a workshop on its best tile, if that tile pays often enough to be worth it
 	// (with an Ore in the price, only a 6 or an 8 is: two bots that keep to those win about 47% of
 	// games against two that build none, and building on 5s and 9s too does worse).
 	const shop = bestWorkshop(s, me);
-	if (shop !== null && hasResources(res, costOf(s, me, 'workshop'))) return { type: 'buildWorkshop', hex: shop };
+	if (shop !== null && canPay(s, me, 'workshop', res)) return { type: 'buildWorkshop', hex: shop };
 	const roadsOk = roadSpots(s, me);
 	const wantsRoad = settleSpots.length === 0 || pl.longestRoad >= 4;
-	if (hasResources(res, costOf(s, me, 'road')) && pl.piecesLeft.road > 0 && roadsOk.length && wantsRoad) {
+	if (canPay(s, me, 'road', res) && pl.piecesLeft.road > 0 && roadsOk.length && wantsRoad) {
 		return { type: 'placeRoad', edge: best(roadsOk, (e) => roadScore(s, me, e)) };
 	}
-	if (hasResources(res, costOf(s, me, 'devCard')) && s.devDeck.length > 0) {
+	if (canPay(s, me, 'devCard', res) && s.devDeck.length > 0) {
 		const keepForCity = citySpots(s, me).length > 0 && res.ore < 4;
 		if (!keepForCity || totalResources(res) > discardLimit(s, me)) return { type: 'buyDevCard' };
 	}
@@ -182,6 +194,12 @@ function spotScore(s: GameState, me: number, v: number): number {
 function roadScore(s: GameState, me: number, e: number): number {
 	const topo = getTopology(s.board);
 	const edge = topo.edges[e];
+	// Roads beside the Baron's pay his toll, so other routes come first.
+	const baron = s.players.findIndex((p) => p.character === 'baron');
+	const toll =
+		baron >= 0 && baron !== me && [edge.a, edge.b].some((v) => topo.vertices[v].edges.some((o) => o !== e && s.roads[o] === baron))
+			? 1.5
+			: 0;
 	let score = 0;
 	for (const v of [edge.a, edge.b]) {
 		if (s.buildings[v]) continue;
@@ -193,7 +211,7 @@ function roadScore(s: GameState, me: number, e: number): number {
 			}
 		}
 	}
-	return score;
+	return score - toll;
 }
 
 function robberTarget(s: GameState, me: number): number {
@@ -203,7 +221,10 @@ function robberTarget(s: GameState, me: number): number {
 		if (victims.includes(me)) return -100;
 		const hex = s.board.hexes[h];
 		let score = pips(hex.number);
-		for (const v of victims) score += publicPoints(s, v) * 2 + (totalResources(s.players[v].resources) > 0 ? 3 : 0);
+		const robbable = victims.filter((v) => s.players[v].character !== 'witch');
+		for (const v of robbable) score += publicPoints(s, v) * 2 + (totalResources(s.players[v].resources) > 0 ? 3 : 0);
+		// A tile with only the Witch on it still blocks her income, but robbing her costs a card.
+		if (victims.length && !robbable.length) score -= 6;
 		return victims.length ? score : -50 + pips(hex.number);
 	});
 }
@@ -217,6 +238,19 @@ function pickDiscard(have: ResourceCounts, n: number): Partial<ResourceCounts> {
 		out[r] = (out[r] ?? 0) + 1;
 	}
 	return out;
+}
+
+/** The resource a bot takes when a trait owes it one: what its next build lacks, else its scarcest. */
+function pickWanted(s: GameState, me: number): Resource | null {
+	const res = s.players[me].resources;
+	const stocked = RESOURCES.filter((r) => s.bank[r] > 0);
+	if (!stocked.length) return null;
+	const goals = [costOf(s, me, 'city'), costOf(s, me, 'settlement'), costOf(s, me, 'devCard')];
+	for (const goal of goals) {
+		const need = missingFor(res, goal).filter((r) => s.bank[r] > 0);
+		if (need.length) return need[0];
+	}
+	return stocked.reduce((a, b) => (res[a] <= res[b] ? a : b));
 }
 
 function missingFor(have: ResourceCounts, cost: Partial<ResourceCounts>): Resource[] {
@@ -277,7 +311,24 @@ function wantsTrade(s: GameState, me: number): boolean {
  * The character a bot drafts: the strongest trait still free, judged plainly (steady income and
  * cheaper building first, situational traits last). Bots read the same table everyone sees.
  */
-const DRAFT_ORDER: CharacterId[] = ['merchant', 'shepherd', 'mason', 'scholar', 'veteran', 'explorer', 'rogue', 'steward'];
+const DRAFT_ORDER: CharacterId[] = [
+	'merchant',
+	'shepherd',
+	'mason',
+	'alchemist',
+	'cartographer',
+	'scholar',
+	'abbess',
+	'seer',
+	'baron',
+	'veteran',
+	'bard',
+	'explorer',
+	'jester',
+	'witch',
+	'rogue',
+	'steward'
+];
 
 function draftPick(s: GameState): CharacterId {
 	const left = draftLeft(s);

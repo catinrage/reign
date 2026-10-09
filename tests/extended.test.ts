@@ -9,7 +9,7 @@ import { CHARACTERS, traitText, type CharacterId } from '../src/shared/rules/cha
 import { BANK_PER_RESOURCE, BANK_PER_RESOURCE_HUGE, BANK_PER_RESOURCE_LARGE, RESOURCES } from '../src/shared/rules/config';
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
 import { maxPointsFor, type GameSettings } from '../src/shared/rules/modes';
-import { costOf, discardLimit, tradeRatios } from '../src/shared/rules/queries';
+import { costOf, discardLimit, paymentFor, tradeRatios } from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
 
@@ -137,6 +137,168 @@ describe('character traits', () => {
 		const r = act(trial, 0, { type: 'moveRobber', hex: victimHex });
 		expect(r.players[0].resources.wood - before).toBe(2);
 		expect(r.players[1].resources.wood).toBe(1);
+	});
+});
+
+describe('the eight newer traits', () => {
+	/** A game past setup, played by bots, with these characters. */
+	function started(chars: (CharacterId | null)[], seed = 21): GameState {
+		let g = createGame(players(chars), seed, undefined, extended());
+		while (g.phase === 'setup') g = act(g, g.current, botAction(g, g.current)!);
+		return g;
+	}
+	/** A copy of `g` with its dice rigged to roll `total` next (found by trying seeds). */
+	function rollTo(g: GameState, total: number): ReturnType<typeof applyAction> {
+		for (let tries = 0; tries < 2000; tries++) {
+			const trial = structuredClone(g);
+			trial.board = g.board;
+			trial.rng = tries * 7919 + 1;
+			const r = applyAction(trial, trial.current, { type: 'rollDice' });
+			if (r.ok && r.state.dice![0] + r.state.dice![1] === total) return r;
+		}
+		throw new Error(`never rolled ${total}`);
+	}
+	const hand = (wood = 0, brick = 0, sheep = 0, wheat = 0, ore = 0) => ({ wood, brick, sheep, wheat, ore });
+
+	it('Seer is owed a card of choice on a 2 or a 12, taken any time', () => {
+		const g = started([null, 'seer']);
+		const r = rollTo(g, 12);
+		if (!r.ok) throw new Error();
+		expect(r.state.picks[1]).toEqual(['seer']);
+		expect(applyAction(r.state, 0, { type: 'takePick', resource: 'ore' }).ok).toBe(false);
+		const before = r.state.players[1].resources.ore;
+		const after = act(r.state, 1, { type: 'takePick', resource: 'ore' });
+		expect(after.players[1].resources.ore).toBe(before + 1);
+		expect(after.picks[1]).toBeUndefined();
+		expect(applyAction(after, 1, { type: 'takePick', resource: 'ore' }).ok).toBe(false);
+	});
+
+	it('Alchemist pays Brick as Ore and Ore as Brick', () => {
+		const g = started(['alchemist', null]);
+		expect(paymentFor(g, 0, 'city', hand(0, 3, 0, 2, 0))).toEqual({ wheat: 2, brick: 3 });
+		expect(paymentFor(g, 0, 'city', hand(0, 1, 0, 2, 2))).toEqual({ wheat: 2, ore: 2, brick: 1 });
+		expect(paymentFor(g, 0, 'road', hand(1, 0, 0, 0, 1))).toEqual({ wood: 1, ore: 1 });
+		expect(paymentFor(g, 0, 'road', hand(1, 0, 0, 0, 0))).toBeNull();
+		expect(paymentFor(g, 1, 'city', hand(0, 3, 0, 2, 0))).toBeNull();
+	});
+
+	it("Bard's trading partner takes a bonus card, once per turn", () => {
+		let g = structuredClone(started(['bard', null, null]));
+		g.step = 'main';
+		g.current = 0;
+		g.players[0].resources = hand(2, 2, 0, 0, 0);
+		g.players[1].resources = hand(0, 0, 2, 2, 0);
+		g.players[2].resources = hand(0, 0, 2, 2, 0);
+		const trade = (s: GameState, partner: number) => {
+			s = act(s, 0, { type: 'offerTrade', give: { wood: 1 }, want: { sheep: 1 } });
+			s = act(s, partner, { type: 'respondTrade', offerId: s.trade!.id, accept: true });
+			return act(s, 0, { type: 'confirmTrade', offerId: s.trade!.id, with: partner });
+		};
+		g = trade(g, 1);
+		expect(g.picks[1]).toEqual(['bard']);
+		g = trade(g, 2);
+		expect(g.picks[2]).toBeUndefined();
+	});
+
+	it('Witch makes her robber pay her instead', () => {
+		const g = started([null, 'witch'], 11);
+		const hex = g.board.hexes.findIndex((_, h) => h !== g.robberHex && g.buildings.some((b, v) => b?.owner === 1 && getHexes(g, v).includes(h)) && !g.buildings.some((b, v) => b?.owner === 0 && getHexes(g, v).includes(h)));
+		const trial = structuredClone(g);
+		trial.board = g.board;
+		trial.current = 0;
+		trial.step = 'moveRobber';
+		trial.resumeStep = 'main';
+		trial.players[0].resources = hand(3);
+		trial.players[1].resources = hand(0, 0, 2);
+		const r = act(trial, 0, { type: 'moveRobber', hex });
+		expect(r.players[0].resources).toEqual(hand(2));
+		expect(r.players[1].resources).toEqual(hand(1, 0, 2));
+		expect(r.robberHex).toBe(hex);
+		// Only the two of them see which card it was.
+		const toll = viewFor(r, 2).log.find((e) => e.type === 'traitToll');
+		expect(toll && 'resource' in toll && toll.resource).toBeNull();
+	});
+
+	it('Cartographer trades at harbors her roads reach', () => {
+		const g = started(['cartographer', null]);
+		const topo = getTopology(g.board);
+		const port = topo.vertices.find((v) => v.port && v.port !== 'any' && !g.buildings[v.id] && v.neighbors.every((n) => !g.buildings[n]))!;
+		const edge = topo.vertices[port.id].edges.find((e) => g.roads[e] === null)!;
+		const trial = { ...g, roads: [...g.roads] };
+		expect(tradeRatios(trial, 0)[port.port as 'wood']).toBe(4);
+		trial.roads[edge] = 0;
+		expect(tradeRatios(trial, 0)[port.port as 'wood']).toBe(2);
+		trial.roads[edge] = 1;
+		expect(tradeRatios(trial, 1)[port.port as 'wood']).toBe(4);
+	});
+
+	it("Baron takes a toll from roads touching his", () => {
+		const g = started(['baron', null], 5);
+		const topo = getTopology(g.board);
+		// Give player 1 a road that ends where the Baron's road does, then build off it.
+		const baronRoad = g.roads.findIndex((o) => o === 0);
+		const e = topo.edges[baronRoad];
+		const next = topo.vertices[e.b].edges.find((x) => x !== baronRoad && g.roads[x] === null)!;
+		const trial = structuredClone(g);
+		trial.board = g.board;
+		trial.buildings[e.b] = { owner: 1, kind: 'settlement' };
+		trial.current = 1;
+		trial.step = 'main';
+		trial.players[1].resources = hand(1, 1, 3);
+		trial.players[0].resources = hand();
+		const r = act(trial, 1, { type: 'placeRoad', edge: next });
+		expect(r.players[0].resources).toEqual(hand(0, 0, 1));
+		expect(r.players[1].resources).toEqual(hand(0, 0, 2));
+	});
+
+	it('Abbess takes one of the cards the others discard on a 7', () => {
+		let g = started(['abbess', null, null], 3);
+		g.players[1].resources = hand(4, 4, 0, 0, 0);
+		g.players[2].resources = hand(0, 0, 4, 4, 0);
+		g.players[0].resources = hand();
+		const r = rollTo(g, 7);
+		if (!r.ok) throw new Error();
+		let s = r.state;
+		s = act(s, 1, { type: 'discard', resources: { wood: 4 } });
+		expect(s.players[0].resources).toEqual(hand());
+		s = act(s, 2, { type: 'discard', resources: { sheep: 4 } });
+		const got = s.players[0].resources;
+		expect(got.wood + got.sheep).toBe(1);
+		expect(s.step).toBe('moveRobber');
+	});
+
+	it('Jester takes a card of choice when a turn starts alone in last place', () => {
+		const g = started([null, 'jester']);
+		const trial = structuredClone(g);
+		trial.board = g.board;
+		trial.step = 'main';
+		trial.current = 0;
+		// Everyone else has more points.
+		const extra = trial.buildings.findIndex((b) => b?.owner === 0);
+		trial.buildings[extra] = { owner: 0, kind: 'city' };
+		const r = act(trial, 0, { type: 'endTurn' });
+		expect(r.picks[1]).toEqual(['jester']);
+		const tied = structuredClone(g);
+		tied.board = g.board;
+		tied.step = 'main';
+		tied.current = 0;
+		expect(act(tied, 0, { type: 'endTurn' }).picks[1]).toBeUndefined();
+	});
+
+	it('bots finish games with every character, and no card is made or lost', () => {
+		const groups: CharacterId[][] = [];
+		for (let i = 0; i < CHARACTERS.length; i += 4) groups.push(CHARACTERS.slice(i, i + 4) as CharacterId[]);
+		groups.push(['witch', 'baron', 'rogue', 'abbess'], ['seer', 'jester', 'bard', 'alchemist']);
+		groups.forEach((chars, k) => {
+			for (let seed = 1; seed <= 3; seed++) {
+				let s = createGame(players(chars), seed * 977 + k, undefined, extended());
+				s = playOut(s);
+				expect(s.phase, `${chars.join(',')} seed ${seed}`).toBe('ended');
+				for (const r of RESOURCES) {
+					expect(s.bank[r] + s.players.reduce((n, p) => n + p.resources[r], 0)).toBe(BANK_PER_RESOURCE);
+				}
+			}
+		});
 	});
 });
 

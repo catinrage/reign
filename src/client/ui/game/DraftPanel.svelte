@@ -15,6 +15,8 @@
 	const draft = $derived(view.draft!);
 	const mine = $derived(view.me >= 0 && view.current === view.me);
 	const left = $derived(draftLeft(view));
+	// A big pool (more than eight) gets smaller cards so all of it fits at once.
+	const many = $derived(draft.pool.length > 8);
 	const pickedBy = (c: CharacterId) => view.players.findIndex((p) => p.character === c);
 
 	let chosen = $state<CharacterId | null>(null);
@@ -70,7 +72,7 @@
 	</ol>
 
 	<div class="body">
-		<div class="pool" role="group" aria-label="Characters" onpointerleave={() => point(null)}>
+		<div class="pool" class:many role="group" aria-label="Characters" onpointerleave={() => point(null)}>
 			{#each draft.pool as c (c)}
 				{@const by = pickedBy(c)}
 				{@const ch = CHARACTER_INFO[c]}
@@ -85,7 +87,7 @@
 					onfocus={() => point(c)}
 					onclick={() => choose(c)}
 				>
-					<Portrait id={c} size={84} tip={false} />
+					<Portrait id={c} size={many ? 54 : 84} tip={false} />
 					<span class="name title">{ch.name}</span>
 					<span class="epithet">{ch.title}</span>
 					{#if by >= 0}
@@ -211,6 +213,17 @@
 		grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
 		gap: 8px;
 		align-content: start;
+	}
+	.pool.many {
+		grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+		gap: 6px;
+	}
+	.pool.many .card {
+		padding-top: 5px;
+		padding-bottom: 6px;
+	}
+	.pool.many .name {
+		font-size: 15px;
 	}
 	.card {
 		position: relative;

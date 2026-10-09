@@ -98,6 +98,16 @@ export interface GameState {
 	pendingDiscards: Record<number, number>;
 	stealCandidates: number[];
 	trade: TradeOffer | null;
+	/**
+	 * Reign Extended: resources of choice a player is owed by a trait (the Seer's 2s and 12s, the
+	 * Jester's catch-up, the Bard's trading partners), one entry per card, naming the trait's
+	 * character. Players take them whenever they like with `takePick`; nothing waits on them.
+	 */
+	picks: Record<number, CharacterId[]>;
+	/** The turn the Bard last handed out a trading bonus (once per turn). */
+	bardTurn: number;
+	/** Cards discarded on the current 7 by anyone but the Abbess, for her alms. */
+	alms: Resource[];
 	longestRoadHolder: number | null;
 	largestArmyHolder: number | null;
 	winner: number | null;
@@ -125,6 +135,13 @@ export type GameEvent =
 	| Ev<'stole', { thief: number; victim: number; resource: Resource | null }>
 	/** A character's trait handed a player something from the bank. */
 	| Ev<'traitGain', { player: number; character: CharacterId; resource: Resource }>
+	/** A trait owes a player a resource of their choice (`character` is the trait's). */
+	| Ev<'pickOwed', { player: number; character: CharacterId }>
+	/**
+	 * A card passed between players because of a trait: the Witch's purse (the robber's thief pays
+	 * her) or the Baron's toll. resource is null for viewers who weren't part of it.
+	 */
+	| Ev<'traitToll', { from: number; to: number; character: CharacterId; resource: Resource | null }>
 	/** The character draft opened; `order` is who picks first to last. */
 	| Ev<'draftStarted', { order: number[] }>
 	| Ev<'characterPicked', { player: number; character: CharacterId }>
@@ -180,7 +197,9 @@ export type Action =
 	| { type: 'respondTrade'; offerId: number; accept: boolean }
 	| { type: 'confirmTrade'; offerId: number; with: number }
 	| { type: 'cancelTrade' }
-	| { type: 'endTurn' };
+	| { type: 'endTurn' }
+	/** Take a resource a trait owes you (see GameState.picks); allowed at any time. */
+	| { type: 'takePick'; resource: Resource };
 
 export type ActionResult = { ok: true; events: GameEvent[] } | { ok: false; error: string };
 
