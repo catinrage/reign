@@ -10,6 +10,8 @@ const browser = await chromium.launch({
 });
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+// The low graphics setting draws much faster in software, and these pictures are about the hand.
+await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 await page.goto(base);
@@ -46,6 +48,7 @@ const HANDS = {
 const SIZES = {
 	d1600: { width: 1600, height: 900 },
 	d1280: { width: 1280, height: 800 },
+	d1366: { width: 1366, height: 768 },
 	d1920: { width: 1920, height: 1080 },
 	phone: { width: 390, height: 844 }
 };
@@ -70,7 +73,7 @@ for (const [size, vp] of Object.entries(SIZES)) {
 					i === me
 						? {
 								...p,
-								resources: { lumber: 2, brick: 1, wool: 3, grain: 2, ore: 1 },
+								resources: { wood: 2, brick: 1, sheep: 3, wheat: 2, ore: 1 },
 								resourceCount: 9,
 								devCards,
 								devCardCount: devCards.length
