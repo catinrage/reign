@@ -1,11 +1,7 @@
 <script lang="ts">
-	import {
-		DEV_CARDS,
-		DEV_CARD_LABEL,
-		DEV_CARD_TEXT,
-		type DevCardType
-	} from '../../../shared/rules/config';
+	import { DEV_CARDS, type DevCardType } from '../../../shared/rules/config';
 	import { client } from '../../state/client.svelte';
+	import DevCard from '../DevCard.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
@@ -24,6 +20,7 @@
 	});
 	const dev = $derived(me?.devCards ?? []);
 	const total = $derived(res ? RESOURCES.reduce((n, r) => n + res[r], 0) : 0);
+	// One card per kind you hold, with a count, in the deck's order.
 	const groups = $derived(
 		DEV_CARDS.map((type) => ({
 			type,
@@ -70,39 +67,46 @@
 				<img class="icon-px" src={PIXEL.cards} alt="" />{total}
 			</div>
 		</div>
-		{#if groups.length}
-			<div class="dev">
-				{#each groups as g (g.type)}
-					{@const playable = canPlay && g.type !== 'victoryPoint' && g.ready > 0}
-					<button
-						class="devcard"
-						class:playable
-						disabled={!playable}
-						onclick={() => play(g.type)}
-						title="{DEV_CARD_LABEL[g.type]}: {DEV_CARD_TEXT[g.type]}{g.ready < g.total &&
-						g.type !== 'victoryPoint'
-							? ' (new cards can be played next turn)'
-							: ''}"
-					>
-						<img class="icon-px" src={PIXEL[g.type]} alt="" />
-						<span class="dname">{DEV_CARD_LABEL[g.type]}</span>
-						{#if g.total > 1}<span class="n">{g.total}</span>{/if}
-					</button>
+		<div class="tray panel">
+			<div class="cards">
+				{#each groups as g, i (g.type)}
+					<div class="slot" style="--i:{i - (groups.length - 1) / 2}">
+						{#key g.total}
+							<div class="bump">
+								<DevCard
+									type={g.type}
+									count={g.total}
+									waiting={g.total - g.ready}
+									playable={canPlay && g.type !== 'victoryPoint' && g.ready > 0}
+									onclick={() => play(g.type)}
+								/>
+							</div>
+						{/key}
+					</div>
+				{:else}
+					<DevCard count={0} />
 				{/each}
 			</div>
-		{/if}
+			<div class="total" title="Development cards in hand">
+				<img class="icon-px" src={PIXEL.dev} alt="" />{dev.length}
+			</div>
+		</div>
 	</div>
 {/if}
 
 <style>
+	/* Resources, then development cards, centered in the space between the chronicle and the
+	   build panel. When both trays do not fit side by side, the development cards go on top. */
 	.hand {
 		position: absolute;
 		bottom: 10px;
-		left: 50%;
-		transform: translateX(-50%);
+		left: 330px;
+		right: 450px;
 		display: flex;
+		flex-wrap: wrap-reverse;
+		justify-content: center;
 		align-items: flex-end;
-		gap: 12px;
+		gap: 34px 12px;
 		pointer-events: none;
 	}
 	.tray {
@@ -157,64 +161,18 @@
 	.total.warn {
 		color: #ffb09a;
 	}
-	.dev {
-		display: flex;
-		flex-direction: column-reverse;
-		gap: 6px;
-		pointer-events: auto;
-	}
-	.devcard {
-		position: relative;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 150px;
-		padding: 0 10px 0 4px;
-		height: 44px;
-		box-sizing: border-box;
-		border-style: solid;
-		border-width: 6px;
-		border-image: var(--art-card-dev) 3 fill / 6px stretch;
-		background: none;
-		font-family: var(--px);
-		font-size: 14px;
-		font-weight: 700;
-		color: #fff3ff;
-		text-shadow: 0 2px 0 rgba(30, 10, 60, 0.8);
-		cursor: default;
-		opacity: 0.7;
-		filter: drop-shadow(0 3px 0 rgba(20, 8, 40, 0.6));
-		transition: transform 0.15s;
-	}
-	.devcard img {
-		width: 26px;
-		height: 26px;
-	}
-	.devcard.playable {
-		opacity: 1;
-		cursor: pointer;
-		animation: bob 1.6s ease-in-out infinite;
-	}
-	.devcard.playable:hover {
-		transform: translateX(-4px);
-		filter: brightness(1.15) drop-shadow(0 0 6px rgba(190, 150, 255, 0.9));
-	}
-	.n {
-		position: absolute;
-		top: -14px;
-		right: -14px;
-		width: 24px;
-		height: 24px;
-		background: var(--art-badge) center / 100% 100%;
-		display: grid;
-		place-items: center;
-		font-size: 13px;
-		color: #fff3d6;
+	@media (max-width: 1180px) {
+		.hand {
+			left: 12px;
+			right: 12px;
+		}
 	}
 	@media (max-width: 900px) {
 		.hand {
+			left: 6px;
+			right: 6px;
 			bottom: 64px;
-			gap: 6px;
+			gap: 30px 6px;
 		}
 		.hand.raised {
 			bottom: 156px;
@@ -228,14 +186,6 @@
 		.cards :global(.card) {
 			--w: 44px !important;
 			--cp: 2px !important;
-		}
-		.devcard {
-			min-width: 0;
-			height: 40px;
-			padding-right: 4px;
-		}
-		.dname {
-			display: none;
 		}
 	}
 </style>

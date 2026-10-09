@@ -148,6 +148,28 @@ export const PIXEL = {
 		k: '#2a1404',
 		y: '#f2c14e'
 	}),
+	/** The back of a development card: what it is stays a mystery. */
+	devBack: svg(
+		[
+			'................',
+			'.....kkkkkk.....',
+			'....kkyyyykk....',
+			'...kkyyyyyykk...',
+			'...kyyykkyyyk...',
+			'...kyykkkkyyk...',
+			'...kkkk.kkyyk...',
+			'.......kkyyyk...',
+			'......kkyyykk...',
+			'......kyyykk....',
+			'......kyykk.....',
+			'......kyyk......',
+			'......kkkk......',
+			'......kyyk......',
+			'......kyyk......',
+			'......kkkk......'
+		],
+		{ k: '#2a1404', y: '#f2c14e' }
+	),
 	bot: svg(
 		['...kk...', '..kyyk..', 'kkkkkkkk', 'kssssssk', 'ksrssrsk', 'kssssssk', 'ksskkssk', 'kkkkkkkk'],
 		{ ...base, s: '#cfd6df', r: '#ff5a3c', y: '#f2c14e' }
