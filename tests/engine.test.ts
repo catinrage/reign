@@ -142,6 +142,19 @@ describe('rules', () => {
 		};
 		expect(tradeHarbor(merchant, 0, 'ore', 3)).toBe(-1);
 		expect(tradeHarbor(merchant, 0, 'sheep', 2)).toBe(wool);
+		// The Cartographer trades at a harbor her road reaches, with no building there.
+		const v = topo.edges[topo.portEdges[wool].edge].b;
+		const roads = s.roads.map((o, e) => (e === topo.vertices[v].edges[0] ? 1 : o));
+		const road = { ...s, roads };
+		expect(tradeHarbor(road, 1, 'sheep', 2)).toBe(-1);
+		const cartographer = {
+			...road,
+			players: road.players.map((p, i) =>
+				i === 1 ? { ...p, character: 'cartographer' as const } : p
+			)
+		};
+		expect(tradeRatios(cartographer, 1).sheep).toBe(2);
+		expect(tradeHarbor(cartographer, 1, 'sheep', 2)).toBe(wool);
 	});
 
 	it('hides other hands in the view', () => {
