@@ -19,6 +19,7 @@
 	import PigeonLoft from './PigeonLoft.svelte';
 	import Players from './Players.svelte';
 	import Prompt from './Prompt.svelte';
+	import SpectatorBar from './SpectatorBar.svelte';
 	import TimeWarning from './TimeWarning.svelte';
 	import TradePanel from './TradePanel.svelte';
 	import Victory from './Victory.svelte';
@@ -227,17 +228,23 @@
 	<Players />
 	<DiceBadge />
 	<Log />
-	<Hand />
-	<Actions />
-	<OfferCard />
-	{#if ui.trade}<TradePanel />{/if}
-	<Dialogs />
+	{#if client.spectating}
+		<SpectatorBar />
+	{:else}
+		<Hand />
+		<Actions />
+		<OfferCard />
+		{#if ui.trade}<TradePanel />{/if}
+		<Dialogs />
+	{/if}
 	<Victory />
 	<Flyers />
 	<GameMenu />
-	<PigeonLoft />
-	<TimeWarning />
-	{#if client.cheats}<CheatPanel />{/if}
+	{#if !client.spectating}
+		<PigeonLoft />
+		<TimeWarning />
+		{#if client.cheats}<CheatPanel />{/if}
+	{/if}
 </div>
 
 <style>

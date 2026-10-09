@@ -813,3 +813,45 @@ describe('leaving a game', () => {
 		room.dispose();
 	});
 });
+
+describe('spectators', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('see the game without any hand, and can not act or chat', () => {
+		const { room, seat, me } = soloTable();
+		const fan = fakeSocket();
+		room.watch(fan.ws);
+		expect(fan.sent[0]).toEqual({ t: 'watching', code: 'ABCDE' });
+		const views = () => fan.sent.flatMap((m) => (m.t === 'game' ? [m.view] : []));
+		expect(views().length).toBe(1);
+		expect(room.lobbyInfo().spectators).toBe(1);
+		// The table moves on and they keep up, still without a hand in sight.
+		room.handle(seat, { t: 'chat', text: 'Hello watchers' }, me.ws);
+		vi.advanceTimersByTime(60_000);
+		expect(views().length).toBeGreaterThan(1);
+		for (const v of views()) {
+			expect(v.me).toBe(-1);
+			for (const p of v.players) {
+				expect(p.resources).toBeUndefined();
+				expect(p.devCards).toBeUndefined();
+				expect(p.totalPoints).toBeUndefined();
+			}
+		}
+		// They hold no seat, so nothing they could send reaches the game.
+		expect(room.hasSeat(undefined)).toBe(false);
+		room.disconnect(fan.ws);
+		expect(room.lobbyInfo().spectators).toBe(0);
+		room.dispose();
+	});
+
+	it('do not keep a table going or count as players', () => {
+		const { room, me } = soloTable();
+		const fan = fakeSocket();
+		room.watch(fan.ws);
+		room.disconnect(me.ws);
+		expect(room.isEmpty()).toBe(true);
+		expect(room.seats.length).toBe(3);
+		room.dispose();
+		expect(fan.sent.at(-1)).toMatchObject({ t: 'error' });
+	});
+});

@@ -10,6 +10,8 @@
 	const view = $derived(client.view!);
 	const seats = $derived(client.lobby?.seats ?? []);
 	const playing = $derived(view.phase !== 'ended');
+	// Spectators read the count on their own bar.
+	const watchers = $derived(client.spectating ? 0 : (client.lobby?.spectators ?? 0));
 	/** Resource cards in a hand. Cards dealt on the board count once they get there. */
 	function cardsIn(i: number) {
 		return Math.max(0, view.players[i].resourceCount - client.onTheWay(i));
@@ -92,9 +94,22 @@
 			{/if}
 		</div>
 	{/each}
+	{#if watchers}
+		<div class="watchers" title="People watching without a seat. They never see a hand.">
+			{watchers} watching
+		</div>
+	{/if}
 </div>
 
 <style>
+	.watchers {
+		align-self: flex-end;
+		font-size: 12px;
+		font-weight: 700;
+		color: rgba(255, 236, 205, 0.75);
+		text-shadow: 0 1px 2px #000;
+		pointer-events: auto;
+	}
 	.players {
 		position: absolute;
 		top: 12px;
@@ -219,6 +234,9 @@
 		box-shadow: 0 0 0 2px #1a1210;
 	}
 	@media (max-width: 900px) {
+		.watchers {
+			display: none;
+		}
 		.players {
 			width: auto;
 			top: 6px;

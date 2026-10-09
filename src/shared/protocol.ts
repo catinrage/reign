@@ -52,6 +52,8 @@ export interface LobbyInfo {
 	settings: GameSettings;
 	/** The current turn's clock, or null when turns are unlimited or no game is running. */
 	clock: TurnClock | null;
+	/** How many people are watching the game without a seat. */
+	spectators: number;
 }
 
 /**
@@ -102,6 +104,8 @@ export type ServerMessage =
 	| { t: 'welcome'; code: string; seat: string; token: string; cheats?: boolean }
 	| { t: 'lobby'; lobby: LobbyInfo }
 	| { t: 'game'; view: GameView; clock: TurnClock | null }
+	/** The game had already started, so this connection watches it without a seat (no hands shown). */
+	| { t: 'watching'; code: string }
 	| { t: 'error'; message: string }
 	/** Every note this player wrote or was sent in this room, on joining (or rejoining) it. */
 	| { t: 'pigeons'; notes: PigeonNote[] }

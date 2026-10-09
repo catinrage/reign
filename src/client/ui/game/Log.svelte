@@ -59,15 +59,17 @@
 				</div>
 			{/each}
 		</div>
-		<form
-			class="chat"
-			onsubmit={(e) => {
-				e.preventDefault();
-				send();
-			}}
-		>
-			<input class="input" bind:value={text} maxlength="200" placeholder="Say something…" />
-		</form>
+		{#if !client.spectating}
+			<form
+				class="chat"
+				onsubmit={(e) => {
+					e.preventDefault();
+					send();
+				}}
+			>
+				<input class="input" bind:value={text} maxlength="200" placeholder="Say something…" />
+			</form>
+		{/if}
 	{/if}
 </div>
 

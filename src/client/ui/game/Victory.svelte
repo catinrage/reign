@@ -63,7 +63,9 @@
 				</div>
 				<div class="foot">
 					<button class="btn wood" onclick={() => (hidden = true)}>View board</button>
-					{#if client.isHost}
+					{#if client.spectating}
+						<button class="btn red" onclick={() => client.leave()}>Stop watching</button>
+					{:else if client.isHost}
 						<button
 							class="btn green shine"
 							disabled={notReady.length > 0}

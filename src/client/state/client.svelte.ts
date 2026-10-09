@@ -109,6 +109,8 @@ class GameClient {
 	now = $state(0);
 	/** The server is the local dev server and takes dev cheats. */
 	cheats = $state(false);
+	/** Watching a game that started without us: no seat, and no hand is ever shown. */
+	spectating = $state(false);
 	/** Private notes this player wrote or was sent by pigeon in this room, oldest first. */
 	pigeons = $state.raw<PigeonNote[]>([]);
 	/** The newest pigeon to fly while we were here (sent or received), for the flight to play. */
@@ -179,9 +181,20 @@ class GameClient {
 					this.send({ t: 'start' });
 				}
 				break;
+			case 'watching':
+				if (this.dropJoin) {
+					this.dropJoin = false;
+					this.send({ t: 'leave' });
+					break;
+				}
+				this.code = msg.code;
+				this.spectating = true;
+				this.pendingJoin = false;
+				this.setUrl(msg.code);
+				break;
 			case 'lobby':
 				// Stray news from a room this player has just left.
-				if (!this.seat) break;
+				if (!this.seat && !this.spectating) break;
 				this.tellComings(this.lobby, msg.lobby);
 				this.lobby = msg.lobby;
 				this.setClock(msg.lobby.clock);
@@ -189,7 +202,7 @@ class GameClient {
 				if (!msg.lobby.started || this.view) this.joining = null;
 				break;
 			case 'game':
-				if (!this.seat) break;
+				if (!this.seat && !this.spectating) break;
 				this.receive(msg.view);
 				this.setClock(msg.clock);
 				this.joining = null;
@@ -222,6 +235,11 @@ class GameClient {
 				}
 				if (this.joining && !this.seat) this.joining = { ...this.joining, error: msg.message };
 				else this.toast(msg.message, 'error');
+				// The game being watched is gone.
+				if (this.spectating) {
+					this.leave();
+					break;
+				}
 				if (!this.seat) {
 					if (this.code && storage(LAST_GAME) === this.code) {
 						storage(LAST_GAME, '');
@@ -393,7 +411,7 @@ class GameClient {
 
 	/** Back out of an invite link to the main menu, while it loads or after it failed. */
 	cancelJoin() {
-		if (this.seat) return this.leave();
+		if (this.seat || this.spectating) return this.leave();
 		if (this.pendingJoin) this.dropJoin = true;
 		this.pendingJoin = false;
 		this.joining = null;
@@ -422,6 +440,7 @@ class GameClient {
 		this.freshPigeon = null;
 		this.aim = null;
 		this.seat = null;
+		this.spectating = false;
 		this.code = null;
 		this.joining = null;
 		this.setClock(null);
