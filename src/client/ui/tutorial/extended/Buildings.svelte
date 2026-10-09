@@ -1,12 +1,18 @@
 <script lang="ts">
-	import { BUILDING_INFO, EXTRA_BUILDINGS, WORKSHOP_LIMIT, WORKSHOP_NAME } from '../../../../shared/rules/buildings';
+	import {
+		BUILDING_INFO,
+		EXTRA_BUILDINGS,
+		STOREHOUSE_SAFE,
+		WORKSHOP_LIMIT,
+		WORKSHOP_NAME
+	} from '../../../../shared/rules/buildings';
 	import { COSTS, type Resource } from '../../../../shared/rules/config';
 	import { getIcons } from '../../../scene/icons';
 	import { countsList } from '../../helpers';
 	import { PIXEL } from '../../pixel';
 
 	const icons = getIcons().urls;
-	const LIMIT: Record<string, number> = { workshop: WORKSHOP_LIMIT };
+	const LIMIT: Record<string, number> = { workshop: WORKSHOP_LIMIT, storehouse: 1 };
 	/** The tile each workshop stands on, and what it does there. */
 	const KINDS: Record<Resource, { tile: string; work: string }> = {
 		wheat: { tile: 'Fields', work: 'Its sails turn in the wind.' },
@@ -112,6 +118,35 @@
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
 		>Paving makes a trail longer without needing room to build, so it can win the Longest Road on an
 		island crowded with other people's roads.</span
+	>
+</p>
+
+<h3>Storehouses</h3>
+<ul class="rows">
+	<li>
+		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
+			>Once you have rolled, pick <b>Storehouse</b> in the build panel and click one of your settlements
+			or cities. You can have one, and it stays with its settlement when that grows into a city.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.lock} alt="" /><span
+			>It keeps {STOREHOUSE_SAFE} of your cards safe: nothing takes one of your last {STOREHOUSE_SAFE} at
+			random, not the robber, a character or an event.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.die} alt="" /><span
+			>On a 7 those {STOREHOUSE_SAFE} don't count towards your hand: you can hold {STOREHOUSE_SAFE} more
+			cards than usual, and if you do have to discard, you give back half of the cards beyond them.</span
+		>
+	</li>
+</ul>
+
+<p class="tip">
+	<img class="icon-px" src={PIXEL.star} alt="" /><span
+		>A storehouse is worth most while you save up for a city or a big trade, and with {STOREHOUSE_SAFE}
+		cards or fewer in hand the robber can't steal from you at all.</span
 	>
 </p>
 

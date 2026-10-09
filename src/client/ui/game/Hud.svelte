@@ -8,6 +8,7 @@
 		ownWorkshops,
 		paveSpots,
 		powerReady,
+		storehouseSpots,
 		tradeHarbor,
 		workshopSpots
 	} from '../../../shared/rules/queries';
@@ -123,6 +124,9 @@
 					} else if (ui.build === 'stoneRoad') {
 						kind = 'stoneRoad';
 						options = paveSpots(view, me);
+					} else if (ui.build === 'storehouse') {
+						kind = 'storehouse';
+						options = storehouseSpots(view, me);
 					} else if (ui.build === 'tearDown') {
 						kind = 'tearDown';
 						options = ownWorkshops(view, me);
@@ -142,6 +146,7 @@
 				else if (k === 'settlement') client.act({ type: 'placeSettlement', vertex: id });
 				else if (k === 'workshop') client.act({ type: 'buildWorkshop', hex: id });
 				else if (k === 'stoneRoad') client.act({ type: 'paveRoad', edge: id });
+				else if (k === 'storehouse') client.act({ type: 'buildStorehouse', vertex: id });
 				else if (k === 'tearDown') client.act({ type: 'tearDownWorkshop', hex: id });
 				else client.act({ type: 'buildCity', vertex: id });
 				if (view.step === 'main') ui.build = null;

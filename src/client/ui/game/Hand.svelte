@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DEV_CARDS, type DevCardType } from '../../../shared/rules/config';
-	import { discardLimit, roadSpots } from '../../../shared/rules/queries';
+	import { discardLimit, roadSpots, safeCards } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import DevCard from '../DevCard.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
@@ -22,6 +22,8 @@
 	const dev = $derived(me?.devCards ?? []);
 	const total = $derived(res ? RESOURCES.reduce((n, r) => n + res[r], 0) : 0);
 	const limit = $derived(discardLimit(view, view.me));
+	/** Cards my storehouse keeps safe, which a 7 doesn't count. */
+	const safe = $derived(safeCards(view, view.me));
 	// One card per kind you hold, with a count, in the deck's order.
 	const groups = $derived(
 		DEV_CARDS.map((type) => ({
@@ -91,8 +93,12 @@
 				class="total"
 				class:warn={total > limit}
 				title={total > limit
-					? `More than ${limit} cards: you will discard half on a 7`
-					: 'Cards in hand'}
+					? safe
+						? `More than ${limit} cards: on a 7 you will discard half of those beyond the ${safe} your storehouse keeps safe`
+						: `More than ${limit} cards: you will discard half on a 7`
+					: safe
+						? `Cards in hand (your storehouse keeps ${safe} safe)`
+						: 'Cards in hand'}
 			>
 				<img class="icon-px" src={PIXEL.cards} alt="" />{total}
 			</div>

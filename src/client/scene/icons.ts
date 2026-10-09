@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RESOURCES, type Resource } from '../../shared/rules/config';
 import { cityModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
+import { storehouseObject } from './board/storehouse';
 import { workshopObject } from './board/workshops';
 import { PLAYER_RGB } from './layout';
 import { sharedUniforms } from './voxel/materials';
@@ -15,6 +16,17 @@ export interface IconSet {
 }
 
 let icons: IconSet | null = null;
+
+/** A settlement with a storehouse against the wall that faces the camera. */
+function settlementWithStorehouse(color: number) {
+	const g = new THREE.Group();
+	g.add(settlementModel(color).clone());
+	const store = storehouseObject(color);
+	store.position.x = 2.5;
+	store.rotation.y = Math.PI / 2;
+	g.add(store);
+	return g;
+}
 
 /** A workshop standing still for its picture, the Mill's sails turned to a cross. */
 function posedWorkshop(res: Resource, color: number) {
@@ -97,6 +109,7 @@ export function getIcons(): IconSet {
 		shoot(`city:${color}`, cityModel(rgbVal).clone());
 		shoot(`road:${color}`, roadModel(rgbVal).clone(), -0.9);
 		shoot(`stoneRoad:${color}`, stoneRoadModel(rgbVal).clone(), -0.9);
+		shoot(`storehouse:${color}`, settlementWithStorehouse(rgbVal), -0.9, true);
 		// Every workshop shares the Mill's picture in the menus.
 		shoot(`workshop:${color}`, posedWorkshop('wheat', rgbVal), -0.5, true);
 	}

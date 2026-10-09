@@ -10,6 +10,7 @@
 	const BUILD_PROMPT: Partial<Record<NonNullable<typeof ui.build>, string>> = {
 		workshop: 'Click a glowing tile to build your workshop',
 		stoneRoad: 'Click one of your roads to pave it with stone',
+		storehouse: 'Click a glowing building to add your storehouse',
 		tearDown: 'Click one of your workshops to tear it down'
 	};
 

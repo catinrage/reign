@@ -9,6 +9,9 @@ import { Mat } from './grid';
  * Geometry must be in voxel units (mesh.scale sets the world size).
  */
 
+/** How many yards of trodden crops the land can have at once (see `sharedUniforms.uYards`). */
+export const YARDS = 8;
+
 export const sharedUniforms = {
 	uTime: { value: 0 },
 	uFlicker: { value: 1 },
@@ -35,7 +38,12 @@ export const sharedUniforms = {
 	 */
 	uAimWave: { value: new THREE.Vector4(1, 0, 0, 0) },
 	/** Canvas size in CSS pixels, so outlines can be a fixed number of pixels wide. */
-	uViewport: { value: new THREE.Vector2(1, 1) }
+	uViewport: { value: new THREE.Vector2(1, 1) },
+	/**
+	 * Yards where wheat and grass are trodden flat (round a Reign Extended storehouse): each is
+	 * (center x, center z, radius, ground height) in world units, unused while its radius is 0.
+	 */
+	uYards: { value: Array.from({ length: YARDS }, () => new THREE.Vector4()) }
 };
 
 export interface VoxelMaterialOptions {
@@ -233,12 +241,23 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		let vs = shader.vertexShader.replace('#include <common>', `#include <common>\n${VERT_HEAD}`);
 		vs = vs.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_BODY}`);
 		if (kind === Mat.Sway) {
+			shader.uniforms.uYards = sharedUniforms.uYards;
+			vs = vs.replace('#include <common>', `#include <common>\nuniform vec4 uYards[${YARDS}];`);
 			vs = vs.replace(
 				'#include <begin_vertex>',
 				/* glsl */ `#include <begin_vertex>
 				{
 					vec4 wp = modelMatrix * vec4(position, 1.0);
-					float k = clamp((position.y - uSwayBase) / (6.0 * uSwayScale), 0.0, 1.0);
+					// Trodden flat in a yard: nothing stands above its ground there, and the crop
+					// rises back to its full height round the edge.
+					float cap = 1e5;
+					for (int i = 0; i < ${YARDS}; i++) {
+						vec4 yard = uYards[i];
+						if (yard.z > 0.0) cap = min(cap, yard.w + max(0.0, length(wp.xz - yard.xy) - yard.z) * 0.9);
+					}
+					float drop = max(0.0, wp.y - cap) / length(modelMatrix[1].xyz);
+					transformed.y -= drop;
+					float k = clamp((position.y - drop - uSwayBase) / (6.0 * uSwayScale), 0.0, 1.0);
 					k *= k;
 					float sway = sin(uTime * 1.6 + wp.x * 0.12 + wp.z * 0.08) * 0.5 + sin(uTime * 2.7 + wp.z * 0.2) * 0.25;
 					transformed.x += sway * 0.5 * k * uSwayScale;
