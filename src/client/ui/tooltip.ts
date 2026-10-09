@@ -11,7 +11,8 @@ import { PIXEL } from './pixel';
  * Optional extras on the same element:
  * - `data-tip-head`: a heading over the text.
  * - `data-tip-note`: a line set apart under the text, such as why a card can't be played.
- * - `data-tip-tone`: `warn` (the default) or `good`, the note's color and icon.
+ * - `data-tip-tone`: `warn` (the default), `good`, or `time` (when something happens), the
+ *   note's color and icon.
  *
  * Mouse: shows after a short rest, at once when moving from one tooltip to the next. Touch:
  * a long press shows it, and so does a tap on something that can't be used right now
@@ -111,10 +112,11 @@ function fill(el: Element): boolean {
 	head.hidden = !h;
 	body.textContent = text;
 	body.hidden = !text.trim();
-	const good = el.getAttribute('data-tip-tone') === 'good';
+	const tone = el.getAttribute('data-tip-tone');
 	note.hidden = !n;
-	note.classList.toggle('good', good);
-	noteIcon.src = good ? PIXEL.check : PIXEL.close;
+	note.classList.toggle('good', tone === 'good');
+	note.classList.toggle('time', tone === 'time');
+	noteIcon.src = tone === 'good' ? PIXEL.check : tone === 'time' ? PIXEL.hourglass : PIXEL.close;
 	noteText.textContent = n;
 	return true;
 }

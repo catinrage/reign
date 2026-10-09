@@ -16,7 +16,7 @@
 	import { PIXEL } from '../../pixel';
 
 	const icons = getIcons().urls;
-	const LIMIT: Record<string, number> = { workshop: WORKSHOP_LIMIT, storehouse: 1, fortress: 1 };
+	const LIMIT: Record<string, number> = { workshop: WORKSHOP_LIMIT, storehouse: 1, tavern: 1, fortress: 1 };
 	/** The tile each workshop stands on, and what it does there. */
 	const KINDS: Record<Resource, { tile: string; work: string }> = {
 		wheat: { tile: msg('Fields'), work: msg('Its sails turn in the wind.') },
@@ -39,6 +39,7 @@
 {#snippet bTearDown()}<b>{t('Tear down')}</b>{/snippet}
 {#snippet bStoneRoad()}<b>{t('Stone road')}</b>{/snippet}
 {#snippet bStorehouse()}<b>{t('Storehouse')}</b>{/snippet}
+{#snippet bTavern()}<b>{t('Tavern')}</b>{/snippet}
 {#snippet bCityPath()}<b>{t('City path')}</b>{/snippet}
 
 <p>
@@ -165,6 +166,32 @@
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
 		>{t("A storehouse is worth most while you save up for a city or a big trade, and with {safe} cards or fewer in hand the robber can't steal from you at all.", { safe: STOREHOUSE_SAFE })}</span
+	>
+</p>
+
+<h3>{t('Taverns')}</h3>
+<ul class="rows">
+	<li>
+		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
+			><Rich
+				text={t('Once you have rolled, pick {tavern} in the build panel and click one of your settlements or cities. You can have one, on its own building or beside your storehouse, and it stays when the settlement grows into a city.')}
+				slots={{ tavern: bTavern }}
+			/></span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.tankard} alt="" /><span
+			>{t("You hear the rumors there: the next Event card shows beside this round's card, in the corner, before it turns over for everyone. Only you see it.")}</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.book} alt="" /><span>{t('Taverns are only in games with the Events deck.')}</span>
+	</li>
+</ul>
+
+<p class="tip">
+	<img class="icon-px" src={PIXEL.star} alt="" /><span
+		>{t('Knowing the next card lets you get ready for it: spend your cards before a Plague of Rats, play a knight before a Tournament, or save your trades for a Traveling Fair.')}</span
 	>
 </p>
 

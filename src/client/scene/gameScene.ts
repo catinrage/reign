@@ -6,6 +6,7 @@ import { worldToHex, hexKey } from '../../shared/board/hex';
 import { RESOURCES, TERRAIN_RESOURCE } from '../../shared/rules/config';
 import { isCityPath } from '../../shared/rules/buildings';
 import type { EventCard } from '../../shared/rules/events';
+import { builtKey } from '../../shared/rules/queries';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
@@ -13,7 +14,9 @@ import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
 import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
 import { PATH_LOOK, animatePath, pathObject } from './board/cityPaths';
-import { animateStorehouse, storehouseObject, storehouseSpot, storehouseYard } from './board/storehouse';
+import { type AnnexHost, type Footprint, annexSpot, annexYard } from './board/annex';
+import { STOREHOUSE_SIZE, animateStorehouse, storehouseObject } from './board/storehouse';
+import { TAVERN_CHIMNEY, TAVERN_SIZE, animateTavern, tavernObject } from './board/tavern';
 import { WORKSHOP_SCALE, animateWorkshop, workshopChimney, workshopObject } from './board/workshops';
 import { DIE_HALF, Dice } from './dice';
 import { Particles } from './effects';
@@ -25,8 +28,8 @@ import { type Quality, Stage } from './stage';
 import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
 
 /**
- * `stoneRoad` picks one of your roads to pave, `storehouse` one of your buildings to add a
- * storehouse onto, `castle`, `guildHall` and `fortress` one of your cities to take down that path,
+ * `stoneRoad` picks one of your roads to pave, `storehouse` and `tavern` one of your buildings to
+ * add one onto, `castle`, `guildHall` and `fortress` one of your cities to take down that path,
  * `tearDown` one of your own workshops to tear down, `tile` any tile, lit up like the robber's
  * target but with no robber (a character's power).
  */
@@ -38,6 +41,7 @@ export type PickKind =
 	| 'workshop'
 	| 'stoneRoad'
 	| 'storehouse'
+	| 'tavern'
 	| 'castle'
 	| 'guildHall'
 	| 'fortress'
@@ -74,9 +78,9 @@ export interface BoardSpot {
 
 /**
  * A piece's key starts with where it stands: v12 (vertex), e5 (edge), w3 (a tile's workshop), s12
- * (the storehouse on the building on vertex 12, which shares its tooltip).
+ * and t12 (the storehouse and the tavern on the building on vertex 12, which share its tooltip).
  */
-const SPOT_PLACE: Record<string, BoardSpot['place']> = { v: 'vertex', e: 'edge', w: 'hex', s: 'vertex' };
+const SPOT_PLACE: Record<string, BoardSpot['place']> = { v: 'vertex', e: 'edge', w: 'hex', s: 'vertex', t: 'vertex' };
 function spotOf(key: string): BoardSpot | null {
 	const m = /^([a-z])(\d+)/.exec(key);
 	const place = m && SPOT_PLACE[m[1]];
@@ -399,13 +403,14 @@ export class GameScene {
 		this.syncYards();
 	}
 
-	/** Tread the crops flat in front of each storehouse, so a field's wheat doesn't bury it. */
+	/** Tread the crops flat in front of each storehouse and tavern, so a field's wheat doesn't bury it. */
 	private syncYards() {
 		const yards = sharedUniforms.uYards.value;
 		let i = 0;
 		for (const p of this.pieces.values()) {
-			if (!p.key.startsWith('s') || i >= yards.length) continue;
-			storehouseYard(p.obj.position.clone().setY(p.ground), p.obj.rotation.y, PIECE_SCALE, yards[i++]);
+			const annex = annexOf(p.key);
+			if (!annex || i >= yards.length) continue;
+			annexYard(p.obj.position.clone().setY(p.ground), p.obj.rotation.y, PIECE_SCALE, ANNEX_SIZE[annex], yards[i++]);
 		}
 		for (; i < yards.length; i++) yards[i].set(0, 0, 0, 0);
 	}
@@ -428,21 +433,24 @@ export class GameScene {
 				return obj;
 			});
 		});
-		// A storehouse leans on its building, so it moves to the new wall when the settlement grows
-		// into a city, and again when the city takes a path.
-		view.storehouses?.forEach((on, v) => {
-			const b = view.buildings[v];
-			if (!on || !b) return;
+		// A storehouse or a tavern leans on its building, so it moves to a new wall when the
+		// settlement grows into a city, and again when the city takes a path. One that went up after
+		// the other keeps clear of its wall.
+		view.buildings.forEach((b, v) => {
+			if (!b) return;
 			const color = PLAYER_RGB[view.players[b.owner].color];
-			const look = (b.kind === 'city' ? view.cityPaths?.[v] : null) ?? b.kind;
-			want.set(`s${v}:${look}:${b.owner}`, () => {
-				const obj = storehouseObject(color);
-				obj.scale.setScalar(PIECE_SCALE);
-				const spot = storehouseSpot(bv, v, look, buildingYaw(v), PIECE_SCALE);
-				obj.position.copy(spot.pos);
-				obj.rotation.y = spot.yaw;
-				return obj;
-			});
+			const order = annexOrder(view, v);
+			for (const annex of order) {
+				const after = annex === order[0] ? '' : `+${order[0][0]}`;
+				want.set(`${annex[0]}${v}:${hostOf(view, v)}${after}:${b.owner}`, () => {
+					const obj = annex === 'storehouse' ? storehouseObject(color) : tavernObject(color);
+					obj.scale.setScalar(PIECE_SCALE);
+					const spot = annexPlace(bv, view, v, annex, order);
+					obj.position.copy(spot.pos);
+					obj.rotation.y = spot.yaw;
+					return obj;
+				});
+			}
 		});
 		view.workshops?.forEach((owner, h) => {
 			const res = TERRAIN_RESOURCE[view.board.hexes[h].terrain];
@@ -1086,14 +1094,13 @@ export class GameScene {
 				model = workshopObject(res, color);
 				pos = spot.pos;
 				rot = Math.PI / 2 - spot.angle;
-			} else if (req.kind === 'storehouse') {
-				const b = this.view?.buildings[id];
-				if (!b) continue;
-				model = storehouseObject(color);
+			} else if (req.kind === 'storehouse' || req.kind === 'tavern') {
+				const view = this.view;
+				if (!view?.buildings[id]) continue;
+				model = req.kind === 'storehouse' ? storehouseObject(color) : tavernObject(color);
 				pos = bv.vertexPos(id);
 				// The marker goes over the building; the ghost stands against the wall it would lean on.
-				const look = (b.kind === 'city' ? this.view?.cityPaths?.[id] : null) ?? b.kind;
-				lean = storehouseSpot(bv, id, look, buildingYaw(id), PIECE_SCALE);
+				lean = annexPlace(bv, view, id, req.kind, annexOrder(view, id, req.kind));
 			} else if (isCityPath(req.kind)) {
 				// The city as it would be, turned the way it stands.
 				model = pathObject(req.kind, color);
@@ -1274,20 +1281,22 @@ export class GameScene {
 		this.callbacks.onPieceHover?.(spot, false);
 	}
 
-	/** Little puffs from the chimneys of settlements and cities. */
+	/** Little puffs from the chimneys of settlements, cities and taverns. */
 	private smoke(dt: number) {
 		this.smokeClock += dt;
 		if (this.smokeClock < 0.35) return;
 		this.smokeClock = 0;
-		const homes = [...this.pieces.values()].filter((p) => p.key.startsWith('v'));
+		const homes = [...this.pieces.values()].filter((p) => p.key.startsWith('v') || p.key.startsWith('t'));
 		if (!homes.length) return;
 		const p = homes[Math.floor(Math.random() * homes.length)];
 		const look = lookOf(p.key);
-		const local = isCityPath(look)
-			? PATH_LOOK[look].chimney
-			: look === 'city'
-				? new THREE.Vector3(-2.5, 12, -3)
-				: new THREE.Vector3(1.5, 7.5, -1);
+		const local = p.key.startsWith('t')
+			? TAVERN_CHIMNEY
+			: isCityPath(look)
+				? PATH_LOOK[look].chimney
+				: look === 'city'
+					? new THREE.Vector3(-2.5, 12, -3)
+					: new THREE.Vector3(1.5, 7.5, -1);
 		if (!local) return;
 		const at = p.obj.localToWorld(local.clone());
 		this.particles.emit({ at, count: 1, colors: ['#d9d4cc', '#c4beb5', '#eeeae4'], speed: 0.6, up: 3.2, spread: 0.3, life: 3.2, size: 0.9, gravity: -0.4, drag: 0.4 });
@@ -1328,8 +1337,8 @@ export class GameScene {
 				p.lift += (level * (1.3 + Math.sin(t * 3) * 0.5) - p.lift) * Math.min(1, dt * 10);
 				p.obj.position.y = p.ground + p.lift;
 			}
-			// A storehouse floats with its building, under the building's ring and beam.
-			if (p.key.startsWith('s')) continue;
+			// A storehouse or a tavern floats with its building, under the building's ring and beam.
+			if (annexOf(p.key)) continue;
 			// The rings stay down on the ground as the building floats; the beam shoots up as it lights.
 			const unit = pieceScale(p.key);
 			const ground = p.glow.getObjectByName('ground')!;
@@ -1346,7 +1355,7 @@ export class GameScene {
 		const kit = glowKit(PLAYER_RGB[this.view!.players[p.owner].color]);
 		const road = p.key.startsWith('e');
 		const workshop = p.key.startsWith('w');
-		const store = p.key.startsWith('s');
+		const annex = !!annexOf(p.key);
 		const look = lookOf(p.key);
 		const path = isCityPath(look) ? look : null;
 		const unit = pieceScale(p.key);
@@ -1365,10 +1374,10 @@ export class GameScene {
 			}
 		};
 		copy(p.obj, glow);
-		if (workshop || store || path) {
+		if (workshop || annex || path) {
 			// A workshop's body is a model of its own, and its moving parts carry their own light,
 			// so it turns with the sails and rolls with the cart (and a storehouse's sack rides its
-			// rope, a castle's flag flies and a fortress's quintain spins).
+			// rope, a tavern's sign swings, a castle's flag flies and a fortress's quintain spins).
 			glow.userData.parts = [];
 			for (const part of p.obj.children) {
 				if (!part.name) {
@@ -1387,7 +1396,7 @@ export class GameScene {
 				}
 			}
 		}
-		if (!road && !store) {
+		if (!road && !annex) {
 			// Sizes are in the piece's own units: its voxels. The ring hugs the building, on the
 			// paths where the tiles meet, clear of the trees and wheat round about.
 			const city = look === 'city';
@@ -1411,13 +1420,17 @@ export class GameScene {
 		return glow;
 	}
 
-	/** Workshops at work: sails and wheels turn, carts roll, and kilns smoke; storehouses hoist sacks. */
+	/**
+	 * Workshops at work: sails and wheels turn, carts roll, and kilns smoke; storehouses hoist
+	 * sacks, and taverns' signs swing.
+	 */
 	private workshops(dt: number, t: number) {
 		this.kilnClock += dt;
 		const puff = this.kilnClock > 0.28;
 		if (puff) this.kilnClock = 0;
 		for (const p of this.pieces.values()) {
 			if (p.key.startsWith('s')) animateStorehouse(p.obj, t);
+			if (p.key.startsWith('t')) animateTavern(p.obj, t);
 			if (p.obj.userData.path) animatePath(p.obj, t);
 			if (!p.key.startsWith('w')) continue;
 			animateWorkshop(p.obj, t, dt);
@@ -1524,7 +1537,7 @@ function claimFlag(color: number): THREE.Group {
 /** How high a pick's glowing gem floats above its spot, clear of the piece that would go there. */
 function markerHeight(kind: PickKind) {
 	if (isCityPath(kind)) return 12.5;
-	return kind === 'city' || kind === 'storehouse' ? 11 : kind === 'workshop' || kind === 'tearDown' ? 9.5 : 4.5;
+	return kind === 'city' || kind === 'storehouse' || kind === 'tavern' ? 11 : kind === 'workshop' || kind === 'tearDown' ? 9.5 : 4.5;
 }
 
 /** Picking a workshop to tear down glows in this red. */
@@ -1747,11 +1760,45 @@ function hashString(s: string) {
 	return h >>> 0;
 }
 
-/** Which way the settlement or city on vertex v is turned: each corner turns its own way. */
 /** What a building on a corner looks like, from its piece key: 'settlement', 'city' or a city's path. */
 function lookOf(key: string): string {
-	return key.split(':')[1]?.split('-')[0] ?? '';
+	return key.split(':')[1]?.split(/[-+]/)[0] ?? '';
 }
+
+/** What can be added onto a settlement or city, against one of its walls (Reign Extended). */
+type Annex = 'storehouse' | 'tavern';
+const ANNEX_SIZE: Record<Annex, Footprint> = { storehouse: STOREHOUSE_SIZE, tavern: TAVERN_SIZE };
+
+/** Which annex a piece is, from its key, or null. */
+function annexOf(key: string): Annex | null {
+	return key.startsWith('s') ? 'storehouse' : key.startsWith('t') ? 'tavern' : null;
+}
+
+/** What the building on vertex v is now: a settlement, a city or the path its city took. */
+function hostOf(view: GameView, v: number): AnnexHost {
+	const b = view.buildings[v]!;
+	return (b.kind === 'city' ? view.cityPaths?.[v] : null) ?? b.kind;
+}
+
+/**
+ * The annexes on vertex v's building, the first one built first (on the same turn, the storehouse);
+ * with `adding`, as they will be once that one goes up this turn.
+ */
+function annexOrder(view: GameView, v: number, adding?: Annex): Annex[] {
+	const has = (a: Annex) => a === adding || !!(a === 'storehouse' ? view.storehouses : view.taverns)?.[v];
+	const turn = (a: Annex) => (a === adding ? view.turn : (view.builtTurns?.[builtKey(a, v)] ?? 0));
+	return (['storehouse', 'tavern'] as const).filter(has).sort((a, b) => turn(a) - turn(b));
+}
+
+/** Where annex `a` of vertex v's building stands: the first one built takes the best wall, the other the best of the rest. */
+function annexPlace(bv: BoardView, view: GameView, v: number, a: Annex, order: Annex[]) {
+	const host = hostOf(view, v);
+	const yaw = buildingYaw(v);
+	const first = annexSpot(bv, v, host, yaw, PIECE_SCALE, ANNEX_SIZE[order[0]]);
+	return order[0] === a ? first : annexSpot(bv, v, host, yaw, PIECE_SCALE, ANNEX_SIZE[a], first.wall);
+}
+
+/** Which way the settlement or city on vertex v is turned: each corner turns its own way. */
 
 function buildingYaw(v: number) {
 	return (hashString(`r${v}`) % 4) * (Math.PI / 2) + Math.PI / 4;

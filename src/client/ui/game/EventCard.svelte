@@ -120,7 +120,9 @@
 	<button class="flip-backdrop" onclick={close} aria-label={t('Close')}>
 		<div class="flip">
 			<div class="flip-head">
-				{shown.by === undefined
+				{shown.rumor
+					? t('Rumor: the round {round} event', { round: shown.round ?? '' })
+					: shown.by === undefined
 					? t('Round {round} event', { round: shown.round ?? '' })
 					: shown.by === me
 						? t('You decreed')

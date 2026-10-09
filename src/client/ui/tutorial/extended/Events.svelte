@@ -39,6 +39,11 @@
 		>
 	</li>
 	<li>
+		<img class="icon-px" src={PIXEL.tankard} alt="" /><span
+			>{t("A player with a tavern hears the rumors: they see the next card before it turns over, beside the round's card in the corner.")}</span
+		>
+	</li>
+	<li>
 		<img class="icon-px" src={PIXEL.bot} alt="" /><span
 			>{t('Bots play every card: they pick a Royal Decree by what helps them most and take what they need from a Bountiful Year.')}</span
 		>

@@ -92,6 +92,7 @@
 	<button
 		class="build plaque"
 		class:active={ui.build === b.kind}
+		data-kind={b.kind}
 		disabled={!ok && !extra}
 		aria-disabled={extra ? !ok : undefined}
 		title={info ? t(info.text) : undefined}

@@ -45,7 +45,7 @@
 		title={info ? t(info.text) : events.every === 2 ? t('Event cards turn over every other round.') : t('No event this round.')}
 		data-tip-head={info ? t('Event: {event}', { event: t(info.name) }) : t('No event this round')}
 		data-tip-note={note}
-		data-tip-tone={bounty ? 'good' : undefined}
+		data-tip-tone={bounty ? 'good' : info && !choosing ? 'time' : undefined}
 		onclick={click}
 	>
 		{#if card}

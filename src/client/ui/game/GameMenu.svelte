@@ -7,6 +7,7 @@
 	import SpectatorBadge from './SpectatorBadge.svelte';
 	import TurnCounter from './TurnCounter.svelte';
 	import EventChip from './EventChip.svelte';
+	import RumorChip from './RumorChip.svelte';
 	import { sfx } from '../sound';
 	import Tutorial from '../tutorial/Tutorial.svelte';
 	import { ui } from './ui.svelte';
@@ -103,7 +104,7 @@
 			title={t('Pause the game for everyone (P)')}><img src={PIXEL.pause} alt="" /></button
 		>
 	{/if}
-	<div class="turn-row"><TurnCounter /><EventChip /></div>
+	<div class="turn-row"><TurnCounter /><span class="events"><EventChip /><RumorChip /></span></div>
 	<SpectatorBadge />
 </div>
 
@@ -237,6 +238,18 @@
 	.turn-row {
 		display: contents;
 	}
+	/* The rumor a tavern hears of the next card hangs under this round's card, clear of the
+	   prompt in the middle. */
+	.events {
+		position: relative;
+		display: flex;
+	}
+	.events :global(.rumor-chip) {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		margin-top: 6px;
+	}
 	.curtain {
 		place-items: start center;
 		padding-top: 0;
@@ -362,6 +375,14 @@
 		.turn-row {
 			display: flex;
 			gap: 6px;
+		}
+		/* On phones the column has room beside it. */
+		.events {
+			display: contents;
+		}
+		.events :global(.rumor-chip) {
+			position: static;
+			margin: 0;
 		}
 	}
 </style>

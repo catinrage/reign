@@ -7,6 +7,7 @@
 		type ExtraBuilding
 	} from '../../../shared/rules/buildings';
 	import { COSTS, RESOURCE_LABEL } from '../../../shared/rules/config';
+	import { cleanEventRules, eventPool } from '../../../shared/rules/events';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
 	import { countsList } from '../helpers';
@@ -20,7 +21,10 @@
 
 	const lobby = $derived(client.lobby!);
 	const rules = $derived(cleanBuildingRules(lobby.settings.buildings));
-	const on = $derived(EXTRA_BUILDINGS.filter((b) => rules[b]));
+	/** Taverns hear rumors of the next Event card, so they need the Events deck in the game. */
+	const deck = $derived(eventPool(cleanEventRules(lobby.settings.events)).length > 0);
+	const inPlay = (b: ExtraBuilding) => rules[b] && (b !== 'tavern' || deck);
+	const on = $derived(EXTRA_BUILDINGS.filter(inPlay));
 	const color = $derived(lobby.seats.find((s) => s.id === client.seat)?.color ?? 'red');
 	const icons = getIcons().urls;
 	let open = $state(false);
@@ -65,11 +69,14 @@
 						<span>{t('Each of your cities can grow down one of these paths, for good.')}</span>
 					</div>
 				{/if}
-				<div class="row plaque" class:off={!rules[b]}>
+				<div class="row plaque" class:off={!inPlay(b)} data-kind={b}>
 					<img class="icon" src={icons[`${b}:${color}`]} alt="" />
 					<div class="body">
 						<span class="name title">{t(BUILDING_INFO[b].name)}</span>
 						<span class="text">{t(BUILDING_INFO[b].text)}</span>
+						{#if b === 'tavern' && !deck}
+							<span class="needs">{t('Not in this game: the Events deck is off.')}</span>
+						{/if}
 						<span class="cost">
 							{#each countsList(COSTS[b]) as c (c.res)}
 								{#each Array(c.n) as _, k (k)}<img src={icons[c.res]} alt={t(RESOURCE_LABEL[c.res])} />{/each}
@@ -186,6 +193,12 @@
 		font-size: 13px;
 		line-height: 1.3;
 		color: #f1dfc2;
+	}
+	.needs {
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 12px;
+		color: var(--gold);
 	}
 	.cost {
 		display: flex;

@@ -484,6 +484,21 @@ export const PIXEL = {
 		],
 		{ k: '#2a1a10', y: '#f2c14e', r: '#c2372b' }
 	),
+	tankard: svg(
+		[
+			'..wwwww....',
+			'.wwwwwww...',
+			'kwwwwwwwk..',
+			'khywyyyykkk',
+			'khywyyyyk.k',
+			'khyyyyyyk.k',
+			'khyyyyyyk.k',
+			'khyyyyyykkk',
+			'khyyyyyyk..',
+			'.kkkkkkk...'
+		],
+		{ k: '#5a3010', y: '#f2a52c', h: '#ffd27a', w: '#fffaf0' }
+	),
 	eye: svg(
 		[
 			'....kkkkkk....',

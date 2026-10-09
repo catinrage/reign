@@ -27,6 +27,7 @@
 		workshop: msg('workshops'),
 		stoneRoad: msg('stone roads'),
 		storehouse: msg('storehouses'),
+		tavern: msg('taverns'),
 		castle: msg('castles'),
 		guildHall: msg('guild halls'),
 		fortress: msg('fortresses')

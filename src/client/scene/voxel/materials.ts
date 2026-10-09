@@ -10,7 +10,7 @@ import { Mat } from './grid';
  */
 
 /** How many yards of trodden crops the land can have at once (see `sharedUniforms.uYards`). */
-export const YARDS = 8;
+export const YARDS = 16;
 
 export const sharedUniforms = {
 	uTime: { value: 0 },
@@ -40,7 +40,7 @@ export const sharedUniforms = {
 	/** Canvas size in CSS pixels, so outlines can be a fixed number of pixels wide. */
 	uViewport: { value: new THREE.Vector2(1, 1) },
 	/**
-	 * Yards where wheat and grass are trodden flat (round a Reign Extended storehouse): each is
+	 * Yards where wheat and grass are trodden flat (round a Reign Extended storehouse or tavern): each is
 	 * (center x, center z, radius, ground height) in world units, unused while its radius is 0.
 	 */
 	uYards: { value: Array.from({ length: YARDS }, () => new THREE.Vector4()) }
