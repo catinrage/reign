@@ -86,6 +86,29 @@
 	>
 </p>
 
+<h3>Stone roads</h3>
+<ul class="rows">
+	<li>
+		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
+			>Once you have rolled, pick <b>Stone road</b> in the build panel and click one of your roads to pave
+			it. It stays your road, and paving doesn't use up a road from your supply.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.road} alt="" /><span
+			>A stone road counts as two roads towards the Longest Road: a trail of four roads with two of them
+			paved is six long.</span
+		>
+	</li>
+</ul>
+
+<p class="tip">
+	<img class="icon-px" src={PIXEL.star} alt="" /><span
+		>Paving makes a trail longer without needing room to build, so it can win the Longest Road on an
+		island crowded with other people's roads.</span
+	>
+</p>
+
 <style>
 	.costs {
 		display: flex;

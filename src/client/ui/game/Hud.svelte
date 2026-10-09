@@ -5,6 +5,7 @@
 		roadSpots,
 		settlementSpots,
 		citySpots,
+		paveSpots,
 		tradeHarbor,
 		workshopSpots
 	} from '../../../shared/rules/queries';
@@ -90,6 +91,9 @@
 					} else if (ui.build === 'workshop') {
 						kind = 'workshop';
 						options = workshopSpots(view, me);
+					} else if (ui.build === 'stoneRoad') {
+						kind = 'stoneRoad';
+						options = paveSpots(view, me);
 					}
 					break;
 			}
@@ -105,6 +109,7 @@
 				else if (k === 'road') client.act({ type: 'placeRoad', edge: id });
 				else if (k === 'settlement') client.act({ type: 'placeSettlement', vertex: id });
 				else if (k === 'workshop') client.act({ type: 'buildWorkshop', hex: id });
+				else if (k === 'stoneRoad') client.act({ type: 'paveRoad', edge: id });
 				else client.act({ type: 'buildCity', vertex: id });
 				if (view.step === 'main') ui.build = null;
 			}

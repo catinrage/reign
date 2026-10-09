@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RESOURCES, type Resource } from '../../shared/rules/config';
-import { cityModel, resourceItemModel, roadModel, settlementModel } from './board/models';
+import { cityModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
 import { workshopObject } from './board/workshops';
 import { PLAYER_RGB } from './layout';
 import { sharedUniforms } from './voxel/materials';
@@ -96,6 +96,7 @@ export function getIcons(): IconSet {
 		shoot(`settlement:${color}`, settlementModel(rgbVal).clone());
 		shoot(`city:${color}`, cityModel(rgbVal).clone());
 		shoot(`road:${color}`, roadModel(rgbVal).clone(), -0.9);
+		shoot(`stoneRoad:${color}`, stoneRoadModel(rgbVal).clone(), -0.9);
 		// Every workshop shares the Mill's picture in the menus.
 		shoot(`workshop:${color}`, posedWorkshop('wheat', rgbVal), -0.5, true);
 	}
