@@ -1,5 +1,5 @@
 // Dev helper: Reign Extended's Events deck. The lobby with the Events card and its panel, then a
-// game against bots: the first card turning over, the round's card in the corner, a Royal Decree
+// game against bots: the first card turning over, the round's card in the corner chip, a Royal Decree
 // to pick, a Bountiful Year to take, and an earthquake. Cards are flipped with the dev cheat, so
 // run it against `pnpm dev`.
 // Usage: node scripts/dev/events.mjs <outDir> [width] [height] [base]
@@ -87,6 +87,13 @@ await shot('flip', 300);
 await page.evaluate(() => (window.__seen = window.__client.latest.log.at(-1).seq));
 await page.click('.flip-backdrop', { force: true }).catch(() => {});
 await shot('corner', 800);
+// The corner chip holds the round's card up again.
+if (want('chip')) {
+	await page.click('.event-chip', { force: true });
+	console.log('held up:', await page.locator('.flip-backdrop').count());
+	await shot('chip', 800);
+	await page.click('.flip-backdrop', { force: true }).catch(() => {});
+}
 
 // A Royal Decree: with an empty hand, you're the one in last place (everyone has 2 points).
 await cheat({ type: 'clearHand', player: await page.evaluate(() => window.__client.view.me) });

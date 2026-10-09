@@ -5,6 +5,7 @@
 	import PigeonButton from './PigeonButton.svelte';
 	import SpectatorBadge from './SpectatorBadge.svelte';
 	import TurnCounter from './TurnCounter.svelte';
+	import EventChip from './EventChip.svelte';
 	import { sfx } from '../sound';
 	import Tutorial from '../tutorial/Tutorial.svelte';
 	import { ui } from './ui.svelte';
@@ -96,7 +97,7 @@
 			title="Pause the game for everyone (P)"><img src={PIXEL.pause} alt="" /></button
 		>
 	{/if}
-	<TurnCounter />
+	<div class="turn-row"><TurnCounter /><EventChip /></div>
 	<SpectatorBadge />
 </div>
 
@@ -210,6 +211,10 @@
 		display: flex;
 		gap: 8px;
 		pointer-events: auto;
+	}
+	/* The round's event card goes beside the turn, in the column on phones too. */
+	.turn-row {
+		display: contents;
 	}
 	.curtain {
 		place-items: start center;
@@ -331,6 +336,10 @@
 			top: calc(104px + var(--clock-h, 0px));
 			left: 6px;
 			flex-direction: column;
+			gap: 6px;
+		}
+		.turn-row {
+			display: flex;
 			gap: 6px;
 		}
 	}
