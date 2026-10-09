@@ -2,6 +2,7 @@ import { getTopology } from '../board/topology';
 import { WORKSHOP_LIMIT } from './buildings';
 import {
 	COSTS,
+	hasResources,
 	DISCARD_THRESHOLD,
 	LONGEST_ROAD_MIN,
 	RESOURCES,
@@ -39,6 +40,42 @@ export function costOf(s: Shared, player: number, kind: BuildKind): Partial<Reso
 	if (ch === 'mason' && kind === 'city') return { wheat: 2, ore: 2 };
 	if (ch === 'scholar' && kind === 'devCard') return { wheat: 1, ore: 1 };
 	return COSTS[kind];
+}
+
+/**
+ * The cards this player would hand over for a build, or null if they can't pay. The Alchemist
+ * may pay Brick as Ore and Ore as Brick, using the asked-for kind first.
+ */
+export function paymentFor(
+	s: Shared,
+	player: number,
+	kind: BuildKind,
+	have: ResourceCounts
+): Partial<ResourceCounts> | null {
+	const cost = costOf(s, player, kind);
+	if (s.players[player]?.character !== 'alchemist') return hasResources(have, cost) ? cost : null;
+	const pay: Partial<ResourceCounts> = {};
+	for (const r of RESOURCES) {
+		if (r === 'brick' || r === 'ore' || !cost[r]) continue;
+		if (have[r] < cost[r]!) return null;
+		pay[r] = cost[r];
+	}
+	const brick = cost.brick ?? 0;
+	const ore = cost.ore ?? 0;
+	if (have.brick + have.ore < brick + ore) return null;
+	// Each kind pays for itself first; the shortfall comes out of the other.
+	const brickForBrick = Math.min(have.brick, brick);
+	const oreForOre = Math.min(have.ore, ore);
+	const paidBrick = brickForBrick + (ore - oreForOre);
+	const paidOre = oreForOre + (brick - brickForBrick);
+	if (paidBrick) pay.brick = paidBrick;
+	if (paidOre) pay.ore = paidOre;
+	return pay;
+}
+
+/** Whether this player can pay for a build out of this hand. */
+export function canPay(s: Shared, player: number, kind: BuildKind, have: ResourceCounts | undefined): boolean {
+	return !!have && paymentFor(s, player, kind, have) !== null;
 }
 
 /** A 7 makes this player discard half their hand when they hold more than this many cards. */
@@ -122,14 +159,25 @@ export function workshopSpots(s: Shared, player: number): number[] {
 /** Trade ratio per resource with the bank, given the harbors a player has built on. */
 export function tradeRatios(s: Shared, player: number): Record<Resource, number> {
 	const topo = getTopology(s.board);
-	const base = s.players[player]?.character === 'merchant' ? 3 : 4;
+	const ch = s.players[player]?.character;
+	const base = ch === 'merchant' ? 3 : 4;
 	const ratios = { wood: base, brick: base, sheep: base, wheat: base, ore: base } as Record<Resource, number>;
-	s.buildings.forEach((b, v) => {
-		if (!b || b.owner !== player) return;
+	const harbor = (v: number) => {
 		const port = topo.vertices[v].port;
 		if (port === 'any') for (const r of RESOURCES) ratios[r] = Math.min(ratios[r], 3);
 		else if (port) ratios[port] = 2;
+	};
+	s.buildings.forEach((b, v) => {
+		if (b && b.owner === player) harbor(v);
 	});
+	// The Cartographer trades at every harbor her roads reach.
+	if (ch === 'cartographer') {
+		s.roads.forEach((o, e) => {
+			if (o !== player) return;
+			harbor(topo.edges[e].a);
+			harbor(topo.edges[e].b);
+		});
+	}
 	return ratios;
 }
 
@@ -217,6 +265,17 @@ export function vertexValue(s: Shared, vertex: number): number {
 		if (TERRAIN_RESOURCE[hex.terrain]) v += pips(hex.number);
 	}
 	return v;
+}
+
+/** Whether this player is alone in last place on the points everyone can see. */
+export function aloneLast(s: Shared, player: number): boolean {
+	const mine = publicPoints(s, player);
+	return s.players.every((_, i) => i === player || publicPoints(s, i) > mine);
+}
+
+/** The player with this character at the table, or -1. */
+export function holderOf(s: { players: { character: CharacterId | null }[] }, c: CharacterId): number {
+	return s.players.findIndex((p) => p.character === c);
 }
 
 /** Characters still free in the character draft. */

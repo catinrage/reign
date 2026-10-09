@@ -280,7 +280,7 @@
 							<button class="pick plaque" onclick={() => (picking = 'character')}>
 								<span class="map-well well cast" class:off={!settings.characters}>
 									{#each CHARACTERS as c (c)}
-										<span class:out={!pool.includes(c)}><Portrait id={c} size={21} framed={false} /></span>
+										<span class:out={!pool.includes(c)}><Portrait id={c} size={16} framed={false} tip={false} /></span>
 									{/each}
 								</span>
 								<span class="pick-body">
@@ -847,8 +847,8 @@
 	}
 	.cast {
 		display: grid;
-		grid-template-columns: repeat(4, 21px);
-		gap: 2px;
+		grid-template-columns: repeat(4, 16px);
+		gap: 1px;
 		place-content: center;
 	}
 	.cast.off,

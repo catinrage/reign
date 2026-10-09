@@ -32,6 +32,12 @@
 			>Everyone's character shows on their plaque, so you always know what your rivals can do.</span
 		>
 	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.cards} alt="" /><span
+			>Some traits hand you a resource of your choice (the Seer, the Jester, a trade with the Bard). A
+			card pops up: click the one you want. It never holds up the game.</span
+		>
+	</li>
 </ul>
 
 <h3>The cast</h3>
@@ -54,7 +60,9 @@
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
 		>Let your character shape your opening. The Mason wants ore for cities, the Merchant can live
-		off the bank, and the Explorer should race for the long road.</span
+		off the bank, the Explorer should race for the long road, and the Cartographer should run roads
+		along the coast. Mind the others too: robbing the Hedge Witch costs you a card, and a road beside
+		the Baron's pays him a toll.</span
 	>
 </p>
 

@@ -1,7 +1,8 @@
 /**
- * Reign Extended characters. Each player picks one in the lobby; its trait bends one rule for
- * them. Traits are data plus a few small hooks in the rules (costs, trade ratios, the robber,
- * discards, Largest Army and Longest Road), so new characters are cheap to add.
+ * Reign Extended characters. Each player drafts one when the game starts; its trait bends one
+ * rule for them. Traits are data plus a few small hooks in the rules (costs, trade ratios, the
+ * robber, the dice, discards, trades, Largest Army and Longest Road), so new characters are cheap
+ * to add.
  */
 
 export const CHARACTERS = [
@@ -12,7 +13,15 @@ export const CHARACTERS = [
 	'rogue',
 	'steward',
 	'shepherd',
-	'explorer'
+	'explorer',
+	'seer',
+	'alchemist',
+	'bard',
+	'witch',
+	'cartographer',
+	'baron',
+	'abbess',
+	'jester'
 ] as const;
 export type CharacterId = (typeof CHARACTERS)[number];
 
@@ -75,6 +84,54 @@ export const CHARACTER_INFO: Record<CharacterId, CharacterInfo> = {
 		title: 'the Explorer',
 		trait: 'Trailblazer',
 		text: 'Can claim Longest Road with only 4 roads.'
+	},
+	seer: {
+		name: 'Morwen',
+		title: 'the Seer',
+		trait: 'Second Sight',
+		text: 'Takes a resource of choice from the bank whenever anyone rolls a 2 or a 12.'
+	},
+	alchemist: {
+		name: 'Osric',
+		title: 'the Alchemist',
+		trait: 'Transmutation',
+		text: 'Can pay Brick as Ore and Ore as Brick when building.'
+	},
+	bard: {
+		name: 'Fenwick',
+		title: 'the Bard',
+		trait: 'Good Company',
+		text: 'Whoever trades with the Bard takes a bonus resource of choice from the bank, once per turn.'
+	},
+	witch: {
+		name: 'Hilde',
+		title: 'the Hedge Witch',
+		trait: 'Hexed Purse',
+		text: 'Whoever robs the Witch gives her a card instead of taking one. The robber still blocks her tile.'
+	},
+	cartographer: {
+		name: 'Elowen',
+		title: 'the Cartographer',
+		trait: 'Charted Coasts',
+		text: 'Trades at any harbor her roads reach, with no settlement there.'
+	},
+	baron: {
+		name: 'Leofric',
+		title: 'the Baron',
+		trait: 'Toll Roads',
+		text: 'Anyone who builds a road touching his roads pays him a random card.'
+	},
+	abbess: {
+		name: 'Mother Agnes',
+		title: 'the Abbess',
+		trait: 'Alms',
+		text: 'Whenever a 7 makes others discard, takes one of the discarded cards at random.'
+	},
+	jester: {
+		name: 'Pip',
+		title: 'the Jester',
+		trait: 'Underdog',
+		text: 'Takes a resource of choice from the bank at the start of each turn while alone in last place.'
 	}
 };
 

@@ -322,6 +322,291 @@ function explorer(b: Bust) {
 	for (let i = 0; i < 9; i++) b.box(9, 4 + i, 5 + Math.floor(i / 3), 10, 4 + i, 5 + Math.floor(i / 3), i % 3 === 0 ? GOLD : hex('#3a2a1e'));
 }
 
+function seer(b: Bust) {
+	const robe = hex('#3c2366');
+	b.body(robe, shade(robe, 0.72));
+	// Little silver stars sewn over the robe.
+	for (const [x, y] of [
+		[-8, 2],
+		[-5, 5],
+		[6, 3],
+		[9, 5],
+		[-9, 5],
+		[3, 1]
+	])
+		b.set(x, y, 5, hex('#dfe6f2'));
+	b.neck(SKIN.light);
+	b.head(SKIN.light);
+	b.face(SKIN.light, { brow: hex('#c9ccd6'), eye: hex('#5aa8d8') });
+	// Long silver hair falling past the shoulders.
+	const hair = hex('#cfd3dc');
+	b.hair(hair, 6, 20);
+	for (const s of [-1, 1]) b.box(s * 6, 4, -4, s * 7, 13, 3, (x, y, z) => shade(hair, 0.86 + hash3(x, y, z, 6) * 0.18));
+	// A deep hood over the hair.
+	const hood = (x: number, y: number, z: number) => shade(robe, 0.86 + hash3(x, y, z, 3) * 0.2);
+	b.box(-7, 14, -7, 7, 23, 6, (x, y, z) => {
+		if (Math.abs(x) <= 6 && y <= 22 && z >= -6) return -1;
+		if (y === 23 && Math.abs(x) > 5) return -1;
+		return hood(x, y, z);
+	});
+	b.box(-6, 22, 5, 6, 23, 6, hood);
+	// A circlet with a blue stone on the brow.
+	b.box(-5, 19, 6, 5, 19, 6, hex('#c0c6d2'));
+	b.set(0, 19, 7, hex('#3a8ae0'));
+	// The crystal ball, glowing, held in both hands.
+	b.box(-4, 0, 6, 4, 1, 9, SKIN.light);
+	b.box(-3, 2, 6, 3, 8, 11, (x, y, z) => {
+		const d = x * x + (y - 5) * (y - 5) + (z - 8.5) * (z - 8.5);
+		if (d > 11) return -1;
+		return mix(hex('#8fd8ff'), hex('#e8f8ff'), d < 4 ? 0.7 : 0.1);
+	});
+}
+
+function alchemist(b: Bust) {
+	const coat = hex('#4d5a2a');
+	b.body(coat, shade(coat, 0.74));
+	// A stained leather apron with a pocket of vials.
+	b.box(-6, 0, 5, 6, 6, 5, (x, y) => (hash3(x, y, 7) > 0.85 ? hex('#6d8a3a') : hex('#7a5232')));
+	for (const [x, c] of [
+		[-4, '#e04a3a'],
+		[-3, '#4ac0e0'],
+		[-2, '#e8c040']
+	] as const)
+		b.box(x, 3, 6, x, 5, 6, hex(c));
+	b.neck(SKIN.mid);
+	b.head(SKIN.mid);
+	b.face(SKIN.mid, { brow: hex('#4a2c18') });
+	// Bald crown with dark sides and a big forked beard.
+	const hair = hex('#4a2c18');
+	b.box(-6, 14, -6, -6, 19, 2, hair);
+	b.box(6, 14, -6, 6, 19, 2, hair);
+	b.box(-6, 14, -6, 6, 18, -6, hair);
+	b.box(-5, 6, 4, 5, 12, 6, (x, y) => {
+		if (y > 10 && Math.abs(x) < 2) return -1;
+		if (y < 8 && Math.abs(x) < 1) return -1;
+		if (y < 9 && Math.abs(x) > 4) return -1;
+		return shade(hair, 0.9 + hash3(x, y, 1) * 0.2);
+	});
+	b.box(-3, 12, 6, 3, 12, 6, hair);
+	// Brass goggles pushed up on the forehead.
+	b.box(-6, 19, -6, 6, 19, 6, (x, _y, z) => (Math.abs(x) < 6 && Math.abs(z) < 6 && z < 6 ? -1 : hex('#3a2a1e')));
+	for (const s of [-1, 1]) {
+		b.box(s * 3 - 1, 19, 6, s * 3 + 1, 20, 6, GOLD_DARK);
+		b.set(s * 3, 19, 7, hex('#7fd8c8'));
+		b.set(s * 3, 20, 7, hex('#b8f0e6'));
+	}
+	// A round flask of bubbling green held up at the side.
+	b.box(8, 1, 3, 10, 3, 5, SKIN.mid);
+	b.box(7, 4, 2, 11, 8, 6, (x, y, z) => {
+		const d = (x - 9) * (x - 9) + (y - 6) * (y - 6) + (z - 4) * (z - 4);
+		if (d > 6) return -1;
+		return y > 7 ? hex('#cfe8e0') : mix(hex('#3ad04a'), hex('#b8ff7a'), hash3(x, y, z, 8));
+	});
+	b.box(9, 9, 4, 9, 11, 4, hex('#cfe8e0'));
+	b.set(9, 12, 4, hex('#8a5a2c'));
+	b.set(8, 13, 5, hex('#c8ffb0'));
+	b.set(10, 14, 3, hex('#c8ffb0'));
+}
+
+function bard(b: Bust) {
+	// A doublet quartered red and gold.
+	const red = hex('#c03a2e');
+	const gold = hex('#e0a832');
+	b.body(red, shade(red, 0.74));
+	b.box(-11, 0, -5, 11, 7, 4, (x, y, z) => (b.g.solid(x, y, z) ? ((x < 0) !== (y < 4) ? red : gold) : -1));
+	b.box(-11, 0, -4, -10, 3, 3, shade(gold, 0.78));
+	b.neck(SKIN.light);
+	b.head(SKIN.light);
+	b.face(SKIN.light, { brow: hex('#7a4a1e'), mouth: hex('#b8503a') });
+	// A wide smile.
+	b.set(-2, 11, 5, hex('#9c4a3a'));
+	b.set(2, 11, 5, hex('#9c4a3a'));
+	// Curly chestnut hair and a jaunty green cap with a long feather.
+	const hair = hex('#8a4a1e');
+	b.hair(hair, 12, 20);
+	for (const s of [-1, 1]) for (let y = 12; y < 15; y++) b.set(s * 7, y, 1, shade(hair, y % 2 ? 0.85 : 1));
+	const cap = hex('#2f7a3a');
+	b.box(-7, 21, -7, 7, 23, 6, (x, y, z) => (x * x + z * z > 48 ? -1 : y === 21 ? shade(cap, 0.8) : cap));
+	b.box(-5, 24, -6, 3, 24, 3, (x, _y, z) => (x * x + z * z > 20 ? -1 : cap));
+	for (let i = 0; i < 12; i++) b.set(6 + Math.floor(i / 4), 22 + i, -3 - Math.floor(i / 3), i > 8 ? hex('#fff2c0') : hex('#f2f2f2'));
+	// A lute across the chest.
+	const wood = hex('#b0702c');
+	b.box(-9, 0, 5, -2, 5, 7, (x, y) => ((x + 5.5) * (x + 5.5) * 0.6 + (y - 2.5) * (y - 2.5) > 9 ? -1 : wood));
+	b.set(-5, 3, 8, hex('#3a2010'));
+	b.set(-6, 3, 8, hex('#3a2010'));
+	for (let i = 0; i < 8; i++) b.set(-1 + i, 5 + Math.floor(i / 2), 6, i > 5 ? shade(wood, 0.7) : hex('#5a3418'));
+}
+
+function witch(b: Bust) {
+	const shawl = hex('#2e4a32');
+	b.body(hex('#5a3a5a'), hex('#46304a'));
+	// A knitted green shawl over the shoulders.
+	b.box(-11, 4, -5, 11, 7, 5, (x, y, z) => (b.g.solid(x, y, z) || y >= 6 ? ((x + y) % 2 ? shawl : shade(shawl, 0.85)) : -1));
+	b.box(-1, 1, 5, 1, 3, 6, hex('#8a5a8a'));
+	b.neck(SKIN.tan);
+	b.head(SKIN.tan);
+	b.face(SKIN.tan, { brow: hex('#9a9a9a'), look: 1, mouth: hex('#7a3a3a') });
+	// A crooked nose with a wart.
+	b.set(0, 14, 7, shade(SKIN.tan, 0.95));
+	b.set(1, 13, 7, shade(SKIN.tan, 0.9));
+	b.set(1, 14, 8, hex('#7a8a4a'));
+	// Wild gray hair poking out everywhere.
+	const hair = hex('#9a9aa0');
+	b.hair(hair, 8, 19);
+	for (let i = 0; i < 14; i++) {
+		const s = i % 2 ? 1 : -1;
+		b.set(s * (7 + (i % 3 === 0 ? 1 : 0)), 8 + i, -2 + (i % 4), shade(hair, 0.85 + hash3(i, 2, 3) * 0.3));
+	}
+	// A tall, crooked pointed hat.
+	const hat = hex('#3a2a20');
+	b.box(-9, 22, -9, 9, 22, 8, (x, _y, z) => (x * x + z * z > 80 ? -1 : shade(hat, 0.85)));
+	for (let y = 23; y < 37; y++) {
+		const r = Math.max(0, 6 - Math.floor((y - 23) / 2.2));
+		const off = y > 31 ? Math.floor((y - 31) * 0.8) : 0;
+		b.box(-r - off, y, -r, r - off, y, r, (x, _y, z) => ((x + off) * (x + off) + z * z > r * r + 1 ? -1 : y === 23 ? hex('#7a3a8a') : hat));
+	}
+	// A sprig of herbs in the hand.
+	b.box(8, 0, 4, 10, 2, 6, SKIN.tan);
+	for (let i = 0; i < 6; i++) b.set(9, 3 + i, 6, hex('#5a7a2a'));
+	for (const [x, y] of [
+		[8, 6],
+		[10, 7],
+		[8, 8],
+		[10, 9],
+		[9, 9]
+	])
+		b.set(x, y, 6, y > 8 ? hex('#c060d0') : hex('#7ab04a'));
+}
+
+function cartographer(b: Bust) {
+	const coat = hex('#2a4a7a');
+	b.body(coat, shade(coat, 0.74));
+	// Brass buttons down a cream waistcoat.
+	b.box(-2, 0, 5, 2, 6, 5, hex('#e8dcc0'));
+	for (const y of [1, 3, 5]) b.set(0, y, 6, GOLD);
+	b.neck(SKIN.light);
+	b.head(SKIN.light);
+	b.face(SKIN.light, { brow: hex('#8a3a1e') });
+	// Auburn bob with a quill behind the ear.
+	const hair = hex('#9a3e1c');
+	b.hair(hair, 11, 20);
+	b.box(-6, 11, 0, 6, 12, 5, (x) => (Math.abs(x) < 6 ? -1 : hair));
+	for (let i = 0; i < 7; i++) b.set(-7, 14 + i, 1 - Math.floor(i / 2), i > 4 ? hex('#ffffff') : hex('#ece6da'));
+	// A navy tricorn with gold trim.
+	const hat = hex('#1e2a44');
+	b.box(-8, 22, -7, 8, 22, 7, (x, _y, z) => (x * x + z * z > 60 ? -1 : Math.abs(x) + Math.abs(z) > 9 ? GOLD : hat));
+	b.box(-5, 23, -5, 5, 25, 5, (x, _y, z) => (x * x + z * z > 28 ? -1 : hat));
+	// An unrolled map held up in front, coast and route drawn on it.
+	const paper = hex('#f0e2b8');
+	b.box(-10, 0, 6, 1, 7, 6, (x, y) => {
+		if (y === 0 || y === 7) return hex('#c8a870');
+		if ((x + 5) * (x + 5) + (y - 4) * (y - 4) < 6 && hash3(x, y, 2) > 0.2) return hex('#7aa86a');
+		if (y === 2 && x > -8 && x < -1) return hex('#c03a2e');
+		return paper;
+	});
+	b.box(-11, 0, 6, -11, 7, 7, hex('#c8a870'));
+	b.box(2, 0, 6, 2, 7, 7, hex('#c8a870'));
+}
+
+function baron(b: Bust) {
+	const velvet = hex('#5a1e46');
+	b.body(velvet, shade(velvet, 0.74));
+	// An ermine collar: white with black flecks.
+	b.box(-10, 5, -4, 10, 7, 5, (x, y, z) => (Math.abs(x) < 3 && z > 2 ? -1 : hash3(x, y, z, 4) > 0.94 ? hex('#1a1a1a') : shade(WHITE, 0.94 + hash3(x, y, z) * 0.06)));
+	b.box(-3, 1, 5, 3, 3, 6, (x, y) => (Math.abs(x) + Math.abs(y - 2) > 3 ? -1 : GOLD));
+	b.set(0, 2, 7, hex('#2fa04a'));
+	b.neck(SKIN.light);
+	b.head(SKIN.light);
+	b.face(SKIN.light, { brow: hex('#1a1410'), mouth: hex('#8c4a3a') });
+	// Slicked black hair and a waxed mustache.
+	const hair = hex('#1a1410');
+	b.hair(hair, 14, 21);
+	b.box(-3, 12, 6, 3, 12, 6, hair);
+	b.pair(4, 13, 6, hair);
+	b.pair(5, 14, 6, hair);
+	// A gold coronet with red stones.
+	b.box(-6, 21, -6, 6, 22, 6, (x, _y, z) => (Math.abs(x) < 6 && Math.abs(z) < 6 ? -1 : GOLD));
+	for (const x of [-6, -2, 2, 6]) b.set(x, 23, 6, GOLD);
+	for (const z of [-6, -2, 2]) {
+		b.set(-6, 23, z, GOLD);
+		b.set(6, 23, z, GOLD);
+	}
+	b.set(0, 21, 7, hex('#e0303a'));
+	// A signet ring hand on a staff of office.
+	b.box(-12, 0, 3, -12, 16, 3, hex('#3a2010'));
+	b.box(-13, 17, 2, -11, 19, 4, GOLD);
+}
+
+function abbess(b: Bust) {
+	const habit = hex('#24242c');
+	b.body(habit, shade(habit, 0.8));
+	b.neck(SKIN.light);
+	b.head(SKIN.light);
+	b.face(SKIN.light, { brow: hex('#9a8a7a') });
+	// Kind smile lines.
+	b.set(-4, 12, 5, shade(SKIN.light, 0.88));
+	b.set(4, 12, 5, shade(SKIN.light, 0.88));
+	// A white wimple framing the face and a black veil over it.
+	b.box(-6, 8, -6, 6, 19, 6, (x, y, z) => {
+		if (Math.abs(x) <= 5 && z >= -5 && y >= 10) return -1;
+		if (z === 6 && Math.abs(x) <= 5 && y >= 10) return -1;
+		return shade(WHITE, 0.96 + hash3(x, y, z) * 0.04);
+	});
+	b.box(-6, 7, 4, 6, 9, 6, (x, y) => (y === 9 && Math.abs(x) < 4 ? -1 : WHITE));
+	b.box(-7, 19, -7, 7, 23, 6, (x, y, z) => (Math.abs(x) <= 6 && y <= 22 && z >= -6 && z <= 5 ? -1 : y === 23 && Math.abs(x) === 7 ? -1 : shade(habit, 0.9 + hash3(x, y, z, 5) * 0.15)));
+	b.box(-7, 6, -7, 7, 19, -7, (x, y, z) => shade(habit, 0.9 + hash3(x, y, z, 5) * 0.15));
+	b.box(-7, 6, -6, -7, 19, 3, habit);
+	b.box(7, 6, -6, 7, 19, 3, habit);
+	b.box(-6, 19, 6, 6, 19, 6, WHITE);
+	// A plain gold pendant and a lantern held up, lit.
+	b.box(0, 2, 5, 0, 5, 5, GOLD);
+	b.box(-1, 4, 5, 1, 4, 5, GOLD);
+	b.box(8, 0, 4, 10, 2, 6, SKIN.light);
+	b.box(7, 3, 3, 11, 8, 7, (x, y, z) => {
+		const edge = (x === 7 || x === 11) && (z === 3 || z === 7);
+		if (y === 3 || y === 8) return hex('#3a3a40');
+		if (edge) return hex('#3a3a40');
+		return mix(hex('#ffd060'), hex('#fff4c0'), hash3(x, y, z, 1) * 0.6);
+	});
+	b.set(9, 9, 5, hex('#3a3a40'));
+}
+
+function jester(b: Bust) {
+	// A diamond-checked tunic in red and yellow, with a ruff.
+	const red = hex('#d0322c');
+	const yellow = hex('#f0c030');
+	b.body(red, shade(red, 0.74));
+	b.box(-11, 0, -5, 11, 7, 4, (x, y, z) => (b.g.solid(x, y, z) ? ((Math.abs(x) + y) % 4 < 2 ? red : yellow) : -1));
+	b.box(-7, 7, -5, 7, 8, 5, (x, y, z) => (Math.abs(x) < 3 && z === 5 ? -1 : (x + z) % 2 ? WHITE : shade(WHITE, 0.88)));
+	b.neck(SKIN.light);
+	b.head(SKIN.light);
+	b.face(SKIN.light, { brow: hex('#2a1a10'), mouth: hex('#c0303a') });
+	// A big grin and painted diamonds under the eyes.
+	b.box(-2, 11, 5, 2, 11, 5, hex('#c0303a'));
+	b.set(-3, 12, 5, hex('#c0303a'));
+	b.set(3, 12, 5, hex('#c0303a'));
+	b.set(-3, 14, 5, hex('#2a5ad0'));
+	b.set(3, 14, 5, hex('#2a5ad0'));
+	// The hat: split red and yellow, with two floppy points ending in bells.
+	b.box(-6, 19, -6, 6, 22, 6, (x, y, z) => (Math.abs(x) <= 5 && y <= 21 && z >= -5 && z <= 5 ? -1 : x < 0 ? red : yellow));
+	b.box(-5, 23, -5, 5, 23, 5, (x) => (x < 0 ? red : yellow));
+	for (const s of [-1, 1]) {
+		const c = s < 0 ? red : yellow;
+		for (let i = 0; i < 9; i++) {
+			const x = s * (5 + i);
+			const y = 24 + Math.round(Math.sin((i / 8) * Math.PI) * 4) - (i > 6 ? (i - 6) * 2 : 0);
+			b.box(x - (s < 0 ? 1 : 0), y, -1, x + (s > 0 ? 1 : 0), y + 1, 1, shade(c, 0.9 + (i % 2) * 0.1));
+		}
+		b.box(s * 14 - 1, 21, -1, s * 14 + 1, 22, 1, GOLD);
+	}
+	// A marotte (a little jester head on a stick).
+	b.box(9, 0, 5, 10, 2, 6, SKIN.light);
+	b.box(9, 3, 6, 9, 9, 6, hex('#8a5a2c'));
+	b.box(8, 10, 5, 10, 12, 7, SKIN.light);
+	b.box(8, 13, 5, 10, 13, 7, (x) => (x < 9 ? red : yellow));
+	b.set(9, 14, 6, GOLD);
+}
+
 const BUILDERS: Record<CharacterId, (b: Bust) => void> = {
 	merchant,
 	mason,
@@ -330,7 +615,15 @@ const BUILDERS: Record<CharacterId, (b: Bust) => void> = {
 	rogue,
 	steward,
 	shepherd,
-	explorer
+	explorer,
+	seer,
+	alchemist,
+	bard,
+	witch,
+	cartographer,
+	baron,
+	abbess,
+	jester
 };
 
 /** The voxel bust of a character, centered for portraits. */

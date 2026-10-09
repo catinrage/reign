@@ -425,7 +425,7 @@ describe('Reign Extended lobby', () => {
 		expect(room.lobbyInfo().settings.leftOut).toEqual(['merchant', 'shepherd']);
 
 		// Too few characters for the table: the host can't start.
-		for (const c of ['mason', 'scholar', 'veteran', 'steward', 'explorer'] as const) {
+		for (const c of ['mason', 'scholar', 'veteran', 'steward', 'explorer', 'seer', 'alchemist', 'bard', 'witch', 'cartographer', 'baron', 'abbess', 'jester'] as const) {
 			room.handle(host, { t: 'leaveOut', character: c, out: true }, a.ws);
 		}
 		room.handle(guest, { t: 'setReady', ready: true }, b.ws);

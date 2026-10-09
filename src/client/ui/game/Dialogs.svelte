@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CHARACTER_INFO } from '../../../shared/rules/characters';
 	import { RESOURCE_LABEL, emptyResources, type Resource } from '../../../shared/rules/config';
 	import { discardLimit } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
@@ -6,6 +7,7 @@
 	import Modal from '../menu/Modal.svelte';
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
+	import Portrait from '../extended/Portrait.svelte';
 	import { dialogs } from './dialogs.svelte';
 
 	const view = $derived(client.view!);
@@ -13,6 +15,8 @@
 	const res = $derived(view.players[me]?.resources);
 	const mustDiscard = $derived(view.step === 'discard' ? (view.pendingDiscards[me] ?? 0) : 0);
 	const choosingVictim = $derived(myTurn(view) && view.step === 'steal');
+	/** Cards a trait owes me (the Seer, the Jester, the Bard's partners), taken one at a time. */
+	const owed = $derived(view.phase === 'draft' || view.phase === 'ended' ? [] : (view.picks?.[me] ?? []));
 
 	let discard = $state(emptyResources());
 	const picked = $derived(RESOURCES.reduce((n, r) => n + discard[r], 0));
@@ -67,6 +71,32 @@
 				disabled={picked !== mustDiscard}
 				onclick={() => client.act({ type: 'discard', resources: { ...discard } })}>Discard</button
 			>
+		</div>
+	</Modal>
+{/if}
+
+{#if owed.length && !mustDiscard}
+	{@const from = CHARACTER_INFO[owed[0]]}
+	<Modal title={from.trait} width={480}>
+		<div class="owed">
+			<Portrait id={owed[0]} size={64} />
+			<p>
+				{owed[0] === view.players[me].character ? `${from.name} ${from.title}` : `Trading with ${from.name} ${from.title}`}: take
+				any resource from the bank{owed.length > 1 ? ` (${owed.length} to take)` : ''}.
+			</p>
+		</div>
+		<div class="row">
+			{#each RESOURCES as r (r)}
+				<div class="col">
+					<ResCard
+						res={r}
+						size={58}
+						dim={view.bank[r] === 0}
+						onclick={() => view.bank[r] > 0 && client.act({ type: 'takePick', resource: r })}
+					/>
+					<span class="nm">{RESOURCE_LABEL[r]}</span>
+				</div>
+			{/each}
 		</div>
 	</Modal>
 {/if}
@@ -144,6 +174,14 @@
 {/if}
 
 <style>
+	.owed {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.owed p {
+		margin: 0;
+	}
 	.row {
 		display: flex;
 		gap: 10px;

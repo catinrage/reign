@@ -19,6 +19,7 @@ import {
 	emptyResources,
 	hasResources,
 	totalResources,
+	type BuildKind,
 	type DevCardType,
 	type PlayerColor,
 	type Resource,
@@ -31,10 +32,12 @@ import {
 	builtKey,
 	canPlaceRoad,
 	canPlaceSettlement,
-	costOf,
+	aloneLast,
 	discardLimit,
+	holderOf,
 	longestRoad,
 	longestRoadMin,
+	paymentFor,
 	playersOnHex,
 	publicPoints,
 	roadSpots,
@@ -133,6 +136,9 @@ export function createGame(
 		pendingDiscards: {},
 		stealCandidates: [],
 		trade: null,
+		picks: {},
+		bardTurn: -1,
+		alms: [],
 		longestRoadHolder: null,
 		largestArmyHolder: null,
 		winner: null,
@@ -231,6 +237,7 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 	// Actions that other players may take out of turn.
 	if (a.type === 'discard') return discard(ctx, p, a.resources);
 	if (a.type === 'respondTrade') return respondTrade(ctx, p, a.offerId, a.accept);
+	if (a.type === 'takePick') return takePick(ctx, p, a.resource);
 
 	if (p !== s.current) fail("It's not your turn.");
 	if ((s.phase === 'draft') !== (a.type === 'pickCharacter')) {
@@ -352,6 +359,7 @@ function setupRoad(ctx: Ctx, p: number, edge: number) {
 		s.current = 0;
 		s.turn = 1;
 		ctx.emit({ type: 'turnStarted', player: 0, turn: 1 });
+		turnBegins(ctx);
 	} else {
 		s.step = 'setupSettlement';
 		const next = order[s.setupIndex];
@@ -372,6 +380,11 @@ function roll(ctx: Ctx, p: number) {
 	s.dice = [d1, d2];
 	ctx.emit({ type: 'diceRolled', player: p, dice: [d1, d2] });
 	const total = d1 + d2;
+	// The Seer's second sight: a card of choice on a 2 or a 12, whoever rolled it.
+	if (total === 2 || total === 12) {
+		const seer = holderOf(s, 'seer');
+		if (seer >= 0) owePick(ctx, seer, 'seer');
+	}
 	if (total === 7) {
 		const pending: Record<number, number> = {};
 		s.players.forEach((pl, i) => {
@@ -386,6 +399,7 @@ function roll(ctx: Ctx, p: number) {
 			ctx.emit({ type: 'traitGain', player: i, character: 'shepherd', resource: 'sheep' });
 		});
 		s.pendingDiscards = pending;
+		s.alms = [];
 		s.resumeStep = 'main';
 		if (Object.keys(pending).length) {
 			s.step = 'discard';
@@ -461,7 +475,58 @@ function discard(ctx: Ctx, p: number, res: Partial<ResourceCounts>) {
 	transfer(s.players[p].resources, s.bank, clean);
 	delete s.pendingDiscards[p];
 	ctx.emit({ type: 'discarded', player: p, count: need });
-	if (Object.keys(s.pendingDiscards).length === 0) s.step = 'moveRobber';
+	if (s.players[p].character !== 'abbess') for (const r of RESOURCES) for (let i = 0; i < (clean[r] ?? 0); i++) (s.alms ??= []).push(r);
+	if (Object.keys(s.pendingDiscards).length === 0) {
+		giveAlms(ctx);
+		s.step = 'moveRobber';
+	}
+}
+
+/** The Abbess's alms: one of the cards the others just discarded, at random, back from the bank. */
+function giveAlms(ctx: Ctx) {
+	const s = ctx.s;
+	const abbess = holderOf(s, 'abbess');
+	const alms = (s.alms ?? []).filter((r) => s.bank[r] > 0);
+	s.alms = [];
+	if (abbess < 0 || !alms.length) return;
+	const res = alms[randomInt(s, alms.length)];
+	s.bank[res]--;
+	s.players[abbess].resources[res]++;
+	ctx.emit({ type: 'traitGain', player: abbess, character: 'abbess', resource: res });
+}
+
+/** A trait owes this player a resource of their choice, taken whenever they like. */
+function owePick(ctx: Ctx, p: number, character: CharacterId) {
+	const s = ctx.s;
+	((s.picks ??= {})[p] ??= []).push(character);
+	ctx.emit({ type: 'pickOwed', player: p, character });
+}
+
+function takePick(ctx: Ctx, p: number, res: Resource) {
+	const s = ctx.s;
+	if (s.phase === 'draft') fail('Pick your character first.');
+	const owed = s.picks?.[p];
+	if (!owed?.length) fail('Nothing is owed to you.');
+	if (!RESOURCES.includes(res)) fail('Pick a resource.');
+	if (s.bank[res] <= 0) fail('The bank is out of that resource.');
+	const character = owed.shift()!;
+	if (!owed.length) delete s.picks[p];
+	s.bank[res]--;
+	s.players[p].resources[res]++;
+	ctx.emit({ type: 'traitGain', player: p, character, resource: res });
+	checkWin(ctx);
+}
+
+/** One random card from `from`'s hand to `to`, because of a trait. */
+function traitToll(ctx: Ctx, from: number, to: number, character: CharacterId) {
+	const s = ctx.s;
+	const hand: Resource[] = [];
+	for (const r of RESOURCES) for (let i = 0; i < s.players[from].resources[r]; i++) hand.push(r);
+	if (!hand.length) return;
+	const res = hand[randomInt(s, hand.length)];
+	s.players[from].resources[res]--;
+	s.players[to].resources[res]++;
+	ctx.emit({ type: 'traitToll', from, to, character, resource: res });
 }
 
 function moveRobber(ctx: Ctx, p: number, hex: number) {
@@ -497,6 +562,11 @@ function doSteal(ctx: Ctx, p: number, victim: number) {
 	// The Rogue takes a second card if there is one.
 	const times = s.players[p].character === 'rogue' ? 2 : 1;
 	for (let k = 0; k < times; k++) {
+		// The Witch's purse bites back: the thief pays her instead.
+		if (s.players[victim].character === 'witch') {
+			traitToll(ctx, p, victim, 'witch');
+			continue;
+		}
 		const hand: Resource[] = [];
 		for (const r of RESOURCES) for (let i = 0; i < s.players[victim].resources[r]; i++) hand.push(r);
 		if (!hand.length) break;
@@ -516,9 +586,21 @@ function requireMain(s: GameState) {
 	if (s.step !== 'main') fail("You can't do that right now.");
 }
 
-function pay(s: GameState, p: number, cost: Partial<ResourceCounts>) {
-	if (!hasResources(s.players[p].resources, cost)) fail("You don't have enough resources.");
-	transfer(s.players[p].resources, s.bank, cost);
+function pay(s: GameState, p: number, kind: BuildKind) {
+	const cards = paymentFor(s, p, kind, s.players[p].resources);
+	if (!cards) fail("You don't have enough resources.");
+	transfer(s.players[p].resources, s.bank, cards);
+}
+
+/** The Baron's toll on a road that touches one of his. */
+function roadToll(ctx: Ctx, p: number, edge: number) {
+	const s = ctx.s;
+	const baron = holderOf(s, 'baron');
+	if (baron < 0 || baron === p) return;
+	const topo = getTopology(s.board);
+	const e = topo.edges[edge];
+	const touches = [e.a, e.b].some((v) => topo.vertices[v].edges.some((o) => o !== edge && s.roads[o] === baron));
+	if (touches) traitToll(ctx, p, baron, 'baron');
 }
 
 function buildRoad(ctx: Ctx, p: number, edge: number) {
@@ -526,10 +608,11 @@ function buildRoad(ctx: Ctx, p: number, edge: number) {
 	requireMain(s);
 	if (s.players[p].piecesLeft.road <= 0) fail('You have no roads left.');
 	if (!canPlaceRoad(s, p, edge)) fail("You can't build a road there.");
-	pay(s, p, costOf(s, p, 'road'));
+	pay(s, p, 'road');
 	s.roads[edge] = p;
 	s.players[p].piecesLeft.road--;
 	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: false });
+	roadToll(ctx, p, edge);
 	updateLongestRoad(ctx);
 	checkWin(ctx);
 }
@@ -541,6 +624,7 @@ function freeRoad(ctx: Ctx, p: number, edge: number) {
 	s.players[p].piecesLeft.road--;
 	s.roadBuildingLeft--;
 	ctx.emit({ type: 'built', player: p, kind: 'road', at: edge, free: true });
+	roadToll(ctx, p, edge);
 	updateLongestRoad(ctx);
 	if (
 		s.roadBuildingLeft <= 0 ||
@@ -558,7 +642,7 @@ function buildSettlement(ctx: Ctx, p: number, vertex: number) {
 	requireMain(s);
 	if (s.players[p].piecesLeft.settlement <= 0) fail('You have no settlements left.');
 	if (!canPlaceSettlement(s, p, vertex, false)) fail("You can't build a settlement there.");
-	pay(s, p, costOf(s, p, 'settlement'));
+	pay(s, p, 'settlement');
 	s.buildings[vertex] = { owner: p, kind: 'settlement' };
 	s.players[p].piecesLeft.settlement--;
 	ctx.emit({ type: 'built', player: p, kind: 'settlement', at: vertex, free: false });
@@ -573,7 +657,7 @@ function buildCity(ctx: Ctx, p: number, vertex: number) {
 	const b = s.buildings[vertex];
 	if (!b || b.owner !== p || b.kind !== 'settlement') fail('Cities replace one of your settlements.');
 	if (s.players[p].piecesLeft.city <= 0) fail('You have no cities left.');
-	pay(s, p, costOf(s, p, 'city'));
+	pay(s, p, 'city');
 	s.buildings[vertex] = { owner: p, kind: 'city' };
 	s.players[p].piecesLeft.city--;
 	s.players[p].piecesLeft.settlement++;
@@ -591,7 +675,7 @@ function buildWorkshop(ctx: Ctx, p: number, hex: number) {
 	if (s.workshops[hex] !== null) fail('That tile already has a workshop.');
 	if (!playersOnHex(s, hex).includes(p)) fail('Build it on a tile beside one of your settlements or cities.');
 	if (workshopCount(s, p) >= WORKSHOP_LIMIT) fail(`You can build at most ${WORKSHOP_LIMIT} workshops.`);
-	pay(s, p, costOf(s, p, 'workshop'));
+	pay(s, p, 'workshop');
 	s.workshops[hex] = p;
 	ctx.emit({ type: 'built', player: p, kind: 'workshop', at: hex, free: false });
 }
@@ -602,7 +686,7 @@ function buyDevCard(ctx: Ctx, p: number) {
 	const s = ctx.s;
 	requireMain(s);
 	if (s.devDeck.length === 0) fail('The development deck is empty.');
-	pay(s, p, costOf(s, p, 'devCard'));
+	pay(s, p, 'devCard');
 	const card = s.devDeck.pop()!;
 	s.players[p].devCards.push({ type: card, boughtTurn: s.turn });
 	ctx.emit({ type: 'devCardBought', player: p, card });
@@ -741,6 +825,12 @@ function confirmTrade(ctx: Ctx, p: number, offerId: number, other: number) {
 	transfer(s.players[other].resources, s.players[p].resources, t.want);
 	s.trade = null;
 	ctx.emit({ type: 'tradeCompleted', from: p, to: other, give: t.give, want: t.want });
+	// The Bard's good company: his trading partner takes a bonus card, once per turn.
+	const bard = holderOf(s, 'bard');
+	if ((bard === p || bard === other) && s.bardTurn !== s.turn) {
+		s.bardTurn = s.turn;
+		owePick(ctx, bard === p ? other : p, 'bard');
+	}
 }
 
 function cancelTrade(ctx: Ctx, p: number) {
@@ -762,7 +852,15 @@ function endTurn(ctx: Ctx, p: number) {
 	s.turn++;
 	s.step = 'roll';
 	ctx.emit({ type: 'turnStarted', player: s.current, turn: s.turn });
+	turnBegins(ctx);
 	checkWin(ctx);
+}
+
+/** What a player's turn brings before the roll: the Jester's catch-up card. */
+function turnBegins(ctx: Ctx) {
+	const s = ctx.s;
+	const p = s.current;
+	if (s.players[p].character === 'jester' && aloneLast(s, p)) owePick(ctx, p, 'jester');
 }
 
 function updateLongestRoad(ctx: Ctx) {

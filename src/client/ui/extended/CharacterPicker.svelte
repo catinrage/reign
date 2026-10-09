@@ -24,7 +24,7 @@
 	}
 </script>
 
-<Modal title="Characters" width={780} {onclose}>
+<Modal title="Characters" width={1180} {onclose}>
 	<div class="head">
 		<p>
 			Each character bends one rule in their favor. When the game starts, everyone drafts one, and the
@@ -62,13 +62,15 @@
 				disabled={!settings.characters}
 				onclick={() => toggle(c)}
 			>
-				<Portrait id={c} size={84} />
-				<span class="who">
-					<span class="name title">{info.name}</span>
-					<span class="epithet">{info.title}</span>
+				<Portrait id={c} size={58} />
+				<span class="body">
+					<span class="who">
+						<span class="name title">{info.name}</span>
+						<span class="epithet">{info.title}</span>
+					</span>
+					<span class="trait">{info.trait}</span>
+					<span class="text">{traitText(c, settings.handLimit)}</span>
 				</span>
-				<span class="trait">{info.trait}</span>
-				<span class="text">{traitText(c, settings.handLimit)}</span>
 				{#if out}<span class="tag">Left out</span>{/if}
 			</button>
 		{/each}
@@ -100,10 +102,11 @@
 		color: #ffb08a !important;
 		font-weight: 700;
 	}
+	/* Sixteen characters at once: small side-by-side cards, three or four to a row. */
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-		gap: 8px;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 6px;
 	}
 	.grid.off {
 		opacity: 0.45;
@@ -111,14 +114,13 @@
 	.card {
 		position: relative;
 		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 4px;
-		padding: 8px 6px 10px;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 6px 8px 7px 6px;
 		color: var(--text);
 		font: inherit;
 		cursor: pointer;
-		text-align: center;
+		text-align: left;
 		transition:
 			transform 0.12s,
 			filter 0.2s;
@@ -135,13 +137,21 @@
 	.card.out {
 		filter: grayscale(0.9) brightness(0.62);
 	}
-	.who {
+	.body {
 		display: flex;
 		flex-direction: column;
+		gap: 1px;
+		min-width: 0;
+	}
+	.who {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		column-gap: 5px;
 		line-height: 1.1;
 	}
 	.name {
-		font-size: 18px;
+		font-size: 16px;
 		color: #fff2d2;
 		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
 	}
@@ -152,27 +162,31 @@
 	.trait {
 		font-family: var(--px);
 		font-weight: 700;
-		font-size: 13px;
+		font-size: 11px;
 		color: var(--gold);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 	}
 	.text {
-		font-size: 13px;
-		line-height: 1.3;
+		font-size: 12.5px;
+		line-height: 1.25;
 		color: #f1dfc2;
-		text-wrap: balance;
 	}
 	.tag {
 		position: absolute;
-		top: 40px;
-		left: 50%;
+		top: 24px;
+		left: 35px;
 		transform: translateX(-50%) rotate(-6deg);
 		padding: 2px 7px;
 		font-size: 11px;
 		font-weight: 800;
 		background: rgba(20, 8, 2, 0.82);
 		color: #ffb08a;
+	}
+	@media (max-width: 1000px) {
+		.grid {
+			grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+		}
 	}
 	@media (max-width: 560px) {
 		.head {
