@@ -81,6 +81,8 @@ type Ev<T extends string, P> = { seq: number; type: T } & P;
 export type GameEvent =
 	| Ev<'gameStarted', { players: number }>
 	| Ev<'turnStarted', { player: number; turn: number }>
+	/** The turn clock ran out; the steps the turn still needed were played for them. */
+	| Ev<'turnTimedOut', { player: number }>
 	| Ev<'built', { player: number; kind: 'road' | 'settlement' | 'city'; at: number; free: boolean }>
 	| Ev<'setupResources', { player: number; gains: ResourceGain[] }>
 	| Ev<'diceRolled', { player: number; dice: [number, number] }>

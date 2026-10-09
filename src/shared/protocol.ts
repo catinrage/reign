@@ -10,6 +10,17 @@ export interface LobbySeat {
 	isHost: boolean;
 }
 
+/**
+ * The current turn's clock. It carries the time left rather than a deadline, so it doesn't matter
+ * that the server's and the players' clocks disagree.
+ */
+export interface TurnClock {
+	/** Milliseconds left in the turn when the message was sent. */
+	left: number;
+	/** False while the table is paused: the time left stays put until play resumes. */
+	running: boolean;
+}
+
 export interface LobbyInfo {
 	code: string;
 	seats: LobbySeat[];
@@ -17,6 +28,10 @@ export interface LobbyInfo {
 	maxPlayers: number;
 	/** Every player at the table has the game menu open, so bots wait too. */
 	paused: boolean;
+	/** Seconds each turn may last (0 = no limit), picked by the host before the game starts. */
+	turnTime: number;
+	/** The current turn's clock, or null when turns are unlimited or no game is running. */
+	clock: TurnClock | null;
 }
 
 export type ClientMessage =
@@ -26,6 +41,7 @@ export type ClientMessage =
 	| { t: 'setColor'; color: PlayerColor }
 	| { t: 'addBot' }
 	| { t: 'removeSeat'; seat: string }
+	| { t: 'setTurnTime'; seconds: number }
 	| { t: 'start' }
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }
@@ -36,9 +52,11 @@ export type ClientMessage =
 export type ServerMessage =
 	| { t: 'welcome'; code: string; seat: string; token: string }
 	| { t: 'lobby'; lobby: LobbyInfo }
-	| { t: 'game'; view: GameView }
+	| { t: 'game'; view: GameView; clock: TurnClock | null }
 	| { t: 'error'; message: string }
 	| { t: 'pong' };
 
 export const MAX_PLAYERS = 4;
 export const MIN_PLAYERS = 2;
+/** Turn time limits the host can pick, in seconds; 0 is unlimited. */
+export const TURN_TIMES = [0, 30, 60, 90, 120, 180];

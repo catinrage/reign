@@ -159,6 +159,22 @@ export function addChat(state: GameState, player: number, text: string): GameSta
 	return s;
 }
 
+/**
+ * The current player ran out of time. The log says so, and free roads still owed from Road
+ * Building are given up: the room then plays only the steps the turn can't end without, and
+ * building isn't one of them.
+ */
+export function timeOut(state: GameState): GameState {
+	const s = cloneState(state);
+	new Ctx(s).emit({ type: 'turnTimedOut', player: s.current });
+	if (s.step === 'roadBuilding') {
+		s.roadBuildingLeft = 0;
+		s.step = s.resumeStep;
+	}
+	s.version++;
+	return s;
+}
+
 function dispatch(ctx: Ctx, p: number, a: Action) {
 	const s = ctx.s;
 	if (!s.players[p]) fail('Unknown player.');

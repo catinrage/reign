@@ -1,12 +1,18 @@
 import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import type { ClientMessage, LobbyInfo, LobbySeat, ServerMessage } from '../shared/protocol';
-import { MAX_PLAYERS, MIN_PLAYERS } from '../shared/protocol';
+import type {
+	ClientMessage,
+	LobbyInfo,
+	LobbySeat,
+	ServerMessage,
+	TurnClock
+} from '../shared/protocol';
+import { MAX_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../shared/protocol';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
-import { addChat, applyAction, createGame } from '../shared/rules/engine';
-import type { GameState } from '../shared/rules/types';
+import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
+import type { Action, GameState } from '../shared/rules/types';
 import { viewFor } from '../shared/rules/view';
 
 interface Seat {
@@ -28,11 +34,18 @@ export class Room {
 	hostId: string | null = null;
 	game: GameState | null = null;
 	createdAt = Date.now();
+	/** Seconds each turn may last, 0 for no limit. The host picks it in the lobby. */
+	turnTime = 0;
 	private botTimer: NodeJS.Timeout | null = null;
 	private botActionsThisTurn = 0;
 	private botTurnKey = '';
 	/** Seats that have the game menu open. */
 	private pausedBy = new Set<string>();
+	/**
+	 * The turn clock: the turn it is timing ('' when off), the ms left while it is stopped, and
+	 * while it runs, when it runs out (Date.now() time) and the timer for that moment.
+	 */
+	private clock = { turn: '', left: 0, ends: 0, timer: null as NodeJS.Timeout | null };
 
 	constructor(public code: string) {}
 
@@ -53,6 +66,8 @@ export class Room {
 			started: this.started,
 			maxPlayers: MAX_PLAYERS,
 			paused: this.paused,
+			turnTime: this.turnTime,
+			clock: this.clockInfo(),
 			seats: this.seats.map(
 				(s): LobbySeat => ({
 					id: s.id,
@@ -92,7 +107,13 @@ export class Room {
 		}
 		send(ws, { t: 'welcome', code: this.code, seat: seat.id, token: seat.token });
 		this.broadcastLobby();
-		if (this.game) send(ws, { t: 'game', view: viewFor(this.game, this.seatIndex(seat)) });
+		if (this.game) {
+			send(ws, {
+				t: 'game',
+				view: viewFor(this.game, this.seatIndex(seat)),
+				clock: this.clockInfo()
+			});
+		}
 		return seat;
 	}
 
@@ -146,6 +167,10 @@ export class Room {
 			case 'removeSeat':
 				if (!isHost || this.started) return;
 				this.seats = this.seats.filter((s) => s.id !== msg.seat || !s.isBot);
+				return this.broadcastLobby();
+			case 'setTurnTime':
+				if (!isHost || this.started || !TURN_TIMES.includes(msg.seconds)) return;
+				this.turnTime = msg.seconds;
 				return this.broadcastLobby();
 			case 'start':
 				if (!isHost || (this.game && this.game.phase !== 'ended')) return;
@@ -204,6 +229,7 @@ export class Room {
 
 	dispose() {
 		if (this.botTimer) clearTimeout(this.botTimer);
+		this.stopClock();
 	}
 
 	private seatIndex(seat: Seat) {
@@ -215,17 +241,92 @@ export class Room {
 	}
 
 	private broadcastLobby() {
+		this.syncClock();
 		const lobby = this.lobbyInfo();
 		for (const s of this.seats) for (const ws of s.sockets) send(ws, { t: 'lobby', lobby });
 	}
 
 	private broadcastGame() {
 		if (!this.game) return;
+		this.syncClock();
+		const clock = this.clockInfo();
 		this.seats.forEach((s, i) => {
 			if (!s.sockets.size) return;
 			const view = viewFor(this.game!, i);
-			for (const ws of s.sockets) send(ws, { t: 'game', view });
+			for (const ws of s.sockets) send(ws, { t: 'game', view, clock });
 		});
+	}
+
+	/** What players are told: the time left, not a deadline, since their clocks differ from ours. */
+	private clockInfo(): TurnClock | null {
+		const c = this.clock;
+		if (!c.turn) return null;
+		if (!c.ends) return { left: c.left, running: false };
+		return { left: Math.max(0, c.ends - Date.now()), running: true };
+	}
+
+	/**
+	 * Bring the turn clock in line with the table: a new turn gets the full time, a pause freezes
+	 * what is left and the end of the pause starts it again. Every change to the table is sent
+	 * out through the broadcasts, so they call this first and each message carries the clock.
+	 */
+	private syncClock() {
+		const c = this.clock;
+		const g = this.game;
+		const turn = this.turnTime && g && g.phase !== 'ended' ? clockTurn(g) : '';
+		if (turn !== c.turn) {
+			this.stopClock();
+			c.turn = turn;
+			c.left = this.turnTime * 1000;
+		}
+		if (!turn) return;
+		if (this.paused) this.stopClock();
+		else if (!c.ends) {
+			c.ends = Date.now() + c.left;
+			c.timer = setTimeout(() => this.timeUp(), c.left);
+		}
+	}
+
+	/** Stop the clock, keeping the time it had left. */
+	private stopClock() {
+		const c = this.clock;
+		if (c.timer) clearTimeout(c.timer);
+		if (c.ends) c.left = Math.max(0, c.ends - Date.now());
+		c.timer = null;
+		c.ends = 0;
+	}
+
+	/**
+	 * The turn ran out of time: play only the steps it can't end without (the roll, the robber,
+	 * setup placements, discards still owed), never an optional move, and end it.
+	 */
+	private timeUp() {
+		const c = this.clock;
+		c.timer = null;
+		c.ends = 0;
+		c.left = 0;
+		if (!this.game || this.game.phase === 'ended') return;
+		let g = timeOut(this.game);
+		for (let i = 0; i < 20 && g.phase !== 'ended' && clockTurn(g) === c.turn; i++) {
+			const move = forcedMove(g);
+			const res = move && applyAction(g, move.player, move.action);
+			if (res?.ok) {
+				g = res.state;
+				continue;
+			}
+			// Should never happen, but the table must not get stuck: try ending the turn outright.
+			const end = applyAction(g, g.current, { type: 'endTurn' });
+			if (!end.ok) {
+				console.warn(`[room ${this.code}] timed-out turn stuck at ${g.step}`);
+				break;
+			}
+			g = end.state;
+		}
+		// A turn that still can't move on gets a fresh clock rather than one that has run out.
+		if (clockTurn(g) === c.turn) c.turn = '';
+		this.game = g;
+		this.broadcastGame();
+		this.scheduleBots();
 	}
 
 	/** Bots (and stand-ins for players who dropped) act one step at a time, with a human-ish pause. */
@@ -294,6 +395,23 @@ export class Room {
 
 export function send(ws: WebSocket, msg: ServerMessage) {
 	if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+}
+
+/** What the turn clock times: each setup placement (the snake's double one too), then each turn. */
+function clockTurn(g: GameState): string {
+	return g.phase === 'setup' ? `setup ${g.setupIndex}` : `${g.turn}:${g.current}`;
+}
+
+/** The next step a timed-out turn can't end without, and whose it is. Never an optional move. */
+function forcedMove(g: GameState): { player: number; action: Action } | null {
+	// An open offer is withdrawn.
+	if (g.trade) return { player: g.trade.from, action: { type: 'cancelTrade' } };
+	if (g.step === 'roll') return { player: g.current, action: { type: 'rollDice' } };
+	if (g.step === 'main') return { player: g.current, action: { type: 'endTurn' } };
+	// Discards still owed, setup placements, the robber and the steal: what a bot would pick.
+	const who = g.step === 'discard' ? Number(Object.keys(g.pendingDiscards)[0]) : g.current;
+	const action = botAction(g, who);
+	return action && { player: who, action };
 }
 
 function cleanName(name: unknown): string {

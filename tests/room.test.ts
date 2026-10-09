@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../src/shared/protocol';
 import { Room } from '../src/server/room';
+import type { Action, GameEvent } from '../src/shared/rules/types';
 
 /** A stand-in socket that records what the room sends. */
 function fakeSocket() {
@@ -70,6 +71,243 @@ describe('game menu pause', () => {
 		const again = fakeSocket();
 		room.join(again.ws, 'Komeil', seat.token);
 		expect(room.lobbyInfo().paused).toBe(false);
+		room.dispose();
+	});
+});
+
+/** The last message of one kind a socket was sent. */
+function last<T extends ServerMessage['t']>(sent: ServerMessage[], t: T) {
+	return [...sent].reverse().find((m): m is Extract<ServerMessage, { t: T }> => m.t === t)!;
+}
+
+/** Two people and no bots, so nothing moves unless someone acts or the turn clock runs out. */
+function twoPlayers(turnTime: number) {
+	vi.useFakeTimers();
+	const room = new Room('KLMNO');
+	const a = fakeSocket();
+	const b = fakeSocket();
+	const host = room.join(a.ws, 'Ada');
+	const guest = room.join(b.ws, 'Bram');
+	if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+	room.handle(host, { t: 'setTurnTime', seconds: turnTime }, a.ws);
+	room.handle(host, { t: 'start' }, a.ws);
+	const act = (action: Action) => {
+		const seat = room.seats[room.game!.current];
+		room.handle(seat, { t: 'action', action }, [...seat.sockets][0]);
+	};
+	return { room, host, guest, a, b, act };
+}
+
+/** What a timed-out main-phase turn may do: only the steps it can't end without. */
+const FORCED: GameEvent['type'][] = [
+	'turnTimedOut',
+	'diceRolled',
+	'produced',
+	'nothingProduced',
+	'mustDiscard',
+	'discarded',
+	'robberMoved',
+	'stole',
+	'nothingToSteal',
+	'tradeCancelled',
+	'turnStarted'
+];
+
+describe('turn timer', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('is picked by the host in the lobby and locked once the game starts', () => {
+		vi.useFakeTimers();
+		const room = new Room('PQRST');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		expect(room.lobbyInfo().turnTime).toBe(0);
+		room.handle(guest, { t: 'setTurnTime', seconds: 60 }, b.ws);
+		room.handle(host, { t: 'setTurnTime', seconds: 45 }, a.ws);
+		expect(room.lobbyInfo().turnTime).toBe(0);
+		room.handle(host, { t: 'setTurnTime', seconds: 90 }, a.ws);
+		expect(last(b.sent, 'lobby').lobby.turnTime).toBe(90);
+		expect(last(b.sent, 'lobby').lobby.clock).toBeNull();
+
+		room.handle(host, { t: 'start' }, a.ws);
+		room.handle(host, { t: 'setTurnTime', seconds: 30 }, a.ws);
+		expect(room.lobbyInfo().turnTime).toBe(90);
+		// Players get the time left, not a timestamp.
+		expect(last(b.sent, 'game').clock).toEqual({ left: 90_000, running: true });
+		room.dispose();
+	});
+
+	it('ends a setup turn by placing the settlement and road, and times each placement', () => {
+		const { room, a } = twoPlayers(30);
+		const first = room.game!.current;
+		vi.advanceTimersByTime(29_999);
+		expect(room.game!.current).toBe(first);
+		expect(room.game!.buildings.some(Boolean)).toBe(false);
+
+		vi.advanceTimersByTime(1);
+		let g = room.game!;
+		expect(g.buildings.filter((b) => b?.owner === first)).toHaveLength(1);
+		expect(g.roads.filter((r) => r === first)).toHaveLength(1);
+		expect(g.log.some((e) => e.type === 'turnTimedOut' && e.player === first)).toBe(true);
+		const second = g.current;
+		expect(second).not.toBe(first);
+		expect(last(a.sent, 'game').clock).toEqual({ left: 30_000, running: true });
+
+		// The snake order gives the second player two placements in a row, each with its own time.
+		vi.advanceTimersByTime(30_000);
+		g = room.game!;
+		expect(g.current).toBe(second);
+		expect(g.buildings.filter((b) => b?.owner === second)).toHaveLength(1);
+		expect(room.lobbyInfo().clock).toEqual({ left: 30_000, running: true });
+
+		vi.advanceTimersByTime(2 * 30_000);
+		g = room.game!;
+		expect(g.phase).toBe('main');
+		expect(g.buildings.filter(Boolean)).toHaveLength(4);
+		expect(g.roads.filter((r) => r !== null)).toHaveLength(4);
+		room.dispose();
+	});
+
+	it('ends a main-phase turn, rolling first for a player who has not', () => {
+		const { room, act } = twoPlayers(30);
+		vi.advanceTimersByTime(4 * 30_000);
+		let g = room.game!;
+		expect(g.phase).toBe('main');
+		expect(g.step).toBe('roll');
+		const p = g.current;
+		const since = g.nextEventSeq;
+
+		vi.advanceTimersByTime(30_000);
+		g = room.game!;
+		expect(g.turn).toBe(2);
+		expect(g.current).not.toBe(p);
+		const events = g.log.filter((e) => e.seq >= since);
+		expect(events.some((e) => e.type === 'diceRolled' && e.player === p)).toBe(true);
+		expect(events.filter((e) => !FORCED.includes(e.type))).toEqual([]);
+
+		// Rolling doesn't restart the clock; sitting on the rest of the turn ends it.
+		act({ type: 'rollDice' });
+		expect(room.game!.dice).not.toBeNull();
+		vi.advanceTimersByTime(29_999);
+		expect(room.game!.turn).toBe(2);
+		vi.advanceTimersByTime(1);
+		expect(room.game!.turn).toBe(3);
+		room.dispose();
+	});
+
+	it('settles discards still owed after a 7, moves the robber and ends the turn', () => {
+		const { room } = twoPlayers(30);
+		vi.advanceTimersByTime(4 * 30_000);
+		const g = room.game!;
+		const p = g.current;
+		const other = 1 - p;
+		// The current player rolled a 7 and the other player still has to give back 4 of 8 cards.
+		room.game = {
+			...g,
+			step: 'discard',
+			dice: [3, 4],
+			pendingDiscards: { [other]: 4 },
+			players: g.players.map((pl, i) =>
+				i === other ? { ...pl, resources: { wood: 2, brick: 2, sheep: 2, wheat: 1, ore: 1 } } : pl
+			)
+		};
+		vi.advanceTimersByTime(30_000);
+		const after = room.game!;
+		const discarded = after.log.find((e) => e.type === 'discarded');
+		expect(discarded).toMatchObject({ player: other, count: 4 });
+		expect(after.log.some((e) => e.type === 'robberMoved' && e.player === p)).toBe(true);
+		expect(after.pendingDiscards).toEqual({});
+		expect(after.current).toBe(other);
+		expect(after.step).toBe('roll');
+		room.dispose();
+	});
+
+	it('withdraws an open offer and gives up free roads instead of building them', () => {
+		const { room } = twoPlayers(30);
+		vi.advanceTimersByTime(4 * 30_000);
+		let g = room.game!;
+		const p = g.current;
+		room.game = {
+			...g,
+			step: 'main',
+			dice: [2, 3],
+			trade: { id: 99, from: p, give: { wood: 1 }, want: { ore: 1 }, responses: {} }
+		};
+		vi.advanceTimersByTime(30_000);
+		g = room.game!;
+		expect(g.trade).toBeNull();
+		expect(g.log.some((e) => e.type === 'tradeCancelled' && e.from === p)).toBe(true);
+		expect(g.current).not.toBe(p);
+
+		// Road Building was played and both free roads are still to place.
+		const q = g.current;
+		const roads = g.roads.filter((r) => r === q).length;
+		room.game = {
+			...g,
+			step: 'roadBuilding',
+			roadBuildingLeft: 2,
+			resumeStep: 'main',
+			dice: [2, 3]
+		};
+		vi.advanceTimersByTime(30_000);
+		g = room.game!;
+		expect(g.roads.filter((r) => r === q)).toHaveLength(roads);
+		expect(g.roadBuildingLeft).toBe(0);
+		expect(g.current).toBe(p);
+		room.dispose();
+	});
+
+	it('freezes while the table is paused and resumes with the time that was left', () => {
+		const { room, host, guest, a, b } = twoPlayers(30);
+		const first = room.game!.current;
+		vi.advanceTimersByTime(10_000);
+		// One player in the menu doesn't pause the table.
+		room.handle(host, { t: 'pause', paused: true }, a.ws);
+		expect(room.lobbyInfo().clock?.running).toBe(true);
+		room.handle(guest, { t: 'pause', paused: true }, b.ws);
+		expect(room.lobbyInfo().clock).toEqual({ left: 20_000, running: false });
+		expect(last(b.sent, 'lobby').lobby.clock).toEqual({ left: 20_000, running: false });
+
+		vi.advanceTimersByTime(5 * 60_000);
+		expect(room.game!.current).toBe(first);
+		expect(room.game!.buildings.some(Boolean)).toBe(false);
+
+		room.handle(guest, { t: 'pause', paused: false }, b.ws);
+		expect(last(a.sent, 'lobby').lobby.clock).toEqual({ left: 20_000, running: true });
+		vi.advanceTimersByTime(19_999);
+		expect(room.game!.current).toBe(first);
+		vi.advanceTimersByTime(1);
+		expect(room.game!.current).not.toBe(first);
+		room.dispose();
+	});
+
+	it('never runs out when turns are unlimited', () => {
+		const { room, a } = twoPlayers(0);
+		vi.advanceTimersByTime(30 * 60_000);
+		expect(room.game!.step).toBe('setupSettlement');
+		expect(room.game!.setupIndex).toBe(0);
+		expect(room.game!.log.some((e) => e.type === 'turnTimedOut')).toBe(false);
+		expect(room.lobbyInfo().clock).toBeNull();
+		expect(last(a.sent, 'game').clock).toBeNull();
+		room.dispose();
+	});
+
+	it('keeps a game against bots going', () => {
+		vi.useFakeTimers();
+		const room = new Room('UVWXY');
+		const me = fakeSocket();
+		const seat = room.join(me.ws, 'Komeil');
+		if (typeof seat === 'string') throw new Error(seat);
+		room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'setTurnTime', seconds: 30 }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		vi.advanceTimersByTime(10 * 60_000);
+		expect(room.game!.phase).not.toBe('setup');
+		expect(room.game!.turn).toBeGreaterThan(3);
 		room.dispose();
 	});
 });

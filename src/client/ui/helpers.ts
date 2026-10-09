@@ -99,6 +99,8 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 	switch (e.type) {
 		case 'turnStarted':
 			return e.turn === 0 ? null : [P(e.player), T(e.player === view.me ? ' start your turn' : "'s turn")];
+		case 'turnTimedOut':
+			return [P(e.player), T(' ran out of time')];
 		case 'built':
 			return [P(e.player), T(` built a ${e.kind}`)];
 		case 'diceRolled':
