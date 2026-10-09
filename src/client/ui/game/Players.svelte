@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { CHARACTER_INFO } from '../../../shared/rules/characters';
+	import { discardLimit } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
+	import Portrait from '../extended/Portrait.svelte';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
 
@@ -14,6 +17,8 @@
 		{@const offline = seats[i] && !seats[i].connected}
 		{@const road = view.longestRoadHolder === i}
 		{@const army = view.largestArmyHolder === i}
+		{@const limit = discardLimit(view, i)}
+		{@const ch = p.character ? CHARACTER_INFO[p.character] : null}
 		<div
 			class="player plaque"
 			class:current
@@ -22,17 +27,24 @@
 			style="--c:{PLAYER_CSS[p.color]}"
 		>
 			{#if current}<img class="turn icon-px" src={PIXEL.hourglass} alt="Current turn" />{/if}
-			<span class="shield" style="--shield: var(--art-shield-{p.color})">
-				{#if p.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{p.name
-						.slice(0, 1)
-						.toUpperCase()}{/if}
-			</span>
+			{#if ch}
+				<span class="face" title="{ch.name} {ch.title}. {ch.trait}: {ch.text}">
+					<Portrait id={p.character} size={44} />
+					<span class="shield mini" style="--shield: var(--art-shield-{p.color})"></span>
+				</span>
+			{:else}
+				<span class="shield" style="--shield: var(--art-shield-{p.color})">
+					{#if p.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{p.name
+							.slice(0, 1)
+							.toUpperCase()}{/if}
+				</span>
+			{/if}
 			<div class="info">
 				<div class="name title">{i === view.me ? `${p.name} (you)` : p.name}</div>
 				<div class="stats">
 					<span
-						class:warn={p.resourceCount > 7}
-						title="Resource cards{p.resourceCount > 7 ? ': will discard on a 7' : ''}"
+						class:warn={p.resourceCount > limit}
+						title="Resource cards{p.resourceCount > limit ? ': will discard on a 7' : ''}"
 						><img class="icon-px" src={PIXEL.cards} alt="" />{p.resourceCount}</span
 					>
 					<span title="Development cards"
@@ -113,6 +125,19 @@
 	.shield img {
 		width: 20px;
 		height: 20px;
+	}
+	.face {
+		position: relative;
+		flex: none;
+	}
+	.shield.mini {
+		position: absolute;
+		right: -5px;
+		bottom: -4px;
+		--s: 1.3px;
+		width: 15px;
+		height: 18px;
+		padding: 0;
 	}
 	.info {
 		flex: 1;

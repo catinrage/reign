@@ -2,7 +2,8 @@
 	import type { BuildKind } from '../../../shared/rules/config';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
-	import { COSTS, buildAvailable, countsList, myTurn } from '../helpers';
+	import { costOf } from '../../../shared/rules/queries';
+	import { buildAvailable, countsList, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 
@@ -60,7 +61,7 @@
 								>{b.label}<small title="Left to build">{stock(b.kind)}</small></span
 							>
 							<span class="cost">
-								{#each countsList(COSTS[b.kind]) as c (c.res)}
+								{#each countsList(costOf(view, view.me, b.kind)) as c (c.res)}
 									{#each Array(c.n) as _, k (k)}<img
 											class="res"
 											src={icons[c.res]}

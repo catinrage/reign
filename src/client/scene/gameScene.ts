@@ -1,10 +1,12 @@
 import * as THREE from 'three';
-import { generateStandardBoard } from '../../shared/board/generate';
+import { generateBoard, generateStandardBoard } from '../../shared/board/generate';
+import type { MapTile } from '../../shared/board/maps';
 import { type Board, getTopology } from '../../shared/board/topology';
 import { worldToHex, hexKey } from '../../shared/board/hex';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
+import { islandReach } from './board/terrain';
 import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel } from './board/models';
 import { DIE_HALF, Dice } from './dice';
 import { Particles } from './effects';
@@ -65,6 +67,10 @@ export class GameScene {
 	private callbacks: SceneCallbacks = {};
 	private smokeClock = 0;
 	private diceDown = false;
+	/** How far the island's land reaches from the center, in world units (about 54 for the classic isle). */
+	private reach = 54;
+	/** The map shown on the lobby table ('' for the classic island). */
+	private menuMap = '';
 
 	constructor(
 		canvas: HTMLCanvasElement,
@@ -112,11 +118,27 @@ export class GameScene {
 		this.view = null;
 		this.setPick(null);
 		const seed = (Math.random() * 1e9) | 0;
+		this.menuMap = '';
 		this.setBoard(generateStandardBoard({ rng: seed }), seed);
 		this.boardView!.setRobber(this.boardView!.board.hexes.findIndex((h) => h.terrain === 'desert'), true);
 		this.clearPieces();
 		this.stage.rig.autoRotate = 0.05;
 		this.stage.rig.set({ radius: 360, polar: 0.92 });
+	}
+
+	/**
+	 * In the lobby, the table shows the island the host picked: a freshly dealt copy of that map
+	 * (null for the classic island). Does nothing once a game is on the table.
+	 */
+	showMenuMap(tiles: MapTile[] | null) {
+		if (this.mode !== 'menu') return;
+		const key = tiles ? JSON.stringify(tiles) : '';
+		if (key === this.menuMap) return;
+		this.menuMap = key;
+		const seed = (Math.random() * 1e9) | 0;
+		this.setBoard(tiles ? generateBoard(tiles, { rng: seed }) : generateStandardBoard({ rng: seed }), seed);
+		this.boardView!.setRobber(this.boardView!.board.hexes.findIndex((h) => h.terrain === 'desert'), true);
+		this.stage.rig.set({ radius: Math.min(470, (360 * this.reach) / 54) });
 	}
 
 	private setBoard(board: Board, seed: number) {
@@ -127,6 +149,9 @@ export class GameScene {
 		this.boardSeed = seed;
 		this.boardView = new BoardView(board, seed, this.detail);
 		this.stage.scene.add(this.boardView.group);
+		// Bigger islands (Reign Extended maps) get a bigger table, so the sea still fits inside the rim.
+		this.reach = islandReach(board);
+		this.room.fitTable((this.reach + 50) / (TABLE_HALF * ROOM_SCALE));
 	}
 
 	/** Rebuild the island at another voxel detail, keeping the game (pieces, robber) as it is. */
@@ -180,7 +205,7 @@ export class GameScene {
 		const aspect = cam.aspect;
 		const vHalf = THREE.MathUtils.degToRad(cam.fov / 2);
 		const hHalf = Math.atan(Math.tan(vHalf) * aspect);
-		const fit = 80 / Math.tan(hHalf);
+		const fit = (80 * Math.max(1, this.reach / 54)) / Math.tan(hHalf);
 		const radius = THREE.MathUtils.clamp(Math.max(218, fit * 0.95), 180, 480);
 		return { radius, polar: aspect < 0.8 ? 0.62 : 0.82 };
 	}
@@ -315,7 +340,7 @@ export class GameScene {
 		// A die's corners reach about 1.42 half-widths from its center.
 		const reach = DIE_HALF * 1.42 + 0.8;
 		const boxes = this.room.props.children.map((c) => new THREE.Box3().setFromObject(c).expandByScalar(reach));
-		const lim = TABLE_HALF * ROOM_SCALE - reach - 1;
+		const lim = this.room.tableHalf - reach - 1;
 		const build = this.boardView?.build;
 		const free = (x: number, z: number, r: number) => {
 			if (Math.abs(x) > lim || Math.abs(z) > lim) return false;

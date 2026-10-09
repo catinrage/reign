@@ -67,8 +67,14 @@ const C = {
 	foam: hex('#e6f3f8')
 };
 
-/** Grid half-extent in voxels (land, beaches, piers and the sea). */
+/** Grid half-extent in voxels (land, beaches, piers and the sea) for the classic island; bigger maps get more. */
 const HALF = 140;
+
+/** World distance from the center to the island's furthest land. */
+export function islandReach(board: Board): number {
+	const topo = getTopology(board);
+	return Math.max(...topo.hexes.map((t) => Math.hypot(t.x, t.z))) * HEX_R + HEX_R;
+}
 const MAX_Y = 36;
 
 export interface PortSpot {
@@ -125,8 +131,9 @@ function hexEdgeDistance(lx: number, lz: number): number {
 export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 	const S = detail;
 	const vox = VOXEL / S;
-	const half = HALF * S;
 	const topo = getTopology(board);
+	// Room for the beach, the piers and the widest sea (24 world units) round the furthest land.
+	const half = Math.max(HALF, Math.ceil((islandReach(board) + 28) / VOXEL)) * S;
 	const grid = new VoxelGrid(half * 2, MAX_Y * S, half * 2, -half, 0, -half);
 	const W = grid.nx;
 	const D = grid.nz;

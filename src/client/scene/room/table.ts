@@ -14,15 +14,15 @@ const LEG = ['#5e2818', '#682c1a'].map((c) => shade(hex(c), DIM));
 
 export const TABLE_HALF = 37 * S;
 
-export function buildTable(): THREE.Group {
-	const half = 37; // voxels
+/** The table top, `half` voxels (4 room units each) from the center to the edge. Bigger islands get a bigger table. */
+export function buildTable(half = 37): THREE.Group {
 	const floor = Math.round(FLOOR_Y / S); // -28
 	const g = new VoxelGrid(2 * half, 6, 2 * half, -half, -6, -half);
 	const r = rand(11);
 	// Plank rows (4 voxels wide, running along x) are cut into staggered boards.
 	const PW = 4;
 	const rows: { off: number; len: number; seed: number }[] = [];
-	for (let i = 0; i < 30; i++) rows.push({ off: Math.floor(r() * 30), len: 16 + Math.floor(r() * 14), seed: i });
+	for (let i = 0; i < Math.ceil(half / 2) + 12; i++) rows.push({ off: Math.floor(r() * 30), len: 16 + Math.floor(r() * 14), seed: i });
 	const rim = 2;
 	for (let z = -half; z < half; z++)
 		for (let x = -half; x < half; x++) {
@@ -56,7 +56,7 @@ export function buildTable(): THREE.Group {
 	}
 	const table = voxels(g, S, { jitter: 0.015, drop: (_x, y) => y < 0 });
 	// The top has no undersides, so an invisible slab casts its shadow onto the floor.
-	const slab = shadowProxy(2 * TABLE_HALF, 8, 2 * TABLE_HALF);
+	const slab = shadowProxy(2 * half * S, 8, 2 * half * S);
 	slab.position.y = -5;
 	table.add(slab);
 	// Legs: one meshed leg, cloned to the four corners.

@@ -28,6 +28,13 @@ export interface Room {
 	props: THREE.Group;
 	/** Everything has been built (some of it is built in slices after `buildRoom` returns). */
 	readonly ready: boolean;
+	/** Half the table's width, in world units. */
+	readonly tableHalf: number;
+	/**
+	 * Grow the table for a bigger island (1 is the standard table): the top is rebuilt wider and
+	 * the chairs and everything standing on the rim move out with its edge.
+	 */
+	fitTable(scale: number): void;
 	update(dt: number, t: number): void;
 }
 
@@ -50,8 +57,12 @@ export function buildRoom(stage: Stage): Room {
 	const hq = stage.qualityLevel === 'high';
 
 	// ---------------------------------------------------------------- table, chairs, floor
-	group.add(N(buildTable(), 'table'));
-	for (const c of placeChairs(group)) c.name = 'chair';
+	let tableScale = 1;
+	let tableHalfVox = 37;
+	let table = N(buildTable(), 'table');
+	group.add(table);
+	let chairs = placeChairs(group);
+	for (const c of chairs) c.name = 'chair';
 	const floor = buildFloor();
 	floor.position.y = FLOOR_Y;
 	floor.name = 'floor';
@@ -186,7 +197,17 @@ export function buildRoom(stage: Stage): Room {
 			c.position.set(-8, 0, -11.5);
 			onTable.add(N(place(c, x, 0, z, r), 'cards'));
 		}
+		layoutTable();
 	});
+
+	/** Things on the rim keep their place relative to the table's edge (the steam follows the mug by itself). */
+	const layoutTable = () => {
+		for (const o of onTable.children) {
+			const base = (o.userData.base ??= { x: o.position.x, z: o.position.z }) as { x: number; z: number };
+			o.position.x = base.x * tableScale;
+			o.position.z = base.z * tableScale;
+		}
+	};
 
 	// steam over the mug
 	const steamMat = new THREE.MeshStandardMaterial({ color: '#fff4e8', transparent: true, opacity: 0.32, depthWrite: false, roughness: 1 });
@@ -200,7 +221,7 @@ export function buildRoom(stage: Stage): Room {
 	updaters.push((_dt, t) => {
 		for (const s of steam) {
 			const p = (t * 0.22 + s.ph) % 1;
-			s.m.position.set(MUG.x + Math.sin(t * 1.3 + s.ph * 9) * 2.5 * p, 14 + p * 26, MUG.z + Math.cos(t + s.ph * 7) * 2 * p);
+			s.m.position.set(MUG.x * tableScale + Math.sin(t * 1.3 + s.ph * 9) * 2.5 * p, 14 + p * 26, MUG.z * tableScale + Math.cos(t + s.ph * 7) * 2 * p);
 			s.m.scale.setScalar(0.6 + p * 1.4);
 			s.m.rotation.y = p * 2;
 			s.m.visible = p > 0.04 && p < 0.92;
@@ -208,7 +229,7 @@ export function buildRoom(stage: Stage): Room {
 	});
 
 	// ---------------------------------------------------------------- lights
-	flame(LANTERN.x, 12, LANTERN.z, '#ffb04a', 80, 320);
+	const tableLight = flame(LANTERN.x, 12, LANTERN.z, '#ffb04a', 80, 320);
 
 	// ---------------------------------------------------------------- cutaway walls
 	// The camera can orbit outside the room; a wall (and what stands against it) between
@@ -238,6 +259,25 @@ export function buildRoom(stage: Stage): Room {
 		props: onTable,
 		get ready() {
 			return queue.length === 0;
+		},
+		get tableHalf() {
+			return tableHalfVox * 4 * K;
+		},
+		fitTable(scale: number) {
+			const half = Math.round(37 * Math.max(1, scale));
+			if (half === tableHalfVox) return;
+			const f = half / 37;
+			group.remove(table);
+			table.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+			table = N(buildTable(half), 'table');
+			group.add(table);
+			for (const c of chairs) group.remove(c);
+			chairs = placeChairs(group, 178 * f);
+			for (const c of chairs) c.name = 'chair';
+			tableLight.position.set(LANTERN.x * f * K, 12 * K, LANTERN.z * f * K);
+			tableScale = f;
+			tableHalfVox = half;
+			layoutTable();
 		},
 		update(dt, t) {
 			for (const u of updaters) u(dt, t);

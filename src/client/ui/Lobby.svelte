@@ -1,17 +1,35 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { mapName, presetById } from '../../shared/board/maps';
+	import { CHARACTER_INFO } from '../../shared/rules/characters';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
+	import { GAME_MODES, MODE_INFO, POINT_GOALS } from '../../shared/rules/modes';
 	import { MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
 	import { client } from '../state/client.svelte';
+	import CharacterPicker from './extended/CharacterPicker.svelte';
+	import MapPicker from './extended/MapPicker.svelte';
+	import MapPreview from './extended/MapPreview.svelte';
+	import Portrait from './extended/Portrait.svelte';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
 	import { sideLayout } from './menu/sideLayout';
 	import { PIXEL } from './pixel';
+	import { sceneRef } from './sceneRef';
 
 	const lobby = $derived(client.lobby!);
 	const mySeat = $derived(lobby.seats.find((s) => s.id === client.seat));
 	const open = $derived(Math.max(0, lobby.maxPlayers - lobby.seats.length));
 	let copied = $state(false);
+	const settings = $derived(lobby.settings);
+	const extended = $derived(settings.mode === 'extended');
+	const myChar = $derived(mySeat?.character ? CHARACTER_INFO[mySeat.character] : null);
+	const mapTiles = $derived(
+		'preset' in settings.map ? (presetById(settings.map.preset)?.tiles ?? []) : settings.map.custom.tiles
+	);
+	const mapBlurb = $derived('preset' in settings.map ? (presetById(settings.map.preset)?.blurb ?? '') : 'A map made in the map maker.');
+	let picking = $state<'character' | 'map' | null>(null);
+	// The table shows the island that will be played.
+	$effect(() => sceneRef.current?.showMenuMap(extended ? mapTiles : null));
 
 	onMount(sideLayout);
 
@@ -49,21 +67,54 @@
 				</button>
 			</div>
 
+			<div class="modes" role="radiogroup" aria-label="Game mode">
+				{#each GAME_MODES as m (m)}
+					<button
+						class="mode plaque"
+						class:on={settings.mode === m}
+						role="radio"
+						aria-checked={settings.mode === m}
+						disabled={!client.isHost}
+						onclick={() => client.send({ t: 'setMode', mode: m })}
+					>
+						<span class="mode-name title">
+							{#if m === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}{MODE_INFO[m].name}
+						</span>
+						<span class="mode-text">{MODE_INFO[m].text}</span>
+					</button>
+				{/each}
+			</div>
+
 			<div class="divider">
 				<i></i><span>Settlers {lobby.seats.length}/{lobby.maxPlayers}</span><i></i>
 			</div>
 
 			<div class="seats">
 				{#each lobby.seats as s (s.id)}
-					<div class="seat plaque" class:me={s.id === client.seat}>
-						<span class="shield" style="--shield: var(--art-shield-{s.color})">
-							{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{s.name
-									.slice(0, 1)
-									.toUpperCase()}{/if}
-						</span>
+					<div class="seat plaque" class:me={s.id === client.seat} class:ext={extended}>
+						{#if extended}
+							<span class="face">
+								<Portrait id={s.character} size={46} />
+								<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
+							</span>
+						{:else}
+							<span class="shield" style="--shield: var(--art-shield-{s.color})">
+								{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{s.name
+										.slice(0, 1)
+										.toUpperCase()}{/if}
+							</span>
+						{/if}
 						<span class="name title">
-							{s.name}
-							{#if s.id === client.seat}<em>you</em>{/if}
+							<span class="who">
+								<span>
+									{s.name}
+									{#if s.id === client.seat}<em>you</em>{/if}
+									{#if extended && s.isBot}<img class="icon-px botmark" src={PIXEL.bot} alt="bot" />{/if}
+								</span>
+								{#if extended && s.character}
+									<small>{CHARACTER_INFO[s.character].name} {CHARACTER_INFO[s.character].title}</small>
+								{/if}
+							</span>
 						</span>
 						{#if s.isHost}<img class="icon-px tag" src={PIXEL.crown} alt="host" title="Host" />{/if}
 						{#if !s.connected}<span class="away">away</span>{/if}
@@ -108,6 +159,51 @@
 								onclick={() => client.send({ t: 'setColor', color: c })}
 							></button>
 						{/each}
+					</div>
+				</div>
+			{/if}
+
+			{#if extended}
+				<div class="extended">
+					{#if mySeat}
+						<button class="pick plaque" onclick={() => (picking = 'character')}>
+							<Portrait id={mySeat.character} size={78} />
+							<span class="pick-body">
+								<span class="label">Your character</span>
+								{#if myChar}
+									<span class="pick-name title">{myChar.name} <small>{myChar.title}</small></span>
+									<span class="trait"><b>{myChar.trait}.</b> {myChar.text}</span>
+								{:else}
+									<span class="pick-name title">Pick a character</span>
+								{/if}
+								<span class="change">Change</span>
+							</span>
+						</button>
+					{/if}
+					<button class="pick plaque" disabled={!client.isHost} onclick={() => (picking = 'map')}>
+						<span class="map-well well"><MapPreview tiles={mapTiles} width={92} height={70} /></span>
+						<span class="pick-body">
+							<span class="label">Island</span>
+							<span class="pick-name title">{mapName(settings.map)} <small>{mapTiles.length} tiles</small></span>
+							<span class="trait">{mapBlurb}</span>
+							{#if client.isHost}<span class="change">Change or make your own</span>{/if}
+						</span>
+					</button>
+					<div class="goal">
+						<span class="label">Points to win</span>
+						{#if client.isHost}
+							<div class="seg">
+								{#each POINT_GOALS as g (g)}
+									<button
+										class="btn small"
+										class:on={settings.pointsToWin === g}
+										onclick={() => client.send({ t: 'setPointsToWin', points: g })}>{g}</button
+									>
+								{/each}
+							</div>
+						{:else}
+							<span class="chosen">{settings.pointsToWin}</span>
+						{/if}
 					</div>
 				</div>
 			{/if}
@@ -159,6 +255,12 @@
 		</div>
 	</div>
 </div>
+
+{#if picking === 'character'}
+	<CharacterPicker onclose={() => (picking = null)} />
+{:else if picking === 'map'}
+	<MapPicker onclose={() => (picking = null)} />
+{/if}
 
 <style>
 	.lobby {
@@ -396,6 +498,157 @@
 		color: var(--muted);
 		font-size: 14px;
 		text-align: right;
+	}
+	.modes {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 6px;
+	}
+	.mode {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 2px;
+		padding: 6px 8px 8px;
+		color: var(--text);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+		opacity: 0.62;
+		transition:
+			opacity 0.15s,
+			transform 0.12s;
+	}
+	.mode:hover:not(:disabled) {
+		opacity: 0.9;
+		transform: translateY(-2px);
+	}
+	.mode.on {
+		opacity: 1;
+		filter: drop-shadow(0 0 0 #ffd45a) drop-shadow(0 0 4px #ffd45a);
+	}
+	.mode:disabled {
+		cursor: default;
+	}
+	.mode-name {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 17px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.mode-name img {
+		width: 18px;
+		height: 18px;
+	}
+	.mode-text {
+		font-size: 12.5px;
+		line-height: 1.25;
+		color: var(--muted);
+	}
+	.seat.ext {
+		min-height: 56px;
+	}
+	.face {
+		position: relative;
+		flex: none;
+	}
+	.shield.mini {
+		position: absolute;
+		right: -6px;
+		bottom: -5px;
+		--s: 1.4px;
+		width: 16px;
+		height: 19px;
+		padding: 0;
+	}
+	.who {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.1;
+	}
+	.who small {
+		font-family: var(--body);
+		font-weight: 700;
+		font-size: 12.5px;
+		color: var(--muted);
+		text-shadow: none;
+	}
+	.botmark {
+		width: 15px;
+		height: 15px;
+		vertical-align: -1px;
+		opacity: 0.8;
+	}
+	.extended {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.pick {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 6px 8px;
+		color: var(--text);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+		transition: transform 0.12s;
+	}
+	.pick:hover:not(:disabled) {
+		transform: translateY(-2px);
+	}
+	.pick:disabled {
+		cursor: default;
+	}
+	.pick-body {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+	.pick-name {
+		font-size: 18px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.pick-name small {
+		font-size: 13px;
+		color: var(--muted);
+	}
+	.trait {
+		font-size: 13px;
+		line-height: 1.3;
+		color: #f1dfc2;
+	}
+	.trait b {
+		color: var(--gold);
+	}
+	.change {
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 12px;
+		color: var(--gold);
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.map-well {
+		display: grid;
+		place-items: center;
+		padding: 2px;
+		background: radial-gradient(ellipse, #2f6f98, #1d4664);
+		background-clip: padding-box;
+	}
+	.goal {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.goal .seg .btn {
+		min-width: 44px;
 	}
 	@media (min-width: 1100px) and (min-aspect-ratio: 4/3) {
 		.column {
