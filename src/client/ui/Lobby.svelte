@@ -293,8 +293,10 @@
 									<span class="trait"
 										>{settings.characters
 											? settings.powers
-												? `Drafted at the start. Powers ${rechargeName(settings.powerRecharge).toLowerCase()}.`
-												: 'Everyone picks one at the start. The first settler picks last.'
+												? `${settings.repeatPicks ? 'Drafted, repeats allowed.' : 'Drafted at the start.'} Powers ${rechargeName(settings.powerRecharge).toLowerCase()}.`
+												: settings.repeatPicks
+													? 'Everyone picks one at the start, and picks can repeat.'
+													: 'Everyone picks one at the start. The first settler picks last.'
 											: 'No characters: everyone plays by the plain rules.'}</span
 									>
 									<span class="change">{client.isHost ? 'Change' : 'See them all'}</span>

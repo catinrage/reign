@@ -381,6 +381,11 @@ export class Room {
 				if (this.settings.powerRecharge !== msg.rounds) this.unready();
 				this.settings.powerRecharge = msg.rounds;
 				return this.broadcastLobby();
+			case 'setRepeatPicks':
+				if (!isHost || this.lockedSettings) return;
+				if (this.settings.repeatPicks !== !!msg.on) this.unready();
+				this.settings.repeatPicks = !!msg.on;
+				return this.broadcastLobby();
 			case 'leaveOut': {
 				if (!isHost || this.lockedSettings || !isCharacter(msg.character)) return;
 				const left = new Set(this.settings.leftOut);
@@ -619,7 +624,7 @@ export class Room {
 
 	/** Why the character draft can't seat everyone: fewer characters than players. */
 	private draftShort(): string | null {
-		if (this.settings.mode !== 'extended' || !this.settings.characters) return null;
+		if (this.settings.mode !== 'extended' || !this.settings.characters || this.settings.repeatPicks) return null;
 		const pool = characterPool(this.settings).length;
 		if (pool >= this.seats.length) return null;
 		return `${this.seats.length} players need at least ${this.seats.length} characters in the draft, and ${pool} are in.`;

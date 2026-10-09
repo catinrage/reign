@@ -72,6 +72,8 @@ export interface GameSettings {
 	characters: boolean;
 	/** Characters the host left out of the draft. */
 	leftOut: CharacterId[];
+	/** Reign Extended: whether a character someone drafted can still be picked by later players. */
+	repeatPicks: boolean;
 	/** Reign Extended: whether characters have their powers as well as their traits. */
 	powers: boolean;
 	/** Rounds before a used power is ready again; 0: once per game. */
@@ -101,6 +103,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
 	handLimit: DISCARD_THRESHOLD,
 	characters: true,
 	leftOut: [],
+	repeatPicks: false,
 	powers: true,
 	powerRecharge: 0,
 	buildings: allBuildings(),
