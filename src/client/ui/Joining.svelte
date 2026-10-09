@@ -9,8 +9,14 @@
 	 * table is, instead of the main menu flashing up first. If the room is gone it says so here.
 	 */
 	const joining = $derived(client.joining!);
-	const STEPS = ['Reaching the realm', 'Finding the table', 'Taking your seat'];
-	const step = $derived(client.status !== 'online' ? 0 : !client.seat ? 1 : 2);
+	const STEPS = $derived([
+		'Reaching the realm',
+		'Finding the table',
+		client.spectating ? 'Finding a spot to watch' : 'Taking your seat'
+	]);
+	const step = $derived(
+		client.status !== 'online' ? 0 : !client.seat && !client.spectating ? 1 : 2
+	);
 </script>
 
 <div class="joining">

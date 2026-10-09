@@ -100,12 +100,24 @@ wss.on('connection', (ws: WebSocket) => {
 					return send(ws, { t: 'error', message });
 				}
 			}
+			// A game already under way can still be watched by anyone with its code.
+			if (room.started && !room.hasSeat(msg.token)) {
+				room.watch(ws);
+				seat = null;
+				return;
+			}
 			seat = room.join(ws, msg.name, msg.token);
 			if (typeof seat === 'string') {
 				send(ws, { t: 'error', message: seat });
 				room = null;
 				seat = null;
 			}
+			return;
+		}
+		if (room && !seat && msg.t === 'leave') {
+			// A spectator stops watching.
+			room.disconnect(ws);
+			room = null;
 			return;
 		}
 		if (!room || !seat || typeof seat === 'string') return;

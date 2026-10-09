@@ -78,6 +78,8 @@ export class Room {
 	 * while it runs, when it runs out (Date.now() time) and the timer for that moment.
 	 */
 	private clock = { turn: '', left: 0, ends: 0, timer: null as NodeJS.Timeout | null };
+	/** People watching a game that started without them. They see what no player hides: no hands. */
+	private spectators = new Set<WebSocket>();
 	/** Private notes sent by pigeon. Each is only ever sent to its writer and its reader. */
 	private pigeons: PigeonNote[] = [];
 	private pigeonId = 0;
@@ -124,6 +126,7 @@ export class Room {
 			turnTime: this.turnTime,
 			settings: this.settings,
 			clock: this.clockInfo(),
+			spectators: this.spectators.size,
 			seats: this.seats.map(
 				(s): LobbySeat => ({
 					id: s.id,
@@ -138,6 +141,24 @@ export class Room {
 				})
 			)
 		};
+	}
+
+	/** Whether `token` reclaims a player's seat here. */
+	hasSeat(token?: string) {
+		return !!token && this.seats.some((s) => s.token === token && !s.isBot);
+	}
+
+	/**
+	 * Watch a game that has already started, without a seat: every hand stays hidden, as it is from
+	 * any player who doesn't hold it. Spectators can't act, chat or pause.
+	 */
+	watch(ws: WebSocket) {
+		this.spectators.add(ws);
+		send(ws, { t: 'watching', code: this.code });
+		this.broadcastLobby();
+		if (!this.game) return;
+		send(ws, { t: 'game', view: viewFor(this.game, -1), clock: this.clockInfo() });
+		if (this.aim) send(ws, { t: 'aim', player: this.aim.player, hex: this.aim.hex });
 	}
 
 	/** Join with a saved token to reclaim a seat, or take a new one while in the lobby. */
@@ -195,6 +216,7 @@ export class Room {
 	}
 
 	disconnect(ws: WebSocket) {
+		if (this.spectators.delete(ws)) return this.broadcastLobby();
 		for (const s of this.seats) {
 			if (s.sockets.delete(ws)) {
 				s.lastSeen = Date.now();
@@ -442,6 +464,8 @@ export class Room {
 	}
 
 	dispose() {
+		for (const ws of this.spectators) send(ws, { t: 'error', message: 'Every player has left, so this game is over.' });
+		this.spectators.clear();
 		if (this.botTimer) clearTimeout(this.botTimer);
 		this.stopClock();
 	}
@@ -501,6 +525,7 @@ export class Room {
 		this.syncClock();
 		const lobby = this.lobbyInfo();
 		for (const s of this.seats) for (const ws of s.sockets) send(ws, { t: 'lobby', lobby });
+		for (const ws of this.spectators) send(ws, { t: 'lobby', lobby });
 	}
 
 	/** Tell everyone but the player aiming which tile the robber is aimed at (null: none). */
@@ -512,6 +537,7 @@ export class Room {
 			if (i === player) return;
 			for (const ws of s.sockets) send(ws, { t: 'aim', player, hex });
 		});
+		for (const ws of this.spectators) send(ws, { t: 'aim', player, hex });
 	}
 
 	private broadcastGame() {
@@ -526,6 +552,9 @@ export class Room {
 			const view = viewFor(this.game!, i);
 			for (const ws of s.sockets) send(ws, { t: 'game', view, clock });
 		});
+		if (!this.spectators.size) return;
+		const view = viewFor(this.game, -1);
+		for (const ws of this.spectators) send(ws, { t: 'game', view, clock });
 	}
 
 	/** What players are told: the time left, not a deadline, since their clocks differ from ours. */

@@ -18,7 +18,8 @@
 			? 'You'
 			: (lobby?.seats.find((s) => s.id === pausedBy)?.name ?? 'Someone')
 	);
-	const playing = $derived(!!client.view && client.view.phase !== 'ended');
+	/** A spectator can't pause the table, only watch it. */
+	const playing = $derived(!!client.view && client.view.phase !== 'ended' && !client.spectating);
 	const others = $derived(
 		(lobby?.seats ?? []).filter((s) => !s.isBot && s.id !== client.seat && s.connected).length
 	);
@@ -84,7 +85,7 @@
 	<button class="icon-btn gear" onclick={open} aria-label="Menu" title="Menu (Esc)"
 		><img src={PIXEL.gear} alt="" /></button
 	>
-	<PigeonButton />
+	{#if !client.spectating}<PigeonButton />{/if}
 	{#if playing && !pausedBy}
 		<button
 			class="icon-btn"
@@ -141,7 +142,11 @@
 						<button class="btn wood block" onclick={() => go('settings')}
 							><img src={PIXEL.gear} alt="" />Settings</button
 						>
-						{#if confirmLeave}
+						{#if client.spectating}
+							<button class="btn red block" onclick={leave}
+								><img src={PIXEL.door} alt="" />Stop watching</button
+							>
+						{:else if confirmLeave}
 							<div class="confirm parch">
 								{#if others > 0}
 									<p>
