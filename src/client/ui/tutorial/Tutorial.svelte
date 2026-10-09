@@ -149,10 +149,12 @@
 	.chapters {
 		list-style: none;
 		margin: 0;
-		padding: 0 2px 0 0;
+		/* Room on the right for the nudge on the picked and hovered chapter, so it never scrolls sideways. */
+		padding: 0 8px 0 0;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+		overflow-x: hidden;
 		overflow-y: auto;
 		scrollbar-width: thin;
 		scrollbar-color: #8a5a32 transparent;
