@@ -21,6 +21,7 @@
 	import Friends from './account/Friends.svelte';
 	import { ACCOUNT_ICONS } from './account/icons';
 	import BuildingRules from './extended/BuildingRules.svelte';
+	import EventRules from './extended/EventRules.svelte';
 	import CharacterPicker from './extended/CharacterPicker.svelte';
 	import MapPicker from './extended/MapPicker.svelte';
 	import MapPreview from './extended/MapPreview.svelte';
@@ -381,7 +382,10 @@
 									<span class="chosen">{settings.handLimit} cards</span>
 								{/if}
 							</div>
-							<BuildingRules />
+							<div class="duo">
+								<BuildingRules />
+								<EventRules />
+							</div>
 						</div>
 					{:else}
 						<!-- Classic always plays the standard island: the same card as Reign Extended's, fixed. -->
@@ -440,6 +444,33 @@
 {/if}
 
 <style>
+	/* Buildings and Events share a row: two narrower plaques. */
+	.duo {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+	.duo :global(.pick .face) {
+		width: 58px;
+		height: 62px;
+	}
+	.duo :global(.pick .face img) {
+		max-width: 50px;
+		max-height: 50px;
+	}
+	.duo :global(.pick .pick-name) {
+		font-size: 16px;
+	}
+	.duo :global(.pick .trait) {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	@media (max-width: 520px) {
+		.duo {
+			grid-template-columns: 1fr;
+		}
+	}
 	.lobby {
 		position: absolute;
 		inset: 0;

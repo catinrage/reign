@@ -21,6 +21,7 @@
 	import Dialogs from './Dialogs.svelte';
 	import DiceBadge from './DiceBadge.svelte';
 	import DraftPanel from './DraftPanel.svelte';
+	import EventCard from './EventCard.svelte';
 	import Flyers, { FLIGHT_MS, flyers } from './Flyers.svelte';
 	import Hand from './Hand.svelte';
 	import Log from './Log.svelte';
@@ -336,6 +337,7 @@
 		{#if ui.trade}<TradePanel />{/if}
 		<Dialogs />
 	{/if}
+	{#if view.events}<EventCard />{/if}
 	<Victory />
 	{#if view.phase === 'draft' && view.draft}<DraftPanel />{/if}
 	<Flyers />

@@ -41,7 +41,8 @@ export class BoardView {
 	robberHex = -1;
 
 	constructor(
-		readonly board: Board,
+		/** Number tokens can move (a Reign Extended earthquake), so this follows the game's board. */
+		public board: Board,
 		seed: number,
 		/** Voxels per terrain unit: 1 is the standard island, 2 the finer experiment. */
 		detail = 1,
@@ -102,6 +103,21 @@ export class BoardView {
 		this.robber.scale.setScalar(0.78);
 		this.group.add(this.robber);
 		void topo;
+	}
+
+	/**
+	 * Two tiles traded number tokens (a Reign Extended earthquake): each token now belongs to the
+	 * other tile. Returns the two tokens with the spots they move to; the caller animates the move.
+	 */
+	swapTokens(board: Board, a: number, b: number) {
+		this.board = board;
+		[this.tokens[a], this.tokens[b]] = [this.tokens[b], this.tokens[a]];
+		return [a, b].map((h) => {
+			const c = this.hexCenter(h);
+			const tok = this.tokens[h];
+			tok.userData.baseY = this.build.tokenY[h];
+			return { tok, to: new THREE.Vector3(c.x, this.build.tokenY[h], c.z) };
+		});
 	}
 
 	hexCenter(h: number) {

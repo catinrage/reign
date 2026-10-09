@@ -5,6 +5,8 @@
 	import { DEV_CARD_LABEL, PLAYER_CSS, RESOURCES, RESOURCE_LABEL } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { DEV_CARDS, type Resource } from '../../../shared/rules/config';
+	import { EVENT_CARDS, EVENT_INFO } from '../../../shared/rules/events';
+	import { EVENT_ART } from './eventArt';
 
 	/**
 	 * Dev cheats, only shown when the server is the local dev server (`pnpm dev`).
@@ -109,6 +111,17 @@
 				>
 			{/each}
 		</div>
+
+		{#if view.events}
+			<div class="label">Flip an event now</div>
+			<div class="row">
+				{#each EVENT_CARDS as c (c)}
+					<button class="tile" onclick={() => cheat({ type: 'event', card: c })} title={EVENT_INFO[c].name}
+						><img src={EVENT_ART[c]} alt={EVENT_INFO[c].name} /></button
+					>
+				{/each}
+			</div>
+		{/if}
 
 		<div class="label">Game</div>
 		<div class="row">

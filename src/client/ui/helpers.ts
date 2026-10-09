@@ -12,6 +12,7 @@ import {
 	type ResourceCounts
 } from '../../shared/rules/config';
 import { CHARACTER_INFO } from '../../shared/rules/characters';
+import { EVENT_INFO } from '../../shared/rules/events';
 import {
 	builtKey,
 	citySpots,
@@ -323,10 +324,51 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return [P(e.player), T(`: ${e.text}`)];
 		case 'cheat':
 			return [T('[cheat] '), P(e.player), T(` ${e.text}`)];
+		case 'eventDrawn':
+			return e.by !== undefined
+				? [P(e.by), T(` decreed ${EVENT_INFO[e.card].name}`)]
+				: [T(`Round ${e.round} event: ${EVENT_INFO[e.card].name}`)];
+		case 'eventCards':
+			return eventCardsParts(e, view, P, T, R);
+		case 'earthquake': {
+			const [a, b] = e.hexes.map((h) => view.board.hexes[h]?.number);
+			return [T(`Earthquake! The ${a} and the ${b} swapped tiles`)];
+		}
 		case 'gameStarted':
 			return view.mode === 'extended'
 				? [T(`Reign Extended on ${view.mapName}, first to ${view.pointsToWin} points.${view.draft ? '' : ' Place your settlements!'}`)]
 				: [T('The game begins. Place your settlements!')];
+	}
+	return null;
+}
+
+/** The chronicle's line for cards an event moved. */
+function eventCardsParts(
+	e: Extract<GameEvent, { type: 'eventCards' }>,
+	view: GameView,
+	P: (i: number) => LogPart,
+	T: (text: string) => LogPart,
+	R: (res: Resource) => LogPart
+): LogPart[] | null {
+	const n = e.moves.length;
+	const cards = `${n} card${n === 1 ? '' : 's'}`;
+	switch (e.card) {
+		case 'bountifulYear': {
+			const m = e.moves[0];
+			return m?.to != null && m.resource ? [P(m.to), T(' took '), R(m.resource), T(' (Bountiful Year)')] : null;
+		}
+		case 'royalWedding':
+			return n ? [T('Wedding gifts: '), P(e.moves[0].to!), T(` got ${cards}`)] : null;
+		case 'tournament':
+			return e.champion === undefined ? [T('The Tournament had no champion')] : [P(e.champion), T(` won the Tournament and took ${cards}`)];
+		case 'plagueOfRats':
+			return [T(n ? `Rats ate ${cards}` : 'The rats found nothing to eat')];
+		case 'taxCollector':
+			return [T(n ? `The Tax Collector took ${cards}` : 'The Tax Collector found no cities to tax')];
+		case 'banditUprising': {
+			const at = e.hex !== undefined ? ` raided the ${view.board.hexes[e.hex]?.number ?? 'desert'} and` : '';
+			return [T(n ? `Bandits${at} took ${cards}` : 'The bandits found nobody to rob')];
+		}
 	}
 	return null;
 }

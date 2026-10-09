@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { EVENT_CARDS } from '../../../../shared/rules/events';
 	import { MAP_PRESETS } from '../../../../shared/board/maps';
 	import {
 		BANK_PER_RESOURCE,
@@ -38,6 +39,12 @@
 			name: 'Buildings',
 			classic: 'Roads, settlements and cities.',
 			extended: `Also ${andList(EXTRA_BUILDINGS.map((b) => BUILDING_INFO[b].name.toLowerCase()))}, if the host keeps them on.`
+		},
+		{
+			icon: PIXEL.star,
+			name: 'Events',
+			classic: 'None.',
+			extended: `A card from a deck of ${EVENT_CARDS.length} turns over each round, unless the host turns them off.`
 		},
 		{
 			icon: PIXEL.crown,
