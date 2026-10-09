@@ -24,7 +24,7 @@ import {
 	type ResourceCounts
 } from './config';
 import type { CharacterId } from './characters';
-import { DEFAULT_SETTINGS, type GameSettings } from './modes';
+import { DEFAULT_SETTINGS, pieceLimits, type GameSettings } from './modes';
 import {
 	canPlaceRoad,
 	canPlaceSettlement,
@@ -97,7 +97,7 @@ export function createGame(
 				resources: emptyResources(),
 				devCards: [],
 				knightsPlayed: extended && p.character === 'veteran' ? 1 : 0,
-				piecesLeft: { ...PIECE_LIMITS },
+				piecesLeft: extended ? pieceLimits(opts.pointsToWin) : { ...PIECE_LIMITS },
 				longestRoad: 0
 			})
 		),

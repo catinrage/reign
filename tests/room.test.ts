@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../src/shared/protocol';
 import { EMPTY_GRACE_MS, Room } from '../src/server/room';
+import { randomMap } from '../src/shared/board/random';
 import { settlementSpots } from '../src/shared/rules/queries';
 import type { Action, GameEvent } from '../src/shared/rules/types';
 
@@ -880,6 +881,41 @@ describe('big custom islands and custom goals', () => {
 			room.handle(host, { t: 'setPointsToWin', points: bad as number }, a.ws);
 			expect(room.lobbyInfo().settings.pointsToWin).toBe(17);
 		}
+		room.dispose();
+	});
+});
+
+describe('random islands and balanced goals', () => {
+	it('shows a generated island to everyone and caps the goal by island size and players', () => {
+		const room = new Room('RAND1');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		const island = randomMap({ tiles: 30, shape: 'islands', lakes: true, seed: 42 });
+		room.handle(guest, { t: 'setMap', map: { custom: island } }, b.ws);
+		expect(room.lobbyInfo().settings.map).toEqual({ preset: 'great' });
+		room.handle(host, { t: 'setMap', map: { custom: island } }, a.ws);
+		// The guest's lobby carries the island and how it was made, so they see it too.
+		const seen = [...b.sent].reverse().find((m) => m.t === 'lobby');
+		const map = seen && seen.t === 'lobby' ? seen.lobby.settings.map : null;
+		expect(map && 'custom' in map ? map.custom : null).toEqual(island);
+
+		// Three players on 30 tiles can play to 20; adding three more brings the goal down to 12.
+		room.handle(host, { t: 'addBot' }, a.ws);
+		room.handle(host, { t: 'setPointsToWin', points: 20 }, a.ws);
+		expect(room.lobbyInfo().settings.pointsToWin).toBe(20);
+		for (let i = 0; i < 3; i++) room.handle(host, { t: 'addBot' }, a.ws);
+		expect(room.seats).toHaveLength(6);
+		expect(room.lobbyInfo().settings.pointsToWin).toBe(12);
+		// Six players on 30 tiles: 20 points would never end, 12 is the most.
+		room.handle(host, { t: 'setPointsToWin', points: 20 }, a.ws);
+		expect(room.lobbyInfo().settings.pointsToWin).toBe(12);
+		expect(a.sent.some((m) => m.t === 'error' && m.message.includes('at most 12'))).toBe(true);
+		room.handle(host, { t: 'setPointsToWin', points: 8 }, a.ws);
+		expect(room.lobbyInfo().settings.pointsToWin).toBe(8);
 		room.dispose();
 	});
 });

@@ -5,6 +5,7 @@
 	import { PIXEL } from '../pixel';
 	import MapEditor from './MapEditor.svelte';
 	import MapPreview from './MapPreview.svelte';
+	import RandomIsland from './RandomIsland.svelte';
 	import { deleteMap, saveMap, savedMaps } from './savedMaps.svelte';
 
 	let { onclose }: { onclose: () => void } = $props();
@@ -45,6 +46,11 @@
 	/>
 {:else}
 	<Modal title="Choose the island" width={820} {onclose}>
+		<div class="section">
+			<div class="divider"><i></i><span>Random island</span><i></i></div>
+			<RandomIsland onedit={(m) => (editing = { map: m, index: null })} />
+		</div>
+
 		<div class="section">
 			<div class="divider"><i></i><span>Islands</span><i></i></div>
 			<div class="grid">
