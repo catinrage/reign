@@ -46,7 +46,7 @@ export class CameraRig {
 
 	private goal = { target: new THREE.Vector3(0, 0, 8), azimuth: -0.62, polar: 0.86, radius: 330 };
 	limits = { minPolar: 0.25, maxPolar: 1.18, minRadius: 46, maxRadius: 480, pan: 150 };
-	/** The room the camera stays inside, if any. */
+	/** The room the camera stays inside, if any: its walls, not `maxRadius`, stop the zoom. */
 	bounds: CameraBounds | null = null;
 	autoRotate = 0;
 	enabled = true;
@@ -141,9 +141,10 @@ export class CameraRig {
 	}
 
 	private zoom(f: number) {
-		// Zooming out stops at the wall, and zooming in starts from where the camera really is.
+		// Zooming out stops at the wall, however big the room, and zooming in starts from where
+		// the camera really is.
 		const room = this.roomFor(this.goal);
-		const max = Math.max(this.limits.minRadius, Math.min(this.limits.maxRadius, room));
+		const max = Math.max(this.limits.minRadius, this.bounds ? room : this.limits.maxRadius);
 		const radius = Math.min(this.goal.radius, room) * f;
 		this.goal.radius = THREE.MathUtils.clamp(radius, this.limits.minRadius, max);
 	}

@@ -103,4 +103,14 @@ describe('camera in the room', () => {
 		rig.update(0.05);
 		expect(rig.radius).toBeLessThan(wall - 1);
 	});
+
+	it('zooms out to the wall of a big room, past the radius limit', () => {
+		const { rig, wheel } = rigInRoom();
+		rig.bounds = { half: 556, top: 684 };
+		rig.set({ target: new THREE.Vector3(0, 0, 0), azimuth: 0, polar: 0.82, radius: 300 }, true);
+		for (let i = 0; i < 30; i++) wheel(600);
+		settle(rig);
+		expect(rig.radius).toBeGreaterThan(rig.limits.maxRadius);
+		expect(rig.camera.position.z).toBeCloseTo(556);
+	});
 });

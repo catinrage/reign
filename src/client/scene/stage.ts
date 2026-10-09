@@ -23,6 +23,13 @@ export type Quality = 'high' | 'low';
 const FOV = 50;
 /** Tall screens open the lens further, so the view is still this wide across (degrees). */
 const MIN_ACROSS = 40;
+/**
+ * In the standard room, world units from the camera where the fog starts and where it is
+ * thickest, and from the point in focus to where things are fully blurred.
+ */
+const FOG_NEAR = 520;
+const FOG_FAR = 1250;
+const FOCUS_RANGE = 250;
 
 /** Vertical field of view for a screen's aspect ratio. */
 function fovFor(aspect: number) {
@@ -61,7 +68,7 @@ export class Stage {
 		this.renderer.toneMapping = THREE.NoToneMapping;
 
 		this.scene.background = new THREE.Color('#140b07');
-		this.scene.fog = new THREE.Fog('#1a0e08', 520, 1250);
+		this.scene.fog = new THREE.Fog('#1a0e08', FOG_NEAR, FOG_FAR);
 		const pmrem = new THREE.PMREMGenerator(this.renderer);
 		this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 		this.scene.environmentIntensity = 0.38;
@@ -77,7 +84,7 @@ export class Stage {
 		this.composer.addPass(new RenderPass(this.scene, this.camera));
 		this.dof = new DepthOfFieldEffect(this.camera, {
 			focusDistance: 300,
-			focusRange: 250,
+			focusRange: FOCUS_RANGE,
 			bokehScale: quality === 'high' ? 3.2 : 2,
 			resolutionScale: 0.5
 		});
@@ -105,8 +112,31 @@ export class Stage {
 		this.dof.target = target;
 	}
 
+	/** How many times the standard room the room is, and the focus range there (null: no blur). */
+	private roomScale = 1;
+	private focusRange: number | null = FOCUS_RANGE;
+
 	setDepthOfField(enabled: boolean, range = 190) {
-		this.dof.cocMaterial.focusRange = enabled ? range : 4000;
+		this.focusRange = enabled ? range : null;
+		this.fitFocus();
+	}
+
+	/**
+	 * Fit the fog, the depth of field and the key light's shadows to a room `scale` times the
+	 * standard one, so they reach as far in it as in the standard room.
+	 */
+	fitRoom(scale: number) {
+		this.roomScale = scale;
+		const fog = this.scene.fog as THREE.Fog;
+		fog.near = FOG_NEAR * scale;
+		fog.far = FOG_FAR * scale;
+		this.fitFocus();
+		this.lighting.fitShadows(scale);
+	}
+
+	private fitFocus() {
+		const range = this.focusRange;
+		this.dof.cocMaterial.focusRange = range === null ? 4000 : range * this.roomScale;
 	}
 
 	onFrame(fn: (dt: number, t: number) => void) {

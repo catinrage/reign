@@ -189,7 +189,7 @@ export class GameScene {
 		const seed = (Math.random() * 1e9) | 0;
 		this.setBoard(tiles ? generateBoard(tiles, { rng: seed }) : generateStandardBoard({ rng: seed }), seed);
 		this.boardView!.setRobber(this.boardView!.board.hexes.findIndex((h) => h.terrain === 'desert'), true);
-		this.stage.rig.set({ radius: this.menuRadius(Math.min(135, (103 * this.reach) / 54), 0.92) });
+		this.stage.rig.set({ radius: this.menuRadius((103 * this.reach) / 54, 0.92) });
 	}
 
 	private setBoard(board: Board, seed: number, plots = false) {
