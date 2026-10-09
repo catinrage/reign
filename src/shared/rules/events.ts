@@ -71,6 +71,15 @@ const GENTLE_TONES: EventTone[] = ['good', 'catchUp', 'chaos'];
 /** Plague of Rats: players holding more than this lose a card. */
 export const PLAGUE_LIMIT = 5;
 
+/**
+ * How long the table shows a card that turns over: the card held up in the middle of the table,
+ * then what it does played out on the board and the hands. Play waits for it, as it waits for
+ * dice to land: bots hold off, the turn clock starts late and the interface holds its state.
+ */
+export const EVENT_FLIP_MS = 3000;
+export const EVENT_EFFECT_MS = 2800;
+export const EVENT_SHOW_MS = EVENT_FLIP_MS + EVENT_EFFECT_MS;
+
 /** What the host sets in the lobby. */
 export interface EventRules {
 	on: boolean;

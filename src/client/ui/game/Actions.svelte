@@ -111,12 +111,12 @@
 
 {#if view.me >= 0 && view.phase !== 'ended'}
 	<div class="actions">
-		{#if power}
+		{#if power && !client.presenting}
 			<button class="btn purple power" class:on={!!ui.power} title={power.text} data-tip-head="Power: {power.name}" onclick={onPower}>
 				<span class="gem"></span>{power.name}
 			</button>
 		{/if}
-		{#if mine && view.step === 'roll' && !client.rollAsked && !client.tossing}
+		{#if mine && view.step === 'roll' && !client.rollAsked && !client.tossing && !client.presenting}
 			<button class="btn big shine roll" onclick={() => client.act({ type: 'rollDice' })}>
 				<img src={PIXEL.die} alt="" /> Roll dice
 			</button>

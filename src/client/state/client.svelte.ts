@@ -1,6 +1,7 @@
 import type { ClientMessage, LobbyInfo, PigeonNote, ServerMessage, TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
 import type { Resource } from '../../shared/rules/config';
+import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
 import type { Action, GameEvent, GameView } from '../../shared/rules/types';
 import { account } from './account.svelte';
 
@@ -44,6 +45,15 @@ function newestRoll(log: GameEvent[], after = -1): Roll | null {
 	for (let i = log.length - 1; i >= 0 && log[i].seq > after; i--) {
 		const e = log[i];
 		if (e.type === 'diceRolled') return { seq: e.seq, player: e.player, dice: e.dice };
+	}
+	return null;
+}
+
+/** The newest event card turned over in a log after event `after`, if there is one. */
+function newestDrawn(log: GameEvent[], after: number) {
+	for (let i = log.length - 1; i >= 0 && log[i].seq > after; i--) {
+		const e = log[i];
+		if (e.type === 'eventDrawn') return e;
 	}
 	return null;
 }
@@ -93,6 +103,19 @@ class GameClient {
 	view = $state.raw<GameView | null>(null);
 	/** The roll whose dice are in the air, or null. */
 	tossing = $state.raw<Roll | null>(null);
+	/**
+	 * An event card that just turned over (Reign Extended) and is being shown to the table, or
+	 * null. Like dice in the air, it holds the interface's state until it has played out (see
+	 * `presented`), so nothing it did shows before it does.
+	 */
+	presenting = $state.raw<{
+		seq: number;
+		card: EventCard;
+		round: number;
+		by?: number;
+		/** Held up in the middle of the table, then played out on the board and the hands. */
+		phase: 'flip' | 'effect';
+	} | null>(null);
 	/** The last roll the interface has shown. It stays after the turn is over. */
 	lastRoll = $state.raw<Roll | null>(null);
 	/**
@@ -138,6 +161,7 @@ class GameClient {
 	private pinger: ReturnType<typeof setInterval> | null = null;
 	private ticker: ReturnType<typeof setInterval> | null = null;
 	private tossTimer: ReturnType<typeof setTimeout> | undefined;
+	private presentTimer: ReturnType<typeof setTimeout> | undefined;
 	private dealBatch = 0;
 	private autoBots = 0;
 	/** The player backed out of a join the server is still answering: leave the room it seats us in. */
@@ -316,7 +340,31 @@ class GameClient {
 			clearTimeout(this.tossTimer);
 			this.tossTimer = setTimeout(() => this.landed(roll.seq), TOSS_TIMEOUT_MS);
 		}
-		if (!this.tossing) this.show(view);
+		const drawn = prev && after <= newestSeq(view.log) ? newestDrawn(view.log, after) : null;
+		if (drawn) {
+			this.presenting = { seq: drawn.seq, card: drawn.card, round: drawn.round, by: drawn.by, phase: 'flip' };
+			clearTimeout(this.presentTimer);
+			this.presentTimer = setTimeout(() => this.presented(drawn.seq), EVENT_SHOW_MS + 1500);
+		}
+		if (!this.tossing && this.presenting?.phase !== 'flip') this.show(view);
+	}
+
+	/**
+	 * The event card `seq` has been held up long enough: the interface shows what it did while it
+	 * plays out (and play still waits until it has, see `presented`).
+	 */
+	reveal(seq: number) {
+		if (this.presenting?.seq !== seq || this.presenting.phase !== 'flip') return;
+		this.presenting = { ...this.presenting, phase: 'effect' };
+		if (!this.tossing && this.latest) this.show(this.latest);
+	}
+
+	/** The event card `seq` has played out at the table (or waiting for it ran out). */
+	presented(seq: number) {
+		if (!this.presenting || seq < this.presenting.seq) return;
+		clearTimeout(this.presentTimer);
+		this.presenting = null;
+		if (!this.tossing && this.latest) this.show(this.latest);
 	}
 
 	/** The scene landed the dice of roll `seq` (or waiting for that ran out): show what it did. */
@@ -324,7 +372,7 @@ class GameClient {
 		if (!this.tossing || seq < this.tossing.seq) return;
 		clearTimeout(this.tossTimer);
 		this.tossing = null;
-		if (this.latest) this.show(this.latest);
+		if (this.latest && this.presenting?.phase !== 'flip') this.show(this.latest);
 	}
 
 	/** Hand a state to the interface. Cards it deals on the board count once they reach a hand. */
@@ -358,6 +406,9 @@ class GameClient {
 					if (amount) gains.push({ player: e.to, resource, amount });
 				for (const [resource, amount] of Object.entries(e.want) as [Resource, number][])
 					if (amount) gains.push({ player: e.from, resource, amount });
+			} else if (e.type === 'eventCards') {
+				// An event's cards handed to a player (the ones you can see).
+				for (const m of e.moves) if (m.to !== null && m.resource) gains.push({ player: m.to, resource: m.resource, amount: 1 });
 			} else if (e.type === 'tornDown') {
 				for (const [resource, amount] of Object.entries(e.refund)) {
 					if (amount) gains.push({ player: e.player, resource: resource as Resource, amount });
@@ -503,6 +554,8 @@ class GameClient {
 		this.view = null;
 		clearTimeout(this.tossTimer);
 		this.tossing = null;
+		clearTimeout(this.presentTimer);
+		this.presenting = null;
 		this.lastRoll = null;
 		this.dealt = [];
 		this.rollAsked = false;
@@ -525,9 +578,9 @@ class GameClient {
 	}
 
 	act(action: Action) {
-		// Until the dice land the interface shows the state from before the roll: nothing is played
-		// from it.
-		if (this.tossing) return;
+		// Until the dice land (or an event card has played out) the interface shows the state from
+		// before: nothing is played from it.
+		if (this.tossing || this.presenting) return;
 		if (action.type === 'rollDice') {
 			if (this.rollAsked) return;
 			this.rollAsked = true;

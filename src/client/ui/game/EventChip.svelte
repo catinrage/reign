@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { EVENT_INFO } from '../../../shared/rules/events';
+	import { EVENT_INFO, roundOf } from '../../../shared/rules/events';
 	import { client } from '../../state/client.svelte';
 	import { EVENT_ART, TONE_COLOR } from './eventArt';
 	import { eventUi } from './eventUi.svelte';
@@ -10,6 +10,7 @@
 	 */
 	const view = $derived(client.view!);
 	const events = $derived(view.events);
+	const round = $derived(roundOf(view.turn, view.players.length));
 	const choosing = $derived(view.step === 'eventChoice' ? (events?.choice ?? null) : null);
 	const card = $derived(choosing ? 'royalDecree' : (events?.current ?? null));
 	const bounty = $derived(!client.spectating && view.me >= 0 && !!events?.bounty.includes(view.me) && view.phase === 'main');
@@ -30,7 +31,7 @@
 
 	function click() {
 		if (bounty) eventUi.bountyOpen = true;
-		else if (card && !choosing) eventUi.shown = { card, seq: -1, flip: false };
+		else if (card && !choosing) eventUi.shown = { card, round, seq: -1, flip: false };
 	}
 </script>
 

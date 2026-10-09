@@ -9,6 +9,7 @@ import { applyCheat } from '../src/shared/rules/cheats';
 import { BANK_PER_RESOURCE, RESOURCES, TERRAIN_RESOURCE, totalResources } from '../src/shared/rules/config';
 import { applyAction, createGame } from '../src/shared/rules/engine';
 import {
+	EVENT_SHOW_MS,
 	DEFAULT_EVENT_RULES,
 	EVENT_CARDS,
 	EVENT_INFO,
@@ -375,6 +376,36 @@ describe('the room', () => {
 		// Locked while the game runs.
 		room.handle(host, { t: 'setEvents', events: NO_EVENTS }, a.ws);
 		expect(room.lobbyInfo().settings.events.on).toBe(true);
+		room.dispose();
+		vi.useRealTimers();
+	});
+
+	it('holds the bots while a card that turned over is shown', () => {
+		vi.useFakeTimers();
+		const room = new Room('SHOWN', true);
+		const a = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		room.handle(host, { t: 'setCharacters', on: false }, a.ws);
+		room.handle(host, { t: 'addBot' }, a.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		room.handle(host, { t: 'cheat', cheat: { type: 'finishSetup' } }, a.ws);
+		const me = room.seats.indexOf(host);
+		// Hand the turn to the bot, then turn a card over as it is about to roll.
+		vi.advanceTimersByTime(EVENT_SHOW_MS + 500);
+		if (room.game!.current === me) {
+			room.handle(host, { t: 'cheat', cheat: { type: 'rigDice', total: 8 } }, a.ws);
+			room.handle(host, { t: 'action', action: { type: 'rollDice' } }, a.ws);
+			room.handle(host, { t: 'action', action: { type: 'endTurn' } }, a.ws);
+		}
+		expect(room.game!.current).not.toBe(me);
+		room.handle(host, { t: 'cheat', cheat: { type: 'event', card: 'harvestFestival' } }, a.ws);
+		const logged = room.game!.log.length;
+		vi.advanceTimersByTime(EVENT_SHOW_MS - 200);
+		expect(room.game!.log.length).toBe(logged);
+		vi.advanceTimersByTime(4000);
+		expect(room.game!.log.length).toBeGreaterThan(logged);
 		room.dispose();
 		vi.useRealTimers();
 	});

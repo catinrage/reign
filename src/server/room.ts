@@ -16,7 +16,7 @@ import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
-import { cleanEventRules } from '../shared/rules/events';
+import { EVENT_SHOW_MS, cleanEventRules } from '../shared/rules/events';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
 import {
 	DEFAULT_SETTINGS,
@@ -95,6 +95,10 @@ export class Room {
 	/** Mode, map and points to win. The host picks them in the lobby. */
 	settings: GameSettings = structuredClone(DEFAULT_SETTINGS);
 	private botTimer: NodeJS.Timeout | null = null;
+	/** Until when the table is showing an event card that just turned over (see EVENT_SHOW_MS). */
+	private eventShowUntil = 0;
+	/** The newest log entry the table has been sent. */
+	private sentSeq = 0;
 	/** Dev cheat: bots move almost at once instead of pausing like a person would. */
 	private fastBots = false;
 	private botActionsThisTurn = 0;
@@ -679,6 +683,12 @@ export class Room {
 			this.endTold = true;
 			this.listener?.gameEnded?.(this);
 		}
+		// A card that just turned over holds the table while everyone watches it play out.
+		const newest = g.log.length ? g.log[g.log.length - 1].seq : 0;
+		if (newest < this.sentSeq) this.sentSeq = 0; // a new game's log starts over
+		const fresh = g.log.filter((e) => e.seq > this.sentSeq);
+		if (fresh.length) this.sentSeq = fresh[fresh.length - 1].seq;
+		if (fresh.some((e) => e.type === 'eventDrawn') && !this.fastBots) this.eventShowUntil = Date.now() + EVENT_SHOW_MS;
 		this.syncClock();
 		const clock = this.clockInfo();
 		this.seats.forEach((s, i) => {
@@ -711,7 +721,8 @@ export class Room {
 		if (turn !== c.turn) {
 			this.stopClock();
 			c.turn = turn;
-			c.left = this.turnTime * 1000;
+			// A turn that starts with an event card being shown gets that time on top.
+			c.left = this.turnTime * 1000 + Math.max(0, this.eventShowUntil - Date.now());
 		}
 		if (!turn) return;
 		if (this.paused) this.stopClock();
@@ -783,12 +794,16 @@ export class Room {
 		if (last && ROLL_ENDS.has(last.type)) delay += 1300;
 		if (last?.type === 'turnStarted') delay += 400;
 		if (next.action.type === 'respondTrade') delay += 600;
+		// Nobody moves while an event card is being shown.
+		delay = Math.max(delay, this.eventShowUntil - Date.now() + 300);
 		// A bot that has pointed at the robber's tile moves it there after a moment.
 		if (this.botAim(next.player) !== null) delay = BOT_AIM_MS;
 		if (this.fastBots) delay = 60;
 		this.botTimer = setTimeout(() => {
 			this.botTimer = null;
 			if (!this.game || this.paused) return;
+			// An event card turned over since this move was planned: wait for it to play out.
+			if (Date.now() < this.eventShowUntil && !this.fastBots) return this.scheduleBots();
 			let move = this.nextBotMove();
 			if (move?.action.type === 'moveRobber' && !this.fastBots) {
 				const aimed = this.botAim(move.player);

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { client } from '../src/client/state/client.svelte';
 import { botAction } from '../src/shared/rules/bot';
+import { allBuildings } from '../src/shared/rules/buildings';
+import { DEFAULT_EVENT_RULES, EVENT_CARDS, EVENT_SHOW_MS } from '../src/shared/rules/events';
 import { applyAction, createGame } from '../src/shared/rules/engine';
 import type { Action, GameEvent, GameState, ResourceGain } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
@@ -358,5 +360,82 @@ describe('client: following an invite link', () => {
 		expect(sent).toEqual([{ t: 'leave' }]);
 		expect(client.seat).toBeNull();
 		expect(client.lobby).toBeNull();
+	});
+});
+
+describe('client: event cards', () => {
+	let sent: unknown[];
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.stubGlobal('location', new URL('http://localhost/'));
+		vi.stubGlobal('history', { replaceState() {} });
+		vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		sent = [];
+		vi.spyOn(client, 'send').mockImplementation((m) => void sent.push(m));
+		client.leave();
+		client.seat = 'p0';
+		sent.length = 0;
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('holds the interface while an event card that turned over is shown, then plays it out', () => {
+		let s = createGame(players, 21, undefined, {
+			mode: 'extended',
+			map: { preset: 'great' },
+			characters: false,
+			buildings: allBuildings(false),
+			events: { ...DEFAULT_EVENT_RULES, pulled: EVENT_CARDS.filter((c) => c !== 'plagueOfRats') }
+		});
+		receive(s);
+		// The setup's last placement turns the first card over.
+		let before = s;
+		while (s.phase === 'setup') {
+			before = s;
+			s = (applyAction(s, s.current, botAction(s, s.current)!) as { state: GameState }).state;
+			if (s.phase === 'setup') receive(s);
+		}
+		receive(before);
+		receive(s);
+		const drawn = s.log.find((e) => e.type === 'eventDrawn')!;
+		expect(client.presenting).toMatchObject({ seq: drawn.seq, card: 'plagueOfRats', phase: 'flip' });
+		expect(client.view!.version).toBe(before.version);
+		client.act({ type: 'rollDice' });
+		expect(sent).toEqual([]);
+		// Put down: the interface shows what it did while it plays out, and play still waits.
+		client.reveal(drawn.seq);
+		expect(client.presenting!.phase).toBe('effect');
+		expect(client.view).toBe(client.latest);
+		client.act({ type: 'rollDice' });
+		expect(sent).toEqual([]);
+		client.presented(drawn.seq);
+		expect(client.presenting).toBeNull();
+		if (s.current === 0) {
+			client.act({ type: 'rollDice' });
+			expect(sent).toHaveLength(1);
+		}
+	});
+
+	it('lets play go on when an event card is never put down', () => {
+		let s = createGame(players, 22, undefined, {
+			mode: 'extended',
+			map: { preset: 'great' },
+			characters: false,
+			buildings: allBuildings(false)
+		});
+		receive(s);
+		while (s.phase === 'setup') {
+			s = (applyAction(s, s.current, botAction(s, s.current)!) as { state: GameState }).state;
+			receive(s);
+		}
+		expect(client.presenting).not.toBeNull();
+		vi.advanceTimersByTime(EVENT_SHOW_MS + 1400);
+		expect(client.presenting).not.toBeNull();
+		vi.advanceTimersByTime(200);
+		expect(client.presenting).toBeNull();
+		expect(client.view).toBe(client.latest);
 	});
 });

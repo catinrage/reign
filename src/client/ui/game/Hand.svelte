@@ -50,6 +50,7 @@
 		if (!myTurn(view)) return 'Wait for your turn to play it.';
 		if (client.lobby?.pausedBy) return 'The game is paused.';
 		if (client.tossing) return 'Wait for the dice to land.';
+		if (client.presenting) return 'Wait for the event to play out.';
 		if (ready === 0) return 'Bought this turn: play it from your next turn.';
 		if (view.devCardPlayedThisTurn)
 			return 'You already played a development card this turn. Only one per turn.';
