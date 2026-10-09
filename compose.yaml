@@ -1,0 +1,25 @@
+# `docker compose up -d --build` runs the game on http://localhost:8787 (set PORT to change it).
+# `docker compose --profile dev up --build` runs the dev setup instead: Vite with hot reload on
+# http://localhost:5173 and the game server with dev cheats on, both from your working copy.
+# Add -V after changing dependencies so the container gets fresh node_modules.
+
+services:
+  reign:
+    build: .
+    image: reign
+    ports:
+      - '${PORT:-8787}:8787'
+    restart: unless-stopped
+
+  dev:
+    profiles: [dev]
+    build:
+      context: .
+      target: deps
+    command: pnpm dev
+    init: true
+    ports:
+      - '5173:5173'
+    volumes:
+      - .:/app
+      - /app/node_modules

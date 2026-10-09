@@ -55,8 +55,23 @@ pnpm build
 pnpm start        # http://localhost:8787 (PORT env var to change)
 ```
 
-`Dockerfile` and `render.yaml` are included so it can be deployed as a single web service on
-any host that supports WebSockets (Render, Fly.io, Railway, a VPS…).
+## Run with Docker
+
+```bash
+docker compose up -d --build        # the game on http://localhost:8787 (PORT=9000 to change)
+docker compose down                 # stop it
+```
+
+The image builds the client and runs the production server as one small container (no dev
+cheats, runs as a non-root user, health check on `/health`). Without compose:
+`docker build -t reign .` then `docker run -p 8787:8787 reign`.
+
+For development without installing Node or pnpm, `docker compose --profile dev up --build`
+runs `pnpm dev` from your working copy: Vite with hot reload on http://localhost:5173 and the
+game server with dev cheats on.
+
+The same image deploys as a single web service on any host that supports WebSockets (Fly.io,
+Railway, a VPS…). `render.yaml` deploys to Render without Docker.
 
 ## Controls
 

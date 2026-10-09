@@ -1,4 +1,12 @@
+.git
 node_modules
 dist
 test-results
-.git
+docs
+.env
+.env.*
+*.log
+.DS_Store
+Dockerfile
+compose.yaml
+.dockerignore
