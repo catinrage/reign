@@ -1,18 +1,20 @@
 <script lang="ts">
-	import { CHARACTERS, CHARACTER_INFO, traitText } from '../../../../shared/rules/characters';
+	import { CHARACTERS, CHARACTER_INFO, POWER_INFO, traitText } from '../../../../shared/rules/characters';
 	import Portrait from '../../extended/Portrait.svelte';
 	import { PIXEL } from '../../pixel';
 </script>
 
 <p>
 	In Reign Extended every player plays a character. A character's <b>trait</b> bends one rule for them
-	for the whole game, so each seat at the table plays a little differently.
+	for the whole game, so each seat at the table plays a little differently. Unless the host turned
+	them off, each character also has a <b>power</b>: one big move to save for the right moment.
 </p>
 
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.house} alt="" /><span
-			>The host decides in the lobby whether there are characters, and can leave any of them out.</span
+			>The host decides in the lobby: no characters, traits only, or traits and powers. The host can
+			also leave any character out.</span
 		>
 	</li>
 	<li>
@@ -40,6 +42,35 @@
 	</li>
 </ul>
 
+<h3>Powers</h3>
+<ul class="rows">
+	<li>
+		<span class="gem"></span><span
+			>On your turn, a violet <b>power button</b> appears above your actions while your power is ready.
+			Click it to read what it does and use it. Most work before or after your roll; the Seer's
+			replaces the roll, and some only work after it.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.hourglass} alt="" /><span
+			>A power goes off once per game, unless the host lets powers come back every few rounds.
+			The gem on each plaque glows while that player's power is ready.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.pointer} alt="" /><span
+			>Powers that pick a spot (the Mason's city, the Baron's corner, a tile for the Alchemist, the
+			Abbess or the Cartographer) light up the spots you can pick on the board.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.eye} alt="" /><span
+			>Everyone sees a power go off. The Baron's claimed corners carry his flag, and a blessed tile
+			wears a golden halo for each time it will still pay double.</span
+		>
+	</li>
+</ul>
+
 <h3>The cast</h3>
 <div class="cast">
 	{#each CHARACTERS as c (c)}
@@ -52,6 +83,8 @@
 				>
 				<span class="trait">{info.trait}</span>
 				<span>{traitText(c)}</span>
+				<span class="trait power">{POWER_INFO[c].name}</span>
+				<span>{POWER_INFO[c].text}</span>
 			</div>
 		</div>
 	{/each}
@@ -62,7 +95,8 @@
 		>Let your character shape your opening. The Mason wants ore for cities, the Merchant can live
 		off the bank, the Explorer should race for the long road, and the Cartographer should run roads
 		along the coast. Mind the others too: robbing the Hedge Witch costs you a card, and a road beside
-		the Baron's pays him a toll.</span
+		the Baron's pays him a toll. Save your power for when it swings the game: the Witch's Hex hurts
+		most on the leader, and the Bard's Encore pays best right after a roll that paid you well.</span
 	>
 </p>
 
@@ -98,6 +132,19 @@
 		font-family: var(--px);
 		font-weight: 700;
 		color: #b8740f;
+	}
+	.trait.power {
+		margin-top: 3px;
+		color: #6a4fc0;
+	}
+	.gem {
+		flex: none;
+		width: 12px;
+		height: 12px;
+		margin: 4px 5px;
+		transform: rotate(45deg);
+		background: #b7a3ff;
+		box-shadow: 0 0 0 2px #2a1404;
 	}
 	@media (max-width: 760px) {
 		.cast {

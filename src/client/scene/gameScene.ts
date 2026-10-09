@@ -20,8 +20,11 @@ import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { sharedUniforms } from './voxel/materials';
 
-/** `stoneRoad` picks one of your roads to pave, `tearDown` one of your own workshops to tear down. */
-export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop' | 'stoneRoad' | 'tearDown';
+/**
+ * `stoneRoad` picks one of your roads to pave, `tearDown` one of your own workshops to tear down,
+ * `tile` any tile, lit up like the robber's target but with no robber (a character's power).
+ */
+export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop' | 'stoneRoad' | 'tearDown' | 'tile';
 
 export interface PickRequest {
 	kind: PickKind;
@@ -88,6 +91,11 @@ export class GameScene {
 	private room: Room;
 	private boardView: BoardView | null = null;
 	private boardKey = '';
+	/** Where the island's tiles are, without what they hold: a power can change a tile, not the island. */
+	private boardShape = '';
+	/** Markers of character powers on the board: the Baron's claimed corners, the Abbess's blessed tiles. */
+	private powerMarks = new THREE.Group();
+	private powerMarksKey = '';
 	private boardSeed = 0;
 	/** Whether the island was laid out with workshop plots (Reign Extended workshops are on). */
 	private boardPlots = false;
@@ -229,16 +237,25 @@ export class GameScene {
 		// Workshops need plots laid out on the tiles; the island is otherwise dealt the same.
 		const plots = !!view.buildingRules?.workshop;
 		const board = JSON.stringify(view.board);
-		// Number tokens can trade places mid-game (a Reign Extended earthquake) without the
-		// island being dealt again, so they're left out of what keys it.
+		// Number tokens can trade places mid-game (a Reign Extended earthquake, the Cartographer's
+		// power) without the island being dealt again, so they're left out of what keys it.
 		const land = JSON.stringify({ ...view.board, hexes: view.board.hexes.map((h) => ({ ...h, number: null })) });
 		const key = plots ? `${land}+plots` : land;
-		const first = key !== this.boardKey;
-		if (first) {
+		const shape = `${JSON.stringify(view.board.hexes.map((h) => [h.q, h.r]))}${plots}`;
+		const changed = key !== this.boardKey;
+		// A character's power changed a tile's terrain: the same island in the same game, rebuilt
+		// in place, with the game's events playing on.
+		const retiled = changed && this.mode === 'game' && !!this.view && shape === this.boardShape;
+		const first = changed && !retiled;
+		if (changed) {
 			this.boardKey = key;
-			this.setBoard(view.board, hashString(board), plots);
+			this.boardShape = shape;
+			this.setBoard(view.board, hashString(shape), plots);
 			this.clearPieces();
+			this.powerMarksKey = '';
 			this.boardView!.setRobber(view.robberHex, true);
+		}
+		if (first) {
 			this.lastSeq = view.log.length ? view.log[view.log.length - 1].seq : 0;
 			if (this.mode === 'menu') {
 				this.mode = 'game';
@@ -253,9 +270,10 @@ export class GameScene {
 		}
 		const prev = this.view;
 		this.view = view;
-		if (!first) this.syncNumbers(view);
-		this.syncPieces(view, !first);
+		if (!changed) this.syncNumbers(view);
+		this.syncPieces(view, !changed);
 		this.syncMarks(view);
+		this.syncPowerMarks(view);
 		if (!first && prev && prev.robberHex !== view.robberHex) this.moveRobber(view.robberHex);
 		const fresh = view.log.filter((e) => e.seq > this.lastSeq);
 		if (fresh.length) this.lastSeq = fresh[fresh.length - 1].seq;
@@ -433,6 +451,36 @@ export class GameScene {
 		);
 	}
 
+	/** The Baron's flags on the corners he claimed, and a golden halo over each blessed tile. */
+	private syncPowerMarks(view: GameView) {
+		const bv = this.boardView!;
+		const claims = Object.entries(view.claims ?? {}).filter(([v]) => !view.buildings[Number(v)]);
+		const blessed = Object.entries(view.blessed ?? {});
+		const key = JSON.stringify([claims, blessed]);
+		if (key === this.powerMarksKey) return;
+		this.powerMarksKey = key;
+		this.powerMarks.clear();
+		if (!this.powerMarks.parent) this.stage.scene.add(this.powerMarks);
+		for (const [v, owner] of claims) {
+			const flag = claimFlag(PLAYER_RGB[view.players[owner]?.color] ?? 0xffffff);
+			flag.position.copy(bv.vertexPos(Number(v)));
+			this.powerMarks.add(flag);
+		}
+		for (const [h, times] of blessed) {
+			const c = bv.hexCenter(Number(h));
+			const halo = new THREE.Group();
+			halo.position.set(c.x, bv.groundAt(c.x, c.z, 0) + 5, c.z);
+			for (let i = 0; i < times; i++) {
+				const ring = new THREE.Mesh(BLESS_HALO, HALO_MAT);
+				ring.rotation.x = -Math.PI / 2;
+				ring.position.y = i * 1.6;
+				halo.add(ring);
+			}
+			halo.userData.spin = 0.8;
+			this.powerMarks.add(halo);
+		}
+	}
+
 	private dropIn(obj: THREE.Object3D, isRoad: boolean) {
 		const ground = obj.position.y;
 		const s = obj.scale.x;
@@ -499,6 +547,17 @@ export class GameScene {
 				this.anim.wait(0.5).then(() => {
 					for (const [res, n] of Object.entries(e.refund)) if (n) this.popResource(e.hex, res, e.player, n, at);
 				});
+				break;
+			}
+			case 'powerUsed': {
+				// A power that touched the island sparkles where it did.
+				const color = PLAYER_RGB[this.view.players[e.player].color];
+				for (const h of [e.hex, e.hex2]) {
+					if (h === undefined || !bv.board.hexes[h]) continue;
+					const c = bv.hexCenter(h);
+					this.particles.sparkle(c.setY(bv.groundAt(c.x, c.z, 0) + 3), e.character === 'abbess' ? 0xffd75e : color, 30);
+				}
+				if (e.vertex !== undefined) this.particles.sparkle(bv.vertexPos(e.vertex).add(new THREE.Vector3(0, 4, 0)), color, 24);
 				break;
 			}
 			case 'yearOfPlenty':
@@ -867,7 +926,7 @@ export class GameScene {
 	/** Screen positions of the current pick options (used by browser tests). */
 	debugPickPoints(): { id: number; x: number; y: number }[] {
 		if (!this.pick || !this.boardView) return [];
-		if (this.pick.kind === 'robber') {
+		if (this.pick.kind === 'robber' || this.pick.kind === 'tile') {
 			return this.pick.options.map((id) => {
 				const c = this.boardView!.hexCenter(id);
 				c.y = this.boardView!.groundAt(c.x, c.z, 0);
@@ -912,7 +971,7 @@ export class GameScene {
 	private pickAtPointer(): number | null {
 		if (!this.pick || !this.boardView) return null;
 		this.raycaster.setFromCamera(this.pointer, this.stage.camera);
-		if (this.pick.kind === 'robber') {
+		if (this.pick.kind === 'robber' || this.pick.kind === 'tile') {
 			const hits = this.raycaster.intersectObject(this.boardView.build.group, true);
 			const p = hits[0]?.point ?? this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -5), new THREE.Vector3());
 			if (!p) return null;
@@ -1123,6 +1182,7 @@ export class GameScene {
 		}
 		this.smoke(dt);
 		this.workshops(dt, t);
+		for (const m of this.powerMarks.children) if (m.userData.spin) m.rotation.y += dt * m.userData.spin;
 		this.lightUp(dt, t);
 		const bv = this.boardView;
 		if (bv) {
@@ -1167,8 +1227,9 @@ export class GameScene {
 			this.myAim = mine;
 			this.callbacks.onAim?.(mine);
 		}
-		const aim = this.pick?.kind === 'robber' ? { hex: mine, color: this.pick.color } : this.theirAim;
-		this.aim.set(bv, aim?.hex ?? null, PLAYER_RGB[aim?.color ?? ''] ?? 0xffffff);
+		const tile = this.pick?.kind === 'tile';
+		const aim = this.pick?.kind === 'robber' || tile ? { hex: id, color: this.pick!.color } : this.theirAim;
+		this.aim.set(bv, aim?.hex ?? null, PLAYER_RGB[aim?.color ?? ''] ?? 0xffffff, !tile);
 		this.aim.update(dt, t, bv, this.stage.rig.azimuth);
 		const pulse = 0.5 + Math.sin(t * 4) * 0.5;
 		for (const m of ghostCache.values()) m.emissiveIntensity = 0.4 + pulse * 0.3;
@@ -1178,6 +1239,24 @@ export class GameScene {
 	dispose() {
 		this.stage.dispose();
 	}
+}
+
+const BLESS_HALO = new THREE.TorusGeometry(6.4, 0.6, 6, 30);
+const HALO_MAT = new THREE.MeshStandardMaterial({ color: 0xffd75e, emissive: 0xffb820, emissiveIntensity: 1.1, roughness: 0.3, flatShading: true });
+const POLE = new THREE.BoxGeometry(0.7, 10, 0.7);
+const POLE_MAT = new THREE.MeshStandardMaterial({ color: 0x5a3820, roughness: 0.9, flatShading: true });
+const PENNANT = new THREE.BoxGeometry(4.2, 2.6, 0.5);
+
+/** The Baron's claim on a corner: a little pole with a pennant in his color. */
+function claimFlag(color: number): THREE.Group {
+	const g = new THREE.Group();
+	const pole = new THREE.Mesh(POLE, POLE_MAT);
+	pole.position.y = 5;
+	const pennant = new THREE.Mesh(PENNANT, new THREE.MeshStandardMaterial({ color, roughness: 0.6, flatShading: true }));
+	pennant.position.set(2.4, 8.4, 0);
+	g.add(pole, pennant);
+	g.traverse((o) => (o.castShadow = true));
+	return g;
 }
 
 /** How high a pick's glowing gem floats above its spot, clear of the piece that would go there. */

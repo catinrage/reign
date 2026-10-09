@@ -35,7 +35,11 @@ type Shared = Pick<
 	| 'workshops'
 	| 'stoneRoads'
 	| 'events'
-> & { players: { character: GameState['players'][number]['character'] }[] };
+> & {
+	players: { character: GameState['players'][number]['character'] }[];
+	/** The Baron's claimed corners (missing on older states). */
+	claims?: Record<number, number>;
+};
 
 /** What a build costs this player: the standard price, bent by their character's trait. */
 export function costOf(s: Shared, player: number, kind: BuildKind): Partial<ResourceCounts> {
@@ -101,6 +105,9 @@ export function isVertexFree(s: Shared, vertex: number): boolean {
 
 export function canPlaceSettlement(s: Shared, player: number, vertex: number, setup: boolean) {
 	if (!isVertexFree(s, vertex)) return false;
+	// The Baron's Land Grant keeps a corner for him alone.
+	const claim = s.claims?.[vertex];
+	if (claim !== undefined && claim !== player) return false;
 	if (setup) return true;
 	const topo = getTopology(s.board);
 	return topo.vertices[vertex].edges.some((e) => s.roads[e] === player);
@@ -300,6 +307,27 @@ export function vertexValue(s: Shared, vertex: number): number {
 	return v;
 }
 
+/** What a roll of `n` would pay this player (the robber's tile aside, blessings ignored), at most `cap` cards. */
+export function rollIncome(s: Shared, player: number, n: number, cap = Infinity): Partial<ResourceCounts> {
+	const topo = getTopology(s.board);
+	const out: Partial<ResourceCounts> = {};
+	let left = cap;
+	s.board.hexes.forEach((hex, h) => {
+		const r = TERRAIN_RESOURCE[hex.terrain];
+		if (hex.number !== n || !r || h === s.robberHex) return;
+		let amount = 0;
+		for (const v of topo.hexes[h].vertices) {
+			const b = s.buildings[v];
+			if (b?.owner === player) amount += b.kind === 'city' ? 2 : 1;
+		}
+		if (s.workshops?.[h] === player) amount++;
+		amount = Math.min(amount, left);
+		left -= amount;
+		if (amount) out[r] = (out[r] ?? 0) + amount;
+	});
+	return out;
+}
+
 /** Whether this player is alone in last place on the points everyone can see. */
 export function aloneLast(s: Shared, player: number): boolean {
 	const mine = publicPoints(s, player);
@@ -315,4 +343,26 @@ export function holderOf(s: { players: { character: CharacterId | null }[] }, c:
 export function draftLeft(s: Pick<GameState | GameView, 'draft' | 'players'>): CharacterId[] {
 	if (!s.draft) return [];
 	return s.draft.pool.filter((c) => !s.players.some((p) => p.character === c));
+}
+
+type PowerShared = Pick<GameState | GameView, 'powers' | 'powerRecharge' | 'turn' | 'phase'> & {
+	players: { character: CharacterId | null; powerUsed?: number | null }[];
+};
+
+/**
+ * Turns until this player's power is ready again: 0 when it is ready now, null when it never will
+ * be (powers are off, no character, or a once-per-game power already used).
+ */
+export function powerWait(s: PowerShared, player: number): number | null {
+	const pl = s.players[player];
+	if (!s.powers || !pl?.character) return null;
+	const used = pl.powerUsed ?? null;
+	if (used === null) return 0;
+	if (!s.powerRecharge) return null;
+	return Math.max(0, used + s.powerRecharge * s.players.length - s.turn);
+}
+
+/** Whether this player's power can be used (on their own turn, at the right step). */
+export function powerReady(s: PowerShared, player: number): boolean {
+	return s.phase === 'main' && powerWait(s, player) === 0;
 }

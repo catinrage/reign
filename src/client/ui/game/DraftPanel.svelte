@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CHARACTER_INFO, traitText, type CharacterId } from '../../../shared/rules/characters';
+	import { CHARACTER_INFO, POWER_INFO, traitText, type CharacterId } from '../../../shared/rules/characters';
 	import { draftLeft } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import Portrait from '../extended/Portrait.svelte';
@@ -107,6 +107,11 @@
 			<span class="label">Trait</span>
 			<span class="trait">{info.trait}</span>
 			<span class="text">{traitText(shown, view.handLimit)}</span>
+			{#if view.powers}
+				<span class="label">Power{view.powerRecharge ? `, every ${view.powerRecharge} rounds` : ', once per game'}</span>
+				<span class="trait power">{POWER_INFO[shown].name}</span>
+				<span class="text">{POWER_INFO[shown].text}</span>
+			{/if}
 			{#if shownBy >= 0}
 				<span class="note">Picked by {shownBy === view.me ? 'you' : view.players[shownBy].name}.</span>
 			{/if}
@@ -304,6 +309,9 @@
 		color: var(--gold);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
+	}
+	.trait.power {
+		color: #b7a3ff;
 	}
 	.text {
 		font-size: 14px;

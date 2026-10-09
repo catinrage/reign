@@ -498,6 +498,39 @@ describe('Reign Extended lobby', () => {
 		room.dispose();
 	});
 
+	it('lets only the host set character powers and how often they come back', () => {
+		const room = new Room('POWER');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bo');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		expect(room.lobbyInfo().settings.powers).toBe(true);
+		expect(room.lobbyInfo().settings.powerRecharge).toBe(0);
+		room.handle(guest, { t: 'setPowers', on: false }, b.ws);
+		expect(room.lobbyInfo().settings.powers).toBe(true);
+		room.handle(host, { t: 'setRecharge', rounds: 6 }, a.ws);
+		for (const bad of [5, -1, 2.5, '4']) room.handle(host, { t: 'setRecharge', rounds: bad as number }, a.ws);
+		expect(room.lobbyInfo().settings.powerRecharge).toBe(6);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game!.powers).toBe(true);
+		expect(room.game!.powerRecharge).toBe(6);
+		room.dispose();
+
+		const off = new Room('NOPWR');
+		const c = fakeSocket();
+		const solo = off.join(c.ws, 'Cy');
+		if (typeof solo === 'string') throw new Error('join failed');
+		off.handle(solo, { t: 'setMode', mode: 'extended' }, c.ws);
+		off.handle(solo, { t: 'setPowers', on: false }, c.ws);
+		off.handle(solo, { t: 'addBot' }, c.ws);
+		off.handle(solo, { t: 'start' }, c.ws);
+		expect(off.game!.powers).toBe(false);
+		off.dispose();
+	});
+
 	it('plays without characters when the host turns them off', () => {
 		const room = new Room('NOCHR');
 		const a = fakeSocket();

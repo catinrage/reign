@@ -1,6 +1,13 @@
+<script lang="ts" module>
+	/** How often powers come back, in words. */
+	export function rechargeName(rounds: number): string {
+		return rounds ? `Every ${rounds} rounds` : 'Once per game';
+	}
+</script>
+
 <script lang="ts">
-	import { CHARACTERS, CHARACTER_INFO, traitText, type CharacterId } from '../../../shared/rules/characters';
-	import { characterPool } from '../../../shared/rules/modes';
+	import { CHARACTERS, CHARACTER_INFO, POWER_INFO, traitText, type CharacterId } from '../../../shared/rules/characters';
+	import { POWER_RECHARGES, characterPool } from '../../../shared/rules/modes';
 	import { client } from '../../state/client.svelte';
 	import Modal from '../menu/Modal.svelte';
 	import Portrait from './Portrait.svelte';
@@ -18,39 +25,68 @@
 	const players = $derived(lobby.seats.length);
 	const short = $derived(settings.characters && pool.length < players);
 
+	const powers = $derived(settings.characters && settings.powers);
+
+	/** Off, traits only, or traits and powers. */
+	function setLevel(level: 0 | 1 | 2) {
+		if (settings.characters !== level > 0) client.send({ t: 'setCharacters', on: level > 0 });
+		if (level > 0 && settings.powers !== (level === 2)) client.send({ t: 'setPowers', on: level === 2 });
+	}
+
 	function toggle(c: CharacterId) {
 		if (!host) return;
 		client.send({ t: 'leaveOut', character: c, out: pool.includes(c) });
 	}
 </script>
 
-<Modal title="Characters" width={1180} {onclose}>
+<Modal title="Characters" width={powers ? 1340 : 1180} {onclose}>
 	<div class="head">
 		<p>
-			Each character bends one rule in their favor. When the game starts, everyone drafts one, and the
-			first to place a settlement picks last.
+			{#if powers}
+				Each character bends one rule and has a power. Everyone drafts one at the start; the first settler picks last.
+			{:else}
+				Each character bends one rule in their favor. When the game starts, everyone drafts one, and the first to
+				place a settlement picks last.
+			{/if}
 		</p>
 		{#if host}
 			<div class="seg">
-				<button class="btn small" class:on={settings.characters} onclick={() => client.send({ t: 'setCharacters', on: true })}
-					>Draft</button
-				>
-				<button class="btn small" class:on={!settings.characters} onclick={() => client.send({ t: 'setCharacters', on: false })}
-					>Off</button
-				>
+				<button class="btn small" class:on={!settings.characters} onclick={() => setLevel(0)}>Off</button>
+				<button class="btn small" class:on={settings.characters && !settings.powers} onclick={() => setLevel(1)}>Traits</button>
+				<button class="btn small" class:on={powers} onclick={() => setLevel(2)}>Traits and powers</button>
 			</div>
 		{/if}
 	</div>
-	<p class="count" class:bad={short}>
-		{#if !settings.characters}
-			Characters are off: everyone plays by the plain rules.
-		{:else if short}
-			{pool.length} of {CHARACTERS.length} in the draft, but {players} players need at least {players}.
-		{:else}
-			{pool.length} of {CHARACTERS.length} in the draft{host ? '. Click one to leave it out or put it back.' : '.'}
+	<div class="sub">
+		{#if powers}
+			<div class="recharge">
+				<span class="label">Powers</span>
+				{#if host}
+					<div class="seg">
+						{#each POWER_RECHARGES as r (r)}
+							<button
+								class="btn small"
+								class:on={settings.powerRecharge === r}
+								onclick={() => client.send({ t: 'setRecharge', rounds: r })}>{rechargeName(r)}</button
+							>
+						{/each}
+					</div>
+				{:else}
+					<span>{rechargeName(settings.powerRecharge)}</span>
+				{/if}
+			</div>
 		{/if}
-	</p>
-	<div class="grid" class:off={!settings.characters}>
+		<p class="count" class:bad={short}>
+			{#if !settings.characters}
+				Characters are off: everyone plays by the plain rules.
+			{:else if short}
+				{pool.length} of {CHARACTERS.length} in the draft, but {players} players need at least {players}.
+			{:else}
+				{pool.length} of {CHARACTERS.length} in the draft{host ? '. Click one to leave it out or put it back.' : '.'}
+			{/if}
+		</p>
+	</div>
+	<div class="grid" class:six={powers} class:off={!settings.characters}>
 		{#each CHARACTERS as c (c)}
 			{@const info = CHARACTER_INFO[c]}
 			{@const out = !pool.includes(c)}
@@ -62,7 +98,7 @@
 				disabled={!settings.characters}
 				onclick={() => toggle(c)}
 			>
-				<Portrait id={c} size={58} />
+				<Portrait id={c} size={powers ? 40 : 58} />
 				<span class="body">
 					<span class="who">
 						<span class="name title">{info.name}</span>
@@ -70,6 +106,10 @@
 					</span>
 					<span class="trait">{info.trait}</span>
 					<span class="text">{traitText(c, settings.handLimit)}</span>
+					{#if powers}
+						<span class="trait power">{POWER_INFO[c].name}</span>
+						<span class="text">{POWER_INFO[c].text}</span>
+					{/if}
 				</span>
 				{#if out}<span class="tag">Left out</span>{/if}
 			</button>
@@ -92,6 +132,36 @@
 		display: flex;
 		gap: 4px;
 		flex: none;
+	}
+	.sub {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+	.recharge {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-top: 8px;
+		font-size: 14px;
+	}
+	.recharge .label {
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 12px;
+		color: #b7a3ff;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+	.recharge .seg {
+		display: flex;
+		gap: 4px;
+	}
+	.trait.power {
+		margin-top: 3px;
+		color: #b7a3ff;
 	}
 	.count {
 		margin: 8px 0 10px !important;
@@ -183,8 +253,50 @@
 		background: rgba(20, 8, 2, 0.82);
 		color: #ffb08a;
 	}
+	/* With powers there is twice as much to read: two rows of eight narrow cards, the portrait beside
+	   the name and the text across the card, so all sixteen still fit a 1366x768 screen. */
+	.grid.six {
+		grid-template-columns: repeat(8, minmax(0, 1fr));
+	}
+	.six .card {
+		display: grid;
+		grid-template-columns: 40px 1fr;
+		gap: 0 7px;
+		align-content: start;
+		padding: 5px 7px 6px 5px;
+	}
+	.six .body {
+		display: contents;
+	}
+	.six .who {
+		align-self: center;
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	.six .trait,
+	.six .text {
+		grid-column: 1 / -1;
+	}
+	.six .trait {
+		margin-top: 5px;
+		line-height: 1.2;
+	}
+	.six .text {
+		font-size: 12px;
+		line-height: 1.22;
+	}
+	.six .tag {
+		top: 16px;
+		left: 25px;
+	}
+	@media (max-width: 1250px) {
+		.grid.six {
+			grid-template-columns: repeat(6, minmax(0, 1fr));
+		}
+	}
 	@media (max-width: 1000px) {
-		.grid {
+		.grid,
+		.grid.six {
 			grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 		}
 	}

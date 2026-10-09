@@ -88,6 +88,10 @@ export type ClientMessage =
 	| { t: 'setHandLimit'; cards: number }
 	/** Host: Reign Extended players draft characters when the game starts, or play without. */
 	| { t: 'setCharacters'; on: boolean }
+	/** Host: characters come with their powers as well as their traits, or with traits only. */
+	| { t: 'setPowers'; on: boolean }
+	/** Host: rounds before a used power is ready again (0: once per game); one of POWER_RECHARGES. */
+	| { t: 'setRecharge'; rounds: number }
 	/** Host: leave a character out of the draft, or put it back. */
 	| { t: 'leaveOut'; character: CharacterId; out: boolean }
 	/** Reign Extended: put one of the extra buildings in the game, or take it out. */

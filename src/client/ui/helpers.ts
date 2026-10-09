@@ -11,7 +11,7 @@ import {
 	type Resource,
 	type ResourceCounts
 } from '../../shared/rules/config';
-import { CHARACTER_INFO } from '../../shared/rules/characters';
+import { CHARACTER_INFO, POWER_INFO } from '../../shared/rules/characters';
 import { EVENT_INFO } from '../../shared/rules/events';
 import {
 	builtKey,
@@ -28,6 +28,7 @@ import type { BuiltKind, GameEvent, GameView } from '../../shared/rules/types';
 import type { BoardSpot } from '../scene/gameScene';
 import { PLAYER_CSS } from '../scene/layout';
 import { tint } from './art';
+import { TERRAIN_NAME } from './extended/terrainColors';
 
 export const RES_BG: Record<Resource, [string, string]> = {
 	wood: ['#4f8f35', '#2f6a22'],
@@ -218,6 +219,8 @@ export function promptText(view: GameView): string {
 			return mine ? 'Choose who to rob' : `${who} is choosing who to rob`;
 		case 'roadBuilding':
 			return mine ? `Place ${view.roadBuildingLeft} free road${view.roadBuildingLeft > 1 ? 's' : ''}` : `${who} is building roads`;
+		case 'chooseRoll':
+			return mine ? 'Foresight: keep one of the three rolls' : `${who} is choosing a roll`;
 		case 'main':
 			return mine ? 'Build, trade, or end your turn' : `${who}'s turn`;
 		case 'eventChoice': {
@@ -266,6 +269,10 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 				for (const c of countsList(m)) parts.push(R(c.res, c.n));
 			}
 			if (e.blocked.length) parts.push(T(parts.length ? ' (robber blocked a tile)' : 'The robber blocked production'));
+			for (const p of e.hexed ?? []) {
+				if (parts.length) parts.push(T(', '));
+				parts.push(P(p), T(' got nothing (hexed)'));
+			}
 			return parts.length ? parts : null;
 		}
 		case 'setupResources': {
@@ -299,6 +306,12 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 				? [P(e.from), T(' paid '), R(e.resource), T(' to '), P(e.to), T(why)]
 				: [P(e.from), T(' paid a card to '), P(e.to), T(why)];
 		}
+		case 'powerUsed':
+			return powerParts(e, view, P, T, R);
+		case 'rollChoices':
+			return [P(e.player), T(` foresaw ${e.rolls.map((r) => r[0] + r[1]).join(', ')}`)];
+		case 'mischief':
+			return [P(e.player), T(' pooled every hand and dealt it back out')];
 		case 'nothingToSteal':
 			return [T('Nobody to rob there')];
 		case 'devCardBought':
@@ -376,6 +389,43 @@ function eventCardsParts(
 		}
 	}
 	return null;
+}
+
+/** The log line for a power going off: who, which power, and what it picked. */
+function powerParts(
+	e: Extract<GameEvent, { type: 'powerUsed' }>,
+	view: GameView,
+	P: (i: number) => LogPart,
+	T: (text: string) => LogPart,
+	R: (res: Resource, count?: number) => LogPart
+): LogPart[] {
+	const head = [P(e.player), T(` used ${POWER_INFO[e.character].name}`)];
+	const tileName = (h: number | undefined) => {
+		const hex = h === undefined ? undefined : view.board.hexes[h];
+		if (!hex) return 'a tile';
+		const res = TERRAIN_RESOURCE[hex.terrain];
+		return `the ${res ? RESOURCE_LABEL[res] : 'desert'} ${hex.number ?? ''}`.trim();
+	};
+	switch (e.character) {
+		case 'merchant':
+			return [...head, T(': '), ...countsList(e.give ?? {}).map((c) => R(c.res, c.n)), T(' for '), ...countsList(e.get ?? {}).map((c) => R(c.res, c.n))];
+		case 'rogue':
+		case 'witch':
+			return e.target === undefined ? head : [...head, T(' on '), P(e.target)];
+		case 'steward':
+		case 'bard':
+			return [...head, T(` on ${e.number}`)];
+		case 'alchemist':
+			return [...head, T(`: ${tileName(e.hex)} is now ${e.terrain ? TERRAIN_NAME[e.terrain] : 'changed'}`)];
+		case 'cartographer':
+			return [...head, T(`: swapped the numbers on ${tileName(e.hex)} and ${tileName(e.hex2)}`)];
+		case 'abbess':
+			return [...head, T(` on ${tileName(e.hex)}`)];
+		case 'baron':
+			return [...head, T(' and claimed a corner')];
+		default:
+			return head;
+	}
 }
 
 export function vertexHasPort(view: GameView, v: number) {

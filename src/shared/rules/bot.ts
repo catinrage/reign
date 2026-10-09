@@ -1,5 +1,5 @@
 import { getTopology } from '../board/topology';
-import type { CharacterId } from './characters';
+import { POWER_INFO, type CharacterId } from './characters';
 import { PLAGUE_LIMIT, busiestTile, type EventCard } from './events';
 import {
 	RESOURCES,
@@ -8,7 +8,8 @@ import {
 	pips,
 	totalResources,
 	type Resource,
-	type ResourceCounts
+	type ResourceCounts,
+	type Terrain
 } from './config';
 import {
 	canPay,
@@ -19,9 +20,12 @@ import {
 	longestRoad,
 	longestRoadMin,
 	paveSpots,
+	isVertexFree,
 	playersOnHex,
+	powerReady,
 	publicPoints,
 	roadSpots,
+	rollIncome,
 	settlementSpots,
 	tradeRatios,
 	vertexValue,
@@ -70,6 +74,8 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 			return { type: 'placeRoad', edge: best(spots, (e) => roadScore(s, me, e)) };
 		}
 		case 'roll': {
+			const power = powerMove(s, me);
+			if (power) return power;
 			const knight = playableCard(s, me, 'knight');
 			if (knight && playersOnHex(s, s.robberHex).includes(me)) return { type: 'playKnight' };
 			return { type: 'rollDice' };
@@ -88,6 +94,8 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 			const spots = roadSpots(s, me);
 			return { type: 'placeRoad', edge: best(spots, (e) => roadScore(s, me, e)) };
 		}
+		case 'chooseRoll':
+			return { type: 'keepRoll', index: best(s.rollChoices!.map((_, i) => i), (i) => rollScore(s, me, s.rollChoices![i])) };
 		case 'main':
 			return mainTurn(s, me, actionsThisTurn);
 		default:
@@ -122,6 +130,9 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 		}
 	}
 
+	const power = powerMove(s, me);
+	if (power) return power;
+
 	if (canPay(s, me, 'city', res) && pl.piecesLeft.city > 0) {
 		const spots = citySpots(s, me);
 		if (spots.length) return { type: 'buildCity', vertex: best(spots, (v) => vertexValue(s, v)) };
@@ -150,6 +161,8 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 
 	const trade = bankTradeTowards(s, me);
 	if (trade) return trade;
+	// Nothing better to do with the turn: the Scholar takes her free card.
+	if (pl.character === 'scholar' && powerReady(s, me) && s.devDeck.length) return { type: 'usePower' };
 	return { type: 'endTurn' };
 }
 
@@ -450,4 +463,236 @@ function decreePick(s: GameState, me: number, cards: EventCard[]): EventCard {
 		}
 	};
 	return best(cards, value);
+}
+
+// ---------------------------------------------------------------- powers
+
+/**
+ * The power a bot uses now, if this is a good moment for it. Each rule waits for the moment the
+ * power is worth about a development card, and most don't fire every game.
+ */
+function powerMove(s: GameState, me: number): Action | null {
+	if (!powerReady(s, me)) return null;
+	const pl = s.players[me];
+	const ch = pl.character!;
+	const when = POWER_INFO[ch].when;
+	if ((when === 'roll' && s.step !== 'roll') || (when === 'main' && s.step !== 'main')) return null;
+	const res = pl.resources;
+	const others = s.players.map((_, i) => i).filter((i) => i !== me);
+	const leader = best(others, (i) => publicPoints(s, i) * 10 + totalResources(s.players[i].resources) * 0.1);
+	const blocked = playersOnHex(s, s.robberHex).includes(me);
+	switch (ch) {
+		case 'merchant':
+			return marketDay(s, me);
+		case 'mason': {
+			if (res.ore < 1 || pl.piecesLeft.city <= 0 || canPay(s, me, 'city', res)) return null;
+			const spots = citySpots(s, me);
+			if (!spots.length) return null;
+			const v = best(spots, (x) => vertexValue(s, x));
+			return vertexValue(s, v) >= 7 ? { type: 'usePower', vertex: v } : null;
+		}
+		case 'scholar':
+			// Taken at the end of a turn with nothing else to do (see mainTurn).
+			return null;
+		case 'veteran': {
+			const holder = s.largestArmyHolder;
+			const takesArmy =
+				holder !== me && pl.knightsPlayed + 1 >= 3 && (holder === null || pl.knightsPlayed + 1 > s.players[holder].knightsPlayed);
+			return blocked || takesArmy ? { type: 'usePower' } : null;
+		}
+		case 'rogue': {
+			const rich = others.filter((i) => s.players[i].character !== 'witch' && totalResources(s.players[i].resources) >= 2);
+			if (!rich.length) return null;
+			const t = best(rich, (i) => totalResources(s.players[i].resources) + publicPoints(s, i) * 1.5);
+			return totalResources(s.players[t].resources) >= 4 ? { type: 'usePower', target: t } : null;
+		}
+		case 'steward': {
+			let bestN = 0;
+			let bestGain: Partial<ResourceCounts> = {};
+			for (let n = 2; n <= 12; n++) {
+				if (n === 7) continue;
+				const g = rollIncome(s, me, n, 3);
+				if (totalResources({ ...emptyCounts(), ...g }) > totalResources({ ...emptyCounts(), ...bestGain })) {
+					bestN = n;
+					bestGain = g;
+				}
+			}
+			if (!bestN) return null;
+			const after = { ...res };
+			for (const r of RESOURCES) after[r] += bestGain[r] ?? 0;
+			const completes = (['city', 'settlement'] as const).some(
+				(k) => !canPay(s, me, k, res) && canPay(s, me, k, after) && (k === 'city' ? citySpots(s, me).length : settlementSpots(s, me, false).length)
+			);
+			return completes || totalResources(after) - totalResources(res) >= 3 ? { type: 'usePower', number: bestN } : null;
+		}
+		case 'shepherd':
+			return blocked && s.robberHex !== s.robberHome ? { type: 'usePower' } : null;
+		case 'explorer':
+			return pl.piecesLeft.road >= 2 &&
+				pl.piecesLeft.settlement > 0 &&
+				settlementSpots(s, me, false).length === 0 &&
+				roadSpots(s, me).length
+				? { type: 'usePower' }
+				: null;
+		case 'seer': {
+			const n = totalResources(res);
+			const oneShort = (['city', 'settlement'] as const).some((k) => missingFor(res, costOf(s, me, k)).length === 1);
+			return n > discardLimit(s, me) || oneShort ? { type: 'usePower' } : null;
+		}
+		case 'alchemist':
+			return transmute(s, me);
+		case 'bard': {
+			if (!s.dice || s.dice[0] + s.dice[1] === 7) return null;
+			const total = s.dice[0] + s.dice[1];
+			const gain = (p: number) => totalResources({ ...emptyCounts(), ...rollIncome(s, p, total) });
+			const mine = gain(me);
+			const theirs = Math.max(0, ...others.map(gain));
+			return mine >= 2 && mine - theirs >= 2 ? { type: 'usePower' } : null;
+		}
+		case 'witch': {
+			if (s.hexed?.[leader] || publicPoints(s, leader) < Math.max(4, publicPoints(s, me))) return null;
+			return { type: 'usePower', target: leader };
+		}
+		case 'cartographer':
+			return redraw(s, me, leader);
+		case 'baron':
+			return landGrant(s, me);
+		case 'abbess': {
+			const topo = getTopology(s.board);
+			const tiles = s.board.hexes.map((_, h) => h).filter((h) => h !== s.robberHex && TERRAIN_RESOURCE[s.board.hexes[h].terrain]);
+			const weight = (h: number) =>
+				pips(s.board.hexes[h].number) *
+				topo.hexes[h].vertices.reduce((n, v) => n + (s.buildings[v]?.owner === me ? (s.buildings[v]!.kind === 'city' ? 2 : 1) : 0), 0);
+			if (!tiles.length) return null;
+			const h = best(tiles, weight);
+			return weight(h) >= 8 ? { type: 'usePower', hex: h } : null;
+		}
+		case 'jester': {
+			const mine = totalResources(res);
+			const theirs = others.reduce((n, i) => n + totalResources(s.players[i].resources), 0);
+			return theirs >= 6 && mine + 3 <= theirs / others.length ? { type: 'usePower' } : null;
+		}
+	}
+	return null;
+}
+
+function emptyCounts(): ResourceCounts {
+	return { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
+}
+
+/** How much the Seer likes a roll: what it pays her, a build it completes, and a 7 she'd dread. */
+function rollScore(s: GameState, me: number, dice: [number, number]): number {
+	const total = dice[0] + dice[1];
+	const res = s.players[me].resources;
+	if (total === 7) return totalResources(res) > discardLimit(s, me) ? -10 : 1;
+	const gain = rollIncome(s, me, total);
+	const after = { ...res };
+	for (const r of RESOURCES) after[r] += gain[r] ?? 0;
+	let score = totalResources({ ...emptyCounts(), ...gain });
+	for (const k of ['city', 'settlement'] as const) if (!canPay(s, me, k, res) && canPay(s, me, k, after)) score += 3;
+	return score;
+}
+
+/** The Merchant's Market Day: spare cards 1:1 for what one build lacks, if that finishes it. */
+function marketDay(s: GameState, me: number): Action | null {
+	const pl = s.players[me];
+	const res = pl.resources;
+	const goals: Partial<ResourceCounts>[] = [];
+	if (citySpots(s, me).length && pl.piecesLeft.city > 0) goals.push(costOf(s, me, 'city'));
+	if (settlementSpots(s, me, false).length && pl.piecesLeft.settlement > 0) goals.push(costOf(s, me, 'settlement'));
+	for (const goal of goals) {
+		if (hasResources(res, goal)) return null;
+		const need = missingFor(res, goal);
+		if (need.length < 2 || need.length > 4) continue;
+		const spare: Resource[] = [];
+		for (const r of RESOURCES) for (let i = goal[r] ?? 0; i < res[r]; i++) if (!need.includes(r)) spare.push(r);
+		if (spare.length < need.length) continue;
+		const give: Partial<ResourceCounts> = {};
+		const get: Partial<ResourceCounts> = {};
+		// Give from the biggest stacks first.
+		spare.sort((a, b) => res[b] - res[a]);
+		for (let i = 0; i < need.length; i++) {
+			give[spare[i]] = (give[spare[i]] ?? 0) + 1;
+			get[need[i]] = (get[need[i]] ?? 0) + 1;
+		}
+		if (RESOURCES.every((r) => s.bank[r] >= (get[r] ?? 0))) return { type: 'usePower', give, get };
+	}
+	return null;
+}
+
+/** The Alchemist turns one of its doubled-up tiles into the resource it has no income for. */
+function transmute(s: GameState, me: number): Action | null {
+	const topo = getTopology(s.board);
+	const income = new Map<Resource, number>();
+	const mine: number[] = [];
+	s.board.hexes.forEach((hex, h) => {
+		const r = TERRAIN_RESOURCE[hex.terrain];
+		if (!r || !topo.hexes[h].vertices.some((v) => s.buildings[v]?.owner === me)) return;
+		mine.push(h);
+		income.set(r, (income.get(r) ?? 0) + pips(hex.number));
+	});
+	const lacking = RESOURCES.filter((r) => !income.has(r));
+	if (!lacking.length || !mine.length) return null;
+	// The tile whose resource it has the most of besides, and the best of its numbers.
+	const h = best(mine, (x) => {
+		const r = TERRAIN_RESOURCE[s.board.hexes[x].terrain]!;
+		const own = pips(s.board.hexes[x].number);
+		return (income.get(r)! - own) * 2 + own;
+	});
+	const r0 = TERRAIN_RESOURCE[s.board.hexes[h].terrain]!;
+	if (income.get(r0)! - pips(s.board.hexes[h].number) < 3) return null;
+	// Grain and Ore build cities, so those come first.
+	const want = (['ore', 'wheat', 'brick', 'wood', 'sheep'] as Resource[]).find((r) => lacking.includes(r))!;
+	const terrain = (Object.keys(TERRAIN_RESOURCE) as Terrain[]).find((t) => TERRAIN_RESOURCE[t] === want)!;
+	return { type: 'usePower', hex: h, terrain };
+}
+
+/** The Cartographer swaps two of her tiles' numbers when that gains her more than it gains the leader. */
+function redraw(s: GameState, me: number, leader: number): Action | null {
+	const topo = getTopology(s.board);
+	const weight = (h: number, p: number) =>
+		topo.hexes[h].vertices.reduce((n, v) => n + (s.buildings[v]?.owner === p ? (s.buildings[v]!.kind === 'city' ? 2 : 1) : 0), 0);
+	const tiles = s.board.hexes.map((_, h) => h).filter((h) => s.board.hexes[h].number !== null && weight(h, me) > 0);
+	let top: [number, number] | null = null;
+	let topGain = 2;
+	for (const a of tiles) {
+		for (const b of tiles) {
+			if (b <= a || s.board.hexes[a].number === s.board.hexes[b].number) continue;
+			const pa = pips(s.board.hexes[a].number);
+			const pb = pips(s.board.hexes[b].number);
+			const delta = (p: number) => (weight(a, p) - weight(b, p)) * (pb - pa);
+			const gain = delta(me) - Math.max(0, delta(leader));
+			if (gain > topGain) {
+				topGain = gain;
+				top = [a, b];
+			}
+		}
+	}
+	return top ? { type: 'usePower', hex: top[0], hex2: top[1] } : null;
+}
+
+/** The Baron claims the best open corner within two roads of his own, before someone else takes it. */
+function landGrant(s: GameState, me: number): Action | null {
+	const topo = getTopology(s.board);
+	const reach = new Map<number, number>();
+	s.buildings.forEach((b, v) => b?.owner === me && reach.set(v, 0));
+	s.roads.forEach((o, e) => {
+		if (o !== me) return;
+		reach.set(topo.edges[e].a, 0);
+		reach.set(topo.edges[e].b, 0);
+	});
+	for (let step = 1; step <= 2; step++) {
+		for (const [v, d] of [...reach]) {
+			if (d !== step - 1 || (s.buildings[v] && s.buildings[v]!.owner !== me)) continue;
+			for (const e of topo.vertices[v].edges) {
+				if (s.roads[e] !== null && s.roads[e] !== me) continue;
+				const o = topo.edges[e].a === v ? topo.edges[e].b : topo.edges[e].a;
+				if (!reach.has(o)) reach.set(o, step);
+			}
+		}
+	}
+	const spots = [...reach.keys()].filter((v) => reach.get(v)! > 0 && isVertexFree(s, v) && s.claims?.[v] === undefined);
+	if (!spots.length || s.players[me].piecesLeft.settlement <= 0) return null;
+	const v = best(spots, (x) => spotScore(s, me, x));
+	return spotScore(s, me, v) >= 9 ? { type: 'usePower', vertex: v } : null;
 }

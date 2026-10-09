@@ -3,7 +3,8 @@
 	import type { BuildKind } from '../../../shared/rules/config';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
-	import { costOf, ownWorkshops } from '../../../shared/rules/queries';
+	import { POWER_INFO } from '../../../shared/rules/characters';
+	import { costOf, ownWorkshops, powerReady } from '../../../shared/rules/queries';
 	import { buildAvailable, buildNote, countsList, extraStock, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
@@ -35,7 +36,22 @@
 
 	function onBuild(kind: BuildKind) {
 		if (kind === 'devCard') return client.act({ type: 'buyDevCard' });
+		ui.power = null;
 		ui.build = ui.build === kind ? null : kind;
+	}
+
+	/** My character's power, when it can be used right now (before or after the roll, as it says). */
+	const power = $derived.by(() => {
+		const ch = view.players[view.me]?.character;
+		if (!mine || !ch || client.tossing || !powerReady(view, view.me)) return null;
+		const info = POWER_INFO[ch];
+		const now = view.step === 'roll' ? info.when !== 'main' : view.step === 'main' ? info.when !== 'roll' : false;
+		return now ? info : null;
+	});
+	function onPower() {
+		ui.build = null;
+		ui.trade = false;
+		ui.power = ui.power ? null : { stage: 'dialog' };
 	}
 	function iconFor(kind: BuildKind) {
 		return kind === 'devCard' ? PIXEL.dev : icons[`${kind}:${color}`];
@@ -95,6 +111,11 @@
 
 {#if view.me >= 0 && view.phase !== 'ended'}
 	<div class="actions">
+		{#if power}
+			<button class="btn purple power" class:on={!!ui.power} title={power.text} data-tip-head="Power: {power.name}" onclick={onPower}>
+				<span class="gem"></span>{power.name}
+			</button>
+		{/if}
 		{#if mine && view.step === 'roll' && !client.rollAsked && !client.tossing}
 			<button class="btn big shine roll" onclick={() => client.act({ type: 'rollDice' })}>
 				<img src={PIXEL.die} alt="" /> Roll dice
@@ -138,6 +159,25 @@
 		align-items: flex-end;
 		gap: 10px;
 		pointer-events: none;
+	}
+	.power {
+		pointer-events: auto;
+	}
+	.power.on {
+		filter: brightness(1.2);
+	}
+	.power .gem {
+		width: 10px;
+		height: 10px;
+		transform: rotate(45deg);
+		background: #efe6ff;
+		box-shadow: 0 0 6px 2px rgba(220, 200, 255, 0.9);
+		animation: gem 1.6s ease-in-out infinite;
+	}
+	@keyframes gem {
+		50% {
+			box-shadow: 0 0 2px 0 rgba(220, 200, 255, 0.5);
+		}
 	}
 	.roll {
 		font-size: 26px;

@@ -7,6 +7,7 @@
 		citySpots,
 		ownWorkshops,
 		paveSpots,
+		powerReady,
 		tradeHarbor,
 		workshopSpots
 	} from '../../../shared/rules/queries';
@@ -14,12 +15,15 @@
 	import type { PickKind } from '../../scene/gameScene';
 	import { client } from '../../state/client.svelte';
 	import { myTurn } from '../helpers';
+	import { powerPick } from './power';
+	import { POWER_INFO } from '../../../shared/rules/characters';
 	import { sceneRef } from '../sceneRef';
 	import { sfx } from '../sound';
 	import Actions from './Actions.svelte';
 	import BoardTip from './BoardTip.svelte';
 	import CheatPanel from './CheatPanel.svelte';
 	import Dialogs from './Dialogs.svelte';
+	import PowerDialog from './PowerDialog.svelte';
 	import DiceBadge from './DiceBadge.svelte';
 	import DraftPanel from './DraftPanel.svelte';
 	import EventCard from './EventCard.svelte';
@@ -49,9 +53,10 @@
 		if (live) sceneRef.current?.setView(live);
 	});
 
-	// Leave build mode when it no longer applies.
+	// Leave build mode when it no longer applies, and a power half-used when the moment for it has passed.
 	$effect(() => {
 		if (!myTurn(view) || view.step !== 'main') ui.build = null;
+		if (!myTurn(view) || (view.step !== 'main' && view.step !== 'roll') || !powerReady(view, view.me)) ui.power = null;
 	});
 
 	// What can be clicked on the board right now.
@@ -62,6 +67,26 @@
 		const color = view.players[me]?.color ?? 'white';
 		let kind: PickKind | null = null;
 		let options: number[] = [];
+		const power = ui.power?.stage === 'pick' ? powerPick(view, ui.power.first) : null;
+		if (power && myTurn(view) && !client.tossing) {
+			const first = ui.power?.stage === 'pick' ? ui.power.first : undefined;
+			const ch = view.players[me].character;
+			return scene.setPick({
+				kind: power.kind,
+				options: power.options,
+				color,
+				onPick: (id) => {
+					if (ch === 'alchemist') ui.power = { stage: 'terrain', hex: id };
+					else if (ch === 'cartographer' && first === undefined) ui.power = { stage: 'pick', first: id };
+					else {
+						ui.power = null;
+						if (ch === 'cartographer') client.act({ type: 'usePower', hex: first, hex2: id });
+						else if (ch === 'abbess') client.act({ type: 'usePower', hex: id });
+						else client.act({ type: 'usePower', vertex: id });
+					}
+				}
+			});
+		}
 		if (myTurn(view) && !client.tossing) {
 			switch (view.step) {
 				case 'setupSettlement':
@@ -219,6 +244,16 @@
 			case 'characterPicked':
 				sfx.card();
 				break;
+			case 'powerUsed': {
+				// Powers are rare, so everyone hears and reads each one.
+				sfx.open();
+				if (e.player === me) break;
+				const power = POWER_INFO[e.character].name;
+				const who = view.players[e.player].name;
+				if (e.target === me) client.toast(`${who} used ${power} on you!`, 'error');
+				else client.toast(`${who} used ${power}`);
+				break;
+			}
 		}
 	}
 
@@ -342,6 +377,7 @@
 		<OfferCard />
 		{#if ui.trade}<TradePanel />{/if}
 		<Dialogs />
+		<PowerDialog />
 	{/if}
 	{#if view.events}<EventCard />{/if}
 	<Victory />

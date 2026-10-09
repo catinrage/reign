@@ -26,6 +26,7 @@ export function viewFor(s: GameState, me: number): GameView {
 				knightsPlayed: p.knightsPlayed,
 				piecesLeft: { ...p.piecesLeft },
 				longestRoad: p.longestRoad,
+				powerUsed: p.powerUsed ?? null,
 				publicPoints: publicPoints(s, i),
 				...(mine
 					? {

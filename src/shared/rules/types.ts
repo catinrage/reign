@@ -1,7 +1,7 @@
 import type { Board } from '../board/topology';
 import type { BuildingRules } from './buildings';
 import type { CharacterId } from './characters';
-import type { DevCardType, PlayerColor, Resource, ResourceCounts } from './config';
+import type { DevCardType, PlayerColor, Resource, ResourceCounts, Terrain } from './config';
 import type { EventCard, EventsState, EventsView } from './events';
 import type { GameMode } from './modes';
 
@@ -22,6 +22,8 @@ export interface PlayerState {
 	knightsPlayed: number;
 	piecesLeft: { road: number; settlement: number; city: number };
 	longestRoad: number;
+	/** Reign Extended: the turn this player last used their character's power, or null. */
+	powerUsed: number | null;
 }
 
 export interface Building {
@@ -39,8 +41,10 @@ export type TurnStep =
 	| 'steal'
 	| 'main'
 	| 'roadBuilding'
-	/** Reign Extended's Royal Decree: the player in last place picks the round's event card. */
-	| 'eventChoice';
+	/** Royal Decree: the player in last place picks the round's event card. */
+	| 'eventChoice'
+	/** The Seer's Foresight: she has rolled three times and keeps one. */
+	| 'chooseRoll';
 
 export interface TradeOffer {
 	id: number;
@@ -115,6 +119,22 @@ export interface GameState {
 	bardTurn: number;
 	/** Cards discarded on the current 7 by anyone but the Abbess, for her alms. */
 	alms: Resource[];
+	/** Reign Extended: whether characters have their powers in this game. */
+	powers: boolean;
+	/** Rounds before a used power is ready again; 0: once per game. */
+	powerRecharge: number;
+	/** Where the robber started (the desert), for the Shepherd's Drive Off. */
+	robberHome: number;
+	/** Who moved the robber last, or null while it hasn't moved. */
+	robberMover: number | null;
+	/** The Witch's Hex: rolls each hexed player still collects nothing from. */
+	hexed: Record<number, number>;
+	/** The Abbess's Blessing: times each blessed tile still pays double. */
+	blessed: Record<number, number>;
+	/** The Baron's Land Grant: corners (vertex ids) only their claimant may build a settlement on. */
+	claims: Record<number, number>;
+	/** The Seer's Foresight: the three rolls she chooses from. */
+	rollChoices: [number, number][] | null;
 	longestRoadHolder: number | null;
 	largestArmyHolder: number | null;
 	winner: number | null;
@@ -135,7 +155,8 @@ export type GameEvent =
 	| Ev<'tornDown', { player: number; hex: number; refund: Partial<ResourceCounts> }>
 	| Ev<'setupResources', { player: number; gains: ResourceGain[] }>
 	| Ev<'diceRolled', { player: number; dice: [number, number] }>
-	| Ev<'produced', { gains: ResourceGain[]; blocked: number[]; shortages: Resource[] }>
+	/** `hexed`: players who would have collected but are under the Witch's Hex. */
+	| Ev<'produced', { gains: ResourceGain[]; blocked: number[]; shortages: Resource[]; hexed?: number[] }>
 	| Ev<'nothingProduced', { total: number }>
 	| Ev<'mustDiscard', { players: Record<number, number> }>
 	| Ev<'discarded', { player: number; count: number }>
@@ -170,6 +191,26 @@ export type GameEvent =
 	| Ev<'tradeCancelled', { from: number }>
 	| Ev<'longestRoad', { player: number | null; length: number }>
 	| Ev<'largestArmy', { player: number | null; knights: number }>
+	/**
+	 * A character's power went off. What it picked, where it applies: a player, a tile (and a
+	 * second one for the Cartographer), a corner, a number, the new terrain, or the cards traded.
+	 */
+	| Ev<'powerUsed', {
+			player: number;
+			character: CharacterId;
+			target?: number;
+			hex?: number;
+			hex2?: number;
+			vertex?: number;
+			number?: number;
+			terrain?: Terrain;
+			give?: Partial<ResourceCounts>;
+			get?: Partial<ResourceCounts>;
+	  }>
+	/** The Seer rolled three times; she keeps one with `keepRoll`. */
+	| Ev<'rollChoices', { player: number; rolls: [number, number][] }>
+	/** The Jester pooled every hand and dealt it back: how many cards each player held before and after. */
+	| Ev<'mischief', { player: number; before: number[]; after: number[] }>
 	| Ev<'gameOver', { winner: number; points: number[] }>
 	| Ev<'chat', { player: number; text: string }>
 	/** A new event card flipped for the round (`by`: who picked it, for a Royal Decree). */
@@ -201,6 +242,8 @@ export interface ResourceGain {
 	amount: number;
 	/** The extra card from the player's workshop on the tile. */
 	workshop?: true;
+	/** Doubled by the Abbess's Blessing on the tile. */
+	blessed?: true;
 }
 
 export type Action =
@@ -232,7 +275,21 @@ export type Action =
 	/** Royal Decree: the player in last place picks the round's card. */
 	| { type: 'chooseEvent'; card: EventCard }
 	/** Bountiful Year: take your resource from the bank. */
-	| { type: 'claimBounty'; resource: Resource };
+	| { type: 'claimBounty'; resource: Resource }
+	/** Use your character's power; which of the fields it needs depends on the power. */
+	| {
+			type: 'usePower';
+			target?: number;
+			hex?: number;
+			hex2?: number;
+			vertex?: number;
+			number?: number;
+			terrain?: Terrain;
+			give?: Partial<ResourceCounts>;
+			get?: Partial<ResourceCounts>;
+	  }
+	/** The Seer keeps one of her three rolls. */
+	| { type: 'keepRoll'; index: number };
 
 export type ActionResult = { ok: true; events: GameEvent[] } | { ok: false; error: string };
 
@@ -247,6 +304,7 @@ export interface PlayerView {
 	knightsPlayed: number;
 	piecesLeft: { road: number; settlement: number; city: number };
 	longestRoad: number;
+	powerUsed: number | null;
 	publicPoints: number;
 	/** Only present for yourself (or for everyone once the game is over). */
 	resources?: ResourceCounts;

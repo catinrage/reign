@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { CHARACTER_INFO, traitText } from '../../../shared/rules/characters';
-	import { discardLimit } from '../../../shared/rules/queries';
+	import { CHARACTER_INFO, POWER_INFO, traitText } from '../../../shared/rules/characters';
+	import { discardLimit, powerWait } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import Portrait from '../extended/Portrait.svelte';
 	import { PLAYER_CSS } from '../helpers';
@@ -25,6 +25,12 @@
 	function highlight(seat: number | null) {
 		sceneRef.current?.highlightPlayer(seat);
 	}
+	/** Where a player's power stands, for its gem's tooltip. */
+	function powerNote(i: number, wait: number | null): string {
+		const power = POWER_INFO[view.players[i].character!];
+		const state = wait === 0 ? 'ready' : wait === null ? 'used' : `ready again in ${wait} turn${wait === 1 ? '' : 's'}`;
+		return `${power.name} (${state}): ${power.text}`;
+	}
 </script>
 
 <svelte:window bind:innerWidth bind:innerHeight />
@@ -39,6 +45,8 @@
 		{@const limit = discardLimit(view, i)}
 		{@const ch = p.character ? CHARACTER_INFO[p.character] : null}
 		{@const cards = cardsIn(i)}
+		{@const wait = view.powers && p.character ? powerWait(view, i) : undefined}
+		{@const hexed = view.hexed?.[i] ?? 0}
 		<div
 			class="player plaque"
 			class:current
@@ -57,6 +65,9 @@
 				<span class="face" title="{ch.name} {ch.title}. {ch.trait}: {traitText(p.character!, view.handLimit)}">
 					<Portrait id={p.character} size={44} />
 					<span class="shield mini" style="--shield: var(--art-shield-{p.color})"></span>
+					{#if wait !== undefined}
+						<span class="gem" class:ready={wait === 0} title={powerNote(i, wait)}></span>
+					{/if}
 				</span>
 			{:else}
 				<span class="shield" style="--shield: var(--art-shield-{p.color})">
@@ -93,13 +104,16 @@
 					? ' (including your hidden cards)'
 					: ''}">{pts}</span
 			>
-			{#if road || army || offline}
+			{#if road || army || offline || hexed}
 				<div class="medals">
 					{#if road}<span class="medal" title="Longest Road (+2)"
 							><img class="icon-px" src={PIXEL.road} alt="" /></span
 						>{/if}
 					{#if army}<span class="medal" title="Largest Army (+2)"
 							><img class="icon-px" src={PIXEL.army} alt="" /></span
+						>{/if}
+					{#if hexed}<span class="away hexed" title="Hexed by the Witch: collects nothing from the next {hexed === 1 ? 'roll' : `${hexed} rolls`}"
+							>hexed</span
 						>{/if}
 					{#if offline}<span
 							class="away"
@@ -166,6 +180,32 @@
 		width: 15px;
 		height: 18px;
 		padding: 0;
+	}
+	/* The power: a violet gem on the portrait, lit while it is ready. */
+	.gem {
+		position: absolute;
+		left: -4px;
+		top: -4px;
+		width: 11px;
+		height: 11px;
+		transform: rotate(45deg);
+		background: #4a3d66;
+		border: 2px solid #1d1408;
+		cursor: help;
+	}
+	.gem.ready {
+		background: #b7a3ff;
+		box-shadow: 0 0 6px 1px rgba(183, 163, 255, 0.85);
+		animation: gem 1.6s ease-in-out infinite;
+	}
+	@keyframes gem {
+		50% {
+			box-shadow: 0 0 2px 0 rgba(183, 163, 255, 0.4);
+		}
+	}
+	.away.hexed {
+		background: #4b2a63;
+		color: #ecd6ff;
 	}
 	.info {
 		flex: 1;

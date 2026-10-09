@@ -22,7 +22,7 @@
 	import { ACCOUNT_ICONS } from './account/icons';
 	import BuildingRules from './extended/BuildingRules.svelte';
 	import EventRules from './extended/EventRules.svelte';
-	import CharacterPicker from './extended/CharacterPicker.svelte';
+	import CharacterPicker, { rechargeName } from './extended/CharacterPicker.svelte';
 	import MapPicker from './extended/MapPicker.svelte';
 	import MapPreview from './extended/MapPreview.svelte';
 	import { generateIsland } from './extended/randomIsland';
@@ -287,12 +287,14 @@
 								<span class="pick-body">
 									<span class="label">Characters</span>
 									<span class="pick-name title"
-										>{settings.characters ? 'Drafted' : 'Off'}
+										>{settings.characters ? (settings.powers ? 'Traits and powers' : 'Traits') : 'Off'}
 										{#if settings.characters}<small>{pool.length} of {CHARACTERS.length}</small>{/if}</span
 									>
 									<span class="trait"
 										>{settings.characters
-											? 'Everyone picks one at the start. The first settler picks last.'
+											? settings.powers
+												? `Drafted at the start. Powers ${rechargeName(settings.powerRecharge).toLowerCase()}.`
+												: 'Everyone picks one at the start. The first settler picks last.'
 											: 'No characters: everyone plays by the plain rules.'}</span
 									>
 									<span class="change">{client.isHost ? 'Change' : 'See them all'}</span>
@@ -912,6 +914,10 @@
 		gap: 1px;
 		place-content: center;
 	}
+	/* No line box around each little face, or the rows grow taller than the faces. */
+	.cast > span {
+		display: flex;
+	}
 	.cast.off,
 	.cast .out {
 		filter: grayscale(0.9) brightness(0.5);
@@ -1011,7 +1017,10 @@
 		.wide .col {
 			display: flex;
 			flex-direction: column;
-			gap: 9px;
+			gap: 7px;
+		}
+		.wide .extended {
+			gap: 6px;
 		}
 		.card.wide {
 			gap: 9px;
