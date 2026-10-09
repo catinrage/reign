@@ -10,6 +10,8 @@
 	import { sfx } from '../sound';
 	import Tutorial from '../tutorial/Tutorial.svelte';
 	import { ui } from './ui.svelte';
+	import { t } from '../../i18n/index.svelte';
+	import Rich from '../../i18n/Rich.svelte';
 
 	let page = $state<'main' | 'help' | 'settings'>('main');
 	let confirmLeave = $state(false);
@@ -17,11 +19,11 @@
 	const paused = $derived(!!lobby?.paused);
 	/** Who paused the game for everyone; null when nobody did (the menu alone pauses bot games). */
 	const pausedBy = $derived(lobby?.pausedBy ?? null);
-	const pauser = $derived(
-		pausedBy === client.seat
-			? 'You'
-			: (lobby?.seats.find((s) => s.id === pausedBy)?.name ?? 'Someone')
-	);
+	const pausedLine = $derived.by(() => {
+		if (pausedBy === client.seat) return t('You paused the game.');
+		const name = lobby?.seats.find((s) => s.id === pausedBy)?.name;
+		return name ? t('{player} paused the game.', { player: name }) : t('Someone paused the game.');
+	});
 	/** A spectator can't pause the table, only watch it. */
 	const playing = $derived(!!client.view && client.view.phase !== 'ended' && !client.spectating);
 	const others = $derived(
@@ -29,12 +31,12 @@
 	);
 	const title = $derived(
 		page === 'help'
-			? 'Tutorial'
+			? t('Tutorial')
 			: page === 'settings'
-				? 'Settings'
+				? t('Settings')
 				: paused
-					? 'Paused'
-					: 'Game Menu'
+					? t('Paused')
+					: t('Game Menu')
 	);
 
 	// The table pauses while everyone has the menu open (always true in a game vs bots).
@@ -89,7 +91,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="corner">
-	<button class="icon-btn gear" onclick={open} aria-label="Menu" title="Menu (Esc)"
+	<button class="icon-btn gear" onclick={open} aria-label={t('Menu')} title={t('Menu (Esc)')}
 		><img src={PIXEL.gear} alt="" /></button
 	>
 	{#if !client.spectating}<PigeonButton />{/if}
@@ -97,8 +99,8 @@
 		<button
 			class="icon-btn"
 			onclick={() => client.pauseGame(true)}
-			aria-label="Pause"
-			title="Pause the game for everyone (P)"><img src={PIXEL.pause} alt="" /></button
+			aria-label={t('Pause')}
+			title={t('Pause the game for everyone (P)')}><img src={PIXEL.pause} alt="" /></button
 		>
 	{/if}
 	<div class="turn-row"><TurnCounter /><EventChip /></div>
@@ -110,19 +112,19 @@
 		class="modal-backdrop curtain"
 		role="dialog"
 		aria-modal="true"
-		aria-label="Game paused"
+		aria-label={t('Game paused')}
 		style:zoom={zoom === 1 ? undefined : zoom}
 		style:--ui-zoom={settings.menuSize}
 	>
 		<div class="drop">
 			<div class="board panel hanging">
-				<div class="ribbon" style="--rib: var(--art-ribbon-crimson)">Paused</div>
-				<p class="who">{pauser} paused the game.</p>
+				<div class="ribbon" style="--rib: var(--art-ribbon-crimson)">{t('Paused')}</div>
+				<p class="who">{pausedLine}</p>
 				<button class="btn big block shine" onclick={() => client.pauseGame(false)}
-					><img src={PIXEL.play} alt="" />Resume</button
+					><img src={PIXEL.play} alt="" />{t('Resume')}</button
 				>
 				<p class="note">
-					<img class="icon-px" src={PIXEL.hourglass} alt="" />Anyone at the table can resume.
+					<img class="icon-px" src={PIXEL.hourglass} alt="" />{t('Anyone at the table can resume.')}
 				</p>
 			</div>
 		</div>
@@ -143,7 +145,7 @@
 				{#if page === 'main'}
 					<div class="list">
 						<button class="btn big block shine" onclick={resume}
-							><img src={PIXEL.play} alt="" />Resume</button
+							><img src={PIXEL.play} alt="" />{t('Resume')}</button
 						>
 						{#if playing && others > 0 && !pausedBy}
 							<button
@@ -151,59 +153,65 @@
 								onclick={() => {
 									close();
 									client.pauseGame(true);
-								}}><img src={PIXEL.pause} alt="" />Pause for everyone</button
+								}}><img src={PIXEL.pause} alt="" />{t('Pause for everyone')}</button
 							>
 						{/if}
 						<button class="btn wood block" onclick={() => go('help')}
-							><img src={PIXEL.book} alt="" />Tutorial</button
+							><img src={PIXEL.book} alt="" />{t('Tutorial')}</button
 						>
 						<button class="btn wood block" onclick={() => go('settings')}
-							><img src={PIXEL.gear} alt="" />Settings</button
+							><img src={PIXEL.gear} alt="" />{t('Settings')}</button
 						>
 						{#if client.spectating}
 							<button class="btn red block" onclick={leave}
-								><img src={PIXEL.door} alt="" />Stop watching</button
+								><img src={PIXEL.door} alt="" />{t('Stop watching')}</button
 							>
 						{:else if confirmLeave}
 							<div class="confirm parch">
 								{#if others > 0}
 									<p>
-										Leave the table? A bot plays your seat, and you can rejoin from the main menu
-										(or with code <b>{client.code}</b>) while anyone is still playing.
+										<Rich
+											text={t(
+												'Leave the table? A bot plays your seat, and you can rejoin from the main menu (or with code {code}) while anyone is still playing.'
+											)}
+											slots={{ code }}
+										/>
+										{#snippet code()}<b>{client.code}</b>{/snippet}
 									</p>
 								{:else}
 									<p>
-										Leave the table? Nobody else is playing, so leaving <b>cancels this game</b>.
+										<Rich text={t('Leave the table? Nobody else is playing, so leaving {cancels}.')} slots={{ cancels }} />
+										{#snippet cancels()}<b>{t('cancels this game')}</b>{/snippet}
 									</p>
 								{/if}
 								<div class="row">
-									<button class="btn small wood" onclick={() => (confirmLeave = false)}>Stay</button
+									<button class="btn small wood" onclick={() => (confirmLeave = false)}>{t('Stay')}</button
 									>
 									<button class="btn small red" onclick={leave}
-										><img src={PIXEL.door} alt="" />Leave</button
+										><img src={PIXEL.door} alt="" />{t('Leave')}</button
 									>
 								</div>
 							</div>
 						{:else}
 							<button class="btn red block" onclick={() => (confirmLeave = true)}
-								><img src={PIXEL.door} alt="" />Leave game</button
+								><img src={PIXEL.door} alt="" />{t('Leave game')}</button
 							>
 						{/if}
 					</div>
 					<p class="note">
 						<img class="icon-px" src={paused ? PIXEL.hourglass : PIXEL.chat} alt="" />
 						{#if pausedBy}
-							Paused for everyone until someone resumes.
+							{t('Paused for everyone until someone resumes.')}
 						{:else if paused}
-							The table waits until you return.
+							{t('The table waits until you return.')}
 						{:else if others > 0}
-							The others keep playing while this is open.
+							{t('The others keep playing while this is open.')}
 						{:else}
-							Resume with Esc.
+							{t('Resume with Esc.')}
 						{/if}
 					</p>
 				{:else}
-					<button class="btn small wood back" onclick={() => go('main')}>‹ Back</button>
+					<button class="btn small wood back" onclick={() => go('main')}>‹ {t('Back')}</button>
 					{#if page === 'help'}
 						<Tutorial mode={client.view?.mode} />
 					{:else}

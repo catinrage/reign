@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { t } from '../../../i18n/index.svelte';
+	import Rich from '../../../i18n/Rich.svelte';
 	import { getIcons } from '../../../scene/icons';
 	import { TERRAIN_CSS } from '../../extended/terrainColors';
 	import { PIXEL } from '../../pixel';
@@ -43,15 +45,23 @@
 	const road = blocked[0];
 </script>
 
+{#snippet pair()}<b>{t('one settlement and one road')}</b>{/snippet}
+{#snippet reverse()}<b>{t('reverse order')}</b>{/snippet}
+{#snippet second()}<b>{t('second settlement')}</b>{/snippet}
+{#snippet gap()}<b>{t('one empty corner')}</b>{/snippet}
+
 <p>
-	Before the first roll, every player places <b>one settlement and one road</b> touching it, going
-	round the table. Then everyone places a second pair in <b>reverse order</b>, so the last player
-	places twice in a row and the first player places last.
+	<Rich
+		text={t(
+			'Before the first roll, every player places {pair} touching it, going round the table. Then everyone places a second pair in {reverse}, so the last player places twice in a row and the first player places last.'
+		)}
+		slots={{ pair, reverse }}
+	/>
 </p>
 
 <div class="figure snake">
 	<div class="round">
-		<span class="label">First round</span>
+		<span class="label">{t('First round')}</span>
 		<div class="seats">
 			{#each order as c, i (c)}
 				<span class="shield" style="--shield: var(--art-shield-{c})">{i + 1}</span>
@@ -61,7 +71,7 @@
 	</div>
 	<span class="turnaround">↩</span>
 	<div class="round">
-		<span class="label">Second round</span>
+		<span class="label">{t('Second round')}</span>
 		<div class="seats">
 			{#each [...order].reverse() as c, i (c)}
 				<span class="shield" style="--shield: var(--art-shield-{c})">{order.length - i}</span>
@@ -74,28 +84,34 @@
 <ul class="rows">
 	<li>
 		<img class="piece" src={icons['settlement:red']} alt="" /><span
-			>Your <b>second settlement</b> pays you at once: one card for each tile it touches. Pick a spot
-			that covers resources your first one lacks.</span
+			><Rich
+				text={t(
+					'Your {second} pays you at once: one card for each tile it touches. Pick a spot that covers resources your first one lacks.'
+				)}
+				slots={{ second }}
+			/></span
 		>
 	</li>
 	<li>
 		<img class="piece" src={icons['road:red']} alt="" /><span
-			>Each road must touch the settlement you just placed. Point it where you want to grow.</span
+			>{t('Each road must touch the settlement you just placed. Point it where you want to grow.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.die} alt="" /><span
-			>When everyone has placed both, the first player rolls and the game begins.</span
+			>{t('When everyone has placed both, the first player rolls and the game begins.')}</span
 		>
 	</li>
 </ul>
 
-<h3>The distance rule</h3>
+<h3>{t('The distance rule')}</h3>
 <div class="spread">
 	<svg
 		class="patch"
 		viewBox="-114 -110 228 224"
-		aria-label="A settlement, the three corners next to it that are blocked, and corners two steps away that are open"
+		aria-label={t(
+			'A settlement, the three corners next to it that are blocked, and corners two steps away that are open'
+		)}
 	>
 		{#each centers as c, i (i)}
 			<polygon points={poly(c)} fill="#f4d48e" />
@@ -147,14 +163,18 @@
 	</svg>
 	<div>
 		<p>
-			A settlement may never sit on a corner right next to another settlement or city, yours or
-			anyone else's. There must always be at least <b>one empty corner</b> between two towns.
+			<Rich
+				text={t(
+					"A settlement may never sit on a corner right next to another settlement or city, yours or anyone else's. There must always be at least {gap} between two towns."
+				)}
+				slots={{ gap }}
+			/>
 		</p>
 		<p>
-			<span class="dot red"></span> blocked corners, one step away<br />
-			<span class="dot green"></span> the closest corners still open
+			<span class="dot red"></span> {t('blocked corners, one step away')}<br />
+			<span class="dot green"></span> {t('the closest corners still open')}
 		</p>
-		<p>The rule holds all game long, not only during setup.</p>
+		<p>{t('The rule holds all game long, not only during setup.')}</p>
 	</div>
 </div>
 

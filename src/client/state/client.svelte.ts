@@ -3,6 +3,7 @@ import type { Cheat } from '../../shared/rules/cheats';
 import type { Resource } from '../../shared/rules/config';
 import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
 import type { Action, GameEvent, GameView } from '../../shared/rules/types';
+import { t, tx } from '../i18n/index.svelte';
 import { account } from './account.svelte';
 
 /**
@@ -232,7 +233,7 @@ class GameClient {
 				account.invited(msg.invite);
 				break;
 			case 'notice':
-				this.toast(msg.message, 'info');
+				this.toast(tx(msg.message), 'info');
 				break;
 			case 'welcome':
 				if (this.dropJoin) {
@@ -305,8 +306,8 @@ class GameClient {
 					this.dropJoin = false;
 					break;
 				}
-				if (this.joining && !this.seat) this.joining = { ...this.joining, error: msg.message };
-				else this.toast(msg.message, 'error');
+				if (this.joining && !this.seat) this.joining = { ...this.joining, error: tx(msg.message) };
+				else this.toast(tx(msg.message), 'error');
 				// The game being watched is gone.
 				if (this.spectating) {
 					this.leave();
@@ -457,8 +458,8 @@ class GameClient {
 		for (const s of next.seats) {
 			const was = prev.seats.find((p) => p.id === s.id);
 			if (!was || s.isBot || s.id === this.seat) continue;
-			if (s.left && !was.left) this.toast(`${s.name} left the table. A bot plays for them until they rejoin.`);
-			else if (s.connected && !was.connected) this.toast(`${s.name} is back at the table.`, 'good');
+			if (s.left && !was.left) this.toast(t('{player} left the table. A bot plays for them until they rejoin.', { player: s.name }));
+			else if (s.connected && !was.connected) this.toast(t('{player} is back at the table.', { player: s.name }), 'good');
 		}
 	}
 
@@ -598,7 +599,7 @@ class GameClient {
 	toast(text: string, kind: Toast['kind'] = 'info') {
 		const id = ++this.toastId;
 		this.toasts = [...this.toasts, { id, text, kind }];
-		setTimeout(() => (this.toasts = this.toasts.filter((t) => t.id !== id)), kind === 'error' ? 4200 : 3200);
+		setTimeout(() => (this.toasts = this.toasts.filter((toast) => toast.id !== id)), kind === 'error' ? 4200 : 3200);
 	}
 
 	get me(): number {

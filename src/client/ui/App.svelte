@@ -12,6 +12,7 @@
 	import { setMusicMode, sfx } from './sound';
 	import { sceneRef } from './sceneRef';
 	import { settings } from './settings.svelte';
+	import { t } from '../i18n/index.svelte';
 
 	const screen = $derived(
 		account.status !== 'in'
@@ -94,8 +95,8 @@
 	{#if account.status === 'loading' || (account.status === 'in' && client.status !== 'online' && screen !== 'joining')}
 		<div class="conn plaque">
 			<img class="icon-px" src={PIXEL.hourglass} alt="" />{client.status === 'connecting'
-				? 'Connecting…'
-				: 'Reconnecting…'}
+				? t('Connecting…')
+				: t('Reconnecting…')}
 		</div>
 	{/if}
 	<Toasts />

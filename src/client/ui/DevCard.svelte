@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { DEV_CARD_LABEL, DEV_CARD_TEXT, type DevCardType } from '../../shared/rules/config';
 	import { PIXEL } from './pixel';
+	import { msg, t } from '../i18n/index.svelte';
 
 	/** Names short enough to fit under the art. */
 	const SHORT: Record<DevCardType, string> = {
-		knight: 'Knight',
-		roadBuilding: 'Roads',
-		yearOfPlenty: 'Plenty',
-		monopoly: 'Monopoly',
-		victoryPoint: '+1 Point'
+		knight: msg('Knight'),
+		roadBuilding: msg('Roads'),
+		yearOfPlenty: msg('Plenty'),
+		monopoly: msg('Monopoly'),
+		victoryPoint: msg('+1 Point')
 	};
 
 	let {
@@ -38,21 +39,21 @@
 	// Bought this turn and none ready yet: they wait for the next turn.
 	const fresh = $derived(!!type && !secret && waiting > 0 && waiting >= count);
 	// The tooltip: what the card does, then whether it can be played now and why not.
-	const head = $derived(type ? DEV_CARD_LABEL[type] : 'Development cards');
+	const head = $derived(type ? t(DEV_CARD_LABEL[type]) : t('Development cards'));
 	const text = $derived(
 		!type
-			? 'Buy one with a wool, a grain and an ore.'
+			? t('Buy one with a wool, a grain and an ore.')
 			: secret
-				? 'Secret: only you can see it, and it counts toward your points.'
-				: DEV_CARD_TEXT[type]
+				? t('Secret: only you can see it, and it counts toward your points.')
+				: t(DEV_CARD_TEXT[type])
 	);
 	const note = $derived(
 		!type
 			? undefined
 			: secret
-				? 'Never played: it counts on its own.'
+				? t('Never played: it counts on its own.')
 				: playable
-					? 'Click to play it.'
+					? t('Click to play it.')
 					: reason
 	);
 </script>
@@ -72,14 +73,14 @@
 	<span class="art"
 		><img
 			src={type ? PIXEL[type] : PIXEL.devBack}
-			alt={type ? DEV_CARD_LABEL[type] : 'Development card'}
+			alt={type ? t(DEV_CARD_LABEL[type]) : t('Development card')}
 			draggable="false"
 		/></span
 	>
-	{#if type}<span class="name">{SHORT[type]}</span>{/if}
+	{#if type}<span class="name">{t(SHORT[type])}</span>{/if}
 	{#if count > 0}<span class="count">{count}</span>{/if}
-	{#if secret && count > 0}<span class="corner"><img src={PIXEL.lock} alt="Secret" /></span>{/if}
-	{#if fresh}<span class="corner"><img src={PIXEL.hourglass} alt="New" /></span>{/if}
+	{#if secret && count > 0}<span class="corner"><img src={PIXEL.lock} alt={t('Secret')} /></span>{/if}
+	{#if fresh}<span class="corner"><img src={PIXEL.hourglass} alt={t('New')} /></span>{/if}
 </button>
 
 <style>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { GAME_MODES, MODE_INFO, type GameMode } from '../../../shared/rules/modes';
+	import { t } from '../../i18n/index.svelte';
 	import { sfx } from '../sound';
 	import { CHAPTERS, chaptersOf, type Chapter } from './chapters';
 
@@ -60,14 +61,14 @@
 
 <div class="tutorial">
 	<nav class="side">
-		<div class="seg modes" role="tablist" aria-label="Game mode">
+		<div class="seg modes" role="tablist" aria-label={t('Game mode')}>
 			{#each GAME_MODES as m (m)}
 				<button
 					class="btn small"
 					class:on={current.mode === m}
 					role="tab"
 					aria-selected={current.mode === m}
-					onclick={() => open(chaptersOf(m)[0])}>{MODE_INFO[m].name}</button
+					onclick={() => open(chaptersOf(m)[0])}>{t(MODE_INFO[m].name)}</button
 				>
 			{/each}
 		</div>
@@ -83,7 +84,7 @@
 					>
 						<img class="icon-px" src={c.icon} alt="" />
 						<span class="num">{i + 1}</span>
-						<span class="name">{c.title}</span>
+						<span class="name">{t(c.title)}</span>
 					</button>
 				</li>
 			{/each}
@@ -95,15 +96,19 @@
 			<div class="leaf">
 				<header>
 					<span class="label"
-						>{MODE_INFO[current.mode].name} · Chapter {index + 1} of {list.length}</span
+						>{t('{mode} · Chapter {n} of {total}', {
+							mode: t(MODE_INFO[current.mode].name),
+							n: index + 1,
+							total: list.length
+						})}</span
 					>
-					<h2 class="title"><img class="icon-px" src={current.icon} alt="" />{current.title}</h2>
-					<p class="lede">{current.lede}</p>
+					<h2 class="title"><img class="icon-px" src={current.icon} alt="" />{t(current.title)}</h2>
+					<p class="lede">{t(current.lede)}</p>
 				</header>
 				<current.page />
 				<footer>
 					{#if prev}
-						<button class="btn small wood" onclick={() => open(prev)}>‹ {prev.title}</button>
+						<button class="btn small wood" onclick={() => open(prev)}>‹ {t(prev.title)}</button>
 					{:else}
 						<span></span>
 					{/if}
@@ -113,7 +118,7 @@
 							class:green={next.mode === current.mode}
 							class:purple={next.mode !== current.mode}
 							onclick={() => open(next)}
-							>{next.mode !== current.mode ? MODE_INFO[next.mode].name : next.title} ›</button
+							>{next.mode !== current.mode ? t(MODE_INFO[next.mode].name) : t(next.title)} ›</button
 						>
 					{/if}
 				</footer>

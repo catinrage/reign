@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { MAP_PRESETS, mapSeats } from '../../../../shared/board/maps';
+	import Rich from '../../../i18n/Rich.svelte';
+	import { t } from '../../../i18n/index.svelte';
 	import { TERRAIN_CSS } from '../../extended/terrainColors';
 	import MapPreview from '../../extended/MapPreview.svelte';
 	import { PIXEL } from '../../pixel';
@@ -11,8 +13,7 @@
 </script>
 
 <p>
-	The host picks the island in the lobby. Every island plays by the same rules; what changes is the
-	room to spread out, how many can sit at the table, and how fierce the race for good corners is.
+	{t('The host picks the island in the lobby. Every island plays by the same rules; what changes is the room to spread out, how many can sit at the table, and how fierce the race for good corners is.')}
 </p>
 
 <div class="isles">
@@ -20,53 +21,57 @@
 		<div class="isle">
 			<MapPreview tiles={m.tiles} width={128} height={100} />
 			<div class="text">
-				<b class="title">{m.name}</b>
-				<span class="facts">{m.tiles.length} tiles · up to {mapSeats(m.tiles.length)} players</span>
-				<span>{m.blurb}</span>
+				<b class="title">{t(m.name)}</b>
+				<span class="facts">{t('{tiles} tiles · up to {players} players', { tiles: m.tiles.length, players: mapSeats(m.tiles.length) })}</span>
+				<span>{t(m.blurb)}</span>
 			</div>
 		</div>
 	{/each}
 </div>
 
-<h3>What is dealt each game</h3>
+{#snippet bRandom()}<b>?</b>{/snippet}
+
+<h3>{t('What is dealt each game')}</h3>
 <ul class="rows">
 	<li>
 		<span class="swatch" style="background:{TERRAIN_CSS.random}"></span><span
-			>Tiles marked <b>?</b> get a random terrain each game, in about the classic mix, with roughly one
-			desert for every nineteen tiles. Colored tiles always keep their terrain.</span
+			><Rich
+				text={t('Tiles marked {mark} get a random terrain each game, in about the classic mix, with roughly one desert for every nineteen tiles. Colored tiles always keep their terrain.')}
+				slots={{ mark: bRandom }}
+			/></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.die} alt="" /><span
-			>Numbers are dealt fresh every game. Red 6s and 8s are never placed side by side.</span
+			>{t('Numbers are dealt fresh every game. Red 6s and 8s are never placed side by side.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.anchor} alt="" /><span
-			>Harbors are spread round the outer coast. A longer coast gets more of them.</span
+			>{t('Harbors are spread round the outer coast. A longer coast gets more of them.')}</span
 		>
 	</li>
 	<li>
-		<img class="icon-px" src={TUT_ICON.robber} alt="" /><span>The robber starts on a desert.</span>
+		<img class="icon-px" src={TUT_ICON.robber} alt="" /><span>{t('The robber starts on a desert.')}</span>
 	</li>
 </ul>
 
-<h3>Random islands</h3>
+<h3>{t('Random islands')}</h3>
 <p>
-	The host can also grow a random island: pick a size, a shape (round, long, ragged, or several
-	islands joined by land bridges) and whether it has lakes, then press Generate until it looks
-	right. Everyone in the lobby sees each new island, and Reroll grows another of the same kind.
+	{t('The host can also grow a random island: pick a size, a shape (round, long, ragged, or several islands joined by land bridges) and whether it has lakes, then press Generate until it looks right. Everyone in the lobby sees each new island, and Reroll grows another of the same kind.')}
 </p>
 
-<h3>Table size</h3>
+<h3>{t('Table size')}</h3>
 <p>
-	Every five tiles seat one more player: {seatsAt(5)} tiles seat five, {seatsAt(6)} six, {seatsAt(7)} seven
-	and {seatsAt(8)} eight. With five or more players the bank and the development deck grow to match.
+	{t('Every five tiles seat one more player: {five} tiles seat five, {six} six, {seven} seven and {eight} eight. With five or more players the bank and the development deck grow to match.', {
+		five: seatsAt(5) ?? '',
+		six: seatsAt(6) ?? '',
+		seven: seatsAt(7) ?? '',
+		eight: seatsAt(8) ?? ''
+	})}
 </p>
 <p>
-	The island and the table also limit the points to win, so a game can always end: at most two
-	points per tile each player shares, plus two. Goals above 10 give everyone extra settlements,
-	cities and roads to build them with.
+	{t('The island and the table also limit the points to win, so a game can always end: at most two points per tile each player shares, plus two. Goals above 10 give everyone extra settlements, cities and roads to build them with.')}
 </p>
 
 <style>

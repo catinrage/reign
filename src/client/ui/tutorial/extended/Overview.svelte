@@ -12,77 +12,102 @@
 		DISCARD_THRESHOLD,
 		VICTORY_POINTS_TO_WIN
 	} from '../../../../shared/rules/config';
-	import { BUILDING_INFO, EXTRA_BUILDINGS } from '../../../../shared/rules/buildings';
+	import { EXTRA_BUILDINGS, type ExtraBuilding } from '../../../../shared/rules/buildings';
 	import { CHARACTERS } from '../../../../shared/rules/characters';
 	import { CLASSIC_PLAYERS, MAX_PLAYERS } from '../../../../shared/protocol';
 	import { HAND_LIMIT_MAX, HAND_LIMIT_MIN, POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../../../shared/rules/modes';
-	import { andList } from '../../helpers';
+	import Rich from '../../../i18n/Rich.svelte';
+	import { msg, num, t } from '../../../i18n/index.svelte';
 	import { PIXEL } from '../../pixel';
 	import { TUT_ICON } from '../icons';
 
 	const deck = (d: Record<string, number>) => DEV_CARDS.reduce((n, c) => n + d[c], 0);
-	const rows = [
+	/** The new buildings as the table names them mid-sentence. */
+	const LOWER: Record<ExtraBuilding, string> = {
+		workshop: msg('workshops'),
+		stoneRoad: msg('stone roads'),
+		storehouse: msg('storehouses')
+	};
+	/** "A, B and C" in the current language. */
+	const list = (items: string[]) =>
+		items.reduce(
+			(acc, item, i) =>
+				i === 0 ? item : i < items.length - 1 ? t('{list}, {item}', { list: acc, item }) : t('{list} and {item}', { list: acc, item }),
+			''
+		);
+	const rows = $derived([
 		{
 			icon: TUT_ICON.scroll,
-			name: 'Island',
-			classic: 'The standard 19 tiles.',
-			extended: `${MAP_PRESETS.length} ready-made islands, or one you draw yourself.`
+			name: t('Island'),
+			classic: t('The standard 19 tiles.'),
+			extended: t('{count} ready-made islands, or one you draw yourself.', { count: MAP_PRESETS.length })
 		},
 		{
 			icon: TUT_ICON.mask,
-			name: 'Characters',
-			classic: 'None.',
-			extended: `Each player has one of ${CHARACTERS.length}, with a trait that bends a rule.`
+			name: t('Characters'),
+			classic: t('None.'),
+			extended: t('Each player has one of {count}, with a trait that bends a rule.', { count: CHARACTERS.length })
 		},
 		{
 			icon: PIXEL.hammer,
-			name: 'Buildings',
-			classic: 'Roads, settlements and cities.',
-			extended: `Also ${andList(EXTRA_BUILDINGS.map((b) => BUILDING_INFO[b].name.toLowerCase()))}, if the host keeps them on.`
+			name: t('Buildings'),
+			classic: t('Roads, settlements and cities.'),
+			extended: t('Also {buildings}, if the host keeps them on.', { buildings: list(EXTRA_BUILDINGS.map((b) => t(LOWER[b]))) })
 		},
 		{
 			icon: PIXEL.star,
-			name: 'Events',
-			classic: 'None.',
-			extended: `A card from a deck of ${EVENT_CARDS.length} turns over each round, unless the host turns them off.`
+			name: t('Events'),
+			classic: t('None.'),
+			extended: t('A card from a deck of {count} turns over each round, unless the host turns them off.', { count: EVENT_CARDS.length })
 		},
 		{
 			icon: PIXEL.crown,
-			name: 'Points to win',
-			classic: `Always ${VICTORY_POINTS_TO_WIN}.`,
-			extended: `The host picks ${POINT_GOALS.join(', ')}, or any number from ${POINTS_MIN} to ${POINTS_MAX}.`
+			name: t('Points to win'),
+			classic: t('Always {points}.', { points: VICTORY_POINTS_TO_WIN }),
+			extended: t('The host picks {goals}, or any number from {min} to {max}.', {
+				goals: POINT_GOALS.map(num).join(', '),
+				min: POINTS_MIN,
+				max: POINTS_MAX
+			})
 		},
 		{
 			icon: PIXEL.bot,
-			name: 'Players',
-			classic: `Up to ${CLASSIC_PLAYERS}.`,
-			extended: `Up to ${MAX_PLAYERS} on the bigger islands.`
+			name: t('Players'),
+			classic: t('Up to {players}.', { players: CLASSIC_PLAYERS }),
+			extended: t('Up to {players} on the bigger islands.', { players: MAX_PLAYERS })
 		},
 		{
 			icon: PIXEL.cards,
-			name: 'Hand limit on a 7',
-			classic: `Discard half above ${DISCARD_THRESHOLD} cards.`,
-			extended: `The host sets it, from ${HAND_LIMIT_MIN} to ${HAND_LIMIT_MAX} (${DISCARD_THRESHOLD} unless changed).`
+			name: t('Hand limit on a 7'),
+			classic: t('Discard half above {limit} cards.', { limit: DISCARD_THRESHOLD }),
+			extended: t('The host sets it, from {min} to {max} ({limit} unless changed).', {
+				min: HAND_LIMIT_MIN,
+				max: HAND_LIMIT_MAX,
+				limit: DISCARD_THRESHOLD
+			})
 		},
 		{
 			icon: PIXEL.cards,
-			name: 'Bank and deck',
-			classic: `${BANK_PER_RESOURCE} of each resource, ${deck(DEV_DECK)} cards.`,
-			extended: `With 5 or 6 players: ${BANK_PER_RESOURCE_LARGE} of each, ${deck(DEV_DECK_LARGE)} cards. With 7 or 8: ${BANK_PER_RESOURCE_HUGE} of each, ${deck(DEV_DECK_HUGE)} cards.`
+			name: t('Bank and deck'),
+			classic: t('{bank} of each resource, {cards} cards.', { bank: BANK_PER_RESOURCE, cards: deck(DEV_DECK) }),
+			extended: t('With 5 or 6 players: {bank} of each, {cards} cards. With 7 or 8: {bankHuge} of each, {cardsHuge} cards.', {
+				bank: BANK_PER_RESOURCE_LARGE,
+				cards: deck(DEV_DECK_LARGE),
+				bankHuge: BANK_PER_RESOURCE_HUGE,
+				cardsHuge: deck(DEV_DECK_HUGE)
+			})
 		}
-	];
+	]);
 </script>
 
 <p>
-	Reign Extended is the same game with more to it. Every rule from the Classic chapters still
-	applies: the same resources, building costs, robber and development cards. On top of that, the
-	host shapes the table in the lobby.
+	{t('Reign Extended is the same game with more to it. Every rule from the Classic chapters still applies: the same resources, building costs, robber and development cards. On top of that, the host shapes the table in the lobby.')}
 </p>
 
 <div class="compare">
 	<span></span>
-	<span class="label head">Classic</span>
-	<span class="label head ext">Reign Extended</span>
+	<span class="label head">{t('Classic')}</span>
+	<span class="label head ext">{t('Reign Extended')}</span>
 	{#each rows as r (r.name)}
 		<span class="what"><img class="icon-px" src={r.icon} alt="" /><b>{r.name}</b></span>
 		<span class="cell">{r.classic}</span>
@@ -90,39 +115,47 @@
 	{/each}
 </div>
 
-<h3>Setting up a game</h3>
+{#snippet bExtended()}<b>{t('Reign Extended')}</b>{/snippet}
+{#snippet bIsland()}<b>{t('Island')}</b>{/snippet}
+{#snippet bPoints()}<b>{t('points to win')}</b>{/snippet}
+{#snippet bCharacters()}<b>{t('characters')}</b>{/snippet}
+{#snippet bBuildings()}<b>{t('Buildings')}</b>{/snippet}
+
+<h3>{t('Setting up a game')}</h3>
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.house} alt="" /><span
-			>Create a room and pick <b>Reign Extended</b> at the top of the lobby.</span
+			><Rich text={t('Create a room and pick {mode} at the top of the lobby.')} slots={{ mode: bExtended }} /></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={TUT_ICON.scroll} alt="" /><span
-			>Choose the island under <b>Island</b>. Bigger islands open more seats.</span
+			><Rich text={t('Choose the island under {island}. Bigger islands open more seats.')} slots={{ island: bIsland }} /></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.crown} alt="" /><span
-			>Set the <b>points to win</b>: lower for a quick game, higher for a long one.</span
+			><Rich text={t('Set the {points}: lower for a quick game, higher for a long one.')} slots={{ points: bPoints }} /></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={TUT_ICON.mask} alt="" /><span
-			>Turn <b>characters</b> on or off, and leave out any you don't want. Everyone drafts one when the
-			game starts.</span
+			><Rich
+				text={t("Turn {characters} on or off, and leave out any you don't want. Everyone drafts one when the game starts.")}
+				slots={{ characters: bCharacters }}
+			/></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
-			>Under <b>Buildings</b>, pick which of the new buildings are in the game.</span
+			><Rich text={t('Under {buildings}, pick which of the new buildings are in the game.')} slots={{ buildings: bBuildings }} /></span
 		>
 	</li>
 </ul>
 
 <p class="tip">
 	<img class="icon-px" src={PIXEL.book} alt="" /><span
-		>Reign Extended is still growing. Whatever it adds next gets its own chapter in this book.</span
+		>{t('Reign Extended is still growing. Whatever it adds next gets its own chapter in this book.')}</span
 	>
 </p>
 

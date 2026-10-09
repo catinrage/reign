@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { type AvatarId, NICKNAME_MAX, USERNAME_MAX, cleanUsername, passwordProblem, usernameProblem } from '../../../shared/accounts';
+	import { t, tx } from '../../i18n/index.svelte';
 	import { OFFLINE } from '../../offline/flag';
 	import { account } from '../../state/account.svelte';
 	import { client } from '../../state/client.svelte';
@@ -49,7 +50,7 @@
 		busy = true;
 		try {
 			await account.updateProfile(change);
-			client.toast('Profile saved.', 'good');
+			client.toast(t('Profile saved.'), 'good');
 			onclose();
 		} catch (err) {
 			error = (err as Error).message;
@@ -68,49 +69,49 @@
 	<div class="cols">
 		<div class="col">
 			<label class="field">
-				<span class="label">Nickname</span>
+				<span class="label">{t('Nickname')}</span>
 				<input class="input" bind:value={nickname} maxlength={NICKNAME_MAX} />
-				<span class="hint">What the table calls you.</span>
+				<span class="hint">{t('What the table calls you.')}</span>
 			</label>
 			{#if !OFFLINE}
 				<label class="field">
-					<span class="label">Username</span>
+					<span class="label">{t('Username')}</span>
 					<input class="input" bind:value={username} maxlength={USERNAME_MAX} autocapitalize="off" spellcheck="false" autocomplete="username" />
-					<span class="hint">Friends add you by it.</span>
+					<span class="hint">{t('Friends add you by it.')}</span>
 				</label>
 				{#if changingPassword}
 					<label class="field">
-						<span class="label">Current password</span>
+						<span class="label">{t('Current password')}</span>
 						<input class="input" type="password" bind:value={current} autocomplete="current-password" />
 					</label>
 					<label class="field">
-						<span class="label">New password</span>
+						<span class="label">{t('New password')}</span>
 						<input class="input" type="password" bind:value={password} autocomplete="new-password" />
-						<span class="hint">Signs you out everywhere else.</span>
+						<span class="hint">{t('Signs you out everywhere else.')}</span>
 					</label>
 				{:else}
 					<button type="button" class="btn small wood" onclick={() => (changingPassword = true)}
-						><img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />Change password</button
+						><img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />{t('Change password')}</button
 					>
 				{/if}
 			{/if}
 		</div>
 		<div class="col">
-			<span class="label">Avatar</span>
+			<span class="label">{t('Avatar')}</span>
 			<div class="well avatars"><AvatarPicker bind:value={avatar} size={54} /></div>
 		</div>
 	</div>
 
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	{#if error}<p class="error" role="alert">{tx(error)}</p>{/if}
 
 	<div class="foot">
 		{#if OFFLINE}<span></span>{:else}
 			<button type="button" class="btn small red" onclick={signOut}
-				><img class="icon-px" src={PIXEL.door} alt="" />Sign out</button
+				><img class="icon-px" src={PIXEL.door} alt="" />{t('Sign out')}</button
 			>
 		{/if}
 		<button type="submit" class="btn green" disabled={!dirty || busy}
-			><img class="icon-px" src={PIXEL.check} alt="" />Save</button
+			><img class="icon-px" src={PIXEL.check} alt="" />{t('Save')}</button
 		>
 	</div>
 </form>

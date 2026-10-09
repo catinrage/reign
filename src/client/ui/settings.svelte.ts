@@ -1,5 +1,6 @@
 import { sceneRef } from './sceneRef';
 import { getVolume, setVolume, type Channel } from './sound';
+import { msg } from '../i18n/index.svelte';
 
 /**
  * Player preferences that live in this browser: volumes (owned by the sound module),
@@ -35,10 +36,10 @@ function clampSize(v: number): number {
 }
 
 export const CHANNELS: { id: Channel; label: string }[] = [
-	{ id: 'master', label: 'Master' },
-	{ id: 'sfx', label: 'Effects' },
-	{ id: 'music', label: 'Music' },
-	{ id: 'ambience', label: 'Fireside' }
+	{ id: 'master', label: msg('Master') },
+	{ id: 'sfx', label: msg('Effects') },
+	{ id: 'music', label: msg('Music') },
+	{ id: 'ambience', label: msg('Fireside') }
 ];
 
 class Settings {

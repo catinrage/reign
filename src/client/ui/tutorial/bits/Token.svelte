@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { pips } from '../../../../shared/rules/config';
+	import { t } from '../../../i18n/index.svelte';
 
 	/** A number token as it sits on a tile: the number, and a dot for each way two dice can roll it. */
 	let { n, size = 34 }: { n: number; size?: number } = $props();
 	const hot = $derived(n === 6 || n === 8);
 </script>
 
-<span class="token" class:hot style="--size:{size}px" title="{pips(n)} in 36 rolls">
+<span class="token" class:hot style="--size:{size}px" title={t('{ways} in 36 rolls', { ways: pips(n) })}>
 	<span class="n">{n}</span>
 	<span class="dots"
 		>{#each Array(pips(n)) as _, i (i)}<i></i>{/each}</span

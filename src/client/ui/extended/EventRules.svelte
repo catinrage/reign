@@ -12,6 +12,7 @@
 	import { client } from '../../state/client.svelte';
 	import { EVENT_ART, TONE_COLOR } from '../game/eventArt';
 	import Modal from '../menu/Modal.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Reign Extended's Events deck in the lobby: a plaque saying how it's set, and a panel where the
@@ -23,9 +24,15 @@
 	const pool = $derived(eventPool(rules));
 	let open = $state(false);
 
-	const summary = $derived(!rules.on || !pool.length ? 'Off' : rules.every === 1 ? 'Every round' : 'Every other');
+	const summary = $derived(!rules.on || !pool.length ? t('Off') : rules.every === 1 ? t('Every round') : t('Every other'));
 	const detail = $derived(
-		!rules.on ? 'No event cards.' : pool.length ? `${rules.wild ? 'Wild' : 'Gentle'} deck, ${pool.length} cards` : 'Every card is pulled.'
+		!rules.on
+			? t('No event cards.')
+			: !pool.length
+				? t('Every card is pulled.')
+				: rules.wild
+					? t('{n, plural, one {Wild deck, # card} other {Wild deck, # cards}}', { n: pool.length })
+					: t('{n, plural, one {Gentle deck, # card} other {Gentle deck, # cards}}', { n: pool.length })
 	);
 
 	function set(change: Partial<EventRules>) {
@@ -36,47 +43,47 @@
 	}
 </script>
 
-<button class="pick plaque" title={client.isHost ? 'Choose events' : 'See the deck'} onclick={() => (open = true)}>
+<button class="pick plaque" title={client.isHost ? t('Choose events') : t('See the deck')} onclick={() => (open = true)}>
 	<span class="face well"><img src={EVENT_ART.comet} alt="" class:dim={!rules.on || !pool.length} /></span>
 	<span class="pick-body">
-		<span class="label">Events</span>
+		<span class="label">{t('Events')}</span>
 		<span class="pick-name title">{summary}</span>
 		<span class="trait">{detail}</span>
-		<span class="change">{client.isHost ? 'Choose events' : 'See the deck'}</span>
+		<span class="change">{client.isHost ? t('Choose events') : t('See the deck')}</span>
 	</span>
 </button>
 
 {#if open}
-	<Modal title="Events deck" width={640} onclose={() => (open = false)}>
+	<Modal title={t('Events deck')} width={640} onclose={() => (open = false)}>
 		<p>
-			A card turns over as each round starts and bends the rules until the next one. Bots play every
-			card.{client.isHost ? '' : ' The host sets up the deck.'}
+			{t('A card turns over as each round starts and bends the rules until the next one. Bots play every card.')}{#if !client.isHost}
+				{' '}{t('The host sets up the deck.')}{/if}
 		</p>
 		{#if client.isHost}
 			<div class="controls">
-				<div class="seg" role="radiogroup" aria-label="Events">
-					<button class="btn small" class:on={rules.on} role="radio" aria-checked={rules.on} onclick={() => set({ on: true })}>On</button>
-					<button class="btn small" class:on={!rules.on} role="radio" aria-checked={!rules.on} onclick={() => set({ on: false })}>Off</button>
+				<div class="seg" role="radiogroup" aria-label={t('Events')}>
+					<button class="btn small" class:on={rules.on} role="radio" aria-checked={rules.on} onclick={() => set({ on: true })}>{t('On')}</button>
+					<button class="btn small" class:on={!rules.on} role="radio" aria-checked={!rules.on} onclick={() => set({ on: false })}>{t('Off')}</button>
 				</div>
-				<div class="seg" role="radiogroup" aria-label="How often">
-					<button class="btn small" class:on={rules.every === 1} disabled={!rules.on} onclick={() => set({ every: 1 })}>Every round</button>
-					<button class="btn small" class:on={rules.every === 2} disabled={!rules.on} onclick={() => set({ every: 2 })}>Every other</button>
+				<div class="seg" role="radiogroup" aria-label={t('How often')}>
+					<button class="btn small" class:on={rules.every === 1} disabled={!rules.on} onclick={() => set({ every: 1 })}>{t('Every round')}</button>
+					<button class="btn small" class:on={rules.every === 2} disabled={!rules.on} onclick={() => set({ every: 2 })}>{t('Every other')}</button>
 				</div>
-				<div class="seg" role="radiogroup" aria-label="Kind of deck">
+				<div class="seg" role="radiogroup" aria-label={t('Kind of deck')}>
 					<button
 						class="btn small"
 						class:on={!rules.wild}
 						disabled={!rules.on}
-						title="Only cards that help, catch players up or shake things up. Nothing takes your cards."
-						onclick={() => set({ wild: false })}>Gentle</button
+						title={t('Only cards that help, catch players up or shake things up. Nothing takes your cards.')}
+						onclick={() => set({ wild: false })}>{t('Gentle')}</button
 					>
-					<button class="btn small" class:on={rules.wild} disabled={!rules.on} title="Every card, hardships too." onclick={() => set({ wild: true })}
-						>Wild</button
+					<button class="btn small" class:on={rules.wild} disabled={!rules.on} title={t('Every card, hardships too.')} onclick={() => set({ wild: true })}
+						>{t('Wild')}</button
 					>
 				</div>
 			</div>
 		{:else}
-			<p class="state title">{summary}{rules.on && pool.length ? ` · ${rules.wild ? 'Wild' : 'Gentle'}` : ''}</p>
+			<p class="state title">{summary}{rules.on && pool.length ? ` · ${rules.wild ? t('Wild') : t('Gentle')}` : ''}</p>
 		{/if}
 		<div class="list" class:off={!rules.on}>
 			{#each EVENT_CARDS as c (c)}
@@ -86,22 +93,22 @@
 				<div class="row plaque" class:out={!inDeck} style="--tone:{TONE_COLOR[info.tone]}">
 					<img class="art" src={EVENT_ART[c]} alt="" />
 					<div class="body">
-						<span class="name title">{info.name} <small>{TONE_LABEL[info.tone]}</small></span>
-						<span class="text">{info.text}</span>
+						<span class="name title">{t(info.name)} <small>{t(TONE_LABEL[info.tone])}</small></span>
+						<span class="text">{t(info.text)}</span>
 					</div>
 					{#if !kind}
-						<span class="note">Wild only</span>
+						<span class="note">{t('Wild only')}</span>
 					{:else if client.isHost}
 						<button
 							class="btn small toggle"
 							class:on={inDeck}
 							disabled={!rules.on}
 							aria-pressed={inDeck}
-							title={inDeck ? 'Take this card out of the deck' : 'Put this card back in the deck'}
-							onclick={() => toggle(c)}>{inDeck ? 'In' : 'Out'}</button
+							title={inDeck ? t('Take this card out of the deck') : t('Put this card back in the deck')}
+							onclick={() => toggle(c)}>{inDeck ? t('In') : t('Out')}</button
 						>
 					{:else}
-						<span class="note">{inDeck ? 'In' : 'Out'}</span>
+						<span class="note">{inDeck ? t('In') : t('Out')}</span>
 					{/if}
 				</div>
 			{/each}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { AVATAR_NAMES, type AvatarId, type Whereabouts } from '../../../shared/accounts';
+	import { t } from '../../i18n/index.svelte';
 	import { avatarUrl } from '../../scene/avatars';
 	import { WHEREABOUTS } from '../../state/account.svelte';
 
@@ -22,13 +23,13 @@
 <span class="avatar" class:framed style="--size:{size}px">
 	<span class="pic">
 		{#if url}
-			<img src={url} alt={id ? AVATAR_NAMES[id] : ''} draggable="false" />
+			<img src={url} alt={id ? t(AVATAR_NAMES[id]) : ''} draggable="false" />
 		{:else}
-			<span class="initial">{id ? AVATAR_NAMES[id][0] : '?'}</span>
+			<span class="initial">{id ? t(AVATAR_NAMES[id])[0] : '?'}</span>
 		{/if}
 	</span>
 	{#if where}
-		<span class="badge {where}" title={WHEREABOUTS[where]}></span>
+		<span class="badge {where}" title={t(WHEREABOUTS[where])}></span>
 	{/if}
 </span>
 

@@ -3,6 +3,7 @@
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
 	import { PIXEL } from './pixel';
+	import { t, tx } from '../i18n/index.svelte';
 
 	/**
 	 * Where an invite link lands: the room's code on its tiles and how far along the trip to the
@@ -10,9 +11,9 @@
 	 */
 	const joining = $derived(client.joining!);
 	const STEPS = $derived([
-		'Reaching the realm',
-		'Finding the table',
-		client.spectating ? 'Finding a spot to watch' : 'Taking your seat'
+		t('Reaching the realm'),
+		t('Finding the table'),
+		client.spectating ? t('Finding a spot to watch') : t('Taking your seat')
 	]);
 	const step = $derived(
 		client.status !== 'online' ? 0 : !client.seat && !client.spectating ? 1 : 2
@@ -24,21 +25,21 @@
 	<div class="column">
 		{#if joining.error}
 			<div class="card panel failed">
-				<div class="ribbon head crimson">Can't join</div>
+				<div class="ribbon head crimson">{t("Can't join")}</div>
 				<div class="room">
-					<span class="label">Room code</span>
+					<span class="label">{t('Room code')}</span>
 					<CodeTiles value={joining.code} size="big" />
 				</div>
-				<p class="why">{joining.error}</p>
+				<p class="why">{tx(joining.error)}</p>
 				<button class="btn big block green" onclick={() => client.cancelJoin()}>
-					<img src={PIXEL.house} alt="" />Main menu
+					<img src={PIXEL.house} alt="" />{t('Main menu')}
 				</button>
 			</div>
 		{:else}
 			<div class="card panel">
-				<div class="ribbon head">Joining room</div>
+				<div class="ribbon head">{t('Joining room')}</div>
 				<div class="room">
-					<span class="label">Room code</span>
+					<span class="label">{t('Room code')}</span>
 					<CodeTiles value={joining.code} size="big" />
 				</div>
 				<ol class="steps">
@@ -61,7 +62,7 @@
 					{/each}
 				</ol>
 				<button class="btn small wood back" onclick={() => client.cancelJoin()}>
-					<img class="icon-px" src={PIXEL.door} alt="" />Back to menu
+					<img class="icon-px" src={PIXEL.door} alt="" />{t('Back to menu')}
 				</button>
 			</div>
 		{/if}

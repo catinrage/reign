@@ -10,6 +10,9 @@
 		passwordProblem,
 		usernameProblem
 	} from '../../../shared/accounts';
+	import { msg, t, tx } from '../../i18n/index.svelte';
+	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
+	import Rich from '../../i18n/Rich.svelte';
 	import { LogoView } from '../../scene/logo';
 	import { account } from '../../state/account.svelte';
 	import Embers from '../menu/Embers.svelte';
@@ -67,7 +70,7 @@
 			const problem =
 				usernameProblem(cleanUsername(username)) ??
 				passwordProblem(password) ??
-				(password !== confirm ? "The two passwords don't match." : null);
+				(password !== confirm ? msg("The two passwords don't match.") : null);
 			if (problem) {
 				error = problem;
 				return;
@@ -94,28 +97,29 @@
 				<canvas bind:this={canvas} aria-label="Reign"></canvas>
 				{#if !logoOk}<h1 class="title">REIGN</h1>{/if}
 			</div>
-			<div class="ribbon tagline">Settle <i>·</i> Trade <i>·</i> Build</div>
+			<div class="ribbon tagline">{t('Settle')} <i>·</i> {t('Trade')} <i>·</i> {t('Build')}</div>
 		</header>
 
 		<form class="sign panel" class:wide={mode === 'up'} onsubmit={submit} novalidate>
 			{#if invitedTo}
 				<p class="invite plaque">
-					<img class="icon-px" src={PIXEL.letter} alt="" />Sign in to join table <b>{invitedTo}</b>
+					<img class="icon-px" src={PIXEL.letter} alt="" /><span><Rich text={t('Sign in to join table {code}')} slots={{ code }} /></span>
+					{#snippet code()}<b>{invitedTo}</b>{/snippet}
 				</p>
 			{/if}
 			<div class="seg tabs" role="tablist">
 				<button type="button" role="tab" aria-selected={mode === 'in'} class="btn small" class:on={mode === 'in'} onclick={() => switchTo('in')}
-					><img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />Sign in</button
+					><img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />{t('Sign in')}</button
 				>
 				<button type="button" role="tab" aria-selected={mode === 'up'} class="btn small" class:on={mode === 'up'} onclick={() => switchTo('up')}
-					><img class="icon-px" src={ACCOUNT_ICONS.quill} alt="" />Create account</button
+					><img class="icon-px" src={ACCOUNT_ICONS.quill} alt="" />{t('Create account')}</button
 				>
 			</div>
 
 			<div class="fields" class:two={mode === 'up'}>
 				<div class="col">
 					<label class="field">
-						<span class="label">Username</span>
+						<span class="label">{t('Username')}</span>
 						<input
 							class="input"
 							bind:value={username}
@@ -125,57 +129,61 @@
 							spellcheck="false"
 							placeholder="settler_42"
 						/>
-						{#if mode === 'up'}<span class="hint">Friends find you by it. Letters, digits and _.</span>{/if}
+						{#if mode === 'up'}<span class="hint">{t('Friends find you by it. Letters, digits and _.')}</span>{/if}
 					</label>
 					{#if mode === 'up'}
 						<label class="field">
-							<span class="label">Nickname</span>
-							<input class="input" bind:value={nickname} maxlength={NICKNAME_MAX} placeholder="What the table calls you" />
+							<span class="label">{t('Nickname')}</span>
+							<input class="input" bind:value={nickname} maxlength={NICKNAME_MAX} placeholder={t('What the table calls you')} />
 						</label>
 					{/if}
 					<label class="field">
-						<span class="label">Password</span>
+						<span class="label">{t('Password')}</span>
 						<input
 							class="input"
 							type="password"
 							bind:value={password}
 							autocomplete={mode === 'in' ? 'current-password' : 'new-password'}
-							placeholder={mode === 'up' ? `At least ${PASSWORD_MIN} characters` : ''}
+							placeholder={mode === 'up' ? t('At least {n} characters', { n: PASSWORD_MIN }) : ''}
 						/>
 					</label>
 					{#if mode === 'up'}
 						<label class="field">
-							<span class="label">Password again</span>
+							<span class="label">{t('Password again')}</span>
 							<input class="input" type="password" bind:value={confirm} autocomplete="new-password" />
 						</label>
 					{/if}
 				</div>
 				{#if mode === 'up'}
 					<div class="col">
-						<span class="label">Avatar</span>
+						<span class="label">{t('Avatar')}</span>
 						<div class="well avatars"><AvatarPicker bind:value={avatar} size={54} /></div>
-						<span class="hint">You can change all of this later.</span>
+						<span class="hint">{t('You can change all of this later.')}</span>
 					</div>
 				{/if}
 			</div>
 
-			{#if error}<p class="error" role="alert">{error}</p>{/if}
+			{#if error}<p class="error" role="alert">{tx(error)}</p>{/if}
 
 			<button class="btn big block shine" type="submit" disabled={busy || !username || !password}>
 				<img src={mode === 'in' ? PIXEL.play : ACCOUNT_ICONS.quill} alt="" />
 				<span class="stack"
-					>{mode === 'in' ? 'Sign in' : 'Create account'}<span class="sub"
-						>{mode === 'in' ? 'Welcome back, settler' : 'Claim your place at the table'}</span
+					>{mode === 'in' ? t('Sign in') : t('Create account')}<span class="sub"
+						>{mode === 'in' ? t('Welcome back, settler') : t('Claim your place at the table')}</span
 					></span
 				>
 			</button>
 			<p class="switch">
 				{#if mode === 'in'}
-					New here? <button type="button" class="link" onclick={() => switchTo('up')}>Create an account</button>
+					{t('New here?')} <button type="button" class="link" onclick={() => switchTo('up')}>{t('Create an account')}</button>
 				{:else}
-					Have an account? <button type="button" class="link" onclick={() => switchTo('in')}>Sign in</button>
+					{t('Have an account?')} <button type="button" class="link" onclick={() => switchTo('in')}>{t('Sign in')}</button>
 				{/if}
 			</p>
+			<div class="lang">
+				<div class="divider"><i></i><span>{t('Language')}</span><i></i></div>
+				<LanguagePicker />
+			</div>
 		</form>
 	</div>
 </div>
@@ -337,6 +345,11 @@
 		text-align: center;
 		font-weight: 700;
 		color: var(--muted);
+	}
+	.lang {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 	}
 	.link {
 		all: unset;

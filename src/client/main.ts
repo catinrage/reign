@@ -3,12 +3,14 @@ import '@fontsource/pixelify-sans/700.css';
 import '@fontsource-variable/nunito';
 import './styles/global.css';
 import { runSandbox } from './sandbox';
+import { initLanguage } from './i18n/index.svelte';
 
 async function boot() {
 	await Promise.all([
 		document.fonts.load('700 40px "Pixelify Sans"'),
 		document.fonts.load('700 40px "Reign Px"', 'C'),
-		document.fonts.load('900 40px "Nunito Variable"')
+		document.fonts.load('900 40px "Nunito Variable"'),
+		initLanguage()
 	]).catch(() => {});
 	const canvas = document.getElementById('world') as HTMLCanvasElement;
 	if (new URLSearchParams(location.search).has('sandbox')) {

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { AVATARS, AVATAR_NAMES, type AvatarId } from '../../../shared/accounts';
+	import { t } from '../../i18n/index.svelte';
 	import Avatar from './Avatar.svelte';
 
 	let { value = $bindable(), size = 58 }: { value: AvatarId; size?: number } = $props();
 </script>
 
-<div class="picker" role="radiogroup" aria-label="Avatar">
+<div class="picker" role="radiogroup" aria-label={t('Avatar')}>
 	{#each AVATARS as a (a)}
 		<button
 			type="button"
@@ -13,7 +14,7 @@
 			class:on={value === a}
 			role="radio"
 			aria-checked={value === a}
-			title={AVATAR_NAMES[a]}
+			title={t(AVATAR_NAMES[a])}
 			onclick={() => (value = a)}
 		>
 			<Avatar id={a} {size} />

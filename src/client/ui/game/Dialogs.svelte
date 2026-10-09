@@ -9,6 +9,7 @@
 	import ResCard from '../ResCard.svelte';
 	import Portrait from '../extended/Portrait.svelte';
 	import { dialogs } from './dialogs.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
 	const me = $derived(view.me);
@@ -41,11 +42,16 @@
 </script>
 
 {#if mustDiscard && res}
-	<Modal title="The robber strikes!" ribbon="crimson" width={480}>
+	<Modal title={t('The robber strikes!')} ribbon="crimson" width={480}>
 		<p>
-			You hold more than {discardLimit(view, me)} cards.
-			{#if safe}Your storehouse keeps {safe} safe, so pick{:else}Pick{/if}
-			{mustDiscard} to give back to the bank.
+			{#if safe}{t('You hold more than {limit} cards. Your storehouse keeps {safe} safe, so pick {n} to give back to the bank.', {
+					limit: discardLimit(view, me),
+					safe,
+					n: mustDiscard
+				})}{:else}{t('You hold more than {limit} cards. Pick {n} to give back to the bank.', {
+					limit: discardLimit(view, me),
+					n: mustDiscard
+				})}{/if}
 		</p>
 		<div class="row">
 			{#each RESOURCES as r (r)}
@@ -70,12 +76,12 @@
 		</div>
 		<div class="foot spread">
 			<span class="progress"
-				><span class="coin">{picked}</span><span class="of">of {mustDiscard}</span></span
+				><span class="coin">{picked}</span><span class="of">{t('of {total}', { total: mustDiscard })}</span></span
 			>
 			<button
 				class="btn red"
 				disabled={picked !== mustDiscard}
-				onclick={() => client.act({ type: 'discard', resources: { ...discard } })}>Discard</button
+				onclick={() => client.act({ type: 'discard', resources: { ...discard } })}>{t('Discard')}</button
 			>
 		</div>
 	</Modal>
@@ -83,12 +89,20 @@
 
 {#if owed.length && !mustDiscard}
 	{@const from = CHARACTER_INFO[owed[0]]}
-	<Modal title={from.trait} width={480}>
+	{@const who = { name: t(from.name), title: t(from.title), n: owed.length }}
+	<Modal title={t(from.trait)} width={480}>
 		<div class="owed">
 			<Portrait id={owed[0]} size={64} />
 			<p>
-				{owed[0] === view.players[me].character ? `${from.name} ${from.title}` : `Trading with ${from.name} ${from.title}`}: take
-				any resource from the bank{owed.length > 1 ? ` (${owed.length} to take)` : ''}.
+				{#if owed[0] === view.players[me].character}
+					{owed.length > 1
+						? t('{name} {title}: take any resource from the bank ({n} to take).', who)
+						: t('{name} {title}: take any resource from the bank.', who)}
+				{:else}
+					{owed.length > 1
+						? t('Trading with {name} {title}: take any resource from the bank ({n} to take).', who)
+						: t('Trading with {name} {title}: take any resource from the bank.', who)}
+				{/if}
 			</p>
 		</div>
 		<div class="row">
@@ -100,7 +114,7 @@
 						dim={view.bank[r] === 0}
 						onclick={() => view.bank[r] > 0 && client.act({ type: 'takePick', resource: r })}
 					/>
-					<span class="nm">{RESOURCE_LABEL[r]}</span>
+					<span class="nm">{t(RESOURCE_LABEL[r])}</span>
 				</div>
 			{/each}
 		</div>
@@ -108,8 +122,8 @@
 {/if}
 
 {#if choosingVictim}
-	<Modal title="Rob a neighbor" ribbon="crimson" width={400}>
-		<p>Take a random card from one player beside the robber.</p>
+	<Modal title={t('Rob a neighbor')} ribbon="crimson" width={400}>
+		<p>{t('Take a random card from one player beside the robber.')}</p>
 		<div class="victims">
 			{#each view.stealCandidates as v (v)}
 				{@const p = view.players[v]}
@@ -129,8 +143,8 @@
 {/if}
 
 {#if dialogs.open === 'yearOfPlenty'}
-	<Modal title="Year of Plenty" width={480} onclose={() => (dialogs.open = null)}>
-		<p>Take any two resources from the bank.</p>
+	<Modal title={t('Year of Plenty')} width={480} onclose={() => (dialogs.open = null)}>
+		<p>{t('Take any two resources from the bank.')}</p>
 		<div class="row">
 			{#each RESOURCES as r (r)}
 				<ResCard
@@ -144,7 +158,7 @@
 		</div>
 		<div class="foot">
 			<button class="btn wood" onclick={() => (yop.length ? (yop = []) : (dialogs.open = null))}
-				>{yop.length ? 'Reset' : 'Cancel'}</button
+				>{yop.length ? t('Reset') : t('Cancel')}</button
 			>
 			<button
 				class="btn green"
@@ -152,15 +166,15 @@
 				onclick={() => {
 					client.act({ type: 'playYearOfPlenty', resources: [yop[0], yop[1]] });
 					dialogs.open = null;
-				}}>Take them</button
+				}}>{t('Take them')}</button
 			>
 		</div>
 	</Modal>
 {/if}
 
 {#if dialogs.open === 'monopoly'}
-	<Modal title="Monopoly" width={480} onclose={() => (dialogs.open = null)}>
-		<p>Name a resource. Every other player hands you all of theirs.</p>
+	<Modal title={t('Monopoly')} width={480} onclose={() => (dialogs.open = null)}>
+		<p>{t('Name a resource. Every other player hands you all of theirs.')}</p>
 		<div class="row">
 			{#each RESOURCES as r (r)}
 				<div class="col">
@@ -172,7 +186,7 @@
 							dialogs.open = null;
 						}}
 					/>
-					<span class="nm">{RESOURCE_LABEL[r]}</span>
+					<span class="nm">{t(RESOURCE_LABEL[r])}</span>
 				</div>
 			{/each}
 		</div>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getTopology } from '../../../shared/board/topology';
-	import { RESOURCES, type Resource, type ResourceCounts } from '../../../shared/rules/config';
+	import { RESOURCES, RESOURCE_LABEL, type Resource, type ResourceCounts } from '../../../shared/rules/config';
 	import {
 		roadSpots,
 		settlementSpots,
@@ -18,6 +18,7 @@
 	import { myTurn } from '../helpers';
 	import { powerPick } from './power';
 	import { POWER_INFO } from '../../../shared/rules/characters';
+	import { t } from '../../i18n/index.svelte';
 	import { sceneRef } from '../sceneRef';
 	import { sfx } from '../sound';
 	import Actions from './Actions.svelte';
@@ -217,23 +218,28 @@
 				if (e.offer.from !== me) sfx.trade();
 				break;
 			case 'turnTimedOut':
-				if (e.player === me) client.toast("Time's up! Your turn is over.", 'error');
-				else client.toast(`${view.players[e.player].name} ran out of time`);
+				if (e.player === me) client.toast(t("Time's up! Your turn is over."), 'error');
+				else client.toast(t('{player} ran out of time', { player: view.players[e.player].name }));
 				break;
 			case 'stole':
 				sfx.steal();
-				if (e.victim === me) client.toast(`${view.players[e.thief].name} stole ${e.resource ? 'your ' + e.resource : 'a card'}!`, 'error');
-				if (e.thief === me && e.resource) client.toast(`You stole ${e.resource} from ${view.players[e.victim].name}`, 'good');
+				if (e.victim === me) {
+					const thief = view.players[e.thief].name;
+					if (e.resource) client.toast(t('{player} stole your {resource}!', { player: thief, resource: t(RESOURCE_LABEL[e.resource]) }), 'error');
+					else client.toast(t('{player} stole a card!', { player: thief }), 'error');
+				}
+				if (e.thief === me && e.resource)
+					client.toast(t('You stole {resource} from {player}', { resource: t(RESOURCE_LABEL[e.resource]), player: view.players[e.victim].name }), 'good');
 				break;
 			case 'monopoly':
-				if (e.player !== me && e.taken[me]) client.toast(`${view.players[e.player].name} took all your ${e.resource}!`, 'error');
+				if (e.player !== me && e.taken[me]) client.toast(t('{player} took all your {resource}!', { player: view.players[e.player].name, resource: t(RESOURCE_LABEL[e.resource]) }), 'error');
 				flyTaken(e.player, e.resource, e.taken);
 				break;
 			case 'longestRoad':
-				if (e.player === me) client.toast('You hold the Longest Road! +2', 'good');
+				if (e.player === me) client.toast(t('You hold the Longest Road! +2'), 'good');
 				break;
 			case 'largestArmy':
-				if (e.player === me) client.toast('You command the Largest Army! +2', 'good');
+				if (e.player === me) client.toast(t('You command the Largest Army! +2'), 'good');
 				break;
 			case 'built':
 				flyToBank(e.player, e.paid);
@@ -248,7 +254,7 @@
 				break;
 			case 'tradeCompleted':
 				sfx.card();
-				if (e.to === me) client.toast(`Trade with ${view.players[e.from].name} done`, 'good');
+				if (e.to === me) client.toast(t('Trade with {player} done', { player: view.players[e.from].name }), 'good');
 				flyTraded(e.from, e.to, e.give, e.want);
 				break;
 			case 'gameOver':
@@ -265,10 +271,10 @@
 				// Powers are rare, so everyone hears and reads each one.
 				sfx.open();
 				if (e.player === me) break;
-				const power = POWER_INFO[e.character].name;
+				const power = t(POWER_INFO[e.character].name);
 				const who = view.players[e.player].name;
-				if (e.target === me) client.toast(`${who} used ${power} on you!`, 'error');
-				else client.toast(`${who} used ${power}`);
+				if (e.target === me) client.toast(t('{player} used {power} on you!', { player: who, power }), 'error');
+				else client.toast(t('{player} used {power}', { player: who, power }));
 				break;
 			}
 		}

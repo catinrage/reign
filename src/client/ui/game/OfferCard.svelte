@@ -4,6 +4,7 @@
 	import { countsList } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
 	const offer = $derived(view.trade);
@@ -24,10 +25,10 @@
 			<span class="seal shield" style="--shield: var(--art-shield-{from.color})"
 				>{from.name.slice(0, 1).toUpperCase()}</span
 			>
-			<div class="who title">{mine ? 'Your offer' : `${from.name} offers a trade`}</div>
+			<div class="who title">{mine ? t('Your offer') : t('{player} offers a trade', { player: from.name })}</div>
 			<div class="swap">
 				<div class="side">
-					<span class="label">{mine ? 'You give' : 'You get'}</span>
+					<span class="label">{mine ? t('You give') : t('You get')}</span>
 					<div class="cards">
 						{#each countsList(offer.give) as c (c.res)}<ResCard
 								res={c.res}
@@ -36,9 +37,9 @@
 							/>{/each}
 					</div>
 				</div>
-				<img class="arrow icon-px" src={PIXEL.trade} alt="for" />
+				<img class="arrow icon-px" src={PIXEL.trade} alt={t('for')} />
 				<div class="side">
-					<span class="label">{mine ? 'You get' : 'You give'}</span>
+					<span class="label">{mine ? t('You get') : t('You give')}</span>
 					<div class="cards">
 						{#each countsList(offer.want) as c (c.res)}<ResCard
 								res={c.res}
@@ -60,38 +61,38 @@
 									<button
 										class="btn small green"
 										onclick={() => client.act({ type: 'confirmTrade', offerId: offer.id, with: i })}
-										>Trade</button
+										>{t('Trade')}</button
 									>
 								{:else if r === 'decline'}
-									<span class="no">declined</span>
+									<span class="no">{t('declined')}</span>
 								{:else}
-									<span class="wait">thinking…</span>
+									<span class="wait">{t('thinking…')}</span>
 								{/if}
 							</div>
 						{/if}
 					{/each}
 				</div>
 				<button class="btn small wood" onclick={() => client.act({ type: 'cancelTrade' })}
-					>Withdraw offer</button
+					>{t('Withdraw offer')}</button
 				>
 			{:else if answer === undefined}
 				<div class="btns">
 					<button
 						class="btn small red"
 						onclick={() => client.act({ type: 'respondTrade', offerId: offer.id, accept: false })}
-						>Decline</button
+						>{t('Decline')}</button
 					>
 					<button
 						class="btn small green"
 						disabled={!canAccept}
 						onclick={() => client.act({ type: 'respondTrade', offerId: offer.id, accept: true })}
 					>
-						{canAccept ? 'Accept' : 'Not enough cards'}
+						{canAccept ? t('Accept') : t('Not enough cards')}
 					</button>
 				</div>
 			{:else}
 				<div class="status">
-					{answer === 'accept' ? 'You accepted. Waiting for them to confirm.' : 'You declined.'}
+					{answer === 'accept' ? t('You accepted. Waiting for them to confirm.') : t('You declined.')}
 				</div>
 			{/if}
 		</div>

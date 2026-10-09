@@ -17,6 +17,7 @@
 	import { PIXEL } from '../pixel';
 	import { saveMap } from './savedMaps.svelte';
 	import { TERRAIN_CSS, TERRAIN_NAME } from './terrainColors';
+	import { t, tx } from '../../i18n/index.svelte';
 
 	type Brush = Terrain | 'random' | 'sea';
 
@@ -37,9 +38,9 @@
 	} = $props();
 
 	// The editor keeps its own copy: later changes to the props don't reset the drawing.
-	const start = untrack(() => $state.snapshot(initial)) ?? { name: 'My island', tiles: MAP_PRESETS[0].tiles };
+	const start = untrack(() => $state.snapshot(initial)) ?? { name: t('My island'), tiles: MAP_PRESETS[0].tiles };
 	let name = $state(start.name);
-	let land = $state<Record<string, Terrain | null>>(Object.fromEntries(start.tiles.map((t) => [hexKey(t), t.terrain])));
+	let land = $state<Record<string, Terrain | null>>(Object.fromEntries(start.tiles.map((tile) => [hexKey(tile), tile.terrain])));
 	// There's no size limit: the grid always keeps two rings of open sea around the land, and
 	// grows (or shrinks back) when a stroke ends so cells don't slide under the pointer.
 	const fit = () => {
@@ -60,11 +61,11 @@
 	const tiles = $derived<MapTile[]>(
 		cells.filter((c) => c.key in land).map((c) => ({ q: c.q, r: c.r, terrain: land[c.key] }))
 	);
-	const map = $derived<CustomMap>({ name: name.trim() || 'My island', tiles: centerTiles(tiles) });
+	const map = $derived<CustomMap>({ name: name.trim() || t('My island'), tiles: centerTiles(tiles) });
 	const problem = $derived(validateCustomMap(map));
 	const counts = $derived.by(() => {
 		const n: Record<string, number> = {};
-		for (const t of tiles) n[t.terrain ?? 'random'] = (n[t.terrain ?? 'random'] ?? 0) + 1;
+		for (const tile of tiles) n[tile.terrain ?? 'random'] = (n[tile.terrain ?? 'random'] ?? 0) + 1;
 		return n;
 	});
 
@@ -102,14 +103,14 @@
 
 	function loadPreset(id: string) {
 		const p = MAP_PRESETS.find((m) => m.id === id);
-		if (p) land = Object.fromEntries(p.tiles.map((t) => [hexKey(t), t.terrain]));
+		if (p) land = Object.fromEntries(p.tiles.map((tile) => [hexKey(tile), tile.terrain]));
 		radius = fit();
 	}
 
 	function save() {
 		if (problem) return;
 		savedAt = saveMap(map, savedAt);
-		client.toast(`Saved "${map.name}" to your maps.`, 'good');
+		client.toast(t('Saved "{name}" to your maps.', { name: map.name }), 'good');
 	}
 
 	function use() {
@@ -121,7 +122,7 @@
 	async function copyCode() {
 		try {
 			await navigator.clipboard.writeText(encodeMap(map));
-			client.toast('Map code copied. Friends can paste it in the map list.', 'good');
+			client.toast(t('Map code copied. Friends can paste it in the map list.'), 'good');
 		} catch {
 			client.toast(encodeMap(map));
 		}
@@ -130,9 +131,9 @@
 	const BRUSHES: Brush[] = ['random', ...TERRAINS, 'sea'];
 </script>
 
-<Modal title="Map maker" width={880} {onclose}>
+<Modal title={t('Map maker')} width={880} {onclose}>
 	<div class="editor">
-		<div class="board" role="application" aria-label="Map grid">
+		<div class="board" role="application" aria-label={t('Map grid')}>
 			<svg
 				role="presentation"
 				viewBox={view}
@@ -143,21 +144,21 @@
 				onpointerleave={up}
 			>
 				{#each cells as c (c.key)}
-					{@const t = c.key in land ? (land[c.key] ?? 'random') : null}
-					{#if t}
+					{@const ter = c.key in land ? (land[c.key] ?? 'random') : null}
+					{#if ter}
 						<polygon points={poly(c.x, c.z, 1.32)} fill="#63abc4" />
 					{/if}
 				{/each}
 				{#each cells as c (c.key)}
-					{@const t = c.key in land ? (land[c.key] ?? 'random') : null}
+					{@const ter = c.key in land ? (land[c.key] ?? 'random') : null}
 					<polygon
 						data-key={c.key}
 						class="cell"
-						class:land={!!t}
+						class:land={!!ter}
 						points={poly(c.x, c.z, 0.94)}
-						fill={t ? TERRAIN_CSS[t] : 'rgba(40, 90, 130, 0.35)'}
+						fill={ter ? TERRAIN_CSS[ter] : 'rgba(40, 90, 130, 0.35)'}
 					/>
-					{#if t === 'random'}
+					{#if ter === 'random'}
 						<text x={c.x} y={c.z + 0.34} text-anchor="middle">?</text>
 					{/if}
 				{/each}
@@ -166,19 +167,19 @@
 
 		<div class="side">
 			<label class="field">
-				<span class="label">Name</span>
+				<span class="label">{t('Name')}</span>
 				<input class="input" maxlength="24" bind:value={name} />
 			</label>
 
 			<div class="field">
-				<span class="label">Paint with</span>
+				<span class="label">{t('Paint with')}</span>
 				<div class="brushes seg">
 					{#each BRUSHES as b (b)}
 						<button class="brush btn small" class:on={brush === b} onclick={() => (brush = b)}>
 							<span class="chip" class:sea={b === 'sea'} style="--c:{b === 'sea' ? '#4d90bd' : TERRAIN_CSS[b]}"
 								>{b === 'random' ? '?' : ''}</span
 							>
-							{b === 'sea' ? 'Sea' : TERRAIN_NAME[b]}
+							{b === 'sea' ? t('Sea') : t(TERRAIN_NAME[b])}
 							{#if b !== 'sea' && counts[b]}<em>{counts[b]}</em>{/if}
 						</button>
 					{/each}
@@ -186,25 +187,30 @@
 			</div>
 
 			<div class="field">
-				<span class="label">Start from</span>
+				<span class="label">{t('Start from')}</span>
 				<div class="starts">
 					{#each MAP_PRESETS as p (p.id)}
-						<button class="btn small wood" onclick={() => loadPreset(p.id)}>{p.name}</button>
+						<button class="btn small wood" onclick={() => loadPreset(p.id)}>{t(p.name)}</button>
 					{/each}
 				</div>
 			</div>
 
 			<p class="status" class:bad={!!problem}>
-				{problem ?? `${tiles.length} tiles, seats ${mapSeats(tiles.length)} · random tiles get a classic mix, numbers and harbors are dealt each game.`}
+				{problem
+					? tx(problem)
+					: t(
+							'{tiles, plural, one {# tile} other {# tiles}}, seats {seats} · random tiles get a classic mix, numbers and harbors are dealt each game.',
+							{ tiles: tiles.length, seats: mapSeats(tiles.length) }
+						)}
 			</p>
 
 			<div class="actions">
 				<button class="btn small wood" onclick={copyCode} disabled={!!problem}
-					><img class="icon-px" src={PIXEL.letter} alt="" />Copy code</button
+					><img class="icon-px" src={PIXEL.letter} alt="" />{t('Copy code')}</button
 				>
-				<button class="btn small" onclick={save} disabled={!!problem}>Save</button>
+				<button class="btn small" onclick={save} disabled={!!problem}>{t('Save')}</button>
 				{#if canUse}
-					<button class="btn green" onclick={use} disabled={!!problem}>Play this map</button>
+					<button class="btn green" onclick={use} disabled={!!problem}>{t('Play this map')}</button>
 				{/if}
 			</div>
 		</div>

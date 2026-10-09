@@ -7,6 +7,7 @@
 	import { TERRAIN_NAME } from '../extended/terrainColors';
 	import { PIXEL, svg } from '../pixel';
 	import { ui } from './ui.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Your tiles down the left side, one row per number: what each roll pays you, tile by tile, so
@@ -24,25 +25,30 @@
 	}
 	const rows = $derived.by(() => {
 		const out: Row[] = [];
-		for (const t of tileIncome(view, me)) {
-			let row = out.find((r) => r.number === t.number);
-			if (!row) out.push((row = { number: t.number, tiles: [] }));
-			row.tiles.push({ ...t, tip: tipFor(t) });
+		for (const tile of tileIncome(view, me)) {
+			let row = out.find((r) => r.number === tile.number);
+			if (!row) out.push((row = { number: tile.number, tiles: [] }));
+			row.tiles.push({ ...tile, tip: tipFor(tile) });
 		}
 		return out;
 	});
 
-	function tipFor(t: TileIncome): string {
-		const terrain = TERRAIN_NAME[view.board.hexes[t.hex].terrain];
+	function tipFor(tile: TileIncome): string {
+		const terrain = t(TERRAIN_NAME[view.board.hexes[tile.hex].terrain]);
 		const from = [
-			t.settlements && `${t.settlements} settlement${t.settlements > 1 ? 's' : ''}`,
-			t.cities && `${t.cities} cit${t.cities > 1 ? 'ies' : 'y'}`,
-			t.workshop && 'your workshop'
-		].filter(Boolean);
-		const pays = `${t.amount} ${RESOURCE_LABEL[t.resource]} from ${from.join(', ')}.`;
-		return t.robbed
-			? `${terrain} ${t.number}: the robber sits here, so it pays nothing until he moves. Free, it would pay ${pays}`
-			: `${terrain} ${t.number}: ${pays}`;
+			tile.settlements && t('{n, plural, one {# settlement} other {# settlements}}', { n: tile.settlements }),
+			tile.cities && t('{n, plural, one {# city} other {# cities}}', { n: tile.cities }),
+			tile.workshop && t('your workshop')
+		].filter((x): x is string => !!x);
+		const sources = from.reduce((list, next) => t('{list}, {next}', { list, next }));
+		const pays = t('{amount} {resource} from {sources}.', { amount: tile.amount, resource: t(RESOURCE_LABEL[tile.resource]), sources });
+		return tile.robbed
+			? t('{terrain} {number}: the robber sits here, so it pays nothing until he moves. Free, it would pay {pays}', {
+					terrain,
+					number: tile.number,
+					pays
+				})
+			: t('{terrain} {number}: {pays}', { terrain, number: tile.number, pays });
 	}
 
 	// The number just rolled lights up once the dice have landed.
@@ -93,16 +99,16 @@
 		class:cheats={client.cheats}
 		class:log-closed={!ui.logOpen}
 	>
-		<button class="head" onclick={toggle} aria-expanded={open} title="What each roll pays you">
+		<button class="head" onclick={toggle} aria-expanded={open} title={t('What each roll pays you')}>
 			<img class="icon-px" src={PIXEL.die} alt="" />
-			<span class="title">Your tiles</span>
+			<span class="title">{t('Your tiles')}</span>
 			<span class="chev" class:open>▸</span>
 		</button>
 		{#if open}
 			<div class="rows">
 				{#each rows as r (r.number)}
 					{@const hit = r.number === rolled}
-					<div class="row" class:hit class:dead={r.tiles.every((t) => t.robbed)}>
+					<div class="row" class:hit class:dead={r.tiles.every((tile) => tile.robbed)}>
 						{#if hit}{#key roll?.seq}<span class="glow"></span>{/key}{/if}
 						<span class="token" class:red={r.number === 6 || r.number === 8}>
 							<b>{r.number}</b>
@@ -111,13 +117,13 @@
 							>
 						</span>
 						<span class="pays">
-							{#each r.tiles as t (t.hex)}
-								<span class="chip" class:robbed={t.robbed} title={t.tip}>
-									<span class="art" style="--pat: var(--pat-{t.resource})"
-										><img src={icons[t.resource]} alt={RESOURCE_LABEL[t.resource]} /></span
+							{#each r.tiles as tile (tile.hex)}
+								<span class="chip" class:robbed={tile.robbed} title={tile.tip}>
+									<span class="art" style="--pat: var(--pat-{tile.resource})"
+										><img src={icons[tile.resource]} alt={t(RESOURCE_LABEL[tile.resource])} /></span
 									>
-									{#if t.robbed}<img class="robber" src={ROBBER} alt="robber" />{:else}<b
-											>{t.amount}</b
+									{#if tile.robbed}<img class="robber" src={ROBBER} alt={t('robber')} />{:else}<b
+											>{tile.amount}</b
 										>{/if}
 								</span>
 							{/each}
@@ -136,11 +142,14 @@
 						<span class="pays">
 							<span
 								class="chip"
-								title="{CHARACTER_INFO.shepherd.name} {CHARACTER_INFO.shepherd
-									.title}: {CHARACTER_INFO.shepherd.text}"
+								title={t('{name} {title}: {text}', {
+									name: t(CHARACTER_INFO.shepherd.name),
+									title: t(CHARACTER_INFO.shepherd.title),
+									text: t(CHARACTER_INFO.shepherd.text)
+								})}
 							>
 								<span class="art" style="--pat: var(--pat-sheep)"
-									><img src={icons.sheep} alt={RESOURCE_LABEL.sheep} /></span
+									><img src={icons.sheep} alt={t(RESOURCE_LABEL.sheep)} /></span
 								>
 								<b>1</b>
 							</span>

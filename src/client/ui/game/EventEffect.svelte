@@ -6,6 +6,7 @@
 	import { settings } from '../settings.svelte';
 	import { sfx } from '../sound';
 	import { EVENT_ART, TONE_COLOR } from './eventArt';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Reign Extended: what an event card does, played out for everyone once it is put down, so
@@ -53,58 +54,100 @@
 		const after = aftermath(view, seq);
 		const moved = after.find((e) => e.type === 'eventCards');
 		const moves = moved?.type === 'eventCards' ? moved.moves : [];
-		const name = (p: number) => (p === view.me ? 'you' : (view.players[p]?.name ?? 'someone'));
-		const Name = (p: number) => (p === view.me ? 'You' : (view.players[p]?.name ?? 'Someone'));
-		const cards = (n: number) => (n === 1 ? '1 card' : `${n} cards`);
+		const me = view.me;
+		/** Another player's name. */
+		const name = (p: number) => view.players[p]?.name ?? t('someone');
+		const n = moves.length;
 		const losers = [...new Set(moves.flatMap((m) => (m.from !== null ? [m.from] : [])))];
+		const iLost = losers.includes(me);
+		/** The other players who lost cards, as one list. */
+		const others = losers
+			.filter((p) => p !== me)
+			.map(name)
+			.reduce((all, one) => (all ? t('{list}, {item}', { list: all, item: one }) : one), '');
 		let line = '';
 		switch (card) {
-			case 'royalWedding':
-				line = moves.length ? `${Name(moves[0].to!)} ${moves[0].to === view.me ? 'get' : 'gets'} ${cards(moves.length)} as wedding gifts` : 'Nobody had a gift to give';
-				break;
-			case 'royalDecree': {
-				const chooser = view.events?.choice?.player;
-				line = chooser === undefined ? 'The crown picks this round' : `${Name(chooser)} ${chooser === view.me ? 'pick' : 'picks'} this round's event`;
+			case 'royalWedding': {
+				const to = moves[0]?.to;
+				line = !n || to == null
+					? t('Nobody had a gift to give')
+					: to === me
+						? t('{n, plural, one {You get # card as wedding gifts} other {You get # cards as wedding gifts}}', { n })
+						: t('{n, plural, one {{player} gets # card as wedding gifts} other {{player} gets # cards as wedding gifts}}', { n, player: name(to) });
 				break;
 			}
-			case 'tournament':
-				line = moved?.type === 'eventCards' && moved.champion !== undefined ? `${Name(moved.champion)} ${moved.champion === view.me ? 'win' : 'wins'} and ${moved.champion === view.me ? 'take' : 'takes'} ${cards(moves.length)}` : 'Nobody leads the knights: no champion';
+			case 'royalDecree': {
+				const chooser = view.events?.choice?.player;
+				line = chooser === undefined
+					? t('The crown picks this round')
+					: chooser === me
+						? t("You pick this round's event")
+						: t("{player} picks this round's event", { player: name(chooser) });
 				break;
+			}
+			case 'tournament': {
+				const champion = moved?.type === 'eventCards' ? moved.champion : undefined;
+				line = champion === undefined
+					? t('Nobody leads the knights: no champion')
+					: champion === me
+						? t('{n, plural, one {You win and take # card} other {You win and take # cards}}', { n })
+						: t('{n, plural, one {{player} wins and takes # card} other {{player} wins and takes # cards}}', { n, player: name(champion) });
+				break;
+			}
 			case 'plagueOfRats':
-				line = moves.length ? `Rats ate ${cards(moves.length)} from ${losers.map(name).join(', ')}` : 'The rats found nothing to eat';
+				line = !n
+					? t('The rats found nothing to eat')
+					: !iLost
+						? t('{n, plural, one {Rats ate # card from {players}} other {Rats ate # cards from {players}}}', { n, players: others })
+						: others
+							? t('{n, plural, one {Rats ate # card from you, {players}} other {Rats ate # cards from you, {players}}}', { n, players: others })
+							: t('{n, plural, one {Rats ate # card from you} other {Rats ate # cards from you}}', { n });
 				break;
 			case 'taxCollector':
-				line = moves.length ? `The Tax Collector took ${cards(moves.length)} from ${losers.map(name).join(', ')}` : 'No cities to tax';
+				line = !n
+					? t('No cities to tax')
+					: !iLost
+						? t('{n, plural, one {The Tax Collector took # card from {players}} other {The Tax Collector took # cards from {players}}}', { n, players: others })
+						: others
+							? t('{n, plural, one {The Tax Collector took # card from you, {players}} other {The Tax Collector took # cards from you, {players}}}', { n, players: others })
+							: t('{n, plural, one {The Tax Collector took # card from you} other {The Tax Collector took # cards from you}}', { n });
 				break;
 			case 'banditUprising': {
 				const hex = moved?.type === 'eventCards' ? moved.hex : undefined;
-				const num = hex !== undefined ? view.board.hexes[hex]?.number : null;
-				line = `Bandits raid the ${num ?? 'busiest tile'}${moves.length ? ` and take ${cards(moves.length)}` : ''}`;
+				const number = hex !== undefined ? view.board.hexes[hex]?.number : null;
+				if (number == null)
+					line = n
+						? t('{n, plural, one {Bandits raid the busiest tile and take # card} other {Bandits raid the busiest tile and take # cards}}', { n })
+						: t('Bandits raid the busiest tile');
+				else
+					line = n
+						? t('{n, plural, one {Bandits raid the {number} and take # card} other {Bandits raid the {number} and take # cards}}', { n, number })
+						: t('Bandits raid the {number}', { number });
 				break;
 			}
 			case 'earthquake': {
 				const quake = after.find((e) => e.type === 'earthquake');
 				const [a, b] = quake?.type === 'earthquake' ? quake.hexes.map((h) => view.board.hexes[h]?.number) : [];
-				line = a ? `The ${a} and the ${b} swap tiles for good` : 'The ground shakes';
+				line = a ? t('The {a} and the {b} swap tiles for good', { a, b: b ?? '' }) : t('The ground shakes');
 				break;
 			}
 			case 'harvestFestival':
-				line = 'Fields pay double this round';
+				line = t('Fields pay double this round');
 				break;
 			case 'bountifulYear':
-				line = 'Everyone takes a free card from the bank';
+				line = t('Everyone takes a free card from the bank');
 				break;
 			case 'travelingFair':
-				line = 'Trade 2:1 with the bank this round';
+				line = t('Trade 2:1 with the bank this round');
 				break;
 			case 'migratingHerds':
-				line = 'Pastures pay on a 7 this round';
+				line = t('Pastures pay on a 7 this round');
 				break;
 			case 'comet':
-				line = 'The next roll pays double';
+				line = t('The next roll pays double');
 				break;
 			case 'stormAtSea':
-				line = 'Harbors are closed this round';
+				line = t('Harbors are closed this round');
 				break;
 		}
 		// Each plaque says what its player lost or got.
@@ -121,7 +164,12 @@
 			const wide = r.height < r.width / 2;
 			return [{ player, n, x: wide ? (left ? r.left - 34 : r.right + 34) : r.left + r.width / 2, y: wide ? r.top + r.height / 2 : r.bottom + 22 }];
 		});
-		const head = by !== undefined ? `${EVENT_INFO[card].name}, decreed by ${name(by)}` : EVENT_INFO[card].name;
+		const event = t(EVENT_INFO[card].name);
+		const head = by === undefined
+			? event
+			: by === me
+				? t('{event}, decreed by you', { event })
+				: t('{event}, decreed by {player}', { event, player: name(by) });
 		shown = { seq, card, head, line, change };
 		sound(card, moves.length > 0);
 		// The island plays its part once the scene has the new state.

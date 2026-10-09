@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Which turn the game is in: every player's turn counts one, the same number the board's
@@ -7,20 +8,22 @@
 	 */
 	const view = $derived(client.view!);
 	const label = $derived(
-		view.phase === 'draft' ? 'Draft' : view.phase === 'setup' ? 'Setup' : null
+		view.phase === 'draft' ? t('Draft') : view.phase === 'setup' ? t('Setup') : null
 	);
 	const tip = $derived(
-		label
-			? `${label}: turn 1 starts once everyone has placed two settlements.`
-			: `Turn ${view.turn} of the game. Every player's turn counts one.`
+		view.phase === 'draft'
+			? t('Draft: turn 1 starts once everyone has placed two settlements.')
+			: view.phase === 'setup'
+				? t('Setup: turn 1 starts once everyone has placed two settlements.')
+				: t("Turn {turn} of the game. Every player's turn counts one.", { turn: view.turn })
 	);
 </script>
 
-<div class="turn plaque" title={tip} aria-label={label ?? `Turn ${view.turn}`} role="status">
+<div class="turn plaque" title={tip} aria-label={label ?? t('Turn {turn}', { turn: view.turn })} role="status">
 	{#if label}
 		<span class="word">{label}</span>
 	{:else}
-		<span class="word">Turn</span>
+		<span class="word">{t('Turn')}</span>
 		{#key view.turn}<b class="n">{view.turn}</b>{/key}
 	{/if}
 </div>

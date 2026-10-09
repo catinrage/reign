@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { getIcons } from '../../scene/icons';
+	import { t } from '../../i18n/index.svelte';
 	import { client } from '../../state/client.svelte';
-	import { eventParts, playerColor } from '../helpers';
+	import { RESOURCE_LABEL, eventParts, playerColor } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 
@@ -29,14 +30,14 @@
 	});
 
 	function send() {
-		const t = text.trim();
-		if (!t) return;
-		if (t.toLowerCase() === '/clear') {
+		const said = text.trim();
+		if (!said) return;
+		if (said.toLowerCase() === '/clear') {
 			clearedAt = view.log.at(-1)?.seq ?? 0;
 			text = '';
 			return;
 		}
-		client.send({ t: 'chat', text: t });
+		client.send({ t: 'chat', text: said });
 		text = '';
 	}
 </script>
@@ -44,12 +45,12 @@
 <div class="log panel" class:closed={!ui.logOpen}>
 	<button class="head" onclick={() => (ui.logOpen = !ui.logOpen)} aria-expanded={ui.logOpen}>
 		<img class="icon-px" src={PIXEL.book} alt="" />
-		<span class="title">Chronicle</span>
+		<span class="title">{t('Chronicle')}</span>
 		<span class="chev" class:open={ui.logOpen}>▸</span>
 	</button>
 	{#if ui.logOpen}
 		<div class="lines well" bind:this={box}>
-			{#if cut && !lines.length}<div class="line hint">Chronicle cleared.</div>{/if}
+			{#if cut && !lines.length}<div class="line hint">{t('Chronicle cleared.')}</div>{/if}
 			{#each lines as l (l.seq)}
 				<div class="line" class:chat={l.chat}>
 					{#if l.chat}<img class="icon-px bubble" src={PIXEL.chat} alt="" />{/if}
@@ -58,7 +59,7 @@
 							<span class="res"
 								>{#if (p.count ?? 1) > 1}<b>{p.count}</b>{/if}<img
 									src={icons[p.res]}
-									alt={p.res}
+									alt={t(RESOURCE_LABEL[p.res])}
 								/></span
 							>
 						{:else if p.player !== undefined}
@@ -78,7 +79,7 @@
 					send();
 				}}
 			>
-				<input class="input" bind:value={text} maxlength="200" placeholder="Say something…" />
+				<input class="input" bind:value={text} maxlength="200" placeholder={t('Say something…')} />
 			</form>
 		{/if}
 	{/if}

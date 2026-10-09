@@ -2,6 +2,8 @@
 	import { client } from '../../state/client.svelte';
 	import { dieFace } from '../art';
 	import { name, playerInk } from '../helpers';
+	import { t } from '../../i18n/index.svelte';
+	import Rich from '../../i18n/Rich.svelte';
 
 	/**
 	 * The latest roll, in sight for everyone from the first roll of the game on: who threw it, in
@@ -28,12 +30,16 @@
 		return 1 + ((n + Math.floor(Math.random() * (n ? 5 : 6))) % 6);
 	}
 	const dice = $derived(toss ? faces : (roll?.dice ?? null));
-	const label = $derived(
-		toss
-			? `${name(view, who)} ${who === view.me ? 'roll' : 'rolls'}…`
-			: roll
-				? `${name(view, who)} rolled ${roll.dice[0]} and ${roll.dice[1]}: ${total}`
-				: ''
+	const label = $derived.by(() => {
+		const you = who === view.me;
+		if (toss) return you ? t('You roll…') : t('{player} rolls…', { player: name(view, who) });
+		if (!roll) return '';
+		const p = { player: name(view, who), a: roll.dice[0], b: roll.dice[1], total };
+		return you ? t('You rolled {a} and {b}: {total}', p) : t('{player} rolled {a} and {b}: {total}', p);
+	});
+	/** The line over the dice, with the thrower's name in their color. */
+	const line = $derived(
+		who === view.me ? (toss ? t('{you} roll…') : t('{you} rolled')) : toss ? t('{player} rolls…') : t('{player} rolled')
 	);
 </script>
 
@@ -47,10 +53,8 @@
 			aria-label={label}
 			title={label}
 		>
-			<span class="who"
-				><b style="--c:{playerInk(view, who)}">{name(view, who)}</b>
-				{toss ? (who === view.me ? 'roll…' : 'rolls…') : 'rolled'}</span
-			>
+			{#snippet thrower()}<b style="--c:{playerInk(view, who)}">{name(view, who)}</b>{/snippet}
+			<span class="who"><Rich text={line} slots={{ you: thrower, player: thrower }} /></span>
 			{#key toss ? 'toss' : roll?.seq}
 				<span class="row" class:landed={!toss}>
 					{#each dice as d, i (i)}

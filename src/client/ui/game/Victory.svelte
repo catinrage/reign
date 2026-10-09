@@ -2,6 +2,7 @@
 	import { client } from '../../state/client.svelte';
 	import Embers from '../menu/Embers.svelte';
 	import { PIXEL } from '../pixel';
+	import { t } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
 	let hidden = $state(false);
@@ -19,8 +20,8 @@
 	let show = $state(false);
 	$effect(() => {
 		if (view.phase === 'ended') {
-			const t = setTimeout(() => (show = true), 1200);
-			return () => clearTimeout(t);
+			const timer = setTimeout(() => (show = true), 1200);
+			return () => clearTimeout(timer);
 		}
 		show = false;
 		hidden = false;
@@ -39,7 +40,9 @@
 		<div class="stage">
 			<div class="rays"></div>
 			<img class="crown icon-px" src={PIXEL.crown} alt="" />
-			<div class="ribbon big">{view.winner === view.me ? 'Victory!' : `${winner.name} wins!`}</div>
+			<div class="ribbon big">
+				{view.winner === view.me ? t('Victory!') : t('{player} wins!', { player: winner.name })}
+			</div>
 			<div class="board panel">
 				<div class="ranks">
 					{#each ranking as r, k (r.i)}
@@ -53,40 +56,46 @@
 							<span class="shield" style="--shield: var(--art-shield-{r.color})"
 								>{r.name.slice(0, 1).toUpperCase()}</span
 							>
-							<span class="nm">{r.name}{r.i === view.me ? ' (you)' : ''}</span>
-							{#if r.vp}<span class="vpc" title="Hidden victory point cards"
+							<span class="nm"
+								>{r.i === view.me ? t('{player} (you)', { player: r.name }) : r.name}</span
+							>
+							{#if r.vp}<span class="vpc" title={t('Hidden victory point cards')}
 									><img class="icon-px" src={PIXEL.victoryPoint} alt="" />{r.vp}</span
 								>{/if}
-							<span class="pts title">{r.pts}<small>VP</small></span>
+							<span class="pts title">{r.pts}<small>{t('VP')}</small></span>
 						</div>
 					{/each}
 				</div>
 				<div class="foot">
-					<button class="btn wood" onclick={() => (hidden = true)}>View board</button>
+					<button class="btn wood" onclick={() => (hidden = true)}>{t('View board')}</button>
 					{#if client.spectating}
-						<button class="btn red" onclick={() => client.leave()}>Stop watching</button>
+						<button class="btn red" onclick={() => client.leave()}>{t('Stop watching')}</button>
 					{:else if client.isHost}
 						<button
 							class="btn green shine"
 							disabled={notReady.length > 0}
-							onclick={() => client.send({ t: 'start' })}>Play again</button
+							onclick={() => client.send({ t: 'start' })}>{t('Play again')}</button
 						>
 					{:else}
-						<button class="btn red" onclick={() => client.leave()}>Leave</button>
+						<button class="btn red" onclick={() => client.leave()}>{t('Leave')}</button>
 						<button
 							class="btn"
 							class:green={meReady}
 							class:shine={!meReady}
 							aria-pressed={meReady}
 							onclick={() => client.send({ t: 'setReady', ready: !meReady })}
-							>{meReady ? 'Ready!' : 'Play again'}</button
+							>{meReady ? t('Ready!') : t('Play again')}</button
 						>
 					{/if}
 				</div>
 				{#if client.isHost && notReady.length}
-					<p class="again">Waiting for {notReady.map((s) => s.name).join(', ')} to be ready.</p>
+					<p class="again">
+						{t('Waiting for {players} to be ready.', {
+							players: notReady.map((s) => s.name).join(', ')
+						})}
+					</p>
 				{:else if !client.isHost && meReady}
-					<p class="again">Waiting for the host to start another game.</p>
+					<p class="again">{t('Waiting for the host to start another game.')}</p>
 				{/if}
 			</div>
 		</div>

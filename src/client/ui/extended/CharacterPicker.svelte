@@ -1,7 +1,9 @@
 <script lang="ts" module>
+	import { t, tx } from '../../i18n/index.svelte';
+
 	/** How often powers come back, in words. */
 	export function rechargeName(rounds: number): string {
-		return rounds ? `Every ${rounds} rounds` : 'Once per game';
+		return rounds ? t('{rounds, plural, one {Every round} other {Every # rounds}}', { rounds }) : t('Once per game');
 	}
 </script>
 
@@ -40,51 +42,52 @@
 	}
 </script>
 
-<Modal title="Characters" width={powers ? 1340 : 1180} {onclose}>
+<Modal title={t('Characters')} width={powers ? 1340 : 1180} {onclose}>
 	<div class="head">
 		<p>
 			{#if powers}
-				Each character bends one rule and has a power. Everyone drafts one at the start; the first settler picks last.
+				{t('Each character bends one rule and has a power. Everyone drafts one at the start; the first settler picks last.')}
 			{:else}
-				Each character bends one rule in their favor. When the game starts, everyone drafts one, and the first to
-				place a settlement picks last.
+				{t(
+					'Each character bends one rule in their favor. When the game starts, everyone drafts one, and the first to place a settlement picks last.'
+				)}
 			{/if}
 		</p>
 		{#if host}
 			<div class="seg">
-				<button class="btn small" class:on={!settings.characters} onclick={() => setLevel(0)}>Off</button>
-				<button class="btn small" class:on={settings.characters && !settings.powers} onclick={() => setLevel(1)}>Traits</button>
-				<button class="btn small" class:on={powers} onclick={() => setLevel(2)}>Traits and powers</button>
+				<button class="btn small" class:on={!settings.characters} onclick={() => setLevel(0)}>{t('Off')}</button>
+				<button class="btn small" class:on={settings.characters && !settings.powers} onclick={() => setLevel(1)}>{t('Traits')}</button>
+				<button class="btn small" class:on={powers} onclick={() => setLevel(2)}>{t('Traits and powers')}</button>
 			</div>
 		{/if}
 	</div>
 	<div class="sub">
 		{#if settings.characters}
 			<div class="opt">
-				<span class="label">Picks</span>
+				<span class="label">{t('Picks')}</span>
 				{#if host}
 					<div class="seg">
 						<button
 							class="btn small"
 							class:on={!settings.repeatPicks}
-							title="Once someone drafts a character, nobody else can pick it."
-							onclick={() => client.send({ t: 'setRepeatPicks', on: false })}>Unique</button
+							title={t('Once someone drafts a character, nobody else can pick it.')}
+							onclick={() => client.send({ t: 'setRepeatPicks', on: false })}>{t('Unique')}</button
 						>
 						<button
 							class="btn small"
 							class:on={settings.repeatPicks}
-							title="A character someone drafted can still be picked by the players after them."
-							onclick={() => client.send({ t: 'setRepeatPicks', on: true })}>Can repeat</button
+							title={t('A character someone drafted can still be picked by the players after them.')}
+							onclick={() => client.send({ t: 'setRepeatPicks', on: true })}>{t('Can repeat')}</button
 						>
 					</div>
 				{:else}
-					<span>{settings.repeatPicks ? 'Can repeat' : 'Unique'}</span>
+					<span>{settings.repeatPicks ? t('Can repeat') : t('Unique')}</span>
 				{/if}
 			</div>
 		{/if}
 		{#if powers}
 			<div class="opt">
-				<span class="label">Powers</span>
+				<span class="label">{t('Powers')}</span>
 				{#if host}
 					<div class="seg">
 						{#each POWER_RECHARGES as r (r)}
@@ -102,11 +105,17 @@
 		{/if}
 		<p class="count" class:bad={short}>
 			{#if !settings.characters}
-				Characters are off: everyone plays by the plain rules.
+				{t('Characters are off: everyone plays by the plain rules.')}
 			{:else if short}
-				{pool.length} of {CHARACTERS.length} in the draft, but {players} players need at least {players}.
+				{t('{count} of {total} in the draft, but {players} players need at least {players}.', {
+					count: pool.length,
+					total: CHARACTERS.length,
+					players
+				})}
 			{:else}
-				{pool.length} of {CHARACTERS.length} in the draft{host ? '. Click one to leave it out or put it back.' : '.'}
+				{host
+					? t('{count} of {total} in the draft. Click one to leave it out or put it back.', { count: pool.length, total: CHARACTERS.length })
+					: t('{count} of {total} in the draft.', { count: pool.length, total: CHARACTERS.length })}
 			{/if}
 		</p>
 	</div>
@@ -125,17 +134,17 @@
 				<Portrait id={c} size={powers ? 40 : 58} />
 				<span class="body">
 					<span class="who">
-						<span class="name title">{info.name}</span>
-						<span class="epithet">{info.title}</span>
+						<span class="name title">{t(info.name)}</span>
+						<span class="epithet">{t(info.title)}</span>
 					</span>
-					<span class="trait">{info.trait}</span>
-					<span class="text">{traitText(c, settings.handLimit)}</span>
+					<span class="trait">{t(info.trait)}</span>
+					<span class="text">{tx(traitText(c, settings.handLimit))}</span>
 					{#if powers}
-						<span class="trait power">{POWER_INFO[c].name}</span>
-						<span class="text">{POWER_INFO[c].text}</span>
+						<span class="trait power">{t(POWER_INFO[c].name)}</span>
+						<span class="text">{t(POWER_INFO[c].text)}</span>
 					{/if}
 				</span>
-				{#if out}<span class="tag">Left out</span>{/if}
+				{#if out}<span class="tag">{t('Left out')}</span>{/if}
 			</button>
 		{/each}
 	</div>

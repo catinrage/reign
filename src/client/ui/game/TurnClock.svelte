@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PlayerColor } from '../../../shared/rules/config';
 	import { client } from '../../state/client.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * In a timed game, the time left in the turn on a tab that hangs from the middle of the turn
@@ -21,8 +22,8 @@
 		class:paused={!running}
 		style="--tab: var(--art-tab-{color})"
 		role="timer"
-		aria-label="Time left this turn"
-		title={running ? 'Time left this turn' : 'Paused'}
+		aria-label={t('Time left this turn')}
+		title={running ? t('Time left this turn') : t('Paused')}
 	>
 		<span class="time">{Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}</span>
 		<span class="bar"><i style="width:{Math.min(100, (100 * left) / total)}%"></i></span>

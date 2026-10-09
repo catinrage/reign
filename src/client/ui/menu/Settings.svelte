@@ -2,6 +2,8 @@
 	import { PIXEL } from '../pixel';
 	import { CHANNELS, SIZE_MAX, SIZE_MIN, settings } from '../settings.svelte';
 	import { isMuted, setMuted } from '../sound';
+	import { msg, t } from '../../i18n/index.svelte';
+	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
 
 	let muted = $state(isMuted());
 	function toggleMute(m: boolean) {
@@ -16,12 +18,12 @@
 	let menuDrag = $state<number | null>(null);
 	const sizes = $derived([
 		{
-			label: 'Game HUD',
+			label: msg('Game HUD'),
 			value: settings.hudSize,
 			set: (v: number) => settings.setHudSize(v)
 		},
 		{
-			label: 'Menus',
+			label: msg('Menus'),
 			value: menuDrag ?? settings.menuSize,
 			drag: (v: number) => (menuDrag = v),
 			set: (v: number) => {
@@ -40,20 +42,25 @@
 
 <div class="settings">
 	<section>
-		<div class="divider"><i></i><span>Sound</span><i></i></div>
+		<div class="divider"><i></i><span>{t('Language')}</span><i></i></div>
+		<LanguagePicker />
+	</section>
+
+	<section>
+		<div class="divider"><i></i><span>{t('Sound')}</span><i></i></div>
 		<div class="row">
 			<span class="name"
-				><img class="icon-px" src={muted ? PIXEL.mute : PIXEL.speaker} alt="" />Sound</span
+				><img class="icon-px" src={muted ? PIXEL.mute : PIXEL.speaker} alt="" />{t('Sound')}</span
 			>
 			<div class="seg">
-				<button class="btn small" class:on={!muted} onclick={() => toggleMute(false)}>On</button>
-				<button class="btn small" class:on={muted} onclick={() => toggleMute(true)}>Off</button>
+				<button class="btn small" class:on={!muted} onclick={() => toggleMute(false)}>{t('On')}</button>
+				<button class="btn small" class:on={muted} onclick={() => toggleMute(true)}>{t('Off')}</button>
 			</div>
 		</div>
 		{#each CHANNELS as c (c.id)}
 			{@const v = settings.volumes[c.id]}
 			<label class="row" class:off={muted}>
-				<span class="name">{c.label}</span>
+				<span class="name">{t(c.label)}</span>
 				<input
 					class="slider"
 					type="range"
@@ -70,10 +77,10 @@
 	</section>
 
 	<section>
-		<div class="divider"><i></i><span>Interface size</span><i></i></div>
+		<div class="divider"><i></i><span>{t('Interface size')}</span><i></i></div>
 		{#each sizes as s (s.label)}
 			<label class="row">
-				<span class="name">{s.label}</span>
+				<span class="name">{t(s.label)}</span>
 				<input
 					class="slider"
 					type="range"
@@ -90,63 +97,62 @@
 		{/each}
 		<div class="row reset">
 			<p class="hint">
-				Bigger or smaller panels, cards and buttons. Menus change size when you let go.
+				{t('Bigger or smaller panels, cards and buttons. Menus change size when you let go.')}
 			</p>
-			<button class="btn small" disabled={standard} onclick={resetSizes}>Default</button>
+			<button class="btn small" disabled={standard} onclick={resetSizes}>{t('Default')}</button>
 		</div>
 	</section>
 
 	<section>
-		<div class="divider"><i></i><span>Graphics</span><i></i></div>
+		<div class="divider"><i></i><span>{t('Graphics')}</span><i></i></div>
 		<div class="row">
-			<span class="name">Quality</span>
+			<span class="name">{t('Quality')}</span>
 			<div class="seg">
 				<button
 					class="btn small"
 					class:on={settings.quality === 'high'}
-					onclick={() => settings.setQuality('high')}>High</button
+					onclick={() => settings.setQuality('high')}>{t('High')}</button
 				>
 				<button
 					class="btn small"
 					class:on={settings.quality === 'low'}
-					onclick={() => settings.setQuality('low')}>Low</button
+					onclick={() => settings.setQuality('low')}>{t('Low')}</button
 				>
 			</div>
 		</div>
 		<p class="hint">
-			Low turns off shadows and depth of field for older devices. The game reloads to apply it.
+			{t('Low turns off shadows and depth of field for older devices. The game reloads to apply it.')}
 		</p>
 		<div class="row">
-			<span class="name">Island detail</span>
+			<span class="name">{t('Island detail')}</span>
 			<div class="seg">
 				<button
 					class="btn small"
 					class:on={settings.detail === 1}
-					onclick={() => settings.setDetail(1)}>Standard</button
+					onclick={() => settings.setDetail(1)}>{t('Standard')}</button
 				>
 				<button
 					class="btn small"
 					class:on={settings.detail === 2}
-					onclick={() => settings.setDetail(2)}>Fine</button
+					onclick={() => settings.setDetail(2)}>{t('Fine')}</button
 				>
 			</div>
 		</div>
 		<p class="hint">
-			Experimental: Fine builds the island from voxels half the size, for more detail. It takes
-			a moment to rebuild and asks more of your device.
+			{t('Experimental: Fine builds the island from voxels half the size, for more detail. It takes a moment to rebuild and asks more of your device.')}
 		</p>
 		<div class="row">
-			<span class="name">Reduce motion</span>
+			<span class="name">{t('Reduce motion')}</span>
 			<div class="seg">
 				<button
 					class="btn small"
 					class:on={!settings.reduceMotion}
-					onclick={() => settings.setReduceMotion(false)}>Off</button
+					onclick={() => settings.setReduceMotion(false)}>{t('Off')}</button
 				>
 				<button
 					class="btn small"
 					class:on={settings.reduceMotion}
-					onclick={() => settings.setReduceMotion(true)}>On</button
+					onclick={() => settings.setReduceMotion(true)}>{t('On')}</button
 				>
 			</div>
 		</div>

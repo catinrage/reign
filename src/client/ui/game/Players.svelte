@@ -8,6 +8,7 @@
 	import { sceneRef } from '../sceneRef';
 	import { settings } from '../settings.svelte';
 	import TurnTab from './TurnTab.svelte';
+	import { t, tx } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
 	const seats = $derived(client.lobby?.seats ?? []);
@@ -30,8 +31,11 @@
 	/** Where a player's power stands, for its gem's tooltip. */
 	function powerNote(i: number, wait: number | null): string {
 		const power = POWER_INFO[view.players[i].character!];
-		const state = wait === 0 ? 'ready' : wait === null ? 'used' : `ready again in ${wait} turn${wait === 1 ? '' : 's'}`;
-		return `${power.name} (${state}): ${power.text}`;
+		const name = t(power.name);
+		const text = t(power.text);
+		if (wait === 0) return t('{power} (ready): {text}', { power: name, text });
+		if (wait === null) return t('{power} (used): {text}', { power: name, text });
+		return t('{power} (ready again in {n, plural, one {# turn} other {# turns}}): {text}', { power: name, n: wait, text });
 	}
 </script>
 
@@ -65,7 +69,12 @@
 		>
 			{#if current}<TurnTab color={p.color} />{/if}
 			{#if ch}
-				<span class="face" title="{ch.name} {ch.title}. {ch.trait}: {traitText(p.character!, view.handLimit)}">
+				<span class="face" title={t('{name} {title}. {trait}: {text}', {
+						name: t(ch.name),
+						title: t(ch.title),
+						trait: t(ch.trait),
+						text: tx(traitText(p.character!, view.handLimit))
+					})}>
 					<Portrait id={p.character} size={44} />
 					<span class="shield mini" style="--shield: var(--art-shield-{p.color})"></span>
 					{#if wait !== undefined}
@@ -74,58 +83,62 @@
 				</span>
 			{:else}
 				<span class="shield" style="--shield: var(--art-shield-{p.color})">
-					{#if p.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{p.name
+					{#if p.isBot}<img class="icon-px" src={PIXEL.bot} alt={t('bot')} />{:else}{p.name
 							.slice(0, 1)
 							.toUpperCase()}{/if}
 				</span>
 			{/if}
 			<div class="info">
-				<div class="name title">{i === view.me ? `${p.name} (you)` : p.name}</div>
+				<div class="name title">{i === view.me ? t('{name} (you)', { name: p.name }) : p.name}</div>
 				<div class="stats">
 					<!-- Cards dealt on the board fly here and count as they land, with a bump. -->
 					<span
 						class:warn={cards > limit}
-						title="Resource cards{safe ? `, ${safe} of them safe in a storehouse` : ''}{cards > limit
-							? ': will discard on a 7'
-							: ''}"
+						title={safe
+							? cards > limit
+								? t('Resource cards, {safe} of them safe in a storehouse: will discard on a 7', { safe })
+								: t('Resource cards, {safe} of them safe in a storehouse', { safe })
+							: cards > limit
+								? t('Resource cards: will discard on a 7')
+								: t('Resource cards')}
 						data-plaque-cards={i}
 						><img class="icon-px" src={PIXEL.cards} alt="" />{#key cards}<b class="bump">{cards}</b
 						>{/key}</span
 					>
-					<span title="Development cards"
+					<span title={t('Development cards')}
 						><img class="icon-px" src={PIXEL.dev} alt="" />{p.devCardCount}</span
 					>
-					<span class:hot={army} title="Knights played{army ? ' (Largest Army, +2)' : ''}"
+					<span class:hot={army} title={army ? t('Knights played (Largest Army, +2)') : t('Knights played')}
 						><img class="icon-px" src={PIXEL.army} alt="" />{p.knightsPlayed}</span
 					>
-					<span class:hot={road} title="Longest road{road ? ' (Longest Road, +2)' : ''}"
+					<span class:hot={road} title={road ? t('Longest road (Longest Road, +2)') : t('Longest road')}
 						><img class="icon-px" src={PIXEL.road} alt="" />{p.longestRoad}</span
 					>
 				</div>
 			</div>
 			<span
 				class="coin vp"
-				title="Victory points{p.totalPoints !== undefined && p.totalPoints !== p.publicPoints
-					? ' (including your hidden cards)'
-					: ''}">{pts}</span
+				title={p.totalPoints !== undefined && p.totalPoints !== p.publicPoints
+					? t('Victory points (including your hidden cards)')
+					: t('Victory points')}>{pts}</span
 			>
 			{#if road || army || offline || hexed}
 				<div class="medals">
-					{#if road}<span class="medal" title="Longest Road (+2)"
+					{#if road}<span class="medal" title={t('Longest Road (+2)')}
 							><img class="icon-px" src={PIXEL.road} alt="" /></span
 						>{/if}
-					{#if army}<span class="medal" title="Largest Army (+2)"
+					{#if army}<span class="medal" title={t('Largest Army (+2)')}
 							><img class="icon-px" src={PIXEL.army} alt="" /></span
 						>{/if}
-					{#if hexed}<span class="away hexed" title="Hexed by the Witch: collects nothing from the next {hexed === 1 ? 'roll' : `${hexed} rolls`}"
-							>hexed</span
+					{#if hexed}<span class="away hexed" title={t('Hexed by the Witch: collects nothing from the next {n, plural, one {roll} other {# rolls}}', { n: hexed })}
+							>{t('hexed')}</span
 						>{/if}
 					{#if offline}<span
 							class="away"
 							title={seats[i].left
-								? 'Left the table. A bot plays for them until they rejoin.'
-								: 'Lost connection. A bot covers if they stay away.'}
-							>{seats[i].left ? 'left' : 'away'}</span
+								? t('Left the table. A bot plays for them until they rejoin.')
+								: t('Lost connection. A bot covers if they stay away.')}
+							>{seats[i].left ? t('left') : t('away')}</span
 						>{/if}
 				</div>
 			{/if}

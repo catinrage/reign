@@ -1,62 +1,77 @@
 <script lang="ts">
 	import { DISCARD_THRESHOLD } from '../../../../shared/rules/config';
+	import { msg, t } from '../../../i18n/index.svelte';
+	import Rich from '../../../i18n/Rich.svelte';
 	import { PIXEL } from '../../pixel';
 	import HexTile from '../bits/HexTile.svelte';
 	import { TUT_ICON } from '../icons';
 
+	// name and text are marked with msg() and shown through t(); `n` fills the text's slot.
 	const steps = [
 		{
 			icon: PIXEL.cards,
-			name: 'Too many cards?',
-			text: `Everyone holding more than ${DISCARD_THRESHOLD} resource cards gives half of them back to the bank, rounded down.`
+			name: msg('Too many cards?'),
+			text: msg(
+				'Everyone holding more than {n, plural, one {# resource card} other {# resource cards}} gives half of them back to the bank, rounded down.'
+			),
+			n: DISCARD_THRESHOLD
 		},
 		{
 			icon: TUT_ICON.robber,
-			name: 'Move the robber',
-			text: 'The roller must move the robber to a different tile.'
+			name: msg('Move the robber'),
+			text: msg('The roller must move the robber to a different tile.')
 		},
 		{
 			icon: PIXEL.sword,
-			name: 'Steal a card',
-			text: 'The roller takes one random card from a player with a settlement or city on that tile.'
+			name: msg('Steal a card'),
+			text: msg('The roller takes one random card from a player with a settlement or city on that tile.')
 		}
 	];
 </script>
 
-<p>A roll of <b>7</b> pays nothing to anyone. Instead:</p>
+{#snippet seven()}<b>7</b>{/snippet}
+{#snippet nothing()}<b>{t('pays nothing')}</b>{/snippet}
+
+<p><Rich text={t('A roll of {seven} pays nothing to anyone. Instead:')} slots={{ seven }} /></p>
 
 <div class="figure steps">
 	{#each steps as s, i (s.name)}
 		<div class="step">
 			<span class="n">{i + 1}</span>
 			<img class="icon-px" src={s.icon} alt="" />
-			<b>{s.name}</b>
-			<span class="caption">{s.text}</span>
+			<b>{t(s.name)}</b>
+			<span class="caption">{t(s.text, s.n === undefined ? undefined : { n: s.n })}</span>
 		</div>
 	{/each}
 </div>
 
-<h3>A robbed tile</h3>
+<h3>{t('A robbed tile')}</h3>
 <div class="spread">
 	<div class="pair">
-		<div><HexTile terrain="hills" n={6} size={86} /><span class="caption">Before</span></div>
+		<div><HexTile terrain="hills" n={6} size={86} /><span class="caption">{t('Before')}</span></div>
 		<span class="arrow">›</span>
 		<div class="robbed">
 			<HexTile terrain="hills" n={6} size={86} gray />
 			<img class="icon-px thief" src={TUT_ICON.robber} alt="" />
-			<span class="caption">Robbed</span>
+			<span class="caption">{t('Robbed')}</span>
 		</div>
 	</div>
 	<p>
-		The tile under the robber turns gray and <b>pays nothing</b> when its number is rolled, until someone
-		moves the robber away with another 7 or a Knight.
+		<Rich
+			text={t(
+				'The tile under the robber turns gray and {nothing} when its number is rolled, until someone moves the robber away with another 7 or a Knight.'
+			)}
+			slots={{ nothing }}
+		/>
 	</p>
 </div>
 
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
-		>Holding a big hand is risky: spend or trade cards down to {DISCARD_THRESHOLD} or fewer before you
-		end your turn.</span
+		>{t(
+			'Holding a big hand is risky: spend or trade cards down to {n} or fewer before you end your turn.',
+			{ n: DISCARD_THRESHOLD }
+		)}</span
 	>
 </p>
 

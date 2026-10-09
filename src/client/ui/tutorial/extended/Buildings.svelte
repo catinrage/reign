@@ -6,7 +6,9 @@
 		WORKSHOP_LIMIT,
 		WORKSHOP_NAME
 	} from '../../../../shared/rules/buildings';
-	import { COSTS, type Resource } from '../../../../shared/rules/config';
+	import { COSTS, RESOURCE_LABEL, type Resource } from '../../../../shared/rules/config';
+	import Rich from '../../../i18n/Rich.svelte';
+	import { msg, t } from '../../../i18n/index.svelte';
 	import { getIcons } from '../../../scene/icons';
 	import { countsList } from '../../helpers';
 	import { PIXEL } from '../../pixel';
@@ -15,19 +17,26 @@
 	const LIMIT: Record<string, number> = { workshop: WORKSHOP_LIMIT, storehouse: 1 };
 	/** The tile each workshop stands on, and what it does there. */
 	const KINDS: Record<Resource, { tile: string; work: string }> = {
-		wheat: { tile: 'Fields', work: 'Its sails turn in the wind.' },
-		wood: { tile: 'Forest', work: 'A water wheel drives the saw.' },
-		brick: { tile: 'Hills', work: 'The bottle kiln smokes as it fires.' },
-		ore: { tile: 'Mountains', work: 'A cart rolls out under the pulley.' },
-		sheep: { tile: 'Pasture', work: 'Two sheep wander the pen.' }
+		wheat: { tile: msg('Fields'), work: msg('Its sails turn in the wind.') },
+		wood: { tile: msg('Forest'), work: msg('A water wheel drives the saw.') },
+		brick: { tile: msg('Hills'), work: msg('The bottle kiln smokes as it fires.') },
+		ore: { tile: msg('Mountains'), work: msg('A cart rolls out under the pulley.') },
+		sheep: { tile: msg('Pasture'), work: msg('Two sheep wander the pen.') }
 	};
 	const order: Resource[] = ['wheat', 'wood', 'brick', 'ore', 'sheep'];
 </script>
 
+{#snippet bBuildings()}<b>{t('Buildings')}</b>{/snippet}
+{#snippet bWorkshop()}<b>{t('Workshop')}</b>{/snippet}
+{#snippet bTearDown()}<b>{t('Tear down')}</b>{/snippet}
+{#snippet bStoneRoad()}<b>{t('Stone road')}</b>{/snippet}
+{#snippet bStorehouse()}<b>{t('Storehouse')}</b>{/snippet}
+
 <p>
-	Reign Extended adds buildings that do jobs settlements and cities don't. The host switches each one on
-	or off under <b>Buildings</b> in the lobby, and all of them are on unless the host says otherwise. Bots
-	build them too.
+	<Rich
+		text={t("Reign Extended adds buildings that do jobs settlements and cities don't. The host switches each one on or off under {buildings} in the lobby, and all of them are on unless the host says otherwise. Bots build them too.")}
+		slots={{ buildings: bBuildings }}
+	/>
 </p>
 
 <div class="costs">
@@ -36,44 +45,46 @@
 			<img class="piece" src={icons[`${b}:red`]} alt="" />
 			<div class="what">
 				<div class="head">
-					<b class="title">{BUILDING_INFO[b].name}</b>
+					<b class="title">{t(BUILDING_INFO[b].name)}</b>
 					<span class="res">
 						{#each countsList(COSTS[b]) as c (c.res)}
-							{#each Array(c.n) as _, k (k)}<img src={icons[c.res]} alt={c.res} />{/each}
+							{#each Array(c.n) as _, k (k)}<img src={icons[c.res]} alt={t(RESOURCE_LABEL[c.res])} />{/each}
 						{/each}
 					</span>
 				</div>
-				<span>{BUILDING_INFO[b].text}</span>
+				<span>{t(BUILDING_INFO[b].text)}</span>
 			</div>
-			{#if LIMIT[b]}<span class="limit" title="How many each player can build">×{LIMIT[b]}</span>{/if}
+			{#if LIMIT[b]}<span class="limit" title={t('How many each player can build')}>×{LIMIT[b]}</span>{/if}
 		</div>
 	{/each}
 </div>
 
-<h3>Workshops</h3>
+<h3>{t('Workshops')}</h3>
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
-			>Once you have rolled, pick <b>Workshop</b> in the build panel and click a tile next to one of your
-			settlements or cities. Each tile holds one workshop, so whoever builds first has it.</span
+			><Rich
+				text={t('Once you have rolled, pick {workshop} in the build panel and click a tile next to one of your settlements or cities. Each tile holds one workshop, so whoever builds first has it.')}
+				slots={{ workshop: bWorkshop }}
+			/></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.cards} alt="" /><span
-			>Whenever the tile pays you, its workshop adds one more card: a settlement there brings you two, a
-			city three.</span
+			>{t('Whenever the tile pays you, its workshop adds one more card: a settlement there brings you two, a city three.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.lock} alt="" /><span
-			>The robber stops a workshop along with its tile, and when the bank runs short of a resource
-			nobody gets it, workshop or not.</span
+			>{t('The robber stops a workshop along with its tile, and when the bank runs short of a resource nobody gets it, workshop or not.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.trade} alt="" /><span
-			>Found a better tile? Once you have rolled, pick <b>Tear down</b> and click one of your
-			workshops: it's gone, the bank gives you back a Lumber, and you can build it somewhere else.</span
+			><Rich
+				text={t("Found a better tile? Once you have rolled, pick {tearDown} and click one of your workshops: it's gone, the bank gives you back a Lumber, and you can build it somewhere else.")}
+				slots={{ tearDown: bTearDown }}
+			/></span
 		>
 	</li>
 </ul>
@@ -83,9 +94,9 @@
 		<div class="kind">
 			<img class="piece" src={icons[`workshop:${r}`]} alt="" />
 			<div class="what">
-				<b class="title">{WORKSHOP_NAME[r]}</b>
-				<span class="tile"><img src={icons[r]} alt="" />{KINDS[r].tile}</span>
-				<span class="rule">{KINDS[r].work}</span>
+				<b class="title">{t(WORKSHOP_NAME[r])}</b>
+				<span class="tile"><img src={icons[r]} alt="" />{t(KINDS[r].tile)}</span>
+				<span class="rule">{t(KINDS[r].work)}</span>
 			</div>
 		</div>
 	{/each}
@@ -93,60 +104,58 @@
 
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
-		>A workshop pays when its tile does, so put it where the number comes up often: a 6 or an 8 is rolled
-		five times as often as a 2 or a 12.</span
+		>{t('A workshop pays when its tile does, so put it where the number comes up often: a 6 or an 8 is rolled five times as often as a 2 or a 12.')}</span
 	>
 </p>
 
-<h3>Stone roads</h3>
+<h3>{t('Stone roads')}</h3>
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
-			>Once you have rolled, pick <b>Stone road</b> in the build panel and click one of your roads to pave
-			it. It stays your road, and paving doesn't use up a road from your supply.</span
+			><Rich
+				text={t("Once you have rolled, pick {stoneRoad} in the build panel and click one of your roads to pave it. It stays your road, and paving doesn't use up a road from your supply.")}
+				slots={{ stoneRoad: bStoneRoad }}
+			/></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.road} alt="" /><span
-			>A stone road counts as two roads towards the Longest Road: a trail of four roads with two of them
-			paved is six long.</span
+			>{t('A stone road counts as two roads towards the Longest Road: a trail of four roads with two of them paved is six long.')}</span
 		>
 	</li>
 </ul>
 
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
-		>Paving makes a trail longer without needing room to build, so it can win the Longest Road on an
-		island crowded with other people's roads.</span
+		>{t("Paving makes a trail longer without needing room to build, so it can win the Longest Road on an island crowded with other people's roads.")}</span
 	>
 </p>
 
-<h3>Storehouses</h3>
+<h3>{t('Storehouses')}</h3>
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
-			>Once you have rolled, pick <b>Storehouse</b> in the build panel and click one of your settlements
-			or cities. You can have one, and it stays with its settlement when that grows into a city.</span
+			><Rich
+				text={t('Once you have rolled, pick {storehouse} in the build panel and click one of your settlements or cities. You can have one, and it stays with its settlement when that grows into a city.')}
+				slots={{ storehouse: bStorehouse }}
+			/></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.lock} alt="" /><span
-			>It keeps {STOREHOUSE_SAFE} of your cards safe: nothing takes one of your last {STOREHOUSE_SAFE} at
-			random, not the robber, a character or an event.</span
+			>{t('It keeps {safe} of your cards safe: nothing takes one of your last {safe} at random, not the robber, a character or an event.', { safe: STOREHOUSE_SAFE })}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.die} alt="" /><span
-			>On a 7 those {STOREHOUSE_SAFE} don't count towards your hand: you can hold {STOREHOUSE_SAFE} more
-			cards than usual, and if you do have to discard, you give back half of the cards beyond them.</span
+			>{t("On a 7 those {safe} don't count towards your hand: you can hold {safe} more cards than usual, and if you do have to discard, you give back half of the cards beyond them.", { safe: STOREHOUSE_SAFE })}</span
 		>
 	</li>
 </ul>
 
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
-		>A storehouse is worth most while you save up for a city or a big trade, and with {STOREHOUSE_SAFE}
-		cards or fewer in hand the robber can't steal from you at all.</span
+		>{t("A storehouse is worth most while you save up for a city or a big trade, and with {safe} cards or fewer in hand the robber can't steal from you at all.", { safe: STOREHOUSE_SAFE })}</span
 	>
 </p>
 

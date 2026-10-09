@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { CHARACTER_INFO, type CharacterId } from '../../../shared/rules/characters';
 	import { portraitUrl } from '../../scene/portraits';
+	import { t } from '../../i18n/index.svelte';
 
 	let {
 		id,
@@ -11,13 +12,14 @@
 
 	const url = $derived(id ? portraitUrl(id) : null);
 	const info = $derived(id ? CHARACTER_INFO[id] : null);
+	const name = $derived(info ? t(info.name) : '');
 </script>
 
-<span class="portrait" class:framed style="--size:{size}px" title={info && tip ? `${info.name} ${info.title}` : undefined}>
+<span class="portrait" class:framed style="--size:{size}px" title={info && tip ? t('{character} {epithet}', { character: name, epithet: t(info.title) }) : undefined}>
 	{#if url}
-		<img src={url} alt={info?.name ?? ''} draggable="false" />
+		<img src={url} alt={name} draggable="false" />
 	{:else}
-		<span class="initial">{info?.name[0] ?? '?'}</span>
+		<span class="initial">{name[0] ?? '?'}</span>
 	{/if}
 </span>
 

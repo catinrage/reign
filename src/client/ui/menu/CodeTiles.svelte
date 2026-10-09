@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '../../i18n/index.svelte';
 	/** A room code as five wooden letter tiles. Editable on the main menu, read-only in the lobby. */
 	let {
 		value = $bindable(''),
@@ -24,7 +25,7 @@
 			autocomplete="off"
 			autocapitalize="characters"
 			spellcheck="false"
-			aria-label="Room code"
+			aria-label={t('Room code')}
 			oninput={() =>
 				(value = value
 					.toUpperCase()

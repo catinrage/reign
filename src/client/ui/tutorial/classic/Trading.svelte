@@ -1,65 +1,65 @@
 <script lang="ts">
+	import { msg, t } from '../../../i18n/index.svelte';
 	import { getIcons } from '../../../scene/icons';
 	import { PIXEL } from '../../pixel';
 
 	const icons = getIcons().urls;
+	// name and text are marked with msg() and shown through t().
 	const rates = [
 		{
 			give: 4,
 			any: true,
-			name: 'The bank',
-			text: 'Always open: four of one resource for one of any other.'
+			name: msg('The bank'),
+			text: msg('Always open: four of one resource for one of any other.')
 		},
 		{
 			give: 3,
 			any: true,
-			name: 'A 3:1 harbor',
-			text: 'Three of any one resource for one of any other.'
+			name: msg('A 3:1 harbor'),
+			text: msg('Three of any one resource for one of any other.')
 		},
 		{
 			give: 2,
 			any: false,
-			name: 'A 2:1 harbor',
-			text: 'Two of the harbor’s own resource for one of any other.'
+			name: msg('A 2:1 harbor'),
+			text: msg('Two of the harbor’s own resource for one of any other.')
 		}
 	];
 </script>
 
-<p>You can trade on your own turn, after rolling. There are two ways to do it.</p>
+<p>{t('You can trade on your own turn, after rolling. There are two ways to do it.')}</p>
 
-<h3>With other players</h3>
+<h3>{t('With other players')}</h3>
 <div class="figure offer">
 	<div class="side">
-		<span class="label">You give</span>
+		<span class="label">{t('You give')}</span>
 		<span class="res"><img src={icons.wood} alt="" /><img src={icons.wood} alt="" /></span>
 	</div>
 	<img class="icon-px swap" src={PIXEL.trade} alt="" />
 	<div class="side">
-		<span class="label">You get</span>
+		<span class="label">{t('You get')}</span>
 		<span class="res"><img src={icons.ore} alt="" /></span>
 	</div>
 </div>
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.trade} alt="" /><span
-			>Open the trade panel, choose what you give and what you want, and send the offer to the
-			table.</span
+			>{t('Open the trade panel, choose what you give and what you want, and send the offer to the table.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.check} alt="" /><span
-			>Each player accepts or declines. Bots answer too.</span
+			>{t('Each player accepts or declines. Bots answer too.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.chat} alt="" /><span
-			>You pick which of the players who accepted to trade with. Any deal is fine, even an uneven
-			one.</span
+			>{t('You pick which of the players who accepted to trade with. Any deal is fine, even an uneven one.')}</span
 		>
 	</li>
 </ul>
 
-<h3>With the bank</h3>
+<h3>{t('With the bank')}</h3>
 <div class="rates">
 	{#each rates as r (r.give)}
 		<div class="rate">
@@ -72,14 +72,15 @@
 				<span class="eq">›</span>
 				<img src={icons.wheat} alt="" />
 			</span>
-			<b>{r.name}</b>
-			<span class="caption">{r.text}</span>
+			<b>{t(r.name)}</b>
+			<span class="caption">{t(r.text)}</span>
 		</div>
 	{/each}
 </div>
 <p>
-	To use a harbor, build a settlement or city on one of the two corners its pier touches. Your best
-	rate for each resource is used automatically when you trade with the bank.
+	{t(
+		'To use a harbor, build a settlement or city on one of the two corners its pier touches. Your best rate for each resource is used automatically when you trade with the bank.'
+	)}
 </p>
 
 <style>
