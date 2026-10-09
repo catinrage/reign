@@ -9,7 +9,8 @@ import {
 	type Resource,
 	type ResourceCounts
 } from '../../shared/rules/config';
-import { citySpots, roadSpots, settlementSpots } from '../../shared/rules/queries';
+import { CHARACTER_INFO } from '../../shared/rules/characters';
+import { citySpots, costOf, roadSpots, settlementSpots } from '../../shared/rules/queries';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { PLAYER_CSS } from '../scene/layout';
 
@@ -29,7 +30,7 @@ export function playerColor(view: GameView | null, i: number): string {
 
 export function canAfford(view: GameView, kind: BuildKind): boolean {
 	const mine = view.players[view.me]?.resources;
-	return !!mine && hasResources(mine, COSTS[kind]);
+	return !!mine && hasResources(mine, costOf(view, view.me, kind));
 }
 
 /** Whether a build is possible right now (resources, pieces and a legal spot). */
@@ -138,6 +139,8 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return e.resource
 				? [P(e.thief), T(' stole '), R(e.resource), T(' from '), P(e.victim)]
 				: [P(e.thief), T(' stole a card from '), P(e.victim)];
+		case 'traitGain':
+			return [P(e.player), T(` (${CHARACTER_INFO[e.character].trait}) took `), R(e.resource)];
 		case 'nothingToSteal':
 			return [T('Nobody to rob there')];
 		case 'devCardBought':
@@ -167,7 +170,9 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 		case 'chat':
 			return [P(e.player), T(`: ${e.text}`)];
 		case 'gameStarted':
-			return [T('The game begins. Place your settlements!')];
+			return view.mode === 'extended'
+				? [T(`Reign Extended on ${view.mapName}, first to ${view.pointsToWin} points. Place your settlements!`)]
+				: [T('The game begins. Place your settlements!')];
 	}
 	return null;
 }

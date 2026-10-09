@@ -311,3 +311,62 @@ describe('turn timer', () => {
 		room.dispose();
 	});
 });
+
+describe('Reign Extended lobby', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('lets only the host pick the mode, map and points, and plays them', () => {
+		vi.useFakeTimers();
+		const room = new Room('EXTND');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(guest, { t: 'setMode', mode: 'extended' }, b.ws);
+		expect(room.lobbyInfo().settings.mode).toBe('classic');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		room.handle(host, { t: 'setMap', map: { preset: 'realm' } }, a.ws);
+		room.handle(host, { t: 'setPointsToWin', points: 12 }, a.ws);
+		room.handle(host, { t: 'setPointsToWin', points: 99 }, a.ws);
+		expect(room.lobbyInfo().settings).toEqual({ mode: 'extended', map: { preset: 'realm' }, pointsToWin: 12 });
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game!.board.hexes).toHaveLength(37);
+		expect(room.game!.pointsToWin).toBe(12);
+		// Settings are locked while the game runs.
+		room.handle(host, { t: 'setMode', mode: 'classic' }, a.ws);
+		expect(room.lobbyInfo().settings.mode).toBe('extended');
+		room.dispose();
+	});
+
+	it('deals every seat a different character and refuses a taken one', () => {
+		const room = new Room('CHARS');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'addBot' }, a.ws);
+		const chars = room.lobbyInfo().seats.map((s) => s.character);
+		expect(new Set(chars).size).toBe(3);
+		room.handle(guest, { t: 'setCharacter', character: host.character! }, b.ws);
+		expect(guest.character).not.toBe(host.character);
+		expect(b.sent.some((m) => m.t === 'error')).toBe(true);
+		const free = (['merchant', 'mason', 'scholar', 'veteran'] as const).find((c) => !chars.includes(c))!;
+		room.handle(guest, { t: 'setCharacter', character: free }, b.ws);
+		expect(guest.character).toBe(free);
+		room.dispose();
+	});
+
+	it('checks custom maps', () => {
+		const room = new Room('MAPPY');
+		const a = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error('join failed');
+		const tiles = [{ q: 0, r: 0, terrain: null }];
+		room.handle(host, { t: 'setMap', map: { custom: { name: 'Tiny', tiles } } }, a.ws);
+		expect(room.lobbyInfo().settings.map).toEqual({ preset: 'great' });
+		expect(a.sent.some((m) => m.t === 'error')).toBe(true);
+		room.dispose();
+	});
+});

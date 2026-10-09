@@ -8,6 +8,22 @@ cards, longest road and largest army, bank/harbor and player-to-player trading, 
 
 ![Style target](docs/reference/style-reference.png)
 
+## Two modes
+
+The host picks the mode in the lobby.
+
+- **Classic** is the standard game above, exactly as it has always played: the random 19-tile
+  island, standard rules, 10 points to win.
+- **Reign Extended** adds characters, other islands and custom maps, and is where new
+  resources, buildings and pieces will land.
+  - *Characters:* each player picks one of eight (no two alike); each trait bends one rule
+    for them, such as 3:1 bank trades, cheaper cities or stealing two cards.
+  - *Islands:* six shapes from the classic isle up to a 37-tile realm, a ring round a lagoon,
+    twin highlands and a winding coast. Terrains, numbers and harbors are dealt fresh each game.
+  - *Map maker:* paint your own island (fixed or random tiles), save it in your browser and
+    share it as a short code.
+  - *Points to win:* 8, 10, 12 or 14.
+
 The picture above is the visual target. Everything in the world is made of voxels and meshed
 at runtime: the island, the pieces, the dice, the table and the cozy room around it.
 
@@ -65,11 +81,14 @@ scripts/      browser screenshot and end-to-end helpers
 
 ### Hooks for the next phases
 
-- *Characters with traits:* lobby seats can carry a character id; the engine's action handlers
-  are the place to apply trait modifiers (costs, trade ratios, production).
+- *Characters:* `rules/characters.ts` lists them; traits hook in through `costOf`,
+  `tradeRatios`, `discardLimit` and `longestRoadMin` in `rules/queries.ts` and a few lines
+  in the engine (robber, 7s, setup). Portraits are voxel busts in `scene/portraits.ts`.
 - *More resources, tiles, buildings, robber-like entities:* extend the lists in `config.ts`,
   add terrain builders in `scene/board/terrain.ts` and models in `scene/board/models.ts`.
-- *Custom maps:* `createGame(players, seed, board)` already accepts any `Board`.
+  Gate them on `state.mode === 'extended'` so Classic stays standard.
+- *Maps:* `board/maps.ts` holds the presets (drawn as text) and custom-map checks;
+  `generateBoard(tiles, rng)` deals any shape. The table grows to fit bigger islands.
 - *Day/night:* `Lighting.night` (0–1) dims the sun and boosts flames; voxel materials receive
   `uNight`, and windows on settlements and cities are emissive.
 

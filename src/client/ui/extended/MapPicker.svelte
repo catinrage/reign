@@ -1,0 +1,172 @@
+<script lang="ts">
+	import { MAP_PRESETS, decodeMap, validateCustomMap, type CustomMap, type MapChoice } from '../../../shared/board/maps';
+	import { client } from '../../state/client.svelte';
+	import Modal from '../menu/Modal.svelte';
+	import { PIXEL } from '../pixel';
+	import MapEditor from './MapEditor.svelte';
+	import MapPreview from './MapPreview.svelte';
+	import { deleteMap, saveMap, savedMaps } from './savedMaps.svelte';
+
+	let { onclose }: { onclose: () => void } = $props();
+
+	const current = $derived(client.lobby!.settings.map);
+	let editing = $state<{ map: CustomMap | null; index: number | null } | null>(null);
+	let code = $state('');
+
+	function choose(map: MapChoice) {
+		client.send({ t: 'setMap', map });
+		onclose();
+	}
+
+	function paste() {
+		const map = decodeMap(code);
+		const problem = map ? validateCustomMap(map) : "That doesn't look like a map code.";
+		if (problem || !map) return client.toast(problem ?? 'Bad code', 'error');
+		saveMap(map);
+		code = '';
+		client.toast(`Added "${map.name}" to your maps.`, 'good');
+	}
+
+	const isCurrent = (m: CustomMap) => 'custom' in current && JSON.stringify(current.custom.tiles) === JSON.stringify(m.tiles);
+</script>
+
+{#if editing}
+	<MapEditor
+		initial={editing.map}
+		index={editing.index}
+		canUse={client.isHost}
+		onuse={(m) => choose({ custom: m })}
+		onclose={() => (editing = null)}
+	/>
+{:else}
+	<Modal title="Choose the island" width={820} {onclose}>
+		<div class="section">
+			<div class="divider"><i></i><span>Islands</span><i></i></div>
+			<div class="grid">
+				{#each MAP_PRESETS as p (p.id)}
+					<button class="map plaque" class:on={'preset' in current && current.preset === p.id} onclick={() => choose({ preset: p.id })}>
+						<MapPreview tiles={p.tiles} width={150} height={104} />
+						<span class="name title">{p.name}</span>
+						<span class="blurb">{p.blurb}</span>
+						<span class="count">{p.tiles.length} tiles</span>
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		<div class="section">
+			<div class="divider"><i></i><span>Your maps</span><i></i></div>
+			{#if savedMaps.list.length}
+				<div class="grid">
+					{#each savedMaps.list as m, i (i)}
+						<div class="map plaque" class:on={isCurrent(m)}>
+							<button class="pick" onclick={() => choose({ custom: m })} title="Play {m.name}">
+								<MapPreview tiles={m.tiles} width={150} height={104} />
+								<span class="name title">{m.name}</span>
+								<span class="count">{m.tiles.length} tiles</span>
+							</button>
+							<span class="tools">
+								<button class="btn small wood" onclick={() => (editing = { map: m, index: i })}>Edit</button>
+								<button class="icon-btn del" onclick={() => deleteMap(i)} aria-label="Delete {m.name}" title="Delete"
+									><img src={PIXEL.close} alt="" /></button
+								>
+							</span>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<p>Draw your own island in the map maker, or paste a code a friend sent you.</p>
+			{/if}
+			<div class="row">
+				<button class="btn green" onclick={() => (editing = { map: null, index: null })}>New map</button>
+				<input class="input code" placeholder="Paste a map code" bind:value={code} onkeydown={(e) => e.key === 'Enter' && paste()} />
+				<button class="btn small" disabled={!code.trim()} onclick={paste}>Add</button>
+			</div>
+		</div>
+	</Modal>
+{/if}
+
+<style>
+	.section {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin-bottom: 14px;
+	}
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+		gap: 8px;
+	}
+	.map {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 3px;
+		padding: 6px 6px 8px;
+		color: var(--text);
+		font: inherit;
+		text-align: center;
+		cursor: pointer;
+		transition: transform 0.12s;
+	}
+	.map:hover {
+		transform: translateY(-3px);
+	}
+	.map.on {
+		filter: drop-shadow(0 0 0 #ffd45a) drop-shadow(0 0 4px #ffd45a);
+	}
+	.pick {
+		all: unset;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 3px;
+		cursor: pointer;
+	}
+	.name {
+		font-size: 17px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.blurb {
+		font-size: 13px;
+		line-height: 1.25;
+		color: #f1dfc2;
+		text-wrap: balance;
+	}
+	.count {
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 12px;
+		color: var(--gold);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.tools {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+		margin-top: 4px;
+	}
+	.del {
+		width: calc(var(--s) * 10);
+		height: calc(var(--s) * 10);
+		border-image-source: var(--art-btn-red);
+	}
+	.del img {
+		width: calc(var(--s) * 4);
+		height: calc(var(--s) * 4);
+	}
+	.row {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+	.code {
+		flex: 1;
+		min-width: 160px;
+	}
+</style>
