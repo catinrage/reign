@@ -117,3 +117,6 @@ setInterval(() => {
 server.listen(PORT, () =>
 	console.log(`Reign server listening on http://localhost:${PORT}${CHEATS ? ' (dev cheats on)' : ''}`)
 );
+
+// Exit on a stop signal. As PID 1 in a container Node would otherwise ignore it until killed.
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => process.exit(0));
