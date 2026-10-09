@@ -12,13 +12,21 @@
 	const playing = $derived(view.phase !== 'ended');
 	// Spectators read the count on their own bar.
 	const watchers = $derived(client.spectating ? 0 : (client.lobby?.spectators ?? 0));
+	// Big tables shrink the list on desktop so it ends above the build panel in the corner.
+	let innerWidth = $state(window.innerWidth);
+	let innerHeight = $state(window.innerHeight);
+	const zoom = $derived(
+		innerWidth > 900 ? Math.max(0.6, Math.min(1, (innerHeight - 290) / (view.players.length * 82 - 8))) : 1
+	);
 	/** Resource cards in a hand. Cards dealt on the board count once they get there. */
 	function cardsIn(i: number) {
 		return Math.max(0, view.players[i].resourceCount - client.onTheWay(i));
 	}
 </script>
 
-<div class="players">
+<svelte:window bind:innerWidth bind:innerHeight />
+
+<div class="players" style:zoom={zoom < 1 ? zoom.toFixed(3) : undefined}>
 	{#each view.players as p, i (i)}
 		{@const current = i === view.current && playing}
 		{@const pts = p.totalPoints ?? p.publicPoints}
