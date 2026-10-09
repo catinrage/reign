@@ -444,31 +444,57 @@
 {/if}
 
 <style>
-	/* Buildings and Events share a row: two narrower plaques. */
+	/* Buildings and Events share a row: two narrower plaques, each with its picture beside the
+	   label and name and the rest underneath, so the pair fits half the lobby's width. Their
+	   "Choose ..." line moves into the tooltip, to keep the lobby within a 768-pixel screen. */
 	.duo {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 		gap: 8px;
 	}
+	.duo :global(.pick) {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: center;
+		column-gap: 8px;
+		row-gap: 2px;
+		padding: 4px 6px;
+		min-width: 0;
+	}
+	.duo :global(.pick .pick-body) {
+		display: contents;
+	}
 	.duo :global(.pick .face) {
-		width: 58px;
-		height: 62px;
+		grid-row: 1 / 3;
+		width: 48px;
+		height: 46px;
 	}
 	.duo :global(.pick .face img) {
-		max-width: 50px;
-		max-height: 50px;
+		max-width: 30px;
+		max-height: 30px;
 	}
 	.duo :global(.pick .pick-name) {
-		font-size: 16px;
-	}
-	.duo :global(.pick .trait) {
+		font-size: 15px;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+	.duo :global(.pick .trait) {
+		grid-column: 1 / -1;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.duo :global(.pick .change) {
+		display: none;
+	}
 	@media (max-width: 520px) {
 		.duo {
 			grid-template-columns: 1fr;
+		}
+		/* Phones: the points buttons drop under their label rather than past the frame. */
+		.goal {
+			flex-wrap: wrap;
 		}
 	}
 	.lobby {
@@ -499,6 +525,10 @@
 		gap: 14px;
 		padding: calc(var(--s) * 8) 14px 14px;
 		animation: pop-in 0.35s cubic-bezier(0.2, 1.3, 0.4, 1);
+		/* A shadow, not the panel's drop-shadow filter: a filter would trap the lobby's dialogs
+		   inside the card instead of the whole screen. */
+		filter: none;
+		box-shadow: 0 12px 14px rgba(0, 0, 0, 0.5);
 	}
 	.head {
 		--rib: var(--art-ribbon-gold);
@@ -971,7 +1001,7 @@
 		}
 		.wide .cols {
 			display: grid;
-			grid-template-columns: 1fr 1fr;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 			gap: 18px;
 		}
 		/* Leave and Start sit at the foot of the seats, level with the end of the settings. */
@@ -985,6 +1015,7 @@
 		}
 		.card.wide {
 			gap: 9px;
+			padding-bottom: 8px;
 		}
 		.wide .invite {
 			flex-direction: row;
@@ -1043,7 +1074,7 @@
 			margin-left: max(24px, 4vw);
 		}
 		.column.wide {
-			padding-top: 34px;
+			padding-top: 26px;
 			padding-bottom: 8px;
 			width: 900px;
 			max-width: calc(100% - 2 * max(24px, 4vw));
