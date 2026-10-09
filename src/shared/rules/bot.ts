@@ -239,7 +239,7 @@ function wantsTrade(s: GameState, me: number): boolean {
 	const res = s.players[me].resources;
 	if (!hasResources(res, t.want)) return false;
 	// Points everyone can see: victory point cards stay secret until the game ends.
-	if (publicPoints(s, t.from) >= 8) return false;
+	if (publicPoints(s, t.from) >= s.pointsToWin - 2) return false;
 	const gets = totalResources(t.give);
 	const gives = totalResources(t.want);
 	if (gets < gives) return false;
