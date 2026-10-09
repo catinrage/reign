@@ -8,7 +8,8 @@ import type { Hub } from './hub';
  */
 
 export const SESSION_COOKIE = 'reign_session';
-const MAX_BODY = 16 * 1024;
+/** Room for an import of every map a browser kept. */
+const MAX_BODY = 512 * 1024;
 /** Sign-in and sign-up attempts allowed per address in a window, against password guessing. */
 const ATTEMPTS = 20;
 const ATTEMPT_WINDOW_MS = 10 * 60_000;
@@ -157,6 +158,29 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, accou
 			else return (json(res, 405, { error: 'Not like that.' }), true);
 			await hub.pushFriends(me.id, other);
 			return (json(res, 200, await hub.friendsInfo(me.id)), true);
+		}
+
+		if (path === 'maps') {
+			if (method === 'GET') return (json(res, 200, { maps: await accounts.maps(me.id) }), true);
+			if (method === 'POST') {
+				const body = await readBody(req);
+				return (json(res, 200, await accounts.saveMap(me.id, body.map)), true);
+			}
+		}
+		if (path === 'maps/import' && method === 'POST') {
+			const body = await readBody(req);
+			return (json(res, 200, { maps: await accounts.importMaps(me.id, body.maps) }), true);
+		}
+		const map = /^maps\/(\d+)$/.exec(path);
+		if (map) {
+			if (method === 'PUT') {
+				const body = await readBody(req);
+				return (json(res, 200, await accounts.saveMap(me.id, body.map, map[1])), true);
+			}
+			if (method === 'DELETE') {
+				await accounts.deleteMap(me.id, map[1]);
+				return (json(res, 200, { ok: true }), true);
+			}
 		}
 
 		if (path === 'history' && method === 'GET') {
