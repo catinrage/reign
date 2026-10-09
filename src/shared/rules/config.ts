@@ -38,7 +38,7 @@ export const COSTS: Record<BuildKind, Partial<ResourceCounts>> = {
 	settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 },
 	city: { wheat: 2, ore: 3 },
 	devCard: { sheep: 1, wheat: 1, ore: 1 },
-	workshop: { wood: 1, brick: 1 }
+	workshop: { wood: 1, brick: 1, ore: 1 }
 };
 
 export const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 } as const;
