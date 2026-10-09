@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { mapName, presetById } from '../../shared/board/maps';
+	import { MAP_PRESETS, mapName, presetById } from '../../shared/board/maps';
 	import { CHARACTERS, STEWARD_EXTRA } from '../../shared/rules/characters';
-	import { PLAYER_COLORS } from '../../shared/rules/config';
+	import { DISCARD_THRESHOLD, PLAYER_COLORS, VICTORY_POINTS_TO_WIN } from '../../shared/rules/config';
 	import { RANDOM_SHAPE_INFO } from '../../shared/board/random';
 	import {
 		GAME_MODES,
@@ -64,12 +64,13 @@
 		`${mapTiles.length} tiles and ${lobby.seats.length} players: about ${suggestedPoints(mapTiles.length, lobby.seats.length)} plays well, ${pointsCap} at most`
 	);
 	let picking = $state<'character' | 'map' | null>(null);
+	const CLASSIC_TILES = MAP_PRESETS[0].tiles;
 	// The table shows the island that will be played.
 	$effect(() => sceneRef.current?.showMenuMap(extended ? mapTiles : null));
 
-	// Reign Extended spreads the lobby over two columns, so the island slides over to the middle
-	// of the space left beside it.
-	$effect(() => sideLayout(extended ? wideShift : 0.16));
+	// The lobby spreads over two columns, so the table slides over to the middle of the space
+	// left beside it.
+	$effect(() => sideLayout(wideShift));
 
 	function wideShift() {
 		const w = window.innerWidth;
@@ -95,6 +96,10 @@
 	function shortTime(t: number) {
 		return !t ? 'Unlimited' : t < 120 ? `${t} sec` : `${t / 60} min`;
 	}
+	/** The same, for the one-row picker of the wide lobby. */
+	function tinyTime(t: number) {
+		return !t ? 'Off' : t < 120 ? `${t}s` : `${t / 60}m`;
+	}
 	function longTime(t: number) {
 		return !t ? 'Unlimited' : t < 120 ? `${t} seconds a turn` : `${t / 60} minutes a turn`;
 	}
@@ -112,8 +117,8 @@
 
 <div class="lobby">
 	<Embers count={14} />
-	<div class="column" class:wide={extended}>
-		<div class="card panel" class:wide={extended}>
+	<div class="column wide">
+		<div class="card panel wide">
 			<div class="ribbon head">Gather your table</div>
 
 			<div class="cols">
@@ -239,7 +244,7 @@
 								role="radio"
 								aria-checked={settings.mode === m}
 								disabled={!client.isHost || (m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS)}
-								title={m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS ? 'Classic seats 4 players' : undefined}
+								title={m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS ? 'Classic seats 4 players' : MODE_INFO[m].text}
 								onclick={() => client.send({ t: 'setMode', mode: m })}
 							>
 								<span class="mode-name title">
@@ -286,7 +291,7 @@
 									>
 									<span class="trait"
 										>{settings.characters
-											? 'Everyone picks one when the game starts. The first to place a settlement picks last.'
+											? 'Everyone picks one at the start. The first settler picks last.'
 											: 'No characters: everyone plays by the plain rules.'}</span
 									>
 									<span class="change">{client.isHost ? 'Change' : 'See them all'}</span>
@@ -378,12 +383,25 @@
 							</div>
 							<BuildingRules />
 						</div>
+					{:else}
+						<!-- Classic always plays the standard island: the same card as Reign Extended's, fixed. -->
+						<div class="pick plaque fixed">
+							<span class="map-well well"><MapPreview tiles={CLASSIC_TILES} width={92} height={70} /></span>
+							<span class="pick-body">
+								<span class="label">Island</span>
+								<span class="pick-name title">Classic Isle <small>{CLASSIC_TILES.length} tiles</small></span>
+								<span class="trait"
+									>Terrains, numbers and harbors dealt fresh each game. First to {VICTORY_POINTS_TO_WIN} points wins,
+									and a 7 makes anyone holding more than {DISCARD_THRESHOLD} cards discard half.</span
+								>
+							</span>
+						</div>
 					{/if}
 
 					<div class="timer">
 						<div class="timer-head">
 							<span class="label">Turn timer</span>
-							<span class="chosen"
+							<span class="chosen" title={lobby.turnTime ? 'When time runs out, the turn ends on its own.' : undefined}
 								><img class="icon-px" src={PIXEL.watch} alt="" />{longTime(lobby.turnTime)}</span
 							>
 						</div>
@@ -393,7 +411,8 @@
 									<button
 										class="btn small"
 										class:on={lobby.turnTime === t}
-										onclick={() => client.send({ t: 'setTurnTime', seconds: t })}>{shortTime(t)}</button
+										onclick={() => client.send({ t: 'setTurnTime', seconds: t })}
+										><span class="long">{shortTime(t)}</span><span class="short">{tinyTime(t)}</span></button
 									>
 								{/each}
 							</div>
@@ -646,6 +665,12 @@
 		grid-template-columns: repeat(3, 1fr);
 		gap: 5px;
 	}
+	.times .short {
+		display: none;
+	}
+	.pick.fixed {
+		cursor: default;
+	}
 	.note {
 		margin: 0;
 		color: var(--muted);
@@ -737,6 +762,20 @@
 	/* Same button, drawn at a smaller pixel size. */
 	.many .kick {
 		--s: 2.2px;
+	}
+	/* A signed-in player's avatar, with their banner pinned to its corner. */
+	.face {
+		position: relative;
+		flex: none;
+	}
+	.shield.mini {
+		position: absolute;
+		right: -6px;
+		bottom: -5px;
+		--s: 1.4px;
+		width: 16px;
+		height: 19px;
+		padding: 0;
 	}
 	.who {
 		display: flex;
@@ -893,7 +932,8 @@
 		flex-direction: column;
 		gap: 14px;
 	}
-	/* Reign Extended has more to set up, so it spreads sideways instead of growing tall. */
+	/* On wider screens the lobby spreads sideways instead of growing tall: invite, seats and Start
+	   on the left, the game's settings on the right, in both modes. */
 	@media (min-width: 820px) {
 		.card.wide {
 			width: min(860px, 100%);
@@ -910,10 +950,10 @@
 		.wide .col {
 			display: flex;
 			flex-direction: column;
-			gap: 11px;
+			gap: 9px;
 		}
 		.card.wide {
-			gap: 11px;
+			gap: 9px;
 		}
 		.wide .invite {
 			flex-direction: row;
@@ -926,6 +966,43 @@
 		}
 		.wide .invite .label {
 			flex-basis: 100%;
+		}
+		/* Settings rows kept short so the right column fits a 768-pixel-tall screen. */
+		.wide .times {
+			grid-template-columns: repeat(6, 1fr);
+			gap: 4px;
+		}
+		.wide .times .long {
+			display: none;
+		}
+		.wide .times .short {
+			display: inline;
+		}
+		.wide .timer .note {
+			display: none;
+		}
+		/* The two modes as one row of tabs; each says what it is in its tooltip. */
+		.wide .mode {
+			align-items: center;
+			padding: 7px 8px 8px;
+		}
+		.wide .mode-name {
+			font-size: 15px;
+			white-space: nowrap;
+		}
+		.wide .mode-text {
+			display: none;
+		}
+		/* The banner label and all eight banners on one line. */
+		.wide .colors {
+			flex-wrap: nowrap;
+		}
+		.wide .banners {
+			gap: 3px;
+		}
+		.wide .banner {
+			width: 28px;
+			height: 32px;
 		}
 	}
 	@media (min-width: 1100px) and (min-aspect-ratio: 4/3) {
