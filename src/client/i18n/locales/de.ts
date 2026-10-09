@@ -1457,5 +1457,10 @@ export default {
 	"Taverns are only in games with the Events deck.": "Tavernen gibt es nur in Spielen mit dem Ereignisstapel.",
 	"Knowing the next card lets you get ready for it: spend your cards before a Plague of Rats, play a knight before a Tournament, or save your trades for a Traveling Fair.": "Wer die nächste Karte kennt, kann sich darauf vorbereiten: Gib deine Karten vor einer Rattenplage aus, spiele vor einem Turnier einen Ritter oder heb dir deine Tauschgeschäfte für den Jahrmarkt auf.",
 	"A player with a tavern hears the rumors: they see the next card before it turns over, beside the round's card in the corner.": "Mit einer Taverne hörst du die Gerüchte: Du siehst die nächste Karte, bevor sie aufgedeckt wird, in der Ecke neben der Karte der Runde.",
-	"taverns": "Tavernen"
+	"taverns": "Tavernen",
+	"Auto roll is on: the dice roll by themselves in a moment.": "Auto-Würfeln ist an: Gleich würfelt es von selbst.",
+	"Auto roll": "Auto-Würfeln",
+	"On: your dice roll by themselves a moment after your turn starts.": "An: Kurz nach Beginn deines Zugs wird von selbst gewürfelt.",
+	"Off: press Roll dice yourself. Turn it on to roll by itself when your turn starts.": "Aus: Drück selbst auf Würfeln. Schalte es an, damit zu Beginn deines Zugs von selbst gewürfelt wird.",
+	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}, der Würfel-Knopf in der Ecke, würfelt kurz nach Beginn deines Zugs für dich. Du hast trotzdem Zeit, vorher einen Ritter zu spielen oder deine Kraft einzusetzen."
 } satisfies Messages;

@@ -1457,5 +1457,10 @@ export default {
 	"Taverns are only in games with the Events deck.": "只有启用事件牌堆的对局才有酒馆。",
 	"Knowing the next card lets you get ready for it: spend your cards before a Plague of Rats, play a knight before a Tournament, or save your trades for a Traveling Fair.": "知道下一张牌就能提前准备：在鼠疫之前花掉手牌，在比武大会之前打出一张骑士，或把交易留到巡回集市时再做。",
 	"A player with a tavern hears the rumors: they see the next card before it turns over, beside the round's card in the corner.": "拥有酒馆的玩家能听到传闻：在下一张牌翻开之前，就能在角落里本轮事件牌的旁边看到它。",
-	"taverns": "酒馆"
+	"taverns": "酒馆",
+	"Auto roll is on: the dice roll by themselves in a moment.": "自动掷骰已开启：骰子马上会自动掷出。",
+	"Auto roll": "自动掷骰",
+	"On: your dice roll by themselves a moment after your turn starts.": "开：你的回合开始后片刻，骰子会自动掷出。",
+	"Off: press Roll dice yourself. Turn it on to roll by itself when your turn starts.": "关：自己按“掷骰”。开启后，你的回合开始时会自动掷骰。",
+	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}（角落里的骰子按钮）会在你的回合开始后片刻替你掷骰。你仍有时间先打出骑士或使用技能。"
 } satisfies Messages;

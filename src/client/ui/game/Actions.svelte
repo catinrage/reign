@@ -17,6 +17,7 @@
 	import { ui } from './ui.svelte';
 	import { RESOURCE_LABEL } from '../../../shared/rules/config';
 	import { msg, t } from '../../i18n/index.svelte';
+	import { AUTO_ROLL_MS, autoRoll } from './autoRoll.svelte';
 
 	const view = $derived(client.view!);
 	const mine = $derived(myTurn(view));
@@ -68,6 +69,21 @@
 		const now = view.step === 'roll' ? info.when !== 'main' : view.step === 'main' ? info.when !== 'roll' : false;
 		return now ? info : null;
 	});
+	const canRoll = $derived(
+		mine && view.step === 'roll' && !client.rollAsked && !client.tossing && !client.presenting
+	);
+	/**
+	 * With auto roll on, the Roll dice button rolls by itself once it has been up a moment. Using a
+	 * power holds it, and a Knight takes the turn off the roll until the robber has moved, so either
+	 * starts the wait over. A paused game doesn't roll.
+	 */
+	const autoRolling = $derived(autoRoll.on && canRoll && !ui.power && !client.lobby?.paused);
+	$effect(() => {
+		if (!autoRolling) return;
+		const timer = setTimeout(() => client.act({ type: 'rollDice' }), AUTO_ROLL_MS);
+		return () => clearTimeout(timer);
+	});
+
 	function onPower() {
 		ui.build = null;
 		ui.trade = false;
@@ -168,9 +184,16 @@
 				<span class="gem"></span>{t(power.name)}
 			</button>
 		{/if}
-		{#if mine && view.step === 'roll' && !client.rollAsked && !client.tossing && !client.presenting}
-			<button class="btn big shine roll" onclick={() => client.act({ type: 'rollDice' })}>
+		{#if canRoll}
+			<button
+				class="btn big shine roll"
+				class:auto={autoRolling}
+				style:--auto-ms="{AUTO_ROLL_MS}ms"
+				title={autoRolling ? t('Auto roll is on: the dice roll by themselves in a moment.') : undefined}
+				onclick={() => client.act({ type: 'rollDice' })}
+			>
 				<img src={PIXEL.die} alt="" /> {t('Roll dice')}
+				{#if autoRolling}<span class="fuse" aria-hidden="true"></span>{/if}
 			</button>
 		{/if}
 		{#if mine && view.step === 'main'}
@@ -247,6 +270,25 @@
 	}
 	.roll img {
 		height: calc(var(--s) * 10);
+	}
+	/* Auto roll: a fuse burns down along the button, and the dice roll when it runs out. */
+	.fuse {
+		position: absolute;
+		left: 6%;
+		right: 6%;
+		bottom: calc(var(--s) * -2);
+		height: calc(var(--s) * 2);
+		background: linear-gradient(90deg, #ffd166, #ff8a3d);
+		box-shadow:
+			0 0 0 2px #2a1a10,
+			0 0 6px rgba(255, 170, 60, 0.8);
+		transform-origin: left;
+		animation: fuse var(--auto-ms) linear both;
+	}
+	@keyframes fuse {
+		to {
+			transform: scaleX(0);
+		}
 	}
 	.builds {
 		display: grid;
