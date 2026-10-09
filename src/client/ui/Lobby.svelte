@@ -15,6 +15,7 @@
 		suggestedPoints
 	} from '../../shared/rules/modes';
 	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
+	import { OFFLINE } from '../offline/flag';
 	import { account } from '../state/account.svelte';
 	import { client } from '../state/client.svelte';
 	import Avatar from './account/Avatar.svelte';
@@ -124,19 +125,21 @@
 
 			<div class="cols">
 				<div class="col">
-					<div class="invite">
-						<span class="label">Room code</span>
-						<CodeTiles value={lobby.code} size="big" />
-						<button class="btn small wood" onclick={copy}>
-							<img class="icon-px" src={copied ? PIXEL.check : PIXEL.letter} alt="" />{copied
-								? 'Link copied!'
-								: 'Copy invite link'}
-						</button>
-						<button class="btn small" onclick={() => (inviting = true)}>
-							<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />Invite friends{#if account.onlineFriends.length}
-								<span class="online">{account.onlineFriends.length} online</span>{/if}
-						</button>
-					</div>
+					{#if !OFFLINE}
+						<div class="invite">
+							<span class="label">Room code</span>
+							<CodeTiles value={lobby.code} size="big" />
+							<button class="btn small wood" onclick={copy}>
+								<img class="icon-px" src={copied ? PIXEL.check : PIXEL.letter} alt="" />{copied
+									? 'Link copied!'
+									: 'Copy invite link'}
+							</button>
+							<button class="btn small" onclick={() => (inviting = true)}>
+								<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />Invite friends{#if account.onlineFriends.length}
+									<span class="online">{account.onlineFriends.length} online</span>{/if}
+							</button>
+						</div>
+					{/if}
 
 
 					<div class="divider">
@@ -226,7 +229,7 @@
 							{/if}
 						</div>
 						{#if client.isHost && !enough}
-							<p class="hint">Send the link to friends, or add a bot to start.</p>
+							<p class="hint">{OFFLINE ? 'Add a bot or two to start.' : 'Send the link to friends, or add a bot to start.'}</p>
 						{:else if client.isHost && notReady.length}
 							<p class="hint">Waiting for {names(notReady)} to be ready.</p>
 						{:else if !client.isHost && mySeat?.ready}

@@ -117,6 +117,20 @@ The same image deploys as a single web service on any host that supports WebSock
 Railway, a VPS…). `render.yaml` deploys to Render without Docker, together with a free Render Postgres database for
 the accounts (Render's free databases expire after a while; move to a paid plan to keep the data).
 
+## Offline build (bots only, on Vercel)
+
+```bash
+pnpm build:offline                  # static site in dist/offline
+pnpm dev:offline                    # the same with hot reload on http://localhost:5173
+```
+
+The offline build needs no game server and no accounts: the rules and the bots run inside the
+page (the same `Room` the server uses, behind a stand-in WebSocket in `src/client/offline`).
+You play as one local player against bots, in Classic or Reign Extended; your nickname, avatar
+and saved maps stay in the browser. Rooms can't be shared, and a reload ends the game.
+`vercel.json` builds this version, so the repository deploys to Vercel (or any static host) as is.
+The normal `pnpm build`, Docker and Render are unchanged.
+
 ## Controls
 
 - Drag to rotate the table, right-drag (or two fingers) to pan, wheel/pinch to zoom.

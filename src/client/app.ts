@@ -3,6 +3,7 @@ import './styles/ui.css';
 import { GameScene } from './scene/gameScene';
 import { getIcons } from './scene/icons';
 import { account } from './state/account.svelte';
+import { OFFLINE } from './offline/flag';
 import { client } from './state/client.svelte';
 import App from './ui/App.svelte';
 import { installArt } from './ui/art';
@@ -30,7 +31,13 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	armAudio();
 	// The game connection opens once signed in, and closes on signing out.
 	account.watch((signedIn) => (signedIn ? client.connect() : client.disconnect()));
-	void account.boot();
+	if (OFFLINE) {
+		// No server: the rules and the bots run in this page, and the one local player is signed in.
+		void import('./offline/localServer').then(({ LocalSocket }) => {
+			client.openSocket = () => new LocalSocket() as unknown as WebSocket;
+			void account.boot();
+		});
+	} else void account.boot();
 	(window as any).__account = account;
 	(window as any).__client = client;
 	if (new URLSearchParams(location.search).has('autoplay')) {
