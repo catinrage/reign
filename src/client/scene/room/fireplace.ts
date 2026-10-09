@@ -29,24 +29,27 @@ export interface Fireplace {
 const OX0 = 11;
 const OX1 = 34;
 const archTop = (x: number) => 19 + Math.round(3 * Math.sqrt(Math.max(0, 1 - ((x - 22.5) / 12.5) ** 2)));
+/** Width and height of the fireplace in voxels; the chimney breast carries on above it. */
+const W = 46;
+const H = 72;
+
+const stone = (x: number, y: number, z: number, face: 'front' | 'side' = 'front') => {
+	const course = y >> 1;
+	const u = face === 'front' ? x : z;
+	const off = (course & 1) * 3;
+	const brickIdx = Math.floor((u + off) / 5);
+	const mortar = (u + off) % 5 === 0;
+	const c = pick(BRICK, hash3(brickIdx, course, face === 'front' ? 0 : 1, 3));
+	if (mortar) return shade(MORTAR, 0.9 + hash3(x, y, z) * 0.2);
+	return shade(c, 0.88 + hash3(x, y, z) * 0.16 - ((y & 1) === 1 ? 0 : 0.1));
+};
 
 export function buildFireplace(): Fireplace {
-	const W = 46;
-	const g = new VoxelGrid(W + 8, 72, 24, -4, 0, 0);
-	const stone = (x: number, y: number, z: number, face: 'front' | 'side' = 'front') => {
-		const course = y >> 1;
-		const u = face === 'front' ? x : z;
-		const off = (course & 1) * 3;
-		const brickIdx = Math.floor((u + off) / 5);
-		const mortar = (u + off) % 5 === 0;
-		const c = pick(BRICK, hash3(brickIdx, course, face === 'front' ? 0 : 1, 3));
-		if (mortar) return shade(MORTAR, 0.9 + hash3(x, y, z) * 0.2);
-		return shade(c, 0.88 + hash3(x, y, z) * 0.16 - ((y & 1) === 1 ? 0 : 0.1));
-	};
+	const g = new VoxelGrid(W + 8, H, 24, -4, 0, 0);
 	// firebox surround
 	g.box(0, 0, 0, W - 1, 29, 13, (x, y, z) => stone(x, y, z, z === 13 ? 'front' : 'side'));
 	// chimney breast
-	g.box(4, 30, 0, W - 5, 71, 9, (x, y, z) => stone(x, y, z, z === 9 ? 'front' : 'side'));
+	g.box(4, 30, 0, W - 5, H - 1, 9, (x, y, z) => stone(x, y, z, z === 9 ? 'front' : 'side'));
 	// opening with a shallow arch
 	for (let x = OX0; x <= OX1; x++) {
 		const top = archTop(x);
@@ -148,6 +151,21 @@ export function buildFireplace(): Fireplace {
 			}
 		}
 	};
+}
+
+/**
+ * The chimney breast above the fireplace, in its local space, from its top up to `ceiling`
+ * (room units over the floor), so it meets the ceiling however high the room is.
+ */
+export function buildChimney(ceiling: number): THREE.Group {
+	const top = Math.max(H, Math.ceil(ceiling / FIRE_S));
+	const g = new VoxelGrid(W - 8, top - H + 1, 10, 4, H, 0);
+	const face = (x: number, y: number, z: number) => stone(x, y, z, z === 9 ? 'front' : 'side');
+	// Only its front and sides, as nothing ever sees inside it.
+	g.box(4, H, 9, W - 5, top - 1, 9, face);
+	g.box(4, H, 0, 4, top - 1, 8, face);
+	g.box(W - 5, H, 0, W - 5, top - 1, 8, face);
+	return voxels(g, FIRE_S, { jitter: 0.05, drop: (_x, y, z) => y < 0 || z < 0, shadows: false });
 }
 
 const FLAME = [hex('#ffe680'), hex('#ffc040'), hex('#ff9624'), hex('#f46a1a'), hex('#d8441a'), hex('#b02e14')];

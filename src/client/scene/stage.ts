@@ -19,6 +19,17 @@ import { sharedUniforms } from './voxel/materials';
 
 export type Quality = 'high' | 'low';
 
+/** The camera stands in the room, close to the table, so it has a wide lens (vertical, degrees). */
+const FOV = 50;
+/** Tall screens open the lens further, so the view is still this wide across (degrees). */
+const MIN_ACROSS = 40;
+
+/** Vertical field of view for a screen's aspect ratio. */
+function fovFor(aspect: number) {
+	const across = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(MIN_ACROSS / 2)) / aspect);
+	return Math.max(FOV, THREE.MathUtils.radToDeg(across));
+}
+
 /** Owns the renderer, camera, lights and post-processing. Everything else adds to `scene`. */
 export class Stage {
 	readonly renderer: THREE.WebGLRenderer;
@@ -55,7 +66,7 @@ export class Stage {
 		this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 		this.scene.environmentIntensity = 0.38;
 
-		this.camera = new THREE.PerspectiveCamera(32, 1, 4, 2400);
+		this.camera = new THREE.PerspectiveCamera(FOV, 1, 4, 2400);
 		this.rig = new CameraRig(this.camera, canvas);
 		this.lighting = new Lighting(this.scene, quality);
 
@@ -159,6 +170,7 @@ export class Stage {
 		this.renderer.setSize(w, h, false);
 		this.composer.setSize(w, h, false);
 		this.camera.aspect = w / h;
+		this.camera.fov = fovFor(w / h);
 		this.camera.updateProjectionMatrix();
 		sharedUniforms.uViewport.value.set(w, h);
 		this.applyShift();
