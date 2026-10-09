@@ -630,7 +630,7 @@ export const sfx = {
 	tick,
 	/** A dark sting (a drum boom and a low brass chord) as the dice land on 7. */
 	seven: () => play('seven'),
-	/** A medieval horn call: your turn has come. */
+	/** A medieval horn call: the lobby has closed and the game begins. */
 	horn: () => play('horn'),
 	/** A merchant's little bell: another player put a trade on the table. */
 	trade: () => play('trade'),

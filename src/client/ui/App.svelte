@@ -50,6 +50,14 @@
 		hovered = el;
 	}
 
+	// A horn call for everyone at the table as the lobby closes and the game begins (a rejoin
+	// comes in from the menu, so it stays quiet).
+	let lastScreen: typeof screen | null = null;
+	$effect(() => {
+		if (screen === 'game' && lastScreen === 'lobby') sfx.horn();
+		lastScreen = screen;
+	});
+
 	let wasGame = false;
 	$effect(() => {
 		if (screen === 'game') wasGame = true;
