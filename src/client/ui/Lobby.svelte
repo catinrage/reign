@@ -19,6 +19,9 @@
 	const lobby = $derived(client.lobby!);
 	const mySeat = $derived(lobby.seats.find((s) => s.id === client.seat));
 	const open = $derived(Math.max(0, lobby.maxPlayers - lobby.seats.length));
+	// The host can only start once every other settler has said they are ready.
+	const notReady = $derived(lobby.seats.filter((s) => !s.ready));
+	const enough = $derived(lobby.seats.length >= MIN_PLAYERS);
 	let copied = $state(false);
 	const settings = $derived(lobby.settings);
 	const extended = $derived(settings.mode === 'extended');
@@ -33,6 +36,10 @@
 
 	onMount(sideLayout);
 
+	function names(seats: { name: string }[]) {
+		const n = seats.map((s) => s.name);
+		return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
+	}
 	function shortTime(t: number) {
 		return !t ? 'Unlimited' : t < 120 ? `${t} sec` : `${t / 60} min`;
 	}
@@ -118,6 +125,13 @@
 						</span>
 						{#if s.isHost}<img class="icon-px tag" src={PIXEL.crown} alt="host" title="Host" />{/if}
 						{#if !s.connected}<span class="away">away</span>{/if}
+						{#if !s.isHost && !s.isBot && s.connected}
+							{#if s.ready}
+								<span class="ready on" title="Ready"><img class="icon-px" src={PIXEL.check} alt="" />Ready</span>
+							{:else}
+								<span class="ready" title="Not ready yet">Not ready</span>
+							{/if}
+						{/if}
 						{#if client.isHost && s.isBot}
 							<button
 								class="icon-btn kick"
@@ -238,19 +252,33 @@
 				{#if client.isHost}
 					<button
 						class="btn big shine start"
-						disabled={lobby.seats.length < MIN_PLAYERS}
+						disabled={!enough || notReady.length > 0}
 						onclick={() => client.send({ t: 'start' })}
 					>
 						<img src={PIXEL.play} alt="" />Start game
 					</button>
-				{:else}
-					<span class="wait"
-						><img class="icon-px" src={PIXEL.hourglass} alt="" />Waiting for the host…</span
+				{:else if mySeat}
+					<button
+						class="btn big ready-btn"
+						class:shine={!mySeat.ready}
+						class:green={mySeat.ready}
+						aria-pressed={mySeat.ready}
+						onclick={() => client.send({ t: 'setReady', ready: !mySeat.ready })}
 					>
+						<img src={mySeat.ready ? PIXEL.check : PIXEL.hourglass} alt="" />{mySeat.ready
+							? 'Ready!'
+							: 'I am ready'}
+					</button>
 				{/if}
 			</div>
-			{#if client.isHost && lobby.seats.length < MIN_PLAYERS}
+			{#if client.isHost && !enough}
 				<p class="hint">Send the link to friends, or add a bot to start.</p>
+			{:else if client.isHost && notReady.length}
+				<p class="hint">Waiting for {names(notReady)} to be ready.</p>
+			{:else if !client.isHost && mySeat?.ready}
+				<p class="hint">Waiting for the host to start. Tap again if you are not ready.</p>
+			{:else if !client.isHost}
+				<p class="hint">The host can start once everyone is ready.</p>
 			{/if}
 		</div>
 	</div>
@@ -387,6 +415,29 @@
 		font-weight: 800;
 		color: #ffb08a;
 	}
+	.ready {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex: none;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 13px;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+	.ready.on {
+		color: #9be36a;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.ready img {
+		width: 16px;
+		height: 16px;
+	}
+	.ready-btn img {
+		height: calc(var(--s) * 8) !important;
+	}
 	.kick {
 		width: calc(var(--s) * 11);
 		height: calc(var(--s) * 11);
@@ -479,19 +530,6 @@
 	}
 	.start img {
 		height: calc(var(--s) * 9) !important;
-	}
-	.wait {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-family: var(--px);
-		font-weight: 700;
-		color: var(--muted);
-	}
-	.wait img {
-		width: 20px;
-		height: 20px;
-		animation: bob 1.2s ease-in-out infinite;
 	}
 	.hint {
 		margin: -6px 0 0;

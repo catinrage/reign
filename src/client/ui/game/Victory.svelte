@@ -27,6 +27,10 @@
 	});
 	const winner = $derived(view.winner !== null ? view.players[view.winner] : null);
 	const MEDAL = ['gold', 'silver', 'bronze', 'iron'];
+	// A rematch needs everyone ready again, just like the first game.
+	const seats = $derived(client.lobby?.seats ?? []);
+	const notReady = $derived(seats.filter((s) => !s.ready));
+	const meReady = $derived(!!seats.find((s) => s.id === client.seat)?.ready);
 </script>
 
 {#if show && !hidden && winner}
@@ -60,13 +64,28 @@
 				<div class="foot">
 					<button class="btn wood" onclick={() => (hidden = true)}>View board</button>
 					{#if client.isHost}
-						<button class="btn green shine" onclick={() => client.send({ t: 'start' })}
-							>Play again</button
+						<button
+							class="btn green shine"
+							disabled={notReady.length > 0}
+							onclick={() => client.send({ t: 'start' })}>Play again</button
 						>
 					{:else}
 						<button class="btn red" onclick={() => client.leave()}>Leave</button>
+						<button
+							class="btn"
+							class:green={meReady}
+							class:shine={!meReady}
+							aria-pressed={meReady}
+							onclick={() => client.send({ t: 'setReady', ready: !meReady })}
+							>{meReady ? 'Ready!' : 'Play again'}</button
+						>
 					{/if}
 				</div>
+				{#if client.isHost && notReady.length}
+					<p class="again">Waiting for {notReady.map((s) => s.name).join(', ')} to be ready.</p>
+				{:else if !client.isHost && meReady}
+					<p class="again">Waiting for the host to start another game.</p>
+				{/if}
 			</div>
 		</div>
 	</div>
@@ -198,7 +217,14 @@
 	}
 	.foot {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: center;
 		gap: 12px;
+	}
+	.again {
+		margin: 8px 0 0;
+		text-align: center;
+		color: var(--muted);
+		font-size: 14px;
 	}
 </style>

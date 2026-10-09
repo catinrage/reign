@@ -25,6 +25,8 @@ interface Seat {
 	color: PlayerColor;
 	isBot: boolean;
 	character: CharacterId | null;
+	/** Said they are ready to start (only asked of players who aren't the host). */
+	ready: boolean;
 	sockets: Set<WebSocket>;
 	lastSeen: number;
 }
@@ -83,7 +85,8 @@ export class Room {
 					isBot: s.isBot,
 					connected: s.isBot || s.sockets.size > 0,
 					isHost: s.id === this.hostId,
-					character: s.character
+					character: s.character,
+					ready: this.isReady(s)
 				})
 			)
 		};
@@ -102,6 +105,7 @@ export class Room {
 				color: this.freeColor(),
 				isBot: false,
 				character: this.freeCharacter(),
+				ready: false,
 				sockets: new Set(),
 				lastSeen: Date.now()
 			};
@@ -169,6 +173,7 @@ export class Room {
 					color: this.freeColor(),
 					isBot: true,
 					character: this.freeCharacter(),
+					ready: true,
 					sockets: new Set(),
 					lastSeen: Date.now()
 				});
@@ -180,21 +185,25 @@ export class Room {
 				return this.broadcastLobby();
 			case 'setTurnTime':
 				if (!isHost || this.started || !TURN_TIMES.includes(msg.seconds)) return;
+				if (this.turnTime !== msg.seconds) this.unready();
 				this.turnTime = msg.seconds;
 				return this.broadcastLobby();
 			case 'setMode':
 				if (!isHost || this.lockedSettings || !GAME_MODES.includes(msg.mode)) return;
+				if (this.settings.mode !== msg.mode) this.unready();
 				this.settings.mode = msg.mode;
 				return this.broadcastLobby();
 			case 'setMap': {
 				if (!isHost || this.lockedSettings) return;
 				const map = cleanMap(msg.map);
 				if (typeof map === 'string') return send(ws, { t: 'error', message: map });
+				if (JSON.stringify(map) !== JSON.stringify(this.settings.map)) this.unready();
 				this.settings.map = map;
 				return this.broadcastLobby();
 			}
 			case 'setPointsToWin':
 				if (!isHost || this.lockedSettings || !POINT_GOALS.includes(msg.points)) return;
+				if (this.settings.pointsToWin !== msg.points) this.unready();
 				this.settings.pointsToWin = msg.points;
 				return this.broadcastLobby();
 			case 'setCharacter':
@@ -204,11 +213,23 @@ export class Room {
 				}
 				seat.character = msg.character;
 				return this.broadcastLobby();
+			case 'setReady':
+				if (this.lockedSettings || seat.isBot) return;
+				seat.ready = !!msg.ready;
+				return this.broadcastLobby();
 			case 'start':
 				if (!isHost || (this.game && this.game.phase !== 'ended')) return;
 				if (this.seats.length < MIN_PLAYERS) {
 					return send(ws, { t: 'error', message: 'You need at least two players. Add a bot!' });
 				}
+				{
+					const waiting = this.seats.filter((s) => !this.isReady(s));
+					if (waiting.length) {
+						const names = waiting.map((s) => s.name).join(', ');
+						return send(ws, { t: 'error', message: `Waiting for ${names} to be ready.` });
+					}
+				}
+				for (const s of this.seats) if (!s.isBot) s.ready = false;
 				this.pausedBy.clear();
 				// Random seating order makes the first player fair.
 				this.seats.sort(() => Math.random() - 0.5);
@@ -273,6 +294,19 @@ export class Room {
 	/** Lobby settings can change before the first game and between games, never during one. */
 	private get lockedSettings() {
 		return !!this.game && this.game.phase !== 'ended';
+	}
+
+	/**
+	 * The host and bots are always ready; everyone else says so. Between games a player who has
+	 * left doesn't hold up a rematch: a bot covers their seat, as it did while they were away.
+	 */
+	private isReady(s: Seat) {
+		return s.isBot || s.id === this.hostId || s.ready || (this.started && !s.sockets.size);
+	}
+
+	/** The host changed what will be played, so everyone confirms again. */
+	private unready() {
+		for (const s of this.seats) if (!s.isBot) s.ready = false;
 	}
 
 	/** A character nobody at the table plays yet, picked at random. */
