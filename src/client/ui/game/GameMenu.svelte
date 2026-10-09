@@ -143,11 +143,16 @@
 						>
 						{#if confirmLeave}
 							<div class="confirm parch">
-								<p>
-									Leave the table? A bot plays your seat until you come back with code <b
-										>{client.code}</b
-									>.
-								</p>
+								{#if others > 0}
+									<p>
+										Leave the table? A bot plays your seat, and you can rejoin from the main menu
+										(or with code <b>{client.code}</b>) while anyone is still playing.
+									</p>
+								{:else}
+									<p>
+										Leave the table? Nobody else is playing, so leaving <b>cancels this game</b>.
+									</p>
+								{/if}
 								<div class="row">
 									<button class="btn small wood" onclick={() => (confirmLeave = false)}>Stay</button
 									>

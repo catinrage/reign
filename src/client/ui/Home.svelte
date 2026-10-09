@@ -82,6 +82,11 @@
 		commitName();
 		client.join(code);
 	}
+	function rejoin() {
+		if (!client.resumable || busy) return;
+		commitName();
+		client.join(client.resumable.code);
+	}
 	function openSheet(s: 'help' | 'settings') {
 		sfx.open();
 		sheet = s;
@@ -108,6 +113,18 @@
 		</header>
 
 		<div class="sign panel">
+			{#if client.resumable}
+				{@const r = client.resumable}
+				<button class="btn purple block rejoin" onclick={rejoin} disabled={busy}>
+					<img src={PIXEL.door} alt="" />
+					<span class="stack"
+						>Rejoin game {r.code}<span class="sub"
+							>{r.players.join(', ')}
+							{r.players.length === 1 ? 'is' : 'are'} still playing, a bot holds your seat</span
+						></span
+					>
+				</button>
+			{/if}
 			<label class="field">
 				<span class="label">Your name</span>
 				<div class="name-row">
@@ -281,6 +298,9 @@
 		justify-content: flex-start;
 		gap: 12px;
 		padding-left: calc(var(--s) * 4);
+	}
+	.rejoin .sub {
+		white-space: normal;
 	}
 	.sign .btn img {
 		height: calc(var(--s) * 9);

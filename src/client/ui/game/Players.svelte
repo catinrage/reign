@@ -81,7 +81,13 @@
 					{#if army}<span class="medal" title="Largest Army (+2)"
 							><img class="icon-px" src={PIXEL.army} alt="" /></span
 						>{/if}
-					{#if offline}<span class="away">away</span>{/if}
+					{#if offline}<span
+							class="away"
+							title={seats[i].left
+								? 'Left the table. A bot plays for them until they rejoin.'
+								: 'Lost connection. A bot covers if they stay away.'}
+							>{seats[i].left ? 'left' : 'away'}</span
+						>{/if}
 				</div>
 			{/if}
 		</div>

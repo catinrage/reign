@@ -7,11 +7,13 @@ import { Room, send } from './room';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.cwd(), 'dist/client');
-const ROOM_IDLE_MS = 1000 * 60 * 60 * 3;
 /** Dev cheats: on for the local dev server (`pnpm dev` passes --dev), never in production. */
 const CHEATS = process.argv.includes('--dev') && process.env.NODE_ENV !== 'production';
 
 const rooms = new Map<string, Room>();
+/** Codes of games cancelled because everyone left, and when, so a late rejoin hears why. */
+const cancelled = new Map<string, number>();
+const CANCELLED_MEMORY_MS = 1000 * 60 * 60;
 
 const MIME: Record<string, string> = {
 	'.html': 'text/html; charset=utf-8',
@@ -75,14 +77,28 @@ wss.on('connection', (ws: WebSocket) => {
 			return;
 		}
 		if (msg.t === 'ping') return send(ws, { t: 'pong' });
+		if (msg.t === 'peek') {
+			const code = String(msg.code ?? '').toUpperCase();
+			const peek = rooms.get(code)?.peek(msg.token) ?? { open: false, players: [] };
+			return send(ws, { t: 'peek', code, ...peek });
+		}
 		if (msg.t === 'create' || msg.t === 'join') {
-			if (room) room.disconnect(ws);
+			if (room) {
+				room.disconnect(ws);
+				cancelIfAbandoned(room);
+			}
 			if (msg.t === 'create') {
 				room = new Room(newCode(), CHEATS);
 				rooms.set(room.code, room);
 			} else {
-				room = rooms.get(String(msg.code ?? '').toUpperCase()) ?? null;
-				if (!room) return send(ws, { t: 'error', message: "That game doesn't exist (or it ended)." });
+				const code = String(msg.code ?? '').toUpperCase();
+				room = rooms.get(code) ?? null;
+				if (!room) {
+					const message = cancelled.has(code)
+						? 'That game was cancelled when everyone left it.'
+						: "That game doesn't exist (or it ended).";
+					return send(ws, { t: 'error', message });
+				}
 			}
 			seat = room.join(ws, msg.name, msg.token);
 			if (typeof seat === 'string') {
@@ -99,20 +115,33 @@ wss.on('connection', (ws: WebSocket) => {
 			console.error(e);
 			send(ws, { t: 'error', message: 'Something went wrong on the server.' });
 		}
+		if (msg.t === 'leave') {
+			cancelIfAbandoned(room);
+			room = null;
+			seat = null;
+		}
 	});
 
-	ws.on('close', () => room?.disconnect(ws));
+	ws.on('close', () => {
+		if (!room) return;
+		room.disconnect(ws);
+		cancelIfAbandoned(room);
+	});
 });
+
+/** Cancel a game nobody is at any more (see Room.abandoned). */
+function cancelIfAbandoned(room: Room, now = Date.now()) {
+	if (rooms.get(room.code) !== room || !room.abandoned(now)) return;
+	room.dispose();
+	rooms.delete(room.code);
+	if (room.started) cancelled.set(room.code, now);
+}
 
 setInterval(() => {
 	const now = Date.now();
-	for (const [code, room] of rooms) {
-		if (room.isEmpty() && now - room.lastActivity() > (room.started ? ROOM_IDLE_MS : 60_000 * 10)) {
-			room.dispose();
-			rooms.delete(code);
-		}
-	}
-}, 60_000);
+	for (const room of rooms.values()) cancelIfAbandoned(room, now);
+	for (const [code, at] of cancelled) if (now - at > CANCELLED_MEMORY_MS) cancelled.delete(code);
+}, 15_000);
 
 server.listen(PORT, () =>
 	console.log(`Reign server listening on http://localhost:${PORT}${CHEATS ? ' (dev cheats on)' : ''}`)
