@@ -327,7 +327,7 @@ describe('the lobby switch', () => {
 		room.handle(guest, { t: 'setBuilding', building: 'workshop', on: false }, b.ws);
 		expect(room.lobbyInfo().settings.buildings.workshop).toBe(true);
 		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
-		room.handle(host, { t: 'setBuilding', building: 'castle' as 'workshop', on: false }, a.ws);
+		room.handle(host, { t: 'setBuilding', building: 'palace' as 'workshop', on: false }, a.ws);
 		expect(room.lobbyInfo().settings.buildings).toEqual(allBuildings());
 		expect(guest.ready).toBe(true);
 		room.handle(host, { t: 'setBuilding', building: 'workshop', on: false }, a.ws);

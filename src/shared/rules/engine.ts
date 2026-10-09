@@ -26,16 +26,19 @@ import {
 	type ResourceCounts,
 	type Terrain
 } from './config';
-import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules } from './buildings';
+import { BUILDING_INFO, WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules, isCityPath } from './buildings';
 import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
 import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
+	armySize,
 	builtKey,
 	canPlaceRoad,
 	canPlaceSettlement,
 	aloneLast,
 	discardLimit,
+	fortressOf,
+	guildGoodsFor,
 	holdersOf,
 	isVertexFree,
 	longestRoad,
@@ -138,6 +141,8 @@ export function createGame(
 		workshops: b.hexes.map(() => null),
 		stoneRoads: topo.edges.map(() => false),
 		storehouses: topo.vertices.map(() => false),
+		cityPaths: topo.vertices.map(() => null),
+		guildGoods: topo.vertices.map(() => null),
 		// The deck is shuffled from a seed of its own, so it leaves the island and dice as they were.
 		events: extended ? newEvents(cleanEventRules(opts.events), { rng: (seed ^ 0x2f6b1d) | 0 }) : null,
 		builtTurns: {},
@@ -293,6 +298,8 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 			return paveRoad(ctx, p, a.edge);
 		case 'buildStorehouse':
 			return buildStorehouse(ctx, p, a.vertex);
+		case 'buildCityPath':
+			return buildCityPath(ctx, p, a.vertex, a.path, a.resource);
 		case 'tearDownWorkshop':
 			return tearDownWorkshop(ctx, p, a.hex);
 		case 'rollDice':
@@ -820,6 +827,34 @@ function buildStorehouse(ctx: Ctx, p: number, vertex: number) {
 	ctx.emit({ type: 'built', player: p, kind: 'storehouse', at: vertex, free: false, paid });
 }
 
+/**
+ * Take one of your cities down a path: a castle (worth 3), a guild hall trading the goods you name
+ * at 2:1, or a fortress (your knights count double, which can win the Largest Army there and then).
+ */
+function buildCityPath(ctx: Ctx, p: number, vertex: number, path: unknown, resource: unknown) {
+	const s = ctx.s;
+	requireMain(s);
+	if (!isCityPath(path)) fail('Pick a castle, a guild hall or a fortress.');
+	if (!s.buildingRules[path]) fail(`${BUILDING_INFO[path].name} are not part of this game.`);
+	if (!Number.isInteger(vertex) || s.buildings[vertex] === undefined) fail('Pick a spot on the island.');
+	const b = s.buildings[vertex];
+	if (b?.owner !== p || b.kind !== 'city') fail('Pick one of your own cities.');
+	if (s.cityPaths[vertex]) fail('That city has already taken its path.');
+	if (path === 'fortress' && fortressOf(s, p) !== null) fail('You already have a fortress.');
+	let goods: Resource | undefined;
+	if (path === 'guildHall') {
+		if (!RESOURCES.includes(resource as Resource)) fail('Name the goods your guild hall trades.');
+		goods = resource as Resource;
+		if (!guildGoodsFor(s, p).includes(goods)) fail('You already trade those at 2:1.');
+	}
+	const paid = pay(s, p, path);
+	s.cityPaths[vertex] = path;
+	if (goods) s.guildGoods[vertex] = goods;
+	ctx.emit({ type: 'built', player: p, kind: path, at: vertex, free: false, paid, ...(goods ? { resource: goods } : {}) });
+	if (path === 'fortress') updateLargestArmy(ctx);
+	checkWin(ctx);
+}
+
 /** Tear down one of your workshops (to build it somewhere better): the bank gives back a Lumber. */
 function tearDownWorkshop(ctx: Ctx, p: number, hex: number) {
 	const s = ctx.s;
@@ -1259,18 +1294,22 @@ function updateLongestRoad(ctx: Ctx) {
 	}
 }
 
+/** A fortress counts its owner's knights double here (see `armySize`). */
 function updateLargestArmy(ctx: Ctx) {
 	const s = ctx.s;
 	const prev = s.largestArmyHolder;
-	const best = prev === null ? LARGEST_ARMY_MIN - 1 : s.players[prev].knightsPlayed;
-	s.players.forEach((pl, i) => {
-		if (i !== s.largestArmyHolder && pl.knightsPlayed > best && pl.knightsPlayed >= LARGEST_ARMY_MIN) {
+	const best = prev === null ? LARGEST_ARMY_MIN - 1 : armySize(s, prev);
+	let top = best;
+	s.players.forEach((_, i) => {
+		const army = armySize(s, i);
+		if (i !== prev && army > top && army >= LARGEST_ARMY_MIN) {
 			s.largestArmyHolder = i;
+			top = army;
 		}
 	});
 	if (s.largestArmyHolder !== prev) {
 		const h = s.largestArmyHolder!;
-		ctx.emit({ type: 'largestArmy', player: h, knights: s.players[h].knightsPlayed });
+		ctx.emit({ type: 'largestArmy', player: h, knights: armySize(s, h) });
 	}
 }
 

@@ -30,8 +30,21 @@ export const RESOURCE_LABEL: Record<Resource, string> = {
 export const PLAYER_COLORS = ['red', 'blue', 'yellow', 'green', 'white', 'orange', 'purple', 'pink'] as const;
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
-/** Everything a player can pay for. Workshops, stone roads and storehouses are Reign Extended only (see buildings.ts). */
-export type BuildKind = 'road' | 'settlement' | 'city' | 'devCard' | 'workshop' | 'stoneRoad' | 'storehouse';
+/**
+ * Everything a player can pay for. Workshops, stone roads, storehouses and the city paths (castle,
+ * guild hall, fortress) are Reign Extended only (see buildings.ts).
+ */
+export type BuildKind =
+	| 'road'
+	| 'settlement'
+	| 'city'
+	| 'devCard'
+	| 'workshop'
+	| 'stoneRoad'
+	| 'storehouse'
+	| 'castle'
+	| 'guildHall'
+	| 'fortress';
 
 export const COSTS: Record<BuildKind, Partial<ResourceCounts>> = {
 	road: { wood: 1, brick: 1 },
@@ -40,7 +53,10 @@ export const COSTS: Record<BuildKind, Partial<ResourceCounts>> = {
 	devCard: { sheep: 1, wheat: 1, ore: 1 },
 	workshop: { wood: 1, brick: 1, ore: 1 },
 	stoneRoad: { brick: 1, ore: 1 },
-	storehouse: { wood: 1, sheep: 1, wheat: 1 }
+	storehouse: { wood: 1, sheep: 1, wheat: 1 },
+	castle: { brick: 1, wheat: 2, ore: 2 },
+	guildHall: { wood: 1, sheep: 2, wheat: 1 },
+	fortress: { brick: 2, wheat: 1, ore: 2 }
 };
 
 export const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 } as const;

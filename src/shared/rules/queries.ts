@@ -1,5 +1,5 @@
 import { getTopology } from '../board/topology';
-import { STOREHOUSE_SAFE, WORKSHOP_LIMIT } from './buildings';
+import { CASTLE_POINTS, FORTRESS_KNIGHTS, STOREHOUSE_SAFE, WORKSHOP_LIMIT, type CityPath } from './buildings';
 import {
 	COSTS,
 	hasResources,
@@ -35,6 +35,8 @@ type Shared = Pick<
 	| 'workshops'
 	| 'stoneRoads'
 	| 'storehouses'
+	| 'cityPaths'
+	| 'guildGoods'
 	| 'events'
 > & {
 	players: { character: GameState['players'][number]['character'] }[];
@@ -212,8 +214,22 @@ export function paveSpots(s: Shared, player: number): number[] {
 	return out;
 }
 
-/** Trade ratio per resource with the bank, given the harbors a player has built on. */
+/**
+ * Trade ratio per resource with the bank: the harbors a player has built on, bent by this round's
+ * event, and the goods of their guild halls at 2:1 (on land, so a Storm at Sea doesn't shut them).
+ */
 export function tradeRatios(s: Shared, player: number): Record<Resource, number> {
+	const ratios = harborRatios(s, player);
+	// Reign Extended events: a Traveling Fair trades 2:1 everywhere, a Storm at Sea shuts harbors.
+	const current = s.events?.current ?? null;
+	const base = s.players[player]?.character === 'merchant' ? 3 : 4;
+	if (current) for (const r of RESOURCES) ratios[r] = eventRatio(current, ratios[r], base);
+	for (const r of guildGoodsOf(s, player)) ratios[r] = Math.min(ratios[r], 2);
+	return ratios;
+}
+
+/** Trade ratio per resource with the bank at the harbors a player has built on (or reaches, for the Cartographer). */
+function harborRatios(s: Shared, player: number): Record<Resource, number> {
 	const topo = getTopology(s.board);
 	const ch = s.players[player]?.character;
 	const base = ch === 'merchant' ? 3 : 4;
@@ -234,9 +250,6 @@ export function tradeRatios(s: Shared, player: number): Record<Resource, number>
 			harbor(topo.edges[e].b);
 		});
 	}
-	// Reign Extended events: a Traveling Fair trades 2:1 everywhere, a Storm at Sea shuts harbors.
-	const current = s.events?.current ?? null;
-	if (current) for (const r of RESOURCES) ratios[r] = eventRatio(current, ratios[r], base);
 	return ratios;
 }
 
@@ -260,10 +273,60 @@ export function tradeHarbor(s: Shared, player: number, give: Resource, ratio: nu
 	});
 }
 
+/** Points from a player's buildings: 1 a settlement, 2 a city, 3 a castle. */
 export function buildingPoints(s: Shared, player: number): number {
 	let p = 0;
-	for (const b of s.buildings) if (b && b.owner === player) p += b.kind === 'city' ? 2 : 1;
+	s.buildings.forEach((b, v) => {
+		if (b?.owner === player) p += b.kind !== 'city' ? 1 : s.cityPaths?.[v] === 'castle' ? CASTLE_POINTS : 2;
+	});
 	return p;
+}
+
+// ---------------------------------------------------------------- city paths (Reign Extended)
+
+/**
+ * Cities a player can take down `path`: their own that haven't taken one yet, while the host has
+ * the path in the game. A player has one fortress at most, and a guild hall needs goods they
+ * don't already trade at 2:1.
+ */
+export function pathSpots(s: Shared, player: number, path: CityPath): number[] {
+	if (!s.buildingRules?.[path]) return [];
+	if (path === 'fortress' && fortressOf(s, player) !== null) return [];
+	if (path === 'guildHall' && !guildGoodsFor(s, player).length) return [];
+	const out: number[] = [];
+	s.buildings.forEach((b, v) => {
+		if (b?.owner === player && b.kind === 'city' && !s.cityPaths?.[v]) out.push(v);
+	});
+	return out;
+}
+
+/** The city this player made their fortress, if they have one. */
+export function fortressOf(s: Shared, player: number): number | null {
+	const v = s.cityPaths?.findIndex((p, i) => p === 'fortress' && s.buildings[i]?.owner === player) ?? -1;
+	return v >= 0 ? v : null;
+}
+
+/** What a player's knights count for towards the Largest Army: double with a fortress. */
+export function armySize(s: Shared & { players: { knightsPlayed: number }[] }, player: number): number {
+	const knights = s.players[player]?.knightsPlayed ?? 0;
+	return fortressOf(s, player) === null ? knights : knights * FORTRESS_KNIGHTS;
+}
+
+/** The goods a player's guild halls trade with the bank at 2:1. */
+export function guildGoodsOf(s: Shared, player: number): Resource[] {
+	const out: Resource[] = [];
+	s.cityPaths?.forEach((p, v) => {
+		const r = s.guildGoods?.[v];
+		if (p === 'guildHall' && r && s.buildings[v]?.owner === player) out.push(r);
+	});
+	return out;
+}
+
+/** Goods a new guild hall of this player's could trade: any they don't trade at 2:1 already, at a harbor or another guild hall. */
+export function guildGoodsFor(s: Shared, player: number): Resource[] {
+	const harbors = harborRatios(s, player);
+	const guilds = guildGoodsOf(s, player);
+	return RESOURCES.filter((r) => harbors[r] > 2 && !guilds.includes(r));
 }
 
 export function publicPoints(s: Shared, player: number): number {

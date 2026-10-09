@@ -1,5 +1,5 @@
 import type { Board } from '../board/topology';
-import type { BuildingRules } from './buildings';
+import type { BuildingRules, CityPath } from './buildings';
 import type { CharacterId } from './characters';
 import type { DevCardType, PlayerColor, Resource, ResourceCounts, Terrain } from './config';
 import type { EventCard, EventsState, EventsView } from './events';
@@ -96,6 +96,10 @@ export interface GameState {
 	stoneRoads: boolean[];
 	/** Indexed by vertex id: whether the settlement or city there has a storehouse (Reign Extended). */
 	storehouses: boolean[];
+	/** Indexed by vertex id: the path the city there took, if any (Reign Extended). */
+	cityPaths: (CityPath | null)[];
+	/** Indexed by vertex id: the goods the guild hall there trades with the bank at 2:1. */
+	guildGoods: (Resource | null)[];
 	/** Reign Extended's Events deck and this round's card; null when the game has no events. */
 	events: EventsState | null;
 	/**
@@ -154,11 +158,18 @@ export type GameEvent =
 	| Ev<'turnTimedOut', { player: number }>
 	/**
 	 * `at` is a vertex, an edge, or for a workshop the hex it stands on. `paid` is what the player
-	 * handed the bank for it (nothing when it was free).
+	 * handed the bank for it (nothing when it was free). A guild hall says the goods it trades.
 	 */
 	| Ev<
 			'built',
-			{ player: number; kind: BuiltKind; at: number; free: boolean; paid: Partial<ResourceCounts> }
+			{
+				player: number;
+				kind: BuiltKind;
+				at: number;
+				free: boolean;
+				paid: Partial<ResourceCounts>;
+				resource?: Resource;
+			}
 	  >
 	/** A player tore down their workshop on `hex`; `refund` is what the bank gave back (nothing if it ran out). */
 	| Ev<'tornDown', { player: number; hex: number; refund: Partial<ResourceCounts> }>
@@ -243,8 +254,11 @@ export interface EventMove {
 	resource: Resource | null;
 }
 
-/** A stone road is built on top of a road (`at` is its edge), a storehouse onto a building (its vertex). */
-export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad' | 'storehouse';
+/**
+ * A stone road is built on top of a road (`at` is its edge), a storehouse onto a building and a
+ * city path onto a city (their vertex).
+ */
+export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad' | 'storehouse' | CityPath;
 
 export interface ResourceGain {
 	player: number;
@@ -265,6 +279,8 @@ export type Action =
 	| { type: 'buildWorkshop'; hex: number }
 	| { type: 'paveRoad'; edge: number }
 	| { type: 'buildStorehouse'; vertex: number }
+	/** A guild hall names the goods it trades. */
+	| { type: 'buildCityPath'; vertex: number; path: CityPath; resource?: Resource }
 	| { type: 'tearDownWorkshop'; hex: number }
 	| { type: 'rollDice' }
 	| { type: 'discard'; resources: Partial<ResourceCounts> }

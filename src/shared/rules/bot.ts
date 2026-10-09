@@ -1,7 +1,9 @@
 import { getTopology } from '../board/topology';
 import { POWER_INFO, type CharacterId } from './characters';
 import { PLAGUE_LIMIT, busiestTile, type EventCard } from './events';
+import { FORTRESS_KNIGHTS } from './buildings';
 import {
+	LARGEST_ARMY_MIN,
 	RESOURCES,
 	TERRAIN_RESOURCE,
 	hasResources,
@@ -12,15 +14,20 @@ import {
 	type Terrain
 } from './config';
 import {
+	armySize,
 	canPay,
 	citySpots,
 	costOf,
 	discardLimit,
 	draftLeft,
+	fortressOf,
+	guildGoodsFor,
+	guildGoodsOf,
 	holdersOf,
 	longestRoad,
 	longestRoadMin,
 	paveSpots,
+	pathSpots,
 	isVertexFree,
 	playersOnHex,
 	powerReady,
@@ -118,7 +125,10 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	if (actions > 40) return { type: 'endTurn' };
 
 	if (!s.devCardPlayedThisTurn) {
-		if (playableCard(s, me, 'knight') && playersOnHex(s, s.robberHex).includes(me)) return { type: 'playKnight' };
+		// With a fortress, knights also go out to take or hold the Largest Army.
+		if (playableCard(s, me, 'knight') && (playersOnHex(s, s.robberHex).includes(me) || fortressKnight(s, me))) {
+			return { type: 'playKnight' };
+		}
 		if (playableCard(s, me, 'monopoly')) {
 			const r = monopolyPick(s, me);
 			if (r) return { type: 'playMonopoly', resource: r };
@@ -144,11 +154,20 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	if (canPay(s, me, 'settlement', res) && pl.piecesLeft.settlement > 0 && settleSpots.length) {
 		return { type: 'placeSettlement', vertex: best(settleSpots, (v) => spotScore(s, me, v)) };
 	}
+	// Reign Extended city paths: a fortress when it takes or holds the Largest Army, a castle once
+	// cities run out or the end is near (and a guild hall below, after the workshop).
+	const fort = bestFortress(s, me);
+	if (fort !== null && canPay(s, me, 'fortress', res)) return { type: 'buildCityPath', vertex: fort, path: 'fortress' };
+	const castle = bestCastle(s, me);
+	if (castle !== null && canPay(s, me, 'castle', res)) return { type: 'buildCityPath', vertex: castle, path: 'castle' };
 	// Reign Extended: a workshop on its best tile, if that tile pays often enough to be worth it
 	// (with an Ore in the price, only a 6 or an 8 is: two bots that keep to those win about 47% of
 	// games against two that build none, and building on 5s and 9s too does worse).
 	const shop = bestWorkshop(s, me);
 	if (shop !== null && canPay(s, me, 'workshop', res)) return { type: 'buildWorkshop', hex: shop };
+	// Reign Extended: a guild hall, for goods it makes plenty of.
+	const guild = bestGuildHall(s, me);
+	if (guild && canPay(s, me, 'guildHall', res)) return { type: 'buildCityPath', path: 'guildHall', ...guild };
 	const roadsOk = roadSpots(s, me);
 	const wantsRoad = settleSpots.length === 0 || pl.longestRoad >= 4;
 	if (canPay(s, me, 'road', res) && pl.piecesLeft.road > 0 && roadsOk.length && wantsRoad) {
@@ -195,6 +214,95 @@ function bestStorehouse(s: GameState, me: number): number | null {
 	const spots = storehouseSpots(s, me);
 	if (!spots.length || totalResources(s.players[me].resources) < discardLimit(s, me) - 1) return null;
 	return best(spots, (v) => vertexValue(s, v) + (s.buildings[v]?.kind === 'city' ? 1 : 0));
+}
+
+/** Points a bot has, its own hidden victory point cards included. */
+function ownPoints(s: GameState, me: number): number {
+	return publicPoints(s, me) + s.players[me].devCards.filter((c) => c.type === 'victoryPoint').length;
+}
+
+/** The biggest army among the other players. */
+function rivalArmy(s: GameState, me: number): number {
+	return Math.max(0, ...s.players.map((_, i) => (i === me ? 0 : armySize(s, i))));
+}
+
+/**
+ * The city a bot would make its fortress: when its knights (played, in hand and one more to come)
+ * would count enough to take the Largest Army, or a rival comes close to the one it holds. Two
+ * bots that do, playing knights to take or hold it, win about 51% of games against two without.
+ */
+function bestFortress(s: GameState, me: number): number | null {
+	const spots = pathSpots(s, me, 'fortress');
+	if (!spots.length) return null;
+	const pl = s.players[me];
+	const rivals = rivalArmy(s, me);
+	const knights = pl.knightsPlayed + pl.devCards.filter((c) => c.type === 'knight').length + 1;
+	const wants =
+		s.largestArmyHolder === me
+			? rivals >= pl.knightsPlayed - 1
+			: knights * FORTRESS_KNIGHTS >= LARGEST_ARMY_MIN && knights * FORTRESS_KNIGHTS > rivals;
+	return wants ? best(spots, (v) => vertexValue(s, v)) : null;
+}
+
+/** Whether a bot with a fortress plays a knight now: it takes the Largest Army, or keeps a rival off it. */
+function fortressKnight(s: GameState, me: number): boolean {
+	if (fortressOf(s, me) === null) return false;
+	const rivals = rivalArmy(s, me);
+	if (s.largestArmyHolder === me) return rivals >= armySize(s, me) - 1;
+	const after = (s.players[me].knightsPlayed + 1) * FORTRESS_KNIGHTS;
+	return after >= LARGEST_ARMY_MIN && after > rivals;
+}
+
+/** The city a bot would make a castle: once it has no city left to build, or the end is near. */
+function bestCastle(s: GameState, me: number): number | null {
+	const spots = pathSpots(s, me, 'castle');
+	if (!spots.length) return null;
+	const noCity = s.players[me].piecesLeft.city <= 0 || !citySpots(s, me).length;
+	if (!noCity && ownPoints(s, me) < s.pointsToWin - CASTLE_LATE) return null;
+	return best(spots, (v) => -vertexValue(s, v));
+}
+/**
+ * How many points from the goal a bot starts building castles even with cities still to build.
+ * Two bots that do (and build castles once they have no city to build) win about 51% of games
+ * against two that build none; four points out does worse.
+ */
+const CASTLE_LATE = 3;
+
+/**
+ * A bot's guild hall: its busiest city, trading the goods it makes the most of, when it makes
+ * enough of them to sell.
+ */
+function bestGuildHall(s: GameState, me: number): { vertex: number; resource: Resource } | null {
+	const spots = pathSpots(s, me, 'guildHall');
+	if (!spots.length) return null;
+	const made = production(s, me);
+	const r = best(guildGoodsFor(s, me), (x) => made[x]);
+	return made[r] >= GUILD_MIN ? { vertex: best(spots, (v) => vertexValue(s, v)), resource: r } : null;
+}
+/**
+ * Pips of one kind of goods (cities counted twice) a bot makes before a guild hall for them is
+ * worth it. At 8 or 12 two bots with guild halls won only 46% of games against two without; at
+ * 16, trading their goods towards builds up to three cards short, about 52%.
+ */
+const GUILD_MIN = 16;
+/** How many cards short of a build a bot still trades its guild goods towards it. */
+const GUILD_TRADES = 3;
+
+/** What a player's buildings and workshops make of each kind of goods, in pips a roll (cities twice). */
+function production(s: GameState, me: number): ResourceCounts {
+	const topo = getTopology(s.board);
+	const out = emptyCounts();
+	s.board.hexes.forEach((hex, h) => {
+		const r = TERRAIN_RESOURCE[hex.terrain];
+		if (!r) return;
+		let n = s.workshops?.[h] === me ? 1 : 0;
+		for (const v of topo.hexes[h].vertices) {
+			const b = s.buildings[v];
+			if (b?.owner === me) n += b.kind === 'city' ? 2 : 1;
+		}
+		out[r] += n * pips(hex.number);
+	});
+	return out;
 }
 
 /**
@@ -356,9 +464,22 @@ function bankTradeTowards(s: GameState, me: number): Action | null {
 	if (settlementSpots(s, me, false).length && s.players[me].piecesLeft.settlement > 0) goals.push(costOf(s, me, 'settlement'));
 	if (bestWorkshop(s, me) !== null) goals.push(costOf(s, me, 'workshop'));
 	if (bestPaving(s, me) !== null) goals.push(costOf(s, me, 'stoneRoad'));
+	if (bestFortress(s, me) !== null) goals.push(costOf(s, me, 'fortress'));
+	if (bestCastle(s, me) !== null) goals.push(costOf(s, me, 'castle'));
+	if (bestGuildHall(s, me) !== null) goals.push(costOf(s, me, 'guildHall'));
 	goals.push(costOf(s, me, 'devCard'));
 	for (const goal of goals) {
 		const need = missingFor(res, goal);
+		// A guild hall's goods go at 2:1, so with enough of them to spare a goal up to three cards
+		// short is in reach, a trade at a time.
+		if (need.length > 1 && need.length <= GUILD_TRADES) {
+			for (const r of guildGoodsOf(s, me)) {
+				const spare = res[r] - (goal[r] ?? 0);
+				if (!need.includes(r) && spare >= 2 * need.length && need.every((n) => s.bank[n] > 0)) {
+					return { type: 'bankTrade', give: r, get: need[0] };
+				}
+			}
+		}
 		if (need.length !== 1) continue;
 		const target = need[0];
 		if (s.bank[target] <= 0) continue;
@@ -516,9 +637,9 @@ function powerMove(s: GameState, me: number): Action | null {
 			// Taken at the end of a turn with nothing else to do (see mainTurn).
 			return null;
 		case 'veteran': {
-			const holder = s.largestArmyHolder;
-			const takesArmy =
-				holder !== me && pl.knightsPlayed + 1 >= 3 && (holder === null || pl.knightsPlayed + 1 > s.players[holder].knightsPlayed);
+			// A fortress counts the knight double.
+			const army = (pl.knightsPlayed + 1) * (fortressOf(s, me) === null ? 1 : FORTRESS_KNIGHTS);
+			const takesArmy = s.largestArmyHolder !== me && army >= LARGEST_ARMY_MIN && army > rivalArmy(s, me);
 			return blocked || takesArmy ? { type: 'usePower' } : null;
 		}
 		case 'rogue': {
