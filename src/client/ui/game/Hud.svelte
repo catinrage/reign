@@ -27,6 +27,7 @@
 	import DiceBadge from './DiceBadge.svelte';
 	import DraftPanel from './DraftPanel.svelte';
 	import EventCard from './EventCard.svelte';
+	import EventEffect from './EventEffect.svelte';
 	import Flyers, { FLIGHT_MS, flyers } from './Flyers.svelte';
 	import Hand from './Hand.svelte';
 	import Log from './Log.svelte';
@@ -47,10 +48,11 @@
 	const timed = $derived(!!client.lobby?.turnTime && view.phase !== 'ended');
 
 	// Feed every new state to the 3D scene the moment it arrives. The interface renders from
-	// `client.view`, which waits for the dice of a roll to land.
+	// `client.view`, which waits for the dice of a roll to land. While an event card that just
+	// turned over is held up, the board waits too: what it does plays out once it is put down.
 	$effect(() => {
 		const live = client.latest;
-		if (live) sceneRef.current?.setView(live);
+		if (live && client.presenting?.phase !== 'flip') sceneRef.current?.setView(live);
 	});
 
 	// Leave build mode when it no longer applies, and a power half-used when the moment for it has passed.
@@ -68,7 +70,7 @@
 		let kind: PickKind | null = null;
 		let options: number[] = [];
 		const power = ui.power?.stage === 'pick' ? powerPick(view, ui.power.first) : null;
-		if (power && myTurn(view) && !client.tossing) {
+		if (power && myTurn(view) && !client.tossing && !client.presenting) {
 			const first = ui.power?.stage === 'pick' ? ui.power.first : undefined;
 			const ch = view.players[me].character;
 			return scene.setPick({
@@ -87,7 +89,7 @@
 				}
 			});
 		}
-		if (myTurn(view) && !client.tossing) {
+		if (myTurn(view) && !client.tossing && !client.presenting) {
 			switch (view.step) {
 				case 'setupSettlement':
 					kind = 'settlement';
@@ -406,7 +408,7 @@
 		<Dialogs />
 		<PowerDialog />
 	{/if}
-	{#if view.events}<EventCard />{/if}
+	{#if view.events}<EventCard /><EventEffect />{/if}
 	<Victory />
 	{#if view.phase === 'draft' && view.draft}<DraftPanel />{/if}
 	<Flyers />

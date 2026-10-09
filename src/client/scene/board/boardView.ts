@@ -72,6 +72,7 @@ export class BoardView {
 		for (const p of this.build.ports) {
 			const tok = harborToken(p.kind === 'any' ? null : icons.canvases[p.kind], p.ratio, p.kind);
 			tok.position.set(p.x, DECK_TOP + 0.2, p.z);
+			tok.userData.baseY = tok.position.y;
 			tok.scale.setScalar(0.62);
 			this.faces.push(tok);
 			this.harbors.push(tok);
@@ -224,6 +225,27 @@ export class BoardView {
 		});
 	}
 
+	/** Where the grazing sheep are now. */
+	sheepSpots(): THREE.Vector3[] {
+		return this.sheep.map((s) => s.obj.position.clone());
+	}
+
+	/** How many harbors the island has (see `harborSpot`). */
+	get harborCount() {
+		return this.harbors.length;
+	}
+
+	/**
+	 * Reign Extended events on the harbors: a storm closes them (their discs go dark), a fair
+	 * lights them up (they lift and bob); null: as usual.
+	 */
+	setHarborMood(mood: 'closed' | 'busy' | null) {
+		for (const h of this.harbors) {
+			h.userData.dim = mood === 'closed';
+			h.userData.highlight = mood === 'busy';
+		}
+	}
+
 	/** The robber is being aimed at tile `h` (-1: at none): its number token lifts and bobs. */
 	setAimed(h: number) {
 		this.tokens.forEach((t, i) => (t.userData.aim = i === h));
@@ -261,7 +283,7 @@ export class BoardView {
 			else if (g.amount > g.target) g.amount = Math.max(g.target, g.amount - dt / 0.8);
 		}
 		this.applyGray();
-		for (const tok of this.tokens) {
+		for (const tok of [...this.tokens, ...this.harbors]) {
 			const target = tok.userData.dim ? 0.55 : 1;
 			const face = tok.getObjectByName('face') as THREE.Mesh | undefined;
 			if (face) {

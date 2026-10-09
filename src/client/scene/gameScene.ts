@@ -3,7 +3,8 @@ import { generateBoard, generateStandardBoard } from '../../shared/board/generat
 import type { MapTile } from '../../shared/board/maps';
 import { type Board, getTopology } from '../../shared/board/topology';
 import { worldToHex, hexKey } from '../../shared/board/hex';
-import { TERRAIN_RESOURCE } from '../../shared/rules/config';
+import { RESOURCES, TERRAIN_RESOURCE } from '../../shared/rules/config';
+import type { EventCard } from '../../shared/rules/events';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
@@ -133,6 +134,11 @@ export class GameScene {
 	private menuMap = '';
 	/** Settles when the dice of the latest roll come to rest. */
 	private diceLanded: Promise<void> = Promise.resolve();
+	/** The Reign Extended event card in play this round, shown on the island while it lasts. */
+	private eventLook: EventCard | null = null;
+	/** A Comet is waiting for the next roll. */
+	private cometLook = false;
+	private lookClock = 0;
 	/** The player whose pieces light up (their plaque is hovered), or null. */
 	private highlighted: number | null = null;
 	/** How lit up each player's pieces are, from 0 to 1, as they fade in and out. */
@@ -309,12 +315,15 @@ export class GameScene {
 				this.anim.wait(3.5).then(() => (tok.userData.highlight = false));
 			});
 		}
-		// The island shudders.
+		// The island shakes hard, dust bursting off the tiles, then settles.
 		const g = bv.group;
-		this.anim.tween(1.2, (t) => {
-			const k = (1 - t) * 0.9;
-			g.position.set(Math.sin(t * 70) * k, 0, Math.cos(t * 53) * k);
+		this.anim.tween(2, (t) => {
+			const k = (1 - t) * 1.6;
+			g.position.set(Math.sin(t * 110) * k, Math.abs(Math.sin(t * 37)) * k * 0.4, Math.cos(t * 83) * k);
 		}, ease.linear).then(() => g.position.set(0, 0, 0));
+		this.tilesOf().forEach((h, k) => {
+			if (k % 2) this.anim.wait(Math.random() * 1.2).then(() => this.particles.dust(this.overTile(h, 0), 10));
+		});
 	}
 
 	/** Light up one player's pieces on the board (while their plaque is hovered), or nobody's. */
@@ -442,6 +451,9 @@ export class GameScene {
 			if (b && b.owner === view.me) for (const h of topo.vertices[v].hexes) mine.add(h);
 		});
 		bv.setMine(mine, me ? PLAYER_RGB[me.color] : null);
+		this.eventLook = view.events?.current ?? null;
+		this.cometLook = !!view.events?.comet;
+		bv.setHarborMood(this.eventLook === 'stormAtSea' ? 'closed' : this.eventLook === 'travelingFair' ? 'busy' : null);
 		bv.setPortOwners(
 			bv.build.ports.map((p) => {
 				const e = topo.edges[p.edge];
@@ -658,6 +670,133 @@ export class GameScene {
 		cam.lookAt(f.target);
 		cam.updateMatrixWorld();
 		return cam;
+	}
+
+	// ------------------------------------------------------------ Reign Extended events
+
+	/** The tiles of one terrain, or every tile that produces. */
+	private tilesOf(terrain?: string): number[] {
+		const hexes = this.boardView?.board.hexes ?? [];
+		return hexes.flatMap((h, i) => ((terrain ? h.terrain === terrain : h.terrain !== 'desert') ? [i] : []));
+	}
+
+	/** Above the middle of tile `h`, `up` units over its number token. */
+	private overTile(h: number, up = 3) {
+		const bv = this.boardView!;
+		const c = bv.hexCenter(h);
+		return new THREE.Vector3(c.x, bv.build.tokenY[h] + up, c.z);
+	}
+
+	/** Light up tiles: their tokens lift and bob for a while, with a burst of sparkles. */
+	private lightTiles(hexes: number[], colors: string[], seconds = 2.8) {
+		const bv = this.boardView!;
+		hexes.forEach((h, k) => {
+			this.anim.wait(k * 0.08).then(() => {
+				const tok = bv.tokens[h];
+				if (tok) tok.userData.highlight = true;
+				this.particles.emit({ at: this.overTile(h, 2), count: 22, colors, speed: 7, up: 15, spread: 7, life: 1.3, size: 0.7, gravity: 9, drag: 1.4 });
+				this.anim.wait(seconds).then(() => tok && (tok.userData.highlight = false));
+			});
+		});
+	}
+
+	/**
+	 * An event card was put down: what it does plays out on the island, so nobody at the table
+	 * misses it. (Tokens that trade places in an earthquake and the robber's jump in a bandit
+	 * uprising come with the new state; the cards an event moves fly in the interface.)
+	 */
+	presentEvent(card: EventCard) {
+		const bv = this.boardView;
+		if (!bv || this.mode !== 'game') return;
+		const harbors = Array.from({ length: bv.harborCount }, (_, i) => bv.harborSpot(i)).filter((p) => !!p);
+		switch (card) {
+			case 'harvestFestival':
+				this.lightTiles(this.tilesOf('fields'), ['#ffd75e', '#f2c14e', '#fff3b0']);
+				break;
+			case 'migratingHerds':
+				this.lightTiles(this.tilesOf('pasture'), ['#ffffff', '#c9f08a', '#9ed05a']);
+				for (const sh of bv.sheepSpots()) this.particles.dust(sh, 8);
+				break;
+			case 'travelingFair':
+				for (const at of harbors) this.particles.emit({ at: at.clone().setY(at.y + 2), count: 30, colors: ['#ffd75e', '#e04b35', '#5fb43b', '#6fd3ff', '#ffffff'], speed: 9, up: 20, spread: 3, life: 1.6, size: 0.8, gravity: 14, drag: 1.2 });
+				break;
+			case 'stormAtSea':
+				// Dark rain sweeps over every harbor for a couple of seconds.
+				for (let k = 0; k < 8; k++) {
+					this.anim.wait(k * 0.25).then(() => {
+						for (const at of harbors) this.rain(at, 14);
+					});
+				}
+				break;
+			case 'comet': {
+				// A comet streaks across the sky and bursts over the island; every tile glitters.
+				const from = new THREE.Vector3(-this.reach * 1.6, 70, -this.reach * 1.2);
+				const to = new THREE.Vector3(0, 8, 0);
+				const head = new THREE.Vector3();
+				this.anim.tween(1.3, (t) => {
+					head.lerpVectors(from, to, t);
+					this.particles.emit({ at: head, count: 6, colors: ['#ffffff', '#bfe8ff', '#ffe39a'], speed: 2, up: 1, spread: 1.5, life: 0.8, size: 1.3, gravity: 0, drag: 2 });
+				}, (t) => t * t).then(() => {
+					this.particles.confetti(to.clone().setY(14), ['#ffffff', '#bfe8ff', '#ffe39a', '#8fd0ff'], 160);
+					this.lightTiles(this.tilesOf(), ['#ffffff', '#bfe8ff', '#ffe39a'], 2);
+				});
+				break;
+			}
+			case 'banditUprising': {
+				// A cloud of dark smoke and splinters over the tile the bandits raided.
+				const h = bv.robberHex;
+				if (h < 0) break;
+				this.anim.wait(0.6).then(() => {
+					this.particles.emit({ at: this.overTile(h, 1), count: 50, colors: ['#2a2a30', '#45454f', '#6b2a22', '#8a3a2a'], speed: 10, up: 14, spread: 6, life: 1.4, size: 1.1, gravity: 8, drag: 1.6 });
+					this.particles.dust(this.overTile(h, 0), 30);
+				});
+				break;
+			}
+			case 'bountifulYear':
+				for (const r of RESOURCES) this.particles.sparkle(this.pileTop(r), '#ffe39a', 18);
+				break;
+			default:
+				break;
+		}
+	}
+
+	/** Dark raindrops falling over a point. */
+	private rain(at: THREE.Vector3, count: number) {
+		this.particles.emit({ at: at.clone().setY(at.y + 16), count, colors: ['#5c6f86', '#7f93ab', '#3f4c5e'], speed: 1.2, up: -6, spread: 9, life: 1, size: 0.45, gravity: 40, drag: 0.2 });
+	}
+
+	/** While an event card lasts, the island keeps showing it: glitter on its tiles, rain on closed harbors. */
+	private eventAmbience(dt: number) {
+		const bv = this.boardView;
+		if (!bv || this.mode !== 'game' || (!this.eventLook && !this.cometLook)) return;
+		this.lookClock -= dt;
+		if (this.lookClock > 0) return;
+		this.lookClock = 0.45;
+		const pick = <T>(list: T[]) => list[Math.floor(Math.random() * list.length)];
+		const glitter = (hexes: number[], colors: string[]) => {
+			const h = pick(hexes);
+			if (h !== undefined) this.particles.emit({ at: this.overTile(h, 1.5), count: 4, colors, speed: 3, up: 9, spread: 7, life: 1.2, size: 0.5, gravity: 4, drag: 1.5 });
+		};
+		if (this.cometLook) glitter(this.tilesOf(), ['#ffffff', '#bfe8ff']);
+		switch (this.eventLook) {
+			case 'harvestFestival':
+				glitter(this.tilesOf('fields'), ['#ffd75e', '#fff3b0']);
+				break;
+			case 'migratingHerds':
+				glitter(this.tilesOf('pasture'), ['#ffffff', '#c9f08a']);
+				break;
+			case 'stormAtSea':
+				for (let i = 0; i < bv.harborCount; i++) {
+					const at = bv.harborSpot(i);
+					if (at) this.rain(at, 3);
+				}
+				break;
+			case 'travelingFair': {
+				const at = bv.harborSpot(Math.floor(Math.random() * bv.harborCount));
+				if (at) this.particles.emit({ at: at.setY(at.y + 2), count: 3, colors: ['#ffd75e', '#e04b35', '#6fd3ff'], speed: 3, up: 9, spread: 2, life: 1, size: 0.5, gravity: 8, drag: 1.2 });
+				break;
+			}
+		}
 	}
 
 	private flashTokens(total: number) {
@@ -1207,6 +1346,7 @@ export class GameScene {
 			this.dice.place(this.diceSpots().ends);
 		}
 		this.smoke(dt);
+		this.eventAmbience(dt);
 		this.workshops(dt, t);
 		for (const m of this.powerMarks.children) if (m.userData.spin) m.rotation.y += dt * m.userData.spin;
 		this.lightUp(dt, t);

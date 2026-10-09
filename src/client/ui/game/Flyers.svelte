@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import { getIcons } from '../../scene/icons';
+	import { svg } from '../pixel';
 
 	type Point = { x: number; y: number };
 
@@ -15,6 +16,24 @@
 	}
 	let list = $state<Flyer[]>([]);
 	let nextId = 0;
+	/** A card whose face this player can't see (`'back'`): its back, as on the plaques. */
+	const CARD_BACK = svg(
+		[
+			'.kkkkkkkkkk.',
+			'kbbbbbbbbbbk',
+			'kbyyyyyyyybk',
+			'kbybbbbbbybk',
+			'kbybbyybbybk',
+			'kbybyyyybybk',
+			'kbybyyyybybk',
+			'kbybbyybbybk',
+			'kbybbbbbbybk',
+			'kbyyyyyyyybk',
+			'kbbbbbbbbbbk',
+			'.kkkkkkkkkk.'
+		],
+		{ k: '#2a1a10', b: '#7a3b22', y: '#e8b04a' }
+	);
 	/** How long a card takes to fly to its hand (the `fly` animation below). */
 	export const FLIGHT_MS = 850;
 
@@ -36,7 +55,8 @@
 
 	function launch(resource: string, from: Point, to: Point, end: number, onArrive?: () => void) {
 		const id = ++nextId;
-		list = [...list, { id, src: getIcons().urls[resource], x: from.x, y: from.y, tx: to.x, ty: to.y, end }];
+		const src = getIcons().urls[resource] ?? CARD_BACK;
+		list = [...list, { id, src, x: from.x, y: from.y, tx: to.x, ty: to.y, end }];
 		setTimeout(() => onArrive?.(), FLIGHT_MS);
 		setTimeout(() => (list = list.filter((f) => f.id !== id)), FLIGHT_MS + 50);
 	}
