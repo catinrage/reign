@@ -21,6 +21,8 @@ import {
 	paveSpots,
 	roadSpots,
 	settlementSpots,
+	storehouseOf,
+	storehouseSpots,
 	workshopCount,
 	workshopSpots
 } from '../../shared/rules/queries';
@@ -93,12 +95,15 @@ export function buildAvailable(view: GameView, kind: BuildKind): boolean {
 			return workshopSpots(view, view.me).length > 0;
 		case 'stoneRoad':
 			return paveSpots(view, view.me).length > 0;
+		case 'storehouse':
+			return storehouseSpots(view, view.me).length > 0;
 	}
 }
 
 /** How many more of a Reign Extended building this player can build. */
 export function extraStock(view: GameView, kind: ExtraBuilding): number {
 	if (kind === 'workshop') return WORKSHOP_LIMIT - workshopCount(view, view.me);
+	if (kind === 'storehouse') return storehouseOf(view, view.me) === null ? 1 : 0;
 	return paveSpots(view, view.me).length;
 }
 
@@ -119,6 +124,7 @@ export function buildNote(view: GameView, kind: BuildKind): string {
 		if (!workshopSpots(view, view.me).length) return 'Every tile beside your buildings already has a workshop.';
 	}
 	if (kind === 'stoneRoad' && !paveSpots(view, view.me).length) return 'Every one of your roads is paved already.';
+	if (kind === 'storehouse' && storehouseOf(view, view.me) !== null) return 'You already have a storehouse.';
 	if (!canAfford(view, kind)) return `You need ${cardsText(costOf(view, view.me, kind))}.`;
 	return '';
 }
@@ -152,8 +158,8 @@ export function builtWhen(view: GameView, kind: BuiltKind, at: number): string |
 
 /**
  * What the tooltip of a piece on the board says: its name over who owns it and the turn it went
- * up on. A city also says when it was settled, and a stone road when it was a plain road. Null
- * when nothing stands on the spot.
+ * up on. A city also says when it was settled, a stone road when it was a plain road, and a
+ * building when its storehouse went up. Null when nothing stands on the spot.
  */
 export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text: string } | null {
 	const { place, at } = spot;
@@ -183,6 +189,7 @@ export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text:
 		when('road', 'Built');
 		when('stoneRoad', 'Paved');
 	} else when(kind, 'Built');
+	if (place === 'vertex' && view.storehouses?.[at]) when('storehouse', 'Storehouse added');
 	return { head: pieceName(view, kind, at), text: lines.join('\n') };
 }
 

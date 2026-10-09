@@ -1,7 +1,7 @@
 import { getTopology } from '../board/topology';
 import { randomInt, shuffle } from '../rng';
 import { RESOURCES, TERRAIN_RESOURCE, pips, totalResources, type Resource } from './config';
-import { publicPoints } from './queries';
+import { publicPoints, safeCards } from './queries';
 import type { BoardHex } from '../board/topology';
 import type { EventMove, GameEvent, GameState } from './types';
 
@@ -263,7 +263,8 @@ function resolve(s: GameState, emit: Emit, card: EventCard) {
 		case 'plagueOfRats': {
 			const moves: EventMove[] = [];
 			s.players.forEach((p, i) => {
-				if (totalResources(p.resources) <= PLAGUE_LIMIT) return;
+				// A storehouse's cards don't count.
+				if (totalResources(p.resources) - safeCards(s, i) <= PLAGUE_LIMIT) return;
 				const r = randomCard(s, i)!;
 				p.resources[r]--;
 				s.bank[r]++;
@@ -387,10 +388,14 @@ export function lastPlace(s: GameState): number {
 	return best;
 }
 
-function randomCard(s: GameState, p: number): Resource | null {
+/**
+ * A random card from this player's hand, for the robber, a thief, a toll or an event to take: null
+ * when they hold no more cards than their storehouse keeps safe.
+ */
+export function randomCard(s: GameState, p: number): Resource | null {
 	const hand: Resource[] = [];
 	for (const r of RESOURCES) for (let i = 0; i < s.players[p].resources[r]; i++) hand.push(r);
-	return hand.length ? hand[randomInt(s, hand.length)] : null;
+	return hand.length > safeCards(s, p) ? hand[randomInt(s, hand.length)] : null;
 }
 
 function playersAround(s: GameState, hex: number): number[] {

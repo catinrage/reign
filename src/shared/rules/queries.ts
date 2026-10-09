@@ -1,5 +1,5 @@
 import { getTopology } from '../board/topology';
-import { WORKSHOP_LIMIT } from './buildings';
+import { STOREHOUSE_SAFE, WORKSHOP_LIMIT } from './buildings';
 import {
 	COSTS,
 	hasResources,
@@ -34,6 +34,7 @@ type Shared = Pick<
 	| 'buildingRules'
 	| 'workshops'
 	| 'stoneRoads'
+	| 'storehouses'
 	| 'events'
 > & {
 	players: { character: GameState['players'][number]['character'] }[];
@@ -85,10 +86,35 @@ export function canPay(s: Shared, player: number, kind: BuildKind, have: Resourc
 	return !!have && paymentFor(s, player, kind, have) !== null;
 }
 
-/** A 7 makes this player discard half their hand when they hold more than this many cards. */
+/**
+ * A 7 makes this player discard when they hold more than this many cards: the table's hand limit
+ * (more for the Steward), and on top of it the cards their storehouse keeps safe. They discard
+ * half of the cards beyond the safe ones.
+ */
 export function discardLimit(s: Shared, player: number): number {
 	const limit = s.handLimit ?? DISCARD_THRESHOLD;
-	return s.players[player]?.character === 'steward' ? limit + STEWARD_EXTRA : limit;
+	return (s.players[player]?.character === 'steward' ? limit + STEWARD_EXTRA : limit) + safeCards(s, player);
+}
+
+/** The building this player's storehouse stands on, if they have one. */
+export function storehouseOf(s: Shared, player: number): number | null {
+	const v = s.storehouses?.findIndex((on, i) => on && s.buildings[i]?.owner === player) ?? -1;
+	return v >= 0 ? v : null;
+}
+
+/** How many of this player's cards their storehouse keeps safe (none without one). */
+export function safeCards(s: Shared, player: number): number {
+	return storehouseOf(s, player) === null ? 0 : STOREHOUSE_SAFE;
+}
+
+/** Buildings a player can add a storehouse onto: any settlement or city of theirs, while they have none. */
+export function storehouseSpots(s: Shared, player: number): number[] {
+	if (!s.buildingRules.storehouse || storehouseOf(s, player) !== null) return [];
+	const out: number[] = [];
+	s.buildings.forEach((b, v) => {
+		if (b?.owner === player) out.push(v);
+	});
+	return out;
 }
 
 /** Roads this player needs to claim Longest Road. */
