@@ -1,4 +1,4 @@
-import type { ClientMessage, LobbyInfo, ServerMessage, TurnClock } from '../../shared/protocol';
+import type { ClientMessage, LobbyInfo, PigeonNote, ServerMessage, TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
 import type { Resource } from '../../shared/rules/config';
 import type { Action, GameEvent, GameView, ResourceGain } from '../../shared/rules/types';
@@ -88,6 +88,10 @@ class GameClient {
 	now = $state(0);
 	/** The server is the local dev server and takes dev cheats. */
 	cheats = $state(false);
+	/** Private notes this player wrote or was sent by pigeon in this room, oldest first. */
+	pigeons = $state.raw<PigeonNote[]>([]);
+	/** The newest pigeon to fly while we were here (sent or received), for the flight to play. */
+	freshPigeon = $state.raw<PigeonNote | null>(null);
 
 	private ws: WebSocket | null = null;
 	private retry = 0;
@@ -144,6 +148,14 @@ class GameClient {
 			case 'game':
 				this.receive(msg.view);
 				this.setClock(msg.clock);
+				break;
+			case 'pigeons':
+				this.pigeons = msg.notes;
+				break;
+			case 'pigeon':
+				if (this.pigeons.some((n) => n.id === msg.note.id)) break;
+				this.pigeons = [...this.pigeons, msg.note];
+				this.freshPigeon = msg.note;
 				break;
 			case 'error':
 				this.pendingJoin = false;
@@ -305,10 +317,17 @@ class GameClient {
 		this.lastRoll = null;
 		this.dealt = [];
 		this.rollAsked = false;
+		this.pigeons = [];
+		this.freshPigeon = null;
 		this.seat = null;
 		this.code = null;
 		this.setClock(null);
 		this.setUrl(null);
+	}
+
+	/** Send a private note by pigeon to the player in seat `to`. */
+	sendPigeon(to: string, text: string) {
+		this.send({ t: 'pigeon', to, text });
 	}
 
 	act(action: Action) {

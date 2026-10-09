@@ -255,8 +255,9 @@
 		border-color: rgba(255, 110, 80, 0.5);
 	}
 	@media (max-width: 700px) {
+		/* Under the menu, pigeon and pause buttons. */
 		.toggle {
-			top: calc(104px + var(--s) * 16 + 6px);
+			top: calc(104px + var(--clock-h, 0px) + var(--s) * 48 + 18px);
 			left: 6px;
 		}
 		.cheats {

@@ -52,6 +52,19 @@ export interface LobbyInfo {
 	clock: TurnClock | null;
 }
 
+/**
+ * A private note carried by pigeon from one player to another. The server hands it to the two of
+ * them and nobody else: the rest of the table never learns that a pigeon flew.
+ */
+export interface PigeonNote {
+	/** Rises with every note in the room, so it orders them and tells new ones apart. */
+	id: number;
+	/** Seat ids of the writer and the reader. */
+	from: string;
+	to: string;
+	text: string;
+}
+
 export type ClientMessage =
 	| { t: 'create'; name: string; token?: string }
 	| { t: 'join'; code: string; name: string; token?: string }
@@ -73,6 +86,8 @@ export type ClientMessage =
 	/** Pause the game for everyone, or resume it. */
 	| { t: 'pauseGame'; paused: boolean }
 	| { t: 'cheat'; cheat: Cheat }
+	/** Send a private note by pigeon to the player in seat `to`. */
+	| { t: 'pigeon'; to: string; text: string }
 	| { t: 'leave' }
 	| { t: 'ping' };
 
@@ -82,6 +97,10 @@ export type ServerMessage =
 	| { t: 'lobby'; lobby: LobbyInfo }
 	| { t: 'game'; view: GameView; clock: TurnClock | null }
 	| { t: 'error'; message: string }
+	/** Every note this player wrote or was sent in this room, on joining (or rejoining) it. */
+	| { t: 'pigeons'; notes: PigeonNote[] }
+	/** A pigeon this player sent, or one that is flying in to them. */
+	| { t: 'pigeon'; note: PigeonNote }
 	| { t: 'pong' };
 
 /** The most any table seats; how many a game actually takes depends on the mode and island. */
@@ -91,3 +110,5 @@ export const CLASSIC_PLAYERS = 4;
 export const MIN_PLAYERS = 2;
 /** Turn time limits the host can pick, in seconds; 0 is unlimited. */
 export const TURN_TIMES = [0, 30, 60, 90, 120, 180];
+/** The longest note a pigeon carries. */
+export const PIGEON_MAX_CHARS = 240;

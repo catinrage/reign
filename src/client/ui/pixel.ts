@@ -1,6 +1,6 @@
 /** Tiny pixel-art icons drawn as crisp SVG, to match the voxel world in the 2D interface. */
 
-function svg(rows: string[], pal: Record<string, string>): string {
+export function svg(rows: string[], pal: Record<string, string>): string {
 	const h = rows.length;
 	const w = rows[0].length;
 	let rects = '';

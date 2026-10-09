@@ -16,6 +16,7 @@
 	import Log from './Log.svelte';
 	import GameMenu from './GameMenu.svelte';
 	import OfferCard from './OfferCard.svelte';
+	import PigeonLoft from './PigeonLoft.svelte';
 	import Players from './Players.svelte';
 	import Prompt from './Prompt.svelte';
 	import TimeWarning from './TimeWarning.svelte';
@@ -215,6 +216,7 @@
 	<Victory />
 	<Flyers />
 	<GameMenu />
+	<PigeonLoft />
 	<TimeWarning />
 	{#if client.cheats}<CheatPanel />{/if}
 </div>

@@ -4,10 +4,11 @@ import type {
 	ClientMessage,
 	LobbyInfo,
 	LobbySeat,
+	PigeonNote,
 	ServerMessage,
 	TurnClock
 } from '../shared/protocol';
-import { MAX_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../shared/protocol';
+import { MAX_PLAYERS, MIN_PLAYERS, PIGEON_MAX_CHARS, TURN_TIMES } from '../shared/protocol';
 import { type MapChoice, mapName, presetById, validateCustomMap } from '../shared/board/maps';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
@@ -30,6 +31,8 @@ interface Seat {
 	ready: boolean;
 	sockets: Set<WebSocket>;
 	lastSeen: number;
+	/** When this seat last sent a pigeon (Date.now() time), to keep the sky from filling up. */
+	lastPigeon?: number;
 }
 
 /** Seconds a disconnected player can stall the table before a bot covers for them. */
@@ -37,6 +40,10 @@ const AFK_TAKEOVER_MS = 45_000;
 const BOT_NAMES = ['Ada', 'Bram', 'Cleo', 'Dorn', 'Esme', 'Finn', 'Gale', 'Hollis'];
 /** The events a roll can end with: what it produced, or on a 7 the discards it calls for. */
 const ROLL_ENDS = new Set(['diceRolled', 'produced', 'nothingProduced', 'mustDiscard']);
+/** The room keeps this many pigeon notes; older ones are forgotten. */
+const PIGEON_KEEP = 400;
+/** A player sends at most one pigeon this often. */
+const PIGEON_GAP_MS = 600;
 
 export class Room {
 	seats: Seat[] = [];
@@ -61,6 +68,9 @@ export class Room {
 	 * while it runs, when it runs out (Date.now() time) and the timer for that moment.
 	 */
 	private clock = { turn: '', left: 0, ends: 0, timer: null as NodeJS.Timeout | null };
+	/** Private notes sent by pigeon. Each is only ever sent to its writer and its reader. */
+	private pigeons: PigeonNote[] = [];
+	private pigeonId = 0;
 
 	/** `cheats` lets players use dev cheats; only the local dev server turns it on. */
 	constructor(
@@ -141,6 +151,7 @@ export class Room {
 			token: seat.token,
 			...(this.cheats ? { cheats: true } : {})
 		});
+		send(ws, { t: 'pigeons', notes: this.pigeons.filter((n) => n.from === seat!.id || n.to === seat!.id) });
 		this.broadcastLobby();
 		if (this.game) {
 			send(ws, {
@@ -315,10 +326,38 @@ export class Room {
 				this.broadcastGame();
 				return this.scheduleBots();
 			}
+			case 'pigeon':
+				return this.sendPigeon(seat, msg.to, msg.text, ws);
 			case 'leave':
 				seat.sockets.delete(ws);
 				return this.disconnect(ws);
 		}
+	}
+
+	/**
+	 * A private note from one player to another. Only the two of them hear of it: the note goes to
+	 * the reader's connections and back to the writer's, never to anyone else, and the game log
+	 * doesn't mention it. Bots can't read, so they get no pigeons.
+	 */
+	private sendPigeon(seat: Seat, to: string, text: unknown, ws: WebSocket) {
+		const reader = this.seats.find((s) => s.id === to);
+		if (!reader || reader === seat || reader.isBot || seat.isBot) {
+			return send(ws, { t: 'error', message: 'Pigeons only fly to other players at the table.' });
+		}
+		const clean = String(text ?? '')
+			.replace(/[\u0000-\u001f\u007f]/g, ' ')
+			.trim()
+			.slice(0, PIGEON_MAX_CHARS);
+		if (!clean) return;
+		const now = Date.now();
+		if (seat.lastPigeon && now - seat.lastPigeon < PIGEON_GAP_MS) {
+			return send(ws, { t: 'error', message: 'Your last pigeon is still taking off.' });
+		}
+		seat.lastPigeon = now;
+		const note: PigeonNote = { id: ++this.pigeonId, from: seat.id, to: reader.id, text: clean };
+		this.pigeons.push(note);
+		if (this.pigeons.length > PIGEON_KEEP) this.pigeons.splice(0, this.pigeons.length - PIGEON_KEEP);
+		for (const s of [seat, reader]) for (const w of s.sockets) send(w, { t: 'pigeon', note });
 	}
 
 	/** Stop the bots when the table pauses, let them go on when it resumes, and tell everyone. */

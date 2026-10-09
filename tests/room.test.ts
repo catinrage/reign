@@ -547,3 +547,79 @@ describe('table size', () => {
 		room.dispose();
 	});
 });
+
+describe('pigeon post', () => {
+	afterEach(() => vi.useRealTimers());
+
+	/** Three players and a bot, mid-game. */
+	function table() {
+		vi.useFakeTimers();
+		const room = new Room('PIGEO');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const c = fakeSocket();
+		const ada = room.join(a.ws, 'Ada');
+		const bram = room.join(b.ws, 'Bram');
+		const cleo = room.join(c.ws, 'Cleo');
+		if (typeof ada === 'string' || typeof bram === 'string' || typeof cleo === 'string') {
+			throw new Error('join failed');
+		}
+		room.handle(ada, { t: 'addBot' }, a.ws);
+		room.handle(bram, { t: 'setReady', ready: true }, b.ws);
+		room.handle(cleo, { t: 'setReady', ready: true }, c.ws);
+		room.handle(ada, { t: 'start' }, a.ws);
+		const bot = room.seats.find((s) => s.isBot)!;
+		return { room, a, b, c, ada, bram, cleo, bot };
+	}
+	const pigeons = (sent: ServerMessage[]) =>
+		sent.flatMap((m) => (m.t === 'pigeon' ? [m.note] : []));
+
+	it('carries a note to its reader and back to its writer, and nobody else hears of it', () => {
+		const { room, a, b, c, ada, bram } = table();
+		const before = { log: room.game!.log.length, c: c.sent.length };
+		room.handle(ada, { t: 'pigeon', to: bram.id, text: '  Trade me wheat?  ' }, a.ws);
+		const note = { id: 1, from: ada.id, to: bram.id, text: 'Trade me wheat?' };
+		expect(pigeons(b.sent)).toEqual([note]);
+		expect(pigeons(a.sent)).toEqual([note]);
+		// The third player gets nothing at all, and the game log doesn't change.
+		expect(c.sent.length).toBe(before.c);
+		expect(room.game!.log.length).toBe(before.log);
+		expect(JSON.stringify(c.sent)).not.toContain('Trade me');
+		room.dispose();
+	});
+
+	it('only flies to other players, never to bots or to yourself', () => {
+		const { room, a, ada, bot } = table();
+		room.handle(ada, { t: 'pigeon', to: bot.id, text: 'hi' }, a.ws);
+		room.handle(ada, { t: 'pigeon', to: ada.id, text: 'hi' }, a.ws);
+		room.handle(ada, { t: 'pigeon', to: 'nobody', text: 'hi' }, a.ws);
+		expect(pigeons(a.sent)).toEqual([]);
+		expect(a.sent.filter((m) => m.t === 'error')).toHaveLength(3);
+		room.dispose();
+	});
+
+	it('keeps notes short, drops empty ones and keeps a pause between pigeons', () => {
+		const { room, a, b, ada, bram } = table();
+		room.handle(ada, { t: 'pigeon', to: bram.id, text: '   ' }, a.ws);
+		room.handle(ada, { t: 'pigeon', to: bram.id, text: 'x'.repeat(500) }, a.ws);
+		room.handle(ada, { t: 'pigeon', to: bram.id, text: 'too soon' }, a.ws);
+		vi.advanceTimersByTime(1000);
+		room.handle(ada, { t: 'pigeon', to: bram.id, text: 'line\nbreak' }, a.ws);
+		expect(pigeons(b.sent).map((n) => n.text)).toEqual(['x'.repeat(240), 'line break']);
+		room.dispose();
+	});
+
+	it('hands a returning player only the notes they wrote or were sent', () => {
+		const { room, a, b, c, ada, bram, cleo } = table();
+		room.handle(ada, { t: 'pigeon', to: bram.id, text: 'for Bram' }, a.ws);
+		room.handle(cleo, { t: 'pigeon', to: ada.id, text: 'for Ada' }, c.ws);
+		vi.advanceTimersByTime(1000);
+		room.handle(bram, { t: 'pigeon', to: cleo.id, text: 'for Cleo' }, b.ws);
+		room.disconnect(b.ws);
+		const again = fakeSocket();
+		room.join(again.ws, 'Bram', bram.token);
+		const history = again.sent.find((m) => m.t === 'pigeons');
+		expect(history?.t === 'pigeons' && history.notes.map((n) => n.text)).toEqual(['for Bram', 'for Cleo']);
+		room.dispose();
+	});
+});
