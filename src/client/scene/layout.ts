@@ -15,7 +15,9 @@ export const PLAYER_RGB: Record<string, number> = {
 	yellow: 0xf2c12e,
 	green: 0x2f9a3a,
 	white: 0xe9e4da,
-	orange: 0xec7a22
+	orange: 0xec7a22,
+	purple: 0x8a3fd6,
+	pink: 0xf06aae
 };
 
 export const PLAYER_CSS: Record<string, string> = Object.fromEntries(

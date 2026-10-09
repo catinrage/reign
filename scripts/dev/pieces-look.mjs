@@ -38,7 +38,7 @@ const spots = await page.evaluate(
 	({ mine, injected }) => {
 		document.getElementById('app').style.display = 'none';
 		const s = window.__scene;
-		const colors = ['red', 'blue', 'yellow', 'green', 'white', 'orange'];
+		const colors = ['red', 'blue', 'yellow', 'green', 'white', 'orange', 'purple', 'pink'];
 		const players = colors.map((color, i) => ({ color, name: color, id: i }));
 		if (injected) {
 			const robberHex = injected.hexes.findIndex((hx) => hx.terrain === 'desert');
@@ -97,7 +97,13 @@ const spots = await page.evaluate(
 			['pasture', 4, 'settlement'],
 			['hills', 5, 'city'],
 			['mountains', 2, 'city'],
-			['pasture', 3, 'settlement']
+			['pasture', 3, 'settlement'],
+			['hills', 7, 'settlement'],
+			['forest', 6, 'settlement'],
+			['mountains', 7, 'city'],
+			['fields', 6, 'city'],
+			['pasture', 7, 'settlement'],
+			['hills', 6, 'city']
 		];
 		const used = new Set();
 		for (const [terrain, owner, kind] of plan) {
@@ -172,6 +178,8 @@ const look = async (name, at, radius = 95, polar = 0.82) => {
 	await page.screenshot({ path: `${out}-${name}.png`, animations: 'disabled', timeout: 180000 });
 };
 for (const sp of spots.placed.slice(0, 2)) await look(sp.label, sp.at);
+// The last two colors, purple and pink, up close on each kind of tile.
+for (const sp of spots.placed.filter((p) => p.owner >= 6)) await look(`${sp.label}-${sp.owner}`, sp.at);
 await look('mine', { x: -20, z: -10 }, 200, 0.82);
 for (const hb of spots.harbors) await look(`harbor-${hb.owner}`, hb, 80, 0.8);
 

@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { hexKey, hexToWorld, hexesInRadius } from '../../../shared/board/hex';
+	import { hexDistance, hexKey, hexToWorld, hexesInRadius } from '../../../shared/board/hex';
 	import {
-		MAP_MAX_TILES,
+		MAP_MAX_RADIUS,
 		mapSeats,
 		MAP_PRESETS,
-		MAP_RADIUS,
 		centerTiles,
 		encodeMap,
 		validateCustomMap,
@@ -37,11 +36,23 @@
 		onclose: () => void;
 	} = $props();
 
-	const cells = hexesInRadius(MAP_RADIUS).map((h) => ({ ...h, key: hexKey(h), ...hexToWorld(h) }));
 	// The editor keeps its own copy: later changes to the props don't reset the drawing.
 	const start = untrack(() => $state.snapshot(initial)) ?? { name: 'My island', tiles: MAP_PRESETS[0].tiles };
 	let name = $state(start.name);
 	let land = $state<Record<string, Terrain | null>>(Object.fromEntries(start.tiles.map((t) => [hexKey(t), t.terrain])));
+	// There's no size limit: the grid always keeps two rings of open sea around the land, and
+	// grows (or shrinks back) when a stroke ends so cells don't slide under the pointer.
+	const fit = () => {
+		let far = 0;
+		for (const k of Object.keys(land)) {
+			const [q, r] = k.split(',').map(Number);
+			far = Math.max(far, hexDistance({ q, r }, { q: 0, r: 0 }));
+		}
+		return Math.max(4, Math.min(MAP_MAX_RADIUS, far + 2));
+	};
+	let radius = $state(untrack(fit));
+	const cells = $derived(hexesInRadius(radius).map((h) => ({ ...h, key: hexKey(h), ...hexToWorld(h) })));
+	const view = $derived(`${-2.4 * radius} ${-1.9 * radius} ${4.8 * radius} ${3.8 * radius}`);
 	let brush = $state<Brush>('random');
 	let painting = false;
 	let savedAt = $state(untrack(() => index));
@@ -68,7 +79,6 @@
 			if (key in land) delete land[key];
 			return;
 		}
-		if (!(key in land) && tiles.length >= MAP_MAX_TILES) return;
 		land[key] = brush === 'random' ? null : brush;
 	}
 
@@ -87,11 +97,13 @@
 	}
 	function up() {
 		painting = false;
+		radius = fit();
 	}
 
 	function loadPreset(id: string) {
 		const p = MAP_PRESETS.find((m) => m.id === id);
 		if (p) land = Object.fromEntries(p.tiles.map((t) => [hexKey(t), t.terrain]));
+		radius = fit();
 	}
 
 	function save() {
@@ -123,7 +135,7 @@
 		<div class="board" role="application" aria-label="Map grid">
 			<svg
 				role="presentation"
-				viewBox="-9.6 -7.6 19.2 15.2"
+				viewBox={view}
 				onpointerdown={down}
 				onpointermove={move}
 				onpointerup={up}

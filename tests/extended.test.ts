@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { generateStandardBoard } from '../src/shared/board/generate';
 import { MAP_PRESETS } from '../src/shared/board/maps';
+import { hexesInRadius } from '../src/shared/board/hex';
 import { getTopology } from '../src/shared/board/topology';
 import { botAction } from '../src/shared/rules/bot';
 import { CHARACTERS, type CharacterId } from '../src/shared/rules/characters';
-import { BANK_PER_RESOURCE, BANK_PER_RESOURCE_LARGE, RESOURCES } from '../src/shared/rules/config';
+import { BANK_PER_RESOURCE, BANK_PER_RESOURCE_HUGE, BANK_PER_RESOURCE_LARGE, RESOURCES } from '../src/shared/rules/config';
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
 import type { GameSettings } from '../src/shared/rules/modes';
 import { costOf, tradeRatios } from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
 
-const COLORS = ['red', 'blue', 'yellow', 'green', 'white', 'orange'] as const;
+const COLORS = ['red', 'blue', 'yellow', 'green', 'white', 'orange', 'purple', 'pink'] as const;
 const players = (chars: (CharacterId | null)[]) =>
 	chars.map((character, i) => ({ name: `P${i}`, color: COLORS[i], isBot: true, character }));
 
@@ -175,4 +176,25 @@ describe('five and six players', () => {
 			}
 		});
 	}
+});
+
+describe('seven and eight players', () => {
+	it('finish 8-player games on a big custom island with the biggest bank and deck', () => {
+		const tiles = hexesInRadius(5).map((h) => ({ ...h, terrain: null }));
+		for (let seed = 1; seed <= 3; seed++) {
+			let s = createGame(players(CHARACTERS.slice()), seed * 31, undefined, {
+				mode: 'extended',
+				map: { custom: { name: 'Vast', tiles } },
+				pointsToWin: 13
+			});
+			expect(s.board.hexes).toHaveLength(91);
+			expect(s.devDeck).toHaveLength(43);
+			s = playOut(s, 60000);
+			expect(s.phase, `seed ${seed}`).toBe('ended');
+			expect(totalPoints(s, s.winner!)).toBeGreaterThanOrEqual(13);
+			for (const r of RESOURCES) {
+				expect(s.bank[r] + s.players.reduce((k, p) => k + p.resources[r], 0)).toBe(BANK_PER_RESOURCE_HUGE);
+			}
+		}
+	});
 });

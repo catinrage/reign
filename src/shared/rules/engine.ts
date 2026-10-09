@@ -4,9 +4,11 @@ import { type Board, getTopology } from '../board/topology';
 import { nextRandom, randomInt, shuffle } from '../rng';
 import {
 	BANK_PER_RESOURCE,
+	BANK_PER_RESOURCE_HUGE,
 	BANK_PER_RESOURCE_LARGE,
 	DEV_CARDS,
 	DEV_DECK,
+	DEV_DECK_HUGE,
 	DEV_DECK_LARGE,
 	LARGEST_ARMY_MIN,
 	PIECE_LIMITS,
@@ -70,10 +72,11 @@ export function createGame(
 	const tiles = extended ? mapTiles(opts.map) : null;
 	const b = board ?? (tiles ? generateBoard(tiles, rngHolder) : generateStandardBoard(rngHolder));
 	const topo = getTopology(b);
-	// Five or six players share a bigger bank and deck, as in the 5-6 player extension.
-	const large = players.length > 4;
-	const counts = large ? DEV_DECK_LARGE : DEV_DECK;
-	const bank = large ? BANK_PER_RESOURCE_LARGE : BANK_PER_RESOURCE;
+	// Five or six players share a bigger bank and deck, as in the 5-6 player extension, and
+	// seven or eight a bigger one still.
+	const n = players.length;
+	const counts = n > 6 ? DEV_DECK_HUGE : n > 4 ? DEV_DECK_LARGE : DEV_DECK;
+	const bank = n > 6 ? BANK_PER_RESOURCE_HUGE : n > 4 ? BANK_PER_RESOURCE_LARGE : BANK_PER_RESOURCE;
 	const deck: DevCardType[] = [];
 	for (const c of DEV_CARDS) for (let i = 0; i < counts[c]; i++) deck.push(c);
 	shuffle(rngHolder, deck);

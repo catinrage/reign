@@ -12,8 +12,15 @@ export const MODE_INFO: Record<GameMode, { name: string; text: string }> = {
 	extended: { name: 'Reign Extended', text: 'Characters with traits, bigger and custom maps.' }
 };
 
-/** Victory points the host can play to in Reign Extended. Classic is always 10. */
+/** Quick picks for the victory points to play to in Reign Extended. Classic is always 10. */
 export const POINT_GOALS = [8, 10, 12, 14];
+/** The host can also type any whole number in this range. */
+export const POINTS_MIN = 3;
+export const POINTS_MAX = 30;
+
+export function validPointGoal(n: unknown): n is number {
+	return Number.isInteger(n) && (n as number) >= POINTS_MIN && (n as number) <= POINTS_MAX;
+}
 
 /** Everything the host sets up in the lobby that changes the game itself. */
 export interface GameSettings {

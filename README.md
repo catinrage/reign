@@ -1,7 +1,7 @@
 # Reign
 
 A micro-voxel, multiplayer take on the classic settle-trade-build board game, played in the
-browser. Phase one is the complete base game: 2–4 players (up to 6 in Reign Extended) (humans or bots), the random
+browser. Phase one is the complete base game: 2–4 players (up to 8 in Reign Extended), humans or bots,, the random
 19-tile island with harbors, setup snake draft, dice production, the robber, development
 cards, longest road and largest army, bank/harbor and player-to-player trading, and a win at
 10 points.
@@ -20,11 +20,13 @@ The host picks the mode in the lobby.
     for them, such as 3:1 bank trades, cheaper cities or stealing two cards.
   - *Islands:* six shapes from the classic isle up to a 37-tile realm, a ring round a lagoon,
     twin highlands and a winding coast. Terrains, numbers and harbors are dealt fresh each game.
-  - *Map maker:* paint your own island (fixed or random tiles), save it in your browser and
-    share it as a short code.
-  - *Points to win:* 8, 10, 12 or 14.
-  - *Bigger tables:* islands of 25 tiles or more seat five, and 30 or more seat six, with
-    the bigger bank (24 of each resource) and development deck of the 5–6 player extension.
+  - *Map maker:* paint your own island of any size (fixed or random tiles), save it in your
+    browser and share it as a short code.
+  - *Points to win:* 8, 10, 12 or 14, or any number from 3 to 30.
+  - *Bigger tables:* an island seats one player per five tiles, from four up to eight (so
+    25 tiles seat five, 30 seat six and 40 seat eight), in eight colors. Five or six players
+    get the 5–6 player extension's bank (24 of each resource) and deck, seven or eight a
+    bigger one still (29 of each, 43 cards).
 
 The picture above is the visual target. Everything in the world is made of voxels and meshed
 at runtime: the island, the pieces, the dice, the table and the cozy room around it.

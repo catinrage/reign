@@ -27,7 +27,7 @@ export const RESOURCE_LABEL: Record<Resource, string> = {
 	ore: 'Ore'
 };
 
-export const PLAYER_COLORS = ['red', 'blue', 'yellow', 'green', 'white', 'orange'] as const;
+export const PLAYER_COLORS = ['red', 'blue', 'yellow', 'green', 'white', 'orange', 'purple', 'pink'] as const;
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
 export type BuildKind = 'road' | 'settlement' | 'city' | 'devCard';
@@ -44,6 +44,8 @@ export const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 } as const;
 export const BANK_PER_RESOURCE = 19;
 /** A table of five or six (Reign Extended on a bigger island) gets a bigger bank and deck. */
 export const BANK_PER_RESOURCE_LARGE = 24;
+/** And seven or eight bigger still. */
+export const BANK_PER_RESOURCE_HUGE = 29;
 
 export const DEV_CARDS = [
 	'knight',
@@ -59,6 +61,15 @@ export const DEV_DECK: Record<DevCardType, number> = {
 	roadBuilding: 2,
 	yearOfPlenty: 2,
 	monopoly: 2,
+	victoryPoint: 5
+};
+
+/** The deck for a table of seven or eight. */
+export const DEV_DECK_HUGE: Record<DevCardType, number> = {
+	knight: 26,
+	roadBuilding: 4,
+	yearOfPlenty: 4,
+	monopoly: 4,
 	victoryPoint: 5
 };
 

@@ -14,7 +14,7 @@ import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
 import { applyCheat } from '../shared/rules/cheats';
 import { CHARACTERS, type CharacterId, isCharacter } from '../shared/rules/characters';
-import { DEFAULT_SETTINGS, GAME_MODES, POINT_GOALS, seatsFor, type GameSettings } from '../shared/rules/modes';
+import { DEFAULT_SETTINGS, GAME_MODES, seatsFor, validPointGoal, type GameSettings } from '../shared/rules/modes';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
 import type { Action, GameState } from '../shared/rules/types';
@@ -274,7 +274,7 @@ export class Room {
 				return this.broadcastLobby();
 			}
 			case 'setPointsToWin':
-				if (!isHost || this.lockedSettings || !POINT_GOALS.includes(msg.points)) return;
+				if (!isHost || this.lockedSettings || !validPointGoal(msg.points)) return;
 				if (this.settings.pointsToWin !== msg.points) this.unready();
 				this.settings.pointsToWin = msg.points;
 				return this.broadcastLobby();
@@ -716,7 +716,7 @@ function cleanMap(map: MapChoice): MapChoice | string {
 	if (!map || !('custom' in map) || !map.custom || !Array.isArray(map.custom.tiles)) return 'That map is empty.';
 	const custom = {
 		name: cleanName(map.custom.name) || 'Custom map',
-		tiles: map.custom.tiles.slice(0, 200).map((t) => ({ q: Number(t?.q), r: Number(t?.r), terrain: t?.terrain ?? null }))
+		tiles: map.custom.tiles.slice(0, 1000).map((t) => ({ q: Number(t?.q), r: Number(t?.r), terrain: t?.terrain ?? null }))
 	};
 	return validateCustomMap(custom) ?? { custom };
 }
