@@ -29,7 +29,7 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	mount(App, { target: el });
 	armAudio();
 	// The game connection opens once signed in, and closes on signing out.
-	account.onChange = (signedIn) => (signedIn ? client.connect() : client.disconnect());
+	account.watch((signedIn) => (signedIn ? client.connect() : client.disconnect()));
 	void account.boot();
 	(window as any).__account = account;
 	(window as any).__client = client;

@@ -120,7 +120,16 @@ const MIGRATIONS = [
 		place int,
 		primary key (match_id, seat)
 	);
-	create index match_players_user on match_players(user_id);`
+	create index match_players_user on match_players(user_id);`,
+	`create table maps (
+		id bigserial primary key,
+		user_id bigint not null references users(id) on delete cascade,
+		name text not null,
+		tiles jsonb not null,
+		created_at timestamptz not null default now(),
+		updated_at timestamptz not null default now()
+	);
+	create index maps_user on maps(user_id);`
 ];
 
 async function migrate(db: Db) {

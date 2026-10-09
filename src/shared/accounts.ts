@@ -1,3 +1,4 @@
+import type { CustomMap } from './board/maps';
 import type { CharacterId } from './rules/characters';
 import type { PlayerColor } from './rules/config';
 import type { GameMode } from './rules/modes';
@@ -147,6 +148,15 @@ export interface MatchStats {
 	finished: number;
 	won: number;
 }
+
+/** A map made in the map maker, kept on the player's account. */
+export interface SavedMap {
+	id: string;
+	map: CustomMap;
+}
+
+/** The most maps one account keeps. */
+export const MAX_SAVED_MAPS = 200;
 
 export interface MatchHistory {
 	user: PublicUser;
