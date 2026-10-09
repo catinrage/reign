@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
-	import HowToPlay from '../menu/HowToPlay.svelte';
-	import Settings from '../menu/Settings.svelte';
+		import Settings from '../menu/Settings.svelte';
 	import { PIXEL } from '../pixel';
 	import PigeonButton from './PigeonButton.svelte';
 	import { sfx } from '../sound';
+	import Tutorial from '../tutorial/Tutorial.svelte';
 	import { ui } from './ui.svelte';
 
 	let page = $state<'main' | 'help' | 'settings'>('main');
@@ -25,7 +25,7 @@
 	);
 	const title = $derived(
 		page === 'help'
-			? 'How to play'
+			? 'Tutorial'
 			: page === 'settings'
 				? 'Settings'
 				: paused
@@ -137,7 +137,7 @@
 							>
 						{/if}
 						<button class="btn wood block" onclick={() => go('help')}
-							><img src={PIXEL.book} alt="" />How to play</button
+							><img src={PIXEL.book} alt="" />Tutorial</button
 						>
 						<button class="btn wood block" onclick={() => go('settings')}
 							><img src={PIXEL.gear} alt="" />Settings</button
@@ -187,7 +187,7 @@
 				{:else}
 					<button class="btn small wood back" onclick={() => go('main')}>‹ Back</button>
 					{#if page === 'help'}
-						<div class="page parch"><HowToPlay /></div>
+						<Tutorial mode={client.view?.mode} />
 					{:else}
 						<div class="page"><Settings /></div>
 					{/if}
@@ -236,7 +236,10 @@
 		animation: drop-in 0.55s cubic-bezier(0.2, 1.25, 0.4, 1) both;
 	}
 	.drop.wide {
-		width: min(800px, calc(100vw - 24px));
+		width: min(1100px, calc(100vw - 24px));
+	}
+	.drop.wide .board {
+		height: calc(100dvh - 110px);
 	}
 	.board {
 		width: 100%;
@@ -317,9 +320,6 @@
 		overflow-y: auto;
 		scrollbar-width: thin;
 		scrollbar-color: #8a5a32 transparent;
-	}
-	.page.parch {
-		padding: 6px 10px;
 	}
 	@media (max-width: 900px) {
 		/* A column, so the buttons stay clear of the chronicle beside them. */
