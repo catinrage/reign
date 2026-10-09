@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { DEV_CARDS, type DevCardType } from '../../../shared/rules/config';
+	import { discardLimit } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import DevCard from '../DevCard.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
@@ -20,6 +21,7 @@
 	});
 	const dev = $derived(me?.devCards ?? []);
 	const total = $derived(res ? RESOURCES.reduce((n, r) => n + res[r], 0) : 0);
+	const limit = $derived(discardLimit(view, view.me));
 	// One card per kind you hold, with a count, in the deck's order.
 	const groups = $derived(
 		DEV_CARDS.map((type) => ({
@@ -61,8 +63,10 @@
 			</div>
 			<div
 				class="total"
-				class:warn={total > 7}
-				title={total > 7 ? 'More than 7 cards: you will discard half on a 7' : 'Cards in hand'}
+				class:warn={total > limit}
+				title={total > limit
+					? `More than ${limit} cards: you will discard half on a 7`
+					: 'Cards in hand'}
 			>
 				<img class="icon-px" src={PIXEL.cards} alt="" />{total}
 			</div>
