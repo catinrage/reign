@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { generateStandardBoard } from '../src/shared/board/generate';
 import { MAP_PRESETS } from '../src/shared/board/maps';
+import { RANDOM_SHAPES, randomMap } from '../src/shared/board/random';
 import { hexesInRadius } from '../src/shared/board/hex';
 import { getTopology } from '../src/shared/board/topology';
 import { botAction } from '../src/shared/rules/bot';
 import { CHARACTERS, type CharacterId } from '../src/shared/rules/characters';
 import { BANK_PER_RESOURCE, BANK_PER_RESOURCE_HUGE, BANK_PER_RESOURCE_LARGE, RESOURCES } from '../src/shared/rules/config';
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
-import type { GameSettings } from '../src/shared/rules/modes';
+import { maxPointsFor, type GameSettings } from '../src/shared/rules/modes';
 import { costOf, tradeRatios } from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
@@ -197,4 +198,23 @@ describe('seven and eight players', () => {
 			}
 		}
 	});
+});
+
+describe('random islands at their biggest goal', () => {
+	for (const shape of RANDOM_SHAPES)
+		it(`finishes ${shape} games played to the most points the island allows`, () => {
+			for (const [tiles, n, seed] of [
+				[24, 2, 1],
+				[40, 4, 2],
+				[60, 6, 3]
+			]) {
+				const custom = randomMap({ tiles, shape, lakes: seed % 2 === 1, seed });
+				const goal = maxPointsFor(tiles, n);
+				const chars = CHARACTERS.slice(0, n) as CharacterId[];
+				let s = createGame(players(chars), seed * 53, undefined, { mode: 'extended', map: { custom }, pointsToWin: goal });
+				s = playOut(s, 80000);
+				expect(s.phase, `${shape} ${tiles} tiles, ${n} players to ${goal}`).toBe('ended');
+				expect(totalPoints(s, s.winner!)).toBeGreaterThanOrEqual(goal);
+			}
+		});
 });

@@ -9,12 +9,13 @@ import type {
 	TurnClock
 } from '../shared/protocol';
 import { MAX_PLAYERS, MIN_PLAYERS, PIGEON_MAX_CHARS, TURN_TIMES } from '../shared/protocol';
-import { type MapChoice, mapName, presetById, validateCustomMap } from '../shared/board/maps';
+import { type CustomMap, type MapChoice, mapName, mapTiles, presetById, validateCustomMap } from '../shared/board/maps';
+import { cleanRandomOptions } from '../shared/board/random';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
 import { applyCheat } from '../shared/rules/cheats';
 import { CHARACTERS, type CharacterId, isCharacter } from '../shared/rules/characters';
-import { DEFAULT_SETTINGS, GAME_MODES, seatsFor, validPointGoal, type GameSettings } from '../shared/rules/modes';
+import { DEFAULT_SETTINGS, GAME_MODES, maxPointsFor, seatsFor, validPointGoal, type GameSettings } from '../shared/rules/modes';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
 import type { Action, GameState } from '../shared/rules/types';
@@ -275,6 +276,12 @@ export class Room {
 			}
 			case 'setPointsToWin':
 				if (!isHost || this.lockedSettings || !validPointGoal(msg.points)) return;
+				if (msg.points > this.pointsCap) {
+					return send(ws, {
+						t: 'error',
+						message: `${mapName(this.settings.map)} with ${this.seats.length} players plays to at most ${this.pointsCap} points.`
+					});
+				}
 				if (this.settings.pointsToWin !== msg.points) this.unready();
 				this.settings.pointsToWin = msg.points;
 				return this.broadcastLobby();
@@ -497,7 +504,24 @@ export class Room {
 		return PLAYER_COLORS.find((c) => !this.seats.some((s) => s.color === c)) ?? 'white';
 	}
 
+	/**
+	 * The highest goal this island and table can reach (Reign Extended only; Classic always plays
+	 * to 10). See maxPointsFor.
+	 */
+	get pointsCap() {
+		if (this.settings.mode !== 'extended') return Infinity;
+		return maxPointsFor(mapTiles(this.settings.map)?.length ?? 19, this.seats.length);
+	}
+
+	/** A smaller island or a fuller table lowers the goal to what it can still reach. */
+	private fitPoints() {
+		if (this.lockedSettings || this.settings.pointsToWin <= this.pointsCap) return;
+		this.settings.pointsToWin = this.pointsCap;
+		this.unready();
+	}
+
 	private broadcastLobby() {
+		this.fitPoints();
 		this.syncClock();
 		const lobby = this.lobbyInfo();
 		for (const s of this.seats) for (const ws of s.sockets) send(ws, { t: 'lobby', lobby });
@@ -714,10 +738,11 @@ function cleanMap(map: MapChoice): MapChoice | string {
 		return presetById(map.preset) ? { preset: map.preset } : 'Unknown map.';
 	}
 	if (!map || !('custom' in map) || !map.custom || !Array.isArray(map.custom.tiles)) return 'That map is empty.';
-	const custom = {
+	const custom: CustomMap = {
 		name: cleanName(map.custom.name) || 'Custom map',
 		tiles: map.custom.tiles.slice(0, 1000).map((t) => ({ q: Number(t?.q), r: Number(t?.r), terrain: t?.terrain ?? null }))
 	};
+	if (map.custom.random) custom.random = cleanRandomOptions(map.custom.random);
 	return validateCustomMap(custom) ?? { custom };
 }
 

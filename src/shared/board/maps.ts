@@ -1,5 +1,6 @@
 import { TERRAINS, type Terrain } from '../rules/config';
 import { type Axial, hexDistance, hexKey, hexToWorld } from './hex';
+import type { RandomMapOptions } from './random';
 
 /**
  * Island shapes for Reign Extended. A map is a set of land hexes, each either a fixed terrain or
@@ -25,6 +26,8 @@ export type MapChoice = { preset: string } | { custom: CustomMap };
 export interface CustomMap {
 	name: string;
 	tiles: MapTile[];
+	/** Set when the island came from the random generator, so the host can reroll it. */
+	random?: RandomMapOptions;
 }
 
 /**
