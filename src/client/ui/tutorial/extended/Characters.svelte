@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CHARACTERS, CHARACTER_INFO } from '../../../../shared/rules/characters';
+	import { CHARACTERS, CHARACTER_INFO, traitText } from '../../../../shared/rules/characters';
 	import Portrait from '../../extended/Portrait.svelte';
 	import { PIXEL } from '../../pixel';
 </script>
@@ -45,7 +45,7 @@
 					><b class="title">{info.name}</b> <span class="epithet">{info.title}</span></span
 				>
 				<span class="trait">{info.trait}</span>
-				<span>{info.text}</span>
+				<span>{traitText(c)}</span>
 			</div>
 		</div>
 	{/each}

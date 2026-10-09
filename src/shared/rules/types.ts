@@ -53,6 +53,8 @@ export interface GameState {
 	mode: GameMode;
 	/** Victory points needed to win: always 10 in Classic, the host's pick in Reign Extended. */
 	pointsToWin: number;
+	/** A 7 makes players holding more cards than this discard half (Classic: 7). */
+	handLimit: number;
 	/** Name of the map the island was dealt from. */
 	mapName: string;
 	board: Board;

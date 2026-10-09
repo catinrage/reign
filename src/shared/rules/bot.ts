@@ -12,6 +12,7 @@ import {
 import {
 	citySpots,
 	costOf,
+	discardLimit,
 	draftLeft,
 	playersOnHex,
 	publicPoints,
@@ -111,7 +112,7 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	}
 	if (hasResources(res, costOf(s, me, 'devCard')) && s.devDeck.length > 0) {
 		const keepForCity = citySpots(s, me).length > 0 && res.ore < 4;
-		if (!keepForCity || totalResources(res) > 7) return { type: 'buyDevCard' };
+		if (!keepForCity || totalResources(res) > discardLimit(s, me)) return { type: 'buyDevCard' };
 	}
 
 	const trade = bankTradeTowards(s, me);

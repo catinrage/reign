@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CHARACTER_INFO } from '../../../shared/rules/characters';
+	import { CHARACTER_INFO, traitText } from '../../../shared/rules/characters';
 	import { discardLimit } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import Portrait from '../extended/Portrait.svelte';
@@ -54,7 +54,7 @@
 		>
 			{#if current}<TurnTab color={p.color} />{/if}
 			{#if ch}
-				<span class="face" title="{ch.name} {ch.title}. {ch.trait}: {ch.text}">
+				<span class="face" title="{ch.name} {ch.title}. {ch.trait}: {traitText(p.character!, view.handLimit)}">
 					<Portrait id={p.character} size={44} />
 					<span class="shield mini" style="--shield: var(--art-shield-{p.color})"></span>
 				</span>

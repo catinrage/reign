@@ -478,6 +478,26 @@ describe('Reign Extended lobby', () => {
 		room.dispose();
 	});
 
+	it('lets only the host set the hand limit, within range, and plays it', () => {
+		const room = new Room('HANDS');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		expect(room.lobbyInfo().settings.handLimit).toBe(7);
+		room.handle(guest, { t: 'setHandLimit', cards: 9 }, b.ws);
+		expect(room.lobbyInfo().settings.handLimit).toBe(7);
+		room.handle(host, { t: 'setHandLimit', cards: 10 }, a.ws);
+		for (const bad of [2, 21, 8.5, '9']) room.handle(host, { t: 'setHandLimit', cards: bad as number }, a.ws);
+		expect(room.lobbyInfo().settings.handLimit).toBe(10);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game!.handLimit).toBe(10);
+		room.dispose();
+	});
+
 	it('plays without characters when the host turns them off', () => {
 		const room = new Room('NOCHR');
 		const a = fakeSocket();

@@ -10,6 +10,7 @@ import {
 	DEV_DECK,
 	DEV_DECK_HUGE,
 	DEV_DECK_LARGE,
+	DISCARD_THRESHOLD,
 	LARGEST_ARMY_MIN,
 	PIECE_LIMITS,
 	RESOURCES,
@@ -90,6 +91,7 @@ export function createGame(
 		rng: rngHolder.rng,
 		mode: opts.mode,
 		pointsToWin: extended ? opts.pointsToWin : VICTORY_POINTS_TO_WIN,
+		handLimit: extended ? opts.handLimit : DISCARD_THRESHOLD,
 		mapName: tiles ? mapName(opts.map) : 'Classic Isle',
 		board: b,
 		players: players.map(

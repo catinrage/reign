@@ -82,6 +82,8 @@ export type ClientMessage =
 	| { t: 'setMode'; mode: GameMode }
 	| { t: 'setMap'; map: MapChoice }
 	| { t: 'setPointsToWin'; points: number }
+	/** Host: Reign Extended's hand limit on a 7. */
+	| { t: 'setHandLimit'; cards: number }
 	/** Host: Reign Extended players draft characters when the game starts, or play without. */
 	| { t: 'setCharacters'; on: boolean }
 	/** Host: leave a character out of the draft, or put it back. */

@@ -61,7 +61,8 @@ export const CHARACTER_INFO: Record<CharacterId, CharacterInfo> = {
 		name: 'Aldous',
 		title: 'the Steward',
 		trait: 'Deep Coffers',
-		text: 'Only discards on a 7 when holding more than 9 cards.'
+		// Filled in by traitText: three cards over the table's hand limit.
+		text: 'Only discards on a 7 when holding three cards more than everyone else may.'
 	},
 	shepherd: {
 		name: 'Maebh',
@@ -76,6 +77,15 @@ export const CHARACTER_INFO: Record<CharacterId, CharacterInfo> = {
 		text: 'Can claim Longest Road with only 4 roads.'
 	}
 };
+
+/** Cards the Steward holds on a 7 beyond the table's hand limit. */
+export const STEWARD_EXTRA = 3;
+
+/** What a character's trait does at a table with this hand limit, with the real numbers in. */
+export function traitText(id: CharacterId, handLimit = 7): string {
+	if (id === 'steward') return `Only discards on a 7 when holding more than ${handLimit + STEWARD_EXTRA} cards (everyone else: ${handLimit}).`;
+	return CHARACTER_INFO[id].text;
+}
 
 export function isCharacter(id: unknown): id is CharacterId {
 	return typeof id === 'string' && (CHARACTERS as readonly string[]).includes(id);

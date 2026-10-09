@@ -159,7 +159,7 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 		case 'nothingProduced':
 			return [T(`Nobody produced on ${e.total}`)];
 		case 'mustDiscard':
-			return [T('Robber! Players with more than 7 cards discard half')];
+			return [T(`Robber! Players with more than ${view.handLimit ?? 7} cards discard half`)];
 		case 'discarded':
 			return [P(e.player), T(` discarded ${e.count}`)];
 		case 'robberMoved':
