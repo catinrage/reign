@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { pips } from '../../../shared/rules/config';
-import { VoxelGrid, hash3, hex, pick } from '../voxel/grid';
+import { Mat, VoxelGrid, hash3, hex, pick, shade } from '../voxel/grid';
 import { meshesFor } from '../voxel/materials';
 import { meshGrid } from '../voxel/mesher';
 
@@ -26,6 +26,33 @@ function disc(): THREE.Group {
 		discGroup = meshesFor(meshGrid(g, { jitter: 0.03 }), 1, {}, [N / 2, 0, N / 2]);
 	}
 	return discGroup.clone(true);
+}
+
+const rings = new Map<number, THREE.Group>();
+
+/**
+ * A band in a player's color round a token, flush with its top. On number tokens it marks
+ * the tiles your buildings touch; on harbor discs, the player who holds the harbor.
+ */
+export function tokenRing(color: number): THREE.Group {
+	let ring = rings.get(color);
+	if (!ring) {
+		const N = 14;
+		const g = new VoxelGrid(N, 2, N);
+		const c = (N - 1) / 2;
+		for (let z = 0; z < N; z++)
+			for (let x = 0; x < N; x++) {
+				const d = Math.hypot(x - c, z - c);
+				if (d <= 4.9 || d > 6.4) continue;
+				g.set(x, 0, z, shade(color, 0.78));
+				g.set(x, 1, z, shade(color, 0.97 + hash3(x, 1, z) * 0.08));
+			}
+		ring = meshesFor(meshGrid(g, { jitter: 0.03 }), 1, { [Mat.Solid]: { lift: 0.3 } }, [N / 2, 0, N / 2]);
+		rings.set(color, ring);
+	}
+	const r = ring.clone(true);
+	r.name = 'ring';
+	return r;
 }
 
 function faceTexture(draw: (ctx: CanvasRenderingContext2D, s: number) => void): THREE.CanvasTexture {

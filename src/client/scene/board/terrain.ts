@@ -84,6 +84,8 @@ export interface PortSpot {
 	angle: number;
 	kind: string;
 	ratio: number;
+	/** The coastal edge the harbor serves; a building on either end holds it. */
+	edge: number;
 }
 
 export interface BoardBuild {
@@ -328,7 +330,7 @@ export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 			const z = Math.floor((pz + dz) * S);
 			grid.box(x, 0, z, x + S - 1, (WATER_DECK + 2) * S - 1, z + S - 1, C.post);
 		}
-		return { x: px * VOXEL, z: pz * VOXEL, angle: Math.atan2(out.x, out.z), kind: p.kind, ratio: p.kind === 'any' ? 3 : 2 };
+		return { x: px * VOXEL, z: pz * VOXEL, angle: Math.atan2(out.x, out.z), kind: p.kind, ratio: p.kind === 'any' ? 3 : 2, edge: p.edge };
 	});
 
 	// The board lies on the table, so the faces underneath it are never seen.

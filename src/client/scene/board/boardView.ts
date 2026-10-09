@@ -5,7 +5,7 @@ import { getIcons } from '../icons';
 import { sharedUniforms } from '../voxel/materials';
 import { cloneModel, robberModel, sheepModel, shipModel } from './models';
 import { type BoardBuild, DECK_TOP, LAND_TOP, buildBoard } from './terrain';
-import { harborToken, numberToken } from './tokens';
+import { harborToken, numberToken, tokenRing } from './tokens';
 
 /** Number tokens are a little smaller than a third of a tile, as in the reference. */
 const TOKEN_SCALE = 0.82;
@@ -19,7 +19,11 @@ export class BoardView {
 	readonly build: BoardBuild;
 	readonly tokens: THREE.Group[] = [];
 	readonly robber: THREE.Group;
+	/** One per harbor, in `build.ports` order. */
 	private ships: { obj: THREE.Object3D; base: THREE.Vector3; phase: number }[] = [];
+	private harbors: THREE.Group[] = [];
+	/** Color of each harbor's owner (null while free), as last set. */
+	private portOwners: (number | null)[] = [];
 	private sheep: {
 		obj: THREE.Object3D;
 		home: THREE.Vector2;
@@ -67,6 +71,8 @@ export class BoardView {
 			tok.position.set(p.x, DECK_TOP + 0.2, p.z);
 			tok.scale.setScalar(0.62);
 			this.faces.push(tok);
+			this.harbors.push(tok);
+			this.portOwners.push(null);
 			this.group.add(tok);
 			const ship = cloneModel(shipModel());
 			const side = new THREE.Vector3(Math.cos(p.angle), 0, -Math.sin(p.angle));
@@ -157,6 +163,34 @@ export class BoardView {
 		return { pos: new THREE.Vector3(x, y, z), angle };
 	}
 
+	/** Ring the number tokens of `hexes` (the tiles your buildings touch) in your color. */
+	setMine(hexes: Set<number>, color: number | null) {
+		this.tokens.forEach((t, i) => {
+			const want = color !== null && hexes.has(i) && this.board.hexes[i].number !== null ? color : null;
+			setRing(t, want);
+		});
+	}
+
+	/**
+	 * Show who holds each harbor (colors in `build.ports` order, null while free): the disc
+	 * gets a ring and the ship beside it hoists sails in the owner's color.
+	 */
+	setPortOwners(colors: (number | null)[]) {
+		colors.forEach((color, i) => {
+			if (i >= this.harbors.length || this.portOwners[i] === color) return;
+			this.portOwners[i] = color;
+			setRing(this.harbors[i], color);
+			const s = this.ships[i];
+			const ship = cloneModel(shipModel(color ?? undefined));
+			ship.position.copy(s.obj.position);
+			ship.rotation.copy(s.obj.rotation);
+			ship.scale.copy(s.obj.scale);
+			this.group.remove(s.obj);
+			this.group.add(ship);
+			s.obj = ship;
+		});
+	}
+
 	setRobber(h: number, instant: boolean) {
 		this.robberHex = h;
 		if (instant) {
@@ -232,6 +266,17 @@ export class BoardView {
 		this.build.dispose();
 		for (const v of sharedUniforms.uGray.value) v.set(0, 0, 0, 0);
 	}
+}
+
+/** Put a ring of `color` round a token, or take it off (null). */
+function setRing(token: THREE.Group, color: number | null) {
+	const old = token.getObjectByName('ring');
+	if ((old?.userData.color ?? null) === color) return;
+	if (old) token.remove(old);
+	if (color === null) return;
+	const ring = tokenRing(color);
+	ring.userData.color = color;
+	token.add(ring);
 }
 
 function angleDelta(a: number, b: number) {

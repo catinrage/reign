@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import type { Animator } from './anim';
-import { DIE_FACES, cloneModel, dieModel } from './board/models';
+import { DIE_FACES, DIE_VOXELS, cloneModel, dieModel } from './board/models';
 import type { Particles } from './effects';
 
 const UP = new THREE.Vector3(0, 1, 0);
-const DIE_SCALE = 0.78;
-const HALF = 4.5 * DIE_SCALE;
+const DIE_SCALE = 0.68;
+const HALF = (DIE_VOXELS / 2) * DIE_SCALE;
 
 /** Half the width of a die, in world units: the dice need this much clear table round them. */
 export const DIE_HALF = HALF;

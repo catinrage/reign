@@ -160,6 +160,7 @@ export class Stage {
 		this.composer.setSize(w, h, false);
 		this.camera.aspect = w / h;
 		this.camera.updateProjectionMatrix();
+		sharedUniforms.uViewport.value.set(w, h);
 		this.applyShift();
 	};
 

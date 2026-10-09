@@ -20,7 +20,9 @@ export const sharedUniforms = {
 	 */
 	uGray: { value: [new THREE.Vector4(), new THREE.Vector4()] },
 	/** World size of one board voxel, to find which tile a fragment's voxel belongs to. */
-	uGrayVoxel: { value: 1 }
+	uGrayVoxel: { value: 1 },
+	/** Canvas size in CSS pixels, so outlines can be a fixed number of pixels wide. */
+	uViewport: { value: new THREE.Vector2(1, 1) }
 };
 
 export interface VoxelMaterialOptions {
@@ -43,6 +45,11 @@ export interface VoxelMaterialOptions {
 	 * they would only shimmer into moiré (for small voxels seen from afar).
 	 */
 	antialias?: boolean;
+	/**
+	 * Adds this share of each voxel's own color as light, so player pieces stay bright in the
+	 * shade of trees and peaks and stand out from the land round them.
+	 */
+	lift?: number;
 }
 
 const VERT_HEAD = /* glsl */ `
@@ -143,6 +150,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 	const bevelWidth = { value: opts.bevelWidth ?? 0.14 };
 	const swayBase = { value: opts.swayBase ?? 0 };
 	const swayScale = { value: opts.swayScale ?? 1 };
+	const lift = { value: opts.lift ?? 0 };
 	material.onBeforeCompile = (shader) => {
 		shader.uniforms.uSwayBase = swayBase;
 		shader.uniforms.uSwayScale = swayScale;
@@ -151,6 +159,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		shader.uniforms.uNight = sharedUniforms.uNight;
 		shader.uniforms.uBevel = bevel;
 		shader.uniforms.uBevelWidth = bevelWidth;
+		shader.uniforms.uLift = lift;
 		if (opts.tileGray) {
 			shader.uniforms.uGray = sharedUniforms.uGray;
 			shader.uniforms.uGrayVoxel = sharedUniforms.uGrayVoxel;
@@ -195,6 +204,13 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 			);
 		}
 		fs = fs.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${FRAG_BEVEL}`);
+		if (opts.lift) {
+			fs = fs.replace('#include <common>', '#include <common>\nuniform float uLift;');
+			fs = fs.replace(
+				'#include <emissivemap_fragment>',
+				'#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * uLift;'
+			);
+		}
 		if (kind === Mat.Glow || kind === Mat.Fire) {
 			const flick = kind === Mat.Fire ? 'uFlicker' : '1.0';
 			fs = fs.replace(
@@ -209,7 +225,8 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		}
 		shader.fragmentShader = fs;
 	};
-	material.customProgramCacheKey = () => `voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}`;
+	material.customProgramCacheKey = () =>
+		`voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}${opts.lift ? '-lift' : ''}`;
 	return material;
 }
 
