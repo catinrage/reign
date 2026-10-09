@@ -8,6 +8,8 @@ import { Room, send } from './room';
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.cwd(), 'dist/client');
 const ROOM_IDLE_MS = 1000 * 60 * 60 * 3;
+/** Dev cheats: on for the local dev server (`pnpm dev` passes --dev), never in production. */
+const CHEATS = process.argv.includes('--dev') && process.env.NODE_ENV !== 'production';
 
 const rooms = new Map<string, Room>();
 
@@ -76,7 +78,7 @@ wss.on('connection', (ws: WebSocket) => {
 		if (msg.t === 'create' || msg.t === 'join') {
 			if (room) room.disconnect(ws);
 			if (msg.t === 'create') {
-				room = new Room(newCode());
+				room = new Room(newCode(), CHEATS);
 				rooms.set(room.code, room);
 			} else {
 				room = rooms.get(String(msg.code ?? '').toUpperCase()) ?? null;
@@ -112,4 +114,6 @@ setInterval(() => {
 	}
 }, 60_000);
 
-server.listen(PORT, () => console.log(`Reign server listening on http://localhost:${PORT}`));
+server.listen(PORT, () =>
+	console.log(`Reign server listening on http://localhost:${PORT}${CHEATS ? ' (dev cheats on)' : ''}`)
+);

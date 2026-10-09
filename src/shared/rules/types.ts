@@ -121,7 +121,9 @@ export type GameEvent =
 	| Ev<'longestRoad', { player: number | null; length: number }>
 	| Ev<'largestArmy', { player: number | null; knights: number }>
 	| Ev<'gameOver', { winner: number; points: number[] }>
-	| Ev<'chat', { player: number; text: string }>;
+	| Ev<'chat', { player: number; text: string }>
+	/** A dev cheat was used (only possible on the local dev server). */
+	| Ev<'cheat', { player: number; text: string }>;
 
 export interface ResourceGain {
 	player: number;

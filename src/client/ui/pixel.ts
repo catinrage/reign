@@ -218,6 +218,23 @@ export const PIXEL = {
 		],
 		{ k: '#4a2c08', g: '#e6b04a' }
 	),
+	hammer: svg(
+		[
+			'..kkkkkk....',
+			'.kssssssk...',
+			'kssSSSSssk..',
+			'kSSkkkkSSk..',
+			'.kk.kbbk.k..',
+			'....kbbk....',
+			'....kbbk....',
+			'....kbbk....',
+			'....kbbk....',
+			'....kbbk....',
+			'....kBBk....',
+			'.....kk.....'
+		],
+		{ k: '#2a1a10', s: '#d9dde3', S: '#8d96a3', b: '#c58a4a', B: '#7a4a22' }
+	),
 	book: svg(
 		[
 			'.kkkk..kkkk.',

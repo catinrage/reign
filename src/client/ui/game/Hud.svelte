@@ -8,6 +8,7 @@
 	import { sceneRef } from '../sceneRef';
 	import { sfx } from '../sound';
 	import Actions from './Actions.svelte';
+	import CheatPanel from './CheatPanel.svelte';
 	import Dialogs from './Dialogs.svelte';
 	import DiceBadge from './DiceBadge.svelte';
 	import Flyers, { flyers } from './Flyers.svelte';
@@ -196,6 +197,7 @@
 	<Flyers />
 	<GameMenu />
 	<TimeWarning />
+	{#if client.cheats}<CheatPanel />{/if}
 </div>
 
 <style>

@@ -50,7 +50,7 @@ export interface NewPlayer {
 	character?: CharacterId | null;
 }
 
-const LOG_LIMIT = 80;
+export const LOG_LIMIT = 80;
 
 /**
  * Deal a new game. Classic always plays the standard island to 10 points with no characters.

@@ -1,4 +1,5 @@
 import type { MapChoice } from './board/maps';
+import type { Cheat } from './rules/cheats';
 import type { CharacterId } from './rules/characters';
 import type { PlayerColor } from './rules/config';
 import type { GameMode, GameSettings } from './rules/modes';
@@ -57,11 +58,13 @@ export type ClientMessage =
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }
 	| { t: 'pause'; paused: boolean }
+	| { t: 'cheat'; cheat: Cheat }
 	| { t: 'leave' }
 	| { t: 'ping' };
 
 export type ServerMessage =
-	| { t: 'welcome'; code: string; seat: string; token: string }
+	/** `cheats` is set when the server runs as the local dev server and accepts dev cheats. */
+	| { t: 'welcome'; code: string; seat: string; token: string; cheats?: boolean }
 	| { t: 'lobby'; lobby: LobbyInfo }
 	| { t: 'game'; view: GameView; clock: TurnClock | null }
 	| { t: 'error'; message: string }

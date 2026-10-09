@@ -1,4 +1,5 @@
 import type { ClientMessage, LobbyInfo, ServerMessage, TurnClock } from '../../shared/protocol';
+import type { Cheat } from '../../shared/rules/cheats';
 import type { Action, GameView } from '../../shared/rules/types';
 
 /**
@@ -37,6 +38,8 @@ class GameClient {
 	clock = $state<(TurnClock & { until: number }) | null>(null);
 	/** performance.now(), refreshed while a turn clock runs so the countdowns move. */
 	now = $state(0);
+	/** The server is the local dev server and takes dev cheats. */
+	cheats = $state(false);
 
 	private ws: WebSocket | null = null;
 	private retry = 0;
@@ -74,6 +77,7 @@ class GameClient {
 				this.code = msg.code;
 				this.seat = msg.seat;
 				this.pendingJoin = false;
+				this.cheats = !!msg.cheats;
 				storage(`reign:token:${msg.code}`, msg.token);
 				this.setUrl(msg.code);
 				if (this.menuOpen) this.send({ t: 'pause', paused: true });
@@ -169,6 +173,10 @@ class GameClient {
 
 	act(action: Action) {
 		this.send({ t: 'action', action });
+	}
+
+	cheat(cheat: Cheat) {
+		this.send({ t: 'cheat', cheat });
 	}
 
 	toast(text: string, kind: Toast['kind'] = 'info') {
