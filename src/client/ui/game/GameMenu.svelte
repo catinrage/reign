@@ -3,6 +3,7 @@
 	import HowToPlay from '../menu/HowToPlay.svelte';
 	import Settings from '../menu/Settings.svelte';
 	import { PIXEL } from '../pixel';
+	import PigeonButton from './PigeonButton.svelte';
 	import { sfx } from '../sound';
 	import { ui } from './ui.svelte';
 
@@ -83,6 +84,7 @@
 	<button class="icon-btn gear" onclick={open} aria-label="Menu" title="Menu (Esc)"
 		><img src={PIXEL.gear} alt="" /></button
 	>
+	<PigeonButton />
 	{#if playing && !pausedBy}
 		<button
 			class="icon-btn"
@@ -310,9 +312,12 @@
 		padding: 6px 10px;
 	}
 	@media (max-width: 900px) {
+		/* A column, so the buttons stay clear of the chronicle beside them. */
 		.corner {
 			top: calc(104px + var(--clock-h, 0px));
 			left: 6px;
+			flex-direction: column;
+			gap: 6px;
 		}
 	}
 </style>

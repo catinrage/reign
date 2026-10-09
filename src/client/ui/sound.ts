@@ -26,7 +26,9 @@ const SAMPLES = [
 	'open',
 	'close',
 	'hover',
-	'seven'
+	'seven',
+	'flutter',
+	'coo'
 ] as const;
 type SampleName = (typeof SAMPLES)[number];
 
@@ -47,7 +49,9 @@ const VOLUME: Record<SampleName, number> = {
 	open: 0.45,
 	close: 0.5,
 	hover: 0.13,
-	seven: 0.8
+	seven: 0.8,
+	flutter: 0.5,
+	coo: 0.55
 };
 /** Random pitch spread (playbackRate +/- this) for sounds that repeat a lot. */
 const VARY: Partial<Record<SampleName, number>> = {
@@ -58,7 +62,9 @@ const VARY: Partial<Record<SampleName, number>> = {
 	click: 0.05,
 	hover: 0.08,
 	open: 0.03,
-	close: 0.03
+	close: 0.03,
+	flutter: 0.08,
+	coo: 0.06
 };
 
 const AMBIENCE_GAIN = 0.12;
@@ -549,6 +555,15 @@ const synth: Record<SampleName, () => void> = {
 		tone(73, 1.1, 'sine', 0.3, 0, 0.8);
 		tone(110, 0.9, 'sawtooth', 0.05, 0.05, 0.75);
 		tone(131, 0.9, 'sawtooth', 0.04, 0.05, 0.75);
+	},
+	flutter() {
+		// Quick wing beats, slowing as the bird gets airborne.
+		for (let i = 0; i < 7; i++) swish(i * (0.06 + i * 0.008), 0.07, 0.07, 700, 2200, 0.015);
+	},
+	coo() {
+		tone(392, 0.22, 'sine', 0.12, 0, 0.9);
+		tone(330, 0.42, 'sine', 0.14, 0.2, 0.88);
+		tone(784, 0.2, 'triangle', 0.015, 0, 0.9);
 	}
 };
 
@@ -597,5 +612,9 @@ export const sfx = {
 	/** A clock tick, once a second as a turn's time runs out. */
 	tick,
 	/** A dark sting (a drum boom and a low brass chord) as the dice land on 7. */
-	seven: () => play('seven')
+	seven: () => play('seven'),
+	/** Wings beating as a carrier pigeon takes off. */
+	flutter: () => play('flutter'),
+	/** A soft coo as a carrier pigeon lands with a note. */
+	coo: () => play('coo')
 };
