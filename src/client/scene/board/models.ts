@@ -49,6 +49,8 @@ export function cloneModel(g: THREE.Group): THREE.Group {
 export const WINDOW = hex('#ffd77a');
 export const DOOR = hex('#4a2c18');
 export const STONE = [hex('#8e8a84'), hex('#a29d96')];
+/** The dark joints between paving stones. */
+const MORTAR = hex('#5f5a55');
 
 /**
  * Player pieces are outlined and lit a little from within, so a green house still stands out
@@ -115,6 +117,33 @@ export function roadModel(color: number, length = 8): THREE.Group {
 			return shade(color, (y === 1 ? 1.05 : 0.82) * plank);
 		});
 	}, [length / 2, 0, 1], 1, PIECE);
+}
+
+/**
+ * A road paved with stone (Reign Extended), along local +x and centered like `roadModel`, at four
+ * times its detail: pale cobbles in staggered courses with dark mortar between, flush with curbs in
+ * the owner's color on the road's bed. Up close it reads as stone, from across the table as the
+ * owner's road.
+ */
+export function stoneRoadModel(color: number, length = 8): THREE.Group {
+	const n = length * 4;
+	return build(`stoneRoad:${color}:${length}`, [n, 7, 8], (g) => {
+		// The bed is the road it was.
+		g.box(0, 0, 0, n - 1, 4, 7, (x, y) => shade(color, y === 4 ? 0.9 : 0.76));
+		// Curbs down both sides.
+		for (const z of [0, 7]) g.box(0, 5, z, n - 1, 6, z, (x, y) => shade(color, y === 6 ? 1.08 : 0.95));
+		// Cobbles four cells long in courses two cells wide, every other course set off by two.
+		for (let z = 1; z <= 6; z++) {
+			const course = (z - 1) >> 1;
+			const off = course % 2 ? 2 : 0;
+			for (let x = 0; x < n; x++) {
+				const stone = Math.floor((x + off) / 4);
+				const joint = (x + off) % 4 === 3;
+				g.set(x, 5, z, MORTAR);
+				g.set(x, 6, z, joint ? MORTAR : shade(pick(STONE, hash3(stone, course, 7)), 1.05 + hash3(stone, course, 3) * 0.25));
+			}
+		}
+	}, [n / 2, 0, 4], 0.25, PIECE);
 }
 
 // ---------------------------------------------------------------- robber

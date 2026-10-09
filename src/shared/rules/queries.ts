@@ -32,6 +32,7 @@ type Shared = Pick<
 	| 'handLimit'
 	| 'buildingRules'
 	| 'workshops'
+	| 'stoneRoads'
 > & { players: { character: GameState['players'][number]['character'] }[] };
 
 /** What a build costs this player: the standard price, bent by their character's trait. */
@@ -156,6 +157,16 @@ export function workshopSpots(s: Shared, player: number): number[] {
 	return out;
 }
 
+/** Roads a player can pave with stone: their own, not paved yet. */
+export function paveSpots(s: Shared, player: number): number[] {
+	if (!s.buildingRules.stoneRoad) return [];
+	const out: number[] = [];
+	s.roads.forEach((o, e) => {
+		if (o === player && !s.stoneRoads[e]) out.push(e);
+	});
+	return out;
+}
+
 /** Trade ratio per resource with the bank, given the harbors a player has built on. */
 export function tradeRatios(s: Shared, player: number): Record<Resource, number> {
 	const topo = getTopology(s.board);
@@ -211,7 +222,10 @@ export function publicPoints(s: Shared, player: number): number {
 	);
 }
 
-/** Longest trail of a player's roads that doesn't pass through another player's building. */
+/**
+ * Longest trail of a player's roads that doesn't pass through another player's building. A stone
+ * road counts as two.
+ */
 export function longestRoad(s: Shared, player: number): number {
 	const topo = getTopology(s.board);
 	const own = new Set<number>();
@@ -232,7 +246,7 @@ export function longestRoad(s: Shared, player: number): number {
 			if (!own.has(e) || used.has(e)) continue;
 			used.add(e);
 			const edge = topo.edges[e];
-			walk(edge.a === v ? edge.b : edge.a, len + 1);
+			walk(edge.a === v ? edge.b : edge.a, len + (s.stoneRoads[e] ? 2 : 1));
 			used.delete(e);
 		}
 	};

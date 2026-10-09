@@ -57,8 +57,9 @@ describe('build turns', () => {
 			end.buildings.forEach((b, v) => {
 				if (!b) return;
 				expect(end.builtTurns[builtKey('settlement', v)]).toBeTypeOf('number');
+				// A settlement can become a city on the turn it went up.
 				if (b.kind === 'city') {
-					expect(end.builtTurns[builtKey('city', v)]).toBeGreaterThan(
+					expect(end.builtTurns[builtKey('city', v)]).toBeGreaterThanOrEqual(
 						end.builtTurns[builtKey('settlement', v)]
 					);
 				}
@@ -68,6 +69,9 @@ describe('build turns', () => {
 			);
 			end.workshops.forEach(
 				(o, h) => o !== null && expect(end.builtTurns[builtKey('workshop', h)]).toBeGreaterThan(0)
+			);
+			end.stoneRoads.forEach(
+				(stone, e) => stone && expect(end.builtTurns[builtKey('stoneRoad', e)]).toBeGreaterThan(0)
 			);
 			if (extended) expect(end.workshops.some((o) => o !== null)).toBe(true);
 			// Setup pieces say so.
@@ -84,7 +88,7 @@ describe('build turns', () => {
 		const owner = end.buildings[city]!.owner;
 		expect(tip.text).toMatch(new RegExp(`^Owner: ${owner === 0 ? 'You' : `P${owner}`}\\n`));
 		expect(tip.text).toMatch(/Settled (during setup|on turn \d+)\nBecame a city on turn \d+$/);
-		const road = end.roads.findIndex((o) => o !== null);
+		const road = end.roads.findIndex((o, e) => o !== null && !end.stoneRoads[e]);
 		expect(pieceTip(view, { place: 'edge', at: road })!.head).toBe('Road');
 		const shop = end.workshops.findIndex((o) => o !== null);
 		expect(pieceTip(view, { place: 'hex', at: shop })!.text).toMatch(/Built on turn \d+$/);

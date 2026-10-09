@@ -9,7 +9,7 @@ import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
-import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel } from './board/models';
+import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
 import { WORKSHOP_SCALE, animateWorkshop, workshopChimney, workshopObject } from './board/workshops';
 import { DIE_HALF, Dice } from './dice';
 import { Particles } from './effects';
@@ -20,7 +20,7 @@ import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { sharedUniforms } from './voxel/materials';
 
-export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop';
+export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop' | 'stoneRoad';
 
 export interface PickRequest {
 	kind: PickKind;
@@ -340,8 +340,10 @@ export class GameScene {
 		view.roads.forEach((owner, e) => {
 			if (owner === null) return;
 			const color = PLAYER_RGB[view.players[owner].color];
-			want.set(`e${e}:${owner}`, () => {
-				const obj = cloneModel(roadModel(color, ROAD_LEN));
+			// Paving swaps the road for a stone one, which drops into its place.
+			const stone = !!view.stoneRoads?.[e];
+			want.set(`e${e}:${stone ? 'stone:' : ''}${owner}`, () => {
+				const obj = cloneModel(stone ? stoneRoadModel(color, ROAD_LEN) : roadModel(color, ROAD_LEN));
 				obj.scale.set(0.92, 0.64, 0.64);
 				const { pos, angle } = bv.edgePos(e);
 				obj.position.copy(pos);
@@ -706,8 +708,8 @@ export class GameScene {
 			} else if (req.kind === 'city') {
 				model = cityModel(color);
 				pos = bv.vertexPos(id);
-			} else if (req.kind === 'road') {
-				model = roadModel(color, ROAD_LEN);
+			} else if (req.kind === 'road' || req.kind === 'stoneRoad') {
+				model = req.kind === 'road' ? roadModel(color, ROAD_LEN) : stoneRoadModel(color, ROAD_LEN);
 				const ep = bv.edgePos(id);
 				pos = ep.pos;
 				rot = ep.angle;
@@ -729,19 +731,24 @@ export class GameScene {
 			ghost.traverse((o) => {
 				const m = o as THREE.Mesh;
 				if (!m.isMesh) return;
+				m.castShadow = false;
+				// Paving keeps the stone's own colors: a see-through tint over a road of the same
+				// color would not show at all.
+				if (req.kind === 'stoneRoad') return;
 				// The ghost is see-through, so its outline would show inside it.
 				if (m.name === 'outline') m.visible = false;
 				m.material = mat;
-				m.castShadow = false;
 			});
-			ghost.scale.setScalar(req.kind === 'road' ? 0.7 : req.kind === 'workshop' ? WORKSHOP_SCALE : PIECE_SCALE);
+			const edge = req.kind === 'road' || req.kind === 'stoneRoad';
+			ghost.scale.setScalar(edge ? 0.7 : req.kind === 'workshop' ? WORKSHOP_SCALE : PIECE_SCALE);
 			ghost.userData.base = ghost.scale.x;
 			ghost.name = 'ghost';
 			ghost.visible = false;
 			slot.add(ghost);
-			if (req.kind === 'road') {
+			if (edge) {
 				const bar = new THREE.Mesh(MARKER_BAR, markerMat);
-				bar.position.y = 1.2;
+				// Over the road that is already there, when paving.
+				bar.position.y = req.kind === 'road' ? 1.2 : 2.4;
 				bar.name = 'marker';
 				slot.add(bar);
 			} else {
@@ -757,7 +764,7 @@ export class GameScene {
 			}
 			this.ghosts.add(slot);
 			const hit = new THREE.Mesh(
-				req.kind === 'road' ? new THREE.BoxGeometry(9, 6, 4) : new THREE.SphereGeometry(5, 8, 6),
+				edge ? new THREE.BoxGeometry(9, 6, 4) : new THREE.SphereGeometry(5, 8, 6),
 				new THREE.MeshBasicMaterial({ visible: false })
 			);
 			hit.position.copy(pos).setY(pos.y + 2);
@@ -1057,8 +1064,10 @@ export class GameScene {
 				ghost.position.y = 1.5 + Math.sin(t * 5) * 0.4;
 			} else ghost.scale.setScalar(ghost.userData.base * 0.6);
 			if (marker) {
+				const edge = this.pick?.kind === 'road' || this.pick?.kind === 'stoneRoad';
+				// A road's bar glows on through its see-through ghost; the stone ghost hides it.
 				marker.visible = !hovered || this.pick?.kind === 'road';
-				if (this.pick?.kind !== 'road') {
+				if (!edge) {
 					marker.rotation.y = t * 1.8 + slot.userData.phase;
 					marker.position.y = markerHeight(this.pick!.kind) + Math.sin(t * 3 + slot.userData.phase) * 0.7;
 				}

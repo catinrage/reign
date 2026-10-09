@@ -15,6 +15,9 @@ import {
 	costOf,
 	discardLimit,
 	draftLeft,
+	longestRoad,
+	longestRoadMin,
+	paveSpots,
 	playersOnHex,
 	publicPoints,
 	roadSpots,
@@ -128,6 +131,9 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	if (canPay(s, me, 'road', res) && pl.piecesLeft.road > 0 && roadsOk.length && wantsRoad) {
 		return { type: 'placeRoad', edge: best(roadsOk, (e) => roadScore(s, me, e)) };
 	}
+	// Reign Extended: pave a road while racing for the Longest Road.
+	const pave = bestPaving(s, me);
+	if (pave !== null && canPay(s, me, 'stoneRoad', res)) return { type: 'paveRoad', edge: pave };
 	if (canPay(s, me, 'devCard', res) && s.devDeck.length > 0) {
 		const keepForCity = citySpots(s, me).length > 0 && res.ore < 4;
 		if (!keepForCity || totalResources(res) > discardLimit(s, me)) return { type: 'buyDevCard' };
@@ -150,6 +156,36 @@ function bestWorkshop(s: GameState, me: number): number | null {
 	};
 	const h = best(spots, score);
 	return score(h) >= 5 ? h : null;
+}
+
+/**
+ * The road a bot would pave with stone, or null unless it's in a race for the Longest Road: one or
+ * two pavings from taking it, or holding it with a rival close behind.
+ */
+function bestPaving(s: GameState, me: number): number | null {
+	const spots = paveSpots(s, me);
+	if (!spots.length) return null;
+	const mine = s.players[me].longestRoad;
+	const holder = s.longestRoadHolder;
+	if (holder === me) {
+		if (!s.players.some((p, i) => i !== me && p.longestRoad >= mine - 1)) return null;
+	} else {
+		const goal = Math.max(longestRoadMin(s, me), holder === null ? 0 : s.players[holder].longestRoad + 1);
+		if (mine < 3 || goal - mine > 2) return null;
+	}
+	// The road that makes the longest trail longer still.
+	let bestEdge: number | null = null;
+	let bestLen = mine;
+	for (const e of spots) {
+		const stoneRoads = s.stoneRoads.slice();
+		stoneRoads[e] = true;
+		const len = longestRoad({ ...s, stoneRoads }, me);
+		if (len > bestLen) {
+			bestLen = len;
+			bestEdge = e;
+		}
+	}
+	return bestEdge;
 }
 
 function playableCard(s: GameState, me: number, type: string) {
@@ -280,6 +316,7 @@ function bankTradeTowards(s: GameState, me: number): Action | null {
 	if (citySpots(s, me).length && s.players[me].piecesLeft.city > 0) goals.push(costOf(s, me, 'city'));
 	if (settlementSpots(s, me, false).length && s.players[me].piecesLeft.settlement > 0) goals.push(costOf(s, me, 'settlement'));
 	if (bestWorkshop(s, me) !== null) goals.push(costOf(s, me, 'workshop'));
+	if (bestPaving(s, me) !== null) goals.push(costOf(s, me, 'stoneRoad'));
 	goals.push(costOf(s, me, 'devCard'));
 	for (const goal of goals) {
 		const need = missingFor(res, goal);

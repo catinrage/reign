@@ -84,9 +84,11 @@ export interface GameState {
 	buildingRules: BuildingRules;
 	/** Indexed by hex id: who owns the workshop on that tile, if anyone. */
 	workshops: (number | null)[];
+	/** Indexed by edge id: whether the road there is paved with stone (Reign Extended). */
+	stoneRoads: boolean[];
 	/**
 	 * The turn each piece went up on (0: during setup), keyed by `builtKey`: a city keeps the
-	 * settlement's entry beside its own. The board's tooltips show it.
+	 * settlement's entry beside its own, and a stone road the road's. The board's tooltips show it.
 	 */
 	builtTurns: Record<string, number>;
 	bank: ResourceCounts;
@@ -166,7 +168,8 @@ export type GameEvent =
 	/** A dev cheat was used (only possible on the local dev server). */
 	| Ev<'cheat', { player: number; text: string }>;
 
-export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop';
+/** A stone road is built on top of a road: `at` is its edge. */
+export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad';
 
 export interface ResourceGain {
 	player: number;
@@ -183,6 +186,7 @@ export type Action =
 	| { type: 'placeRoad'; edge: number }
 	| { type: 'buildCity'; vertex: number }
 	| { type: 'buildWorkshop'; hex: number }
+	| { type: 'paveRoad'; edge: number }
 	| { type: 'rollDice' }
 	| { type: 'discard'; resources: Partial<ResourceCounts> }
 	| { type: 'moveRobber'; hex: number }

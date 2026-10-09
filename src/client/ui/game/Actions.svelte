@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { BUILDING_INFO, WORKSHOP_LIMIT } from '../../../shared/rules/buildings';
+	import { BUILDING_INFO, EXTRA_BUILDINGS, isExtraBuilding } from '../../../shared/rules/buildings';
 	import type { BuildKind } from '../../../shared/rules/config';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
-	import { costOf, workshopCount } from '../../../shared/rules/queries';
-	import { buildAvailable, buildNote, countsList, myTurn } from '../helpers';
+	import { costOf } from '../../../shared/rules/queries';
+	import { buildAvailable, buildNote, countsList, extraStock, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 
@@ -22,7 +22,14 @@
 		{ kind: 'devCard', label: 'Dev card' }
 	];
 	/** Reign Extended buildings the host put in this game. */
-	const reign = $derived<Build[]>(view.buildingRules?.workshop ? [{ kind: 'workshop', label: 'Workshop' }] : []);
+	const reign = $derived<Build[]>(
+		EXTRA_BUILDINGS.filter((b) => view.buildingRules?.[b]).map((b) => ({ kind: b, label: BUILDING_INFO[b].label }))
+	);
+	/** Phones fit five plaques to a row; past that they take two rows. */
+	const cols = $derived.by(() => {
+		const n = builds.length + reign.length;
+		return n <= 5 ? n : Math.ceil(n / 2);
+	});
 
 	function onBuild(kind: BuildKind) {
 		if (kind === 'devCard') return client.act({ type: 'buyDevCard' });
@@ -33,14 +40,15 @@
 	}
 	function stock(kind: BuildKind) {
 		if (kind === 'devCard') return view.devDeckCount;
-		if (kind === 'workshop') return WORKSHOP_LIMIT - workshopCount(view, view.me);
+		if (isExtraBuilding(kind)) return extraStock(view, kind);
 		return left?.[kind] ?? 0;
 	}
 </script>
 
 {#snippet plaque(b: Build)}
 	{@const ok = buildAvailable(view, b.kind)}
-	{@const extra = b.kind === 'workshop'}
+	{@const info = isExtraBuilding(b.kind) ? BUILDING_INFO[b.kind] : null}
+	{@const extra = !!info}
 	<!-- Reign buildings are new to most players, so they explain themselves and why they can't
 	     be built yet (aria-disabled keeps that tooltip working, on phones too). -->
 	<button
@@ -48,7 +56,7 @@
 		class:active={ui.build === b.kind}
 		disabled={!ok && !extra}
 		aria-disabled={extra ? !ok : undefined}
-		title={extra ? BUILDING_INFO.workshop.text : undefined}
+		title={info?.text}
 		data-tip-head={extra ? b.label : undefined}
 		data-tip-note={extra && !ok ? buildNote(view, b.kind) : undefined}
 		onclick={() => ok && onBuild(b.kind)}
@@ -74,7 +82,7 @@
 		{/if}
 		{#if mine && view.step === 'main'}
 			{#if !ui.trade}
-				<div class="builds panel" class:reign={reign.length}>
+				<div class="builds panel" style:--cols={cols}>
 					{#each builds as b (b.kind)}{@render plaque(b)}{/each}
 					{#if reign.length}
 						<div class="sep"><i></i><span>Reign</span><i></i></div>
@@ -234,14 +242,11 @@
 			font-size: 21px;
 		}
 		.builds {
-			grid-template-columns: repeat(4, 1fr);
+			grid-template-columns: repeat(var(--cols, 4), 1fr);
 			padding: 2px;
 			gap: 3px;
 		}
-		/* No room for a heading: the Reign buildings join the row. */
-		.builds.reign {
-			grid-template-columns: repeat(5, 1fr);
-		}
+		/* No room for a heading: the Reign buildings join the others. */
 		.sep {
 			display: none;
 		}

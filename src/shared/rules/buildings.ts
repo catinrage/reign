@@ -5,13 +5,15 @@ import type { Resource } from './config';
  * off in the lobby, and Classic never has any. This file holds their data (names, what they do,
  * limits); the rules live in the engine and queries, and the bots know how to use each one.
  */
-export const EXTRA_BUILDINGS = ['workshop'] as const;
+export const EXTRA_BUILDINGS = ['workshop', 'stoneRoad'] as const;
 export type ExtraBuilding = (typeof EXTRA_BUILDINGS)[number];
 /** Which extra buildings a game has. */
 export type BuildingRules = Record<ExtraBuilding, boolean>;
 
 export interface BuildingInfo {
 	name: string;
+	/** One of them, as the build menu calls it. */
+	label: string;
 	/** What it does, in a sentence or two. */
 	text: string;
 }
@@ -19,7 +21,13 @@ export interface BuildingInfo {
 export const BUILDING_INFO: Record<ExtraBuilding, BuildingInfo> = {
 	workshop: {
 		name: 'Workshops',
+		label: 'Workshop',
 		text: 'Built on a tile beside your settlement or city: one per tile, three each. Whenever the tile pays you, its workshop adds one more card.'
+	},
+	stoneRoad: {
+		name: 'Stone roads',
+		label: 'Stone road',
+		text: 'Pave one of your roads with stone and it counts as two roads towards the Longest Road.'
 	}
 };
 

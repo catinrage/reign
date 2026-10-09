@@ -10,7 +10,9 @@
 		ui.build && view.step === 'main'
 			? ui.build === 'workshop'
 				? 'Click a glowing tile to build your workshop'
-				: `Click a glowing spot to place your ${ui.build}`
+				: ui.build === 'stoneRoad'
+					? 'Click one of your roads to pave it with stone'
+					: `Click a glowing spot to place your ${ui.build}`
 			: promptText(view)
 	);
 	const mine = $derived(myTurn(view));

@@ -1,5 +1,5 @@
 import { getTopology } from '../../shared/board/topology';
-import { WORKSHOP_LIMIT, WORKSHOP_NAME } from '../../shared/rules/buildings';
+import { WORKSHOP_LIMIT, WORKSHOP_NAME, type ExtraBuilding } from '../../shared/rules/buildings';
 import {
 	COSTS,
 	DEV_CARD_LABEL,
@@ -17,6 +17,7 @@ import {
 	citySpots,
 	canPay,
 	costOf,
+	paveSpots,
 	roadSpots,
 	settlementSpots,
 	workshopCount,
@@ -88,13 +89,25 @@ export function buildAvailable(view: GameView, kind: BuildKind): boolean {
 			return view.devDeckCount > 0;
 		case 'workshop':
 			return workshopSpots(view, view.me).length > 0;
+		case 'stoneRoad':
+			return paveSpots(view, view.me).length > 0;
 	}
+}
+
+/** How many more of a Reign Extended building this player can build. */
+export function extraStock(view: GameView, kind: ExtraBuilding): number {
+	if (kind === 'workshop') return WORKSHOP_LIMIT - workshopCount(view, view.me);
+	return paveSpots(view, view.me).length;
+}
+
+/** Words in a list: "a, b and c". */
+export function andList(parts: string[]): string {
+	return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? '');
 }
 
 /** A list of cards in words: "1 Lumber, 1 Brick and 1 Ore". */
 export function cardsText(r: Partial<ResourceCounts>): string {
-	const parts = countsList(r).map((c) => `${c.n} ${RESOURCE_LABEL[c.res]}`);
-	return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? '');
+	return andList(countsList(r).map((c) => `${c.n} ${RESOURCE_LABEL[c.res]}`));
 }
 
 /** Why a build can't be made right now, for its tooltip ('' when it can). */
@@ -103,6 +116,7 @@ export function buildNote(view: GameView, kind: BuildKind): string {
 		if (workshopCount(view, view.me) >= WORKSHOP_LIMIT) return `You have built all ${WORKSHOP_LIMIT} of your workshops.`;
 		if (!workshopSpots(view, view.me).length) return 'Every tile beside your buildings already has a workshop.';
 	}
+	if (kind === 'stoneRoad' && !paveSpots(view, view.me).length) return 'Every one of your roads is paved already.';
 	if (!canAfford(view, kind)) return `You need ${cardsText(costOf(view, view.me, kind))}.`;
 	return '';
 }
@@ -116,12 +130,14 @@ export function workshopName(view: GameView, hex: number): string {
 /** What was built, as the log says it: "a road", "a Mill". */
 function builtName(view: GameView, kind: BuiltKind, at: number): string {
 	if (kind === 'workshop') return `a ${workshopName(view, at)}`;
+	if (kind === 'stoneRoad') return 'a stone road';
 	return `a ${kind}`;
 }
 
 /** A piece's name, as its tooltip heads it: "Road", "City", "Mill". */
 export function pieceName(view: GameView, kind: BuiltKind, at: number): string {
 	if (kind === 'workshop') return workshopName(view, at);
+	if (kind === 'stoneRoad') return 'Stone road';
 	return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 
@@ -134,7 +150,8 @@ export function builtWhen(view: GameView, kind: BuiltKind, at: number): string |
 
 /**
  * What the tooltip of a piece on the board says: its name over who owns it and the turn it went
- * up on. A city also says when it was settled. Null when nothing stands on the spot.
+ * up on. A city also says when it was settled, and a stone road when it was a plain road. Null
+ * when nothing stands on the spot.
  */
 export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text: string } | null {
 	const { place, at } = spot;
@@ -146,7 +163,7 @@ export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text:
 		kind = b?.kind ?? 'settlement';
 	} else if (place === 'edge') {
 		owner = view.roads[at];
-		kind = 'road';
+		kind = view.stoneRoads?.[at] ? 'stoneRoad' : 'road';
 	} else {
 		owner = view.workshops?.[at];
 		kind = 'workshop';
@@ -160,6 +177,9 @@ export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text:
 	if (kind === 'city') {
 		when('settlement', 'Settled');
 		when('city', 'Became a city');
+	} else if (kind === 'stoneRoad') {
+		when('road', 'Built');
+		when('stoneRoad', 'Paved');
 	} else when(kind, 'Built');
 	return { head: pieceName(view, kind, at), text: lines.join('\n') };
 }

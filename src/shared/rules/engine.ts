@@ -127,6 +127,7 @@ export function createGame(
 		roads: topo.edges.map(() => null),
 		buildingRules: extended ? cleanBuildingRules(opts.buildings) : allBuildings(false),
 		workshops: b.hexes.map(() => null),
+		stoneRoads: topo.edges.map(() => false),
 		builtTurns: {},
 		bank: { wood: bank, brick: bank, sheep: bank, wheat: bank, ore: bank },
 		devDeck: deck,
@@ -257,6 +258,8 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 			return buildCity(ctx, p, a.vertex);
 		case 'buildWorkshop':
 			return buildWorkshop(ctx, p, a.hex);
+		case 'paveRoad':
+			return paveRoad(ctx, p, a.edge);
 		case 'rollDice':
 			return roll(ctx, p);
 		case 'moveRobber':
@@ -678,6 +681,20 @@ function buildWorkshop(ctx: Ctx, p: number, hex: number) {
 	pay(s, p, 'workshop');
 	s.workshops[hex] = p;
 	ctx.emit({ type: 'built', player: p, kind: 'workshop', at: hex, free: false });
+}
+
+function paveRoad(ctx: Ctx, p: number, edge: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (!s.buildingRules.stoneRoad) fail('Stone roads are not part of this game.');
+	if (!Number.isInteger(edge) || s.roads[edge] === undefined) fail('Pick a road on the island.');
+	if (s.roads[edge] !== p) fail('Pave one of your own roads.');
+	if (s.stoneRoads[edge]) fail('That road is already paved.');
+	pay(s, p, 'stoneRoad');
+	s.stoneRoads[edge] = true;
+	ctx.emit({ type: 'built', player: p, kind: 'stoneRoad', at: edge, free: false });
+	updateLongestRoad(ctx);
+	checkWin(ctx);
 }
 
 // ---------------------------------------------------------------- development cards

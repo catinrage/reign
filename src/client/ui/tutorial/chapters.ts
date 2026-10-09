@@ -134,7 +134,7 @@ export const CHAPTERS: Chapter[] = [
 		id: 'buildings',
 		mode: 'extended',
 		title: 'New buildings',
-		lede: 'Workshops and more: buildings that do new jobs, if the host plays them.',
+		lede: 'Workshops, stone roads and more: buildings that do new jobs, if the host plays them.',
 		icon: PIXEL.hammer,
 		page: Buildings
 	},

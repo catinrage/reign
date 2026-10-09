@@ -15,6 +15,7 @@
 	import { CHARACTERS } from '../../../../shared/rules/characters';
 	import { CLASSIC_PLAYERS, MAX_PLAYERS } from '../../../../shared/protocol';
 	import { HAND_LIMIT_MAX, HAND_LIMIT_MIN, POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../../../shared/rules/modes';
+	import { andList } from '../../helpers';
 	import { PIXEL } from '../../pixel';
 	import { TUT_ICON } from '../icons';
 
@@ -36,7 +37,7 @@
 			icon: PIXEL.hammer,
 			name: 'Buildings',
 			classic: 'Roads, settlements and cities.',
-			extended: `Also ${EXTRA_BUILDINGS.map((b) => BUILDING_INFO[b].name.toLowerCase()).join(', ')}, if the host keeps them on.`
+			extended: `Also ${andList(EXTRA_BUILDINGS.map((b) => BUILDING_INFO[b].name.toLowerCase()))}, if the host keeps them on.`
 		},
 		{
 			icon: PIXEL.crown,
