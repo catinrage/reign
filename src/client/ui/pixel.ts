@@ -467,5 +467,19 @@ export const PIXEL = {
 			'...kkk...'
 		],
 		{ k: '#2a1a10', y: '#f2c14e', r: '#c2372b' }
+	),
+	eye: svg(
+		[
+			'....kkkkkk....',
+			'..kkwwwwwwkk..',
+			'.kwwwwbbwwwwk.',
+			'kwwwwbbbbwwwwk',
+			'kwwwbbkkbbwwwk',
+			'kwwwwbbbbwwwwk',
+			'.kwwwwbbwwwwk.',
+			'..kkwwwwwwkk..',
+			'....kkkkkk....'
+		],
+		{ k: '#2a1a10', w: '#fff6e0', b: '#3f86c9' }
 	)
 };
