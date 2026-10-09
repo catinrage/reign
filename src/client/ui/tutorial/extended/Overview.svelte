@@ -2,15 +2,17 @@
 	import { MAP_PRESETS } from '../../../../shared/board/maps';
 	import {
 		BANK_PER_RESOURCE,
+		BANK_PER_RESOURCE_HUGE,
 		BANK_PER_RESOURCE_LARGE,
 		DEV_CARDS,
 		DEV_DECK,
+		DEV_DECK_HUGE,
 		DEV_DECK_LARGE,
 		VICTORY_POINTS_TO_WIN
 	} from '../../../../shared/rules/config';
 	import { CHARACTERS } from '../../../../shared/rules/characters';
 	import { CLASSIC_PLAYERS, MAX_PLAYERS } from '../../../../shared/protocol';
-	import { POINT_GOALS } from '../../../../shared/rules/modes';
+	import { POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../../../shared/rules/modes';
 	import { PIXEL } from '../../pixel';
 	import { TUT_ICON } from '../icons';
 
@@ -32,7 +34,7 @@
 			icon: PIXEL.crown,
 			name: 'Points to win',
 			classic: `Always ${VICTORY_POINTS_TO_WIN}.`,
-			extended: `The host picks ${POINT_GOALS.join(', ')}.`
+			extended: `The host picks ${POINT_GOALS.join(', ')}, or any number from ${POINTS_MIN} to ${POINTS_MAX}.`
 		},
 		{
 			icon: PIXEL.bot,
@@ -44,7 +46,7 @@
 			icon: PIXEL.cards,
 			name: 'Bank and deck',
 			classic: `${BANK_PER_RESOURCE} of each resource, ${deck(DEV_DECK)} cards.`,
-			extended: `With 5 or 6 players: ${BANK_PER_RESOURCE_LARGE} of each, ${deck(DEV_DECK_LARGE)} cards.`
+			extended: `With 5 or 6 players: ${BANK_PER_RESOURCE_LARGE} of each, ${deck(DEV_DECK_LARGE)} cards. With 7 or 8: ${BANK_PER_RESOURCE_HUGE} of each, ${deck(DEV_DECK_HUGE)} cards.`
 		}
 	];
 </script>
