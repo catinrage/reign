@@ -79,6 +79,8 @@ describe('client: rolls and dealt cards', () => {
 		sent = [];
 		vi.spyOn(client, 'send').mockImplementation((m) => void sent.push(m));
 		client.leave();
+		// Game states only count for a player the server has seated.
+		client.seat = 'p0';
 		sent.length = 0;
 	});
 	afterEach(() => {
@@ -182,5 +184,68 @@ describe('client: rolls and dealt cards', () => {
 		// Its first roll is held like any other.
 		const first = rollNext(next).roll;
 		expect(client.tossing?.seq).toBe(first.seq);
+	});
+});
+
+describe('client: following an invite link', () => {
+	let sent: { t: string }[];
+	const msg = (m: object) => (client as any).onMessage(m);
+	const welcome = { t: 'welcome', code: 'ABCDE', seat: 's1', token: 'tok' };
+	const lobby = (started = false) => ({
+		t: 'lobby',
+		lobby: { code: 'ABCDE', started, clock: null }
+	});
+	beforeEach(() => {
+		vi.stubGlobal('location', new URL('http://localhost/?room=ABCDE'));
+		vi.stubGlobal('history', { replaceState() {} });
+		vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} });
+		sent = [];
+		vi.spyOn(client, 'send').mockImplementation((m) => void sent.push(m));
+		client.leave();
+		client.joining = { code: 'ABCDE', error: null };
+		client.join('ABCDE');
+		sent.length = 0;
+	});
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('keeps the loading screen up until the lobby arrives', () => {
+		msg(welcome);
+		expect(client.joining).not.toBeNull();
+		msg(lobby());
+		expect(client.joining).toBeNull();
+		expect(client.lobby?.code).toBe('ABCDE');
+	});
+
+	it('waits for the game itself when the table is already playing', () => {
+		msg(welcome);
+		msg(lobby(true));
+		expect(client.joining).not.toBeNull();
+		const s = createGame(players, 3);
+		msg({ t: 'game', view: viewFor(s, 0), clock: null });
+		expect(client.joining).toBeNull();
+	});
+
+	it('says on the loading screen why the room could not be joined', () => {
+		msg({ t: 'error', message: "That game doesn't exist (or it ended)." });
+		expect(client.joining).toEqual({
+			code: 'ABCDE',
+			error: "That game doesn't exist (or it ended)."
+		});
+		expect(client.toasts.at(-1)?.text).not.toBe("That game doesn't exist (or it ended).");
+		client.cancelJoin();
+		expect(client.joining).toBeNull();
+	});
+
+	it('leaves the room straight away when the player backs out before the server answers', () => {
+		client.cancelJoin();
+		expect(client.joining).toBeNull();
+		msg(welcome);
+		msg(lobby());
+		expect(sent).toEqual([{ t: 'leave' }]);
+		expect(client.seat).toBeNull();
+		expect(client.lobby).toBeNull();
 	});
 });

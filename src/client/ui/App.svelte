@@ -2,6 +2,7 @@
 	import { client } from '../state/client.svelte';
 	import Hud from './game/Hud.svelte';
 	import Home from './Home.svelte';
+	import Joining from './Joining.svelte';
 	import Lobby from './Lobby.svelte';
 	import Toasts from './Toasts.svelte';
 	import { PIXEL } from './pixel';
@@ -9,7 +10,13 @@
 	import { sceneRef } from './sceneRef';
 
 	const screen = $derived(
-		client.view && client.lobby?.started ? 'game' : client.lobby ? 'lobby' : 'home'
+		client.joining
+			? 'joining'
+			: client.view && client.lobby?.started
+				? 'game'
+				: client.lobby
+					? 'lobby'
+					: 'home'
 	);
 
 	$effect(() => {
@@ -52,13 +59,15 @@
 
 {#if screen === 'home'}
 	<Home />
+{:else if screen === 'joining'}
+	<Joining />
 {:else if screen === 'lobby'}
 	<Lobby />
 {:else}
 	<Hud />
 {/if}
 
-{#if client.status !== 'online'}
+{#if client.status !== 'online' && screen !== 'joining'}
 	<div class="conn plaque">
 		<img class="icon-px" src={PIXEL.hourglass} alt="" />{client.status === 'connecting'
 			? 'Connecting…'
