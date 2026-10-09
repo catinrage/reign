@@ -66,7 +66,7 @@ function nextRound(s: GameState): { s: GameState; drawn: EventCard[] } {
 	const t = structuredClone(s);
 	t.turn += t.players.length;
 	const drawn: EventCard[] = [];
-	const emit = (e: Omit<GameEvent, 'seq'>) => {
+	const emit = (e: GameEvent) => {
 		if (e.type === 'eventDrawn') drawn.push(e.card);
 	};
 	startRound(t, emit as never);
@@ -246,26 +246,41 @@ describe('bots and taverns', () => {
 		expect(botAction(deaf, me)).toMatchObject({ type: 'bankTrade', give, get: 'ore' });
 	});
 
-	it('take all of it in their stride and still finish their games', () => {
+	it('take all of it in their stride and still finish their games, every rumor coming true', () => {
 		let built = 0;
+		let heard = 0;
 		for (let seed = 1; seed <= 6; seed++) {
 			let s = createGame(players(4), seed * 131, undefined, extended());
+			// Each move as the server makes it: a round its end of turn starts turns over the card the
+			// taverns heard of just before.
+			const play = (p: number, a: Action) => {
+				const owner = s.players.findIndex((_, q) => tavernOf(s, q) !== null);
+				const rumor = owner >= 0 ? rumorFor(s, owner) : null;
+				const seq = s.log.at(-1)?.seq ?? 0;
+				s = act(s, p, a);
+				for (const e of s.log) {
+					if (e.seq <= seq || e.type !== 'eventDrawn' || e.by !== undefined || !rumor) continue;
+					expect(e.card).toBe(rumor);
+					heard++;
+				}
+			};
 			for (let steps = 0; s.phase !== 'ended' && steps < 30000; steps++) {
 				let moved = false;
 				for (let p = 0; p < 4 && !moved; p++) {
 					if (p === s.current) continue;
 					const a = botAction(s, p);
 					if (a) {
-						s = act(s, p, a);
+						play(p, a);
 						moved = true;
 					}
 				}
 				if (moved) continue;
-				s = act(s, s.current, botAction(s, s.current)!);
+				play(s.current, botAction(s, s.current)!);
 			}
 			expect(s.phase).toBe('ended');
 			built += s.taverns.filter(Boolean).length;
 		}
 		expect(built).toBeGreaterThan(0);
+		expect(heard).toBeGreaterThan(10);
 	});
 });

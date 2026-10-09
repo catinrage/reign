@@ -16,6 +16,8 @@
 				return t('Click one of your roads to pave it with stone');
 			case 'storehouse':
 				return t('Click a glowing building to add your storehouse');
+			case 'tavern':
+				return t('Click a glowing building to add your tavern');
 			case 'tearDown':
 				return t('Click one of your workshops to tear it down');
 			case 'road':

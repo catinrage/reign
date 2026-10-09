@@ -4,6 +4,7 @@ import { RESOURCES, type Resource } from '../../shared/rules/config';
 import { pathObject } from './board/cityPaths';
 import { cityModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
 import { storehouseObject } from './board/storehouse';
+import { tavernObject } from './board/tavern';
 import { workshopObject } from './board/workshops';
 import { PLAYER_RGB } from './layout';
 import { sharedUniforms } from './voxel/materials';
@@ -19,14 +20,13 @@ export interface IconSet {
 
 let icons: IconSet | null = null;
 
-/** A settlement with a storehouse against the wall that faces the camera. */
-function settlementWithStorehouse(color: number) {
+/** A settlement with a storehouse or a tavern against the wall that faces the camera. */
+function settlementWith(color: number, annex: THREE.Group) {
 	const g = new THREE.Group();
 	g.add(settlementModel(color).clone());
-	const store = storehouseObject(color);
-	store.position.x = 2.5;
-	store.rotation.y = Math.PI / 2;
-	g.add(store);
+	annex.position.x = 2.5;
+	annex.rotation.y = Math.PI / 2;
+	g.add(annex);
 	return g;
 }
 
@@ -119,7 +119,8 @@ export function getIcons(): IconSet {
 		shoot(`city:${color}`, cityModel(rgbVal).clone());
 		shoot(`road:${color}`, roadModel(rgbVal).clone(), -0.9);
 		shoot(`stoneRoad:${color}`, stoneRoadModel(rgbVal).clone(), -0.9);
-		shoot(`storehouse:${color}`, settlementWithStorehouse(rgbVal), -0.9, true);
+		shoot(`storehouse:${color}`, settlementWith(rgbVal, storehouseObject(rgbVal)), -0.9, true);
+		shoot(`tavern:${color}`, settlementWith(rgbVal, tavernObject(rgbVal)), -0.9, true);
 		// Every workshop shares the Mill's picture in the menus.
 		shoot(`workshop:${color}`, posedWorkshop('wheat', rgbVal), -0.5, true);
 		for (const path of CITY_PATHS) shoot(`${path}:${color}`, posedPath(path, rgbVal), -0.6, true);

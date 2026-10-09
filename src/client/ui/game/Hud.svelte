@@ -11,6 +11,7 @@
 		pathSpots,
 		powerReady,
 		storehouseSpots,
+		tavernSpots,
 		tradeHarbor,
 		workshopSpots
 	} from '../../../shared/rules/queries';
@@ -135,6 +136,9 @@
 					} else if (ui.build === 'storehouse') {
 						kind = 'storehouse';
 						options = storehouseSpots(view, me);
+					} else if (ui.build === 'tavern') {
+						kind = 'tavern';
+						options = tavernSpots(view, me);
 					} else if (ui.build === 'tearDown') {
 						kind = 'tearDown';
 						options = ownWorkshops(view, me);
@@ -158,6 +162,7 @@
 				else if (k === 'workshop') client.act({ type: 'buildWorkshop', hex: id });
 				else if (k === 'stoneRoad') client.act({ type: 'paveRoad', edge: id });
 				else if (k === 'storehouse') client.act({ type: 'buildStorehouse', vertex: id });
+				else if (k === 'tavern') client.act({ type: 'buildTavern', vertex: id });
 				else if (k === 'tearDown') client.act({ type: 'tearDownWorkshop', hex: id });
 				// A guild hall asks for the goods it trades first (Dialogs builds it).
 				else if (k === 'guildHall') dialogs.guildHall = id;
