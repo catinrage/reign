@@ -17,6 +17,7 @@
 		size = 58,
 		playable = false,
 		waiting = 0,
+		reason = undefined,
 		onclick = undefined
 	}: {
 		/** Leave it out for a face-down card: an empty deck. */
@@ -27,6 +28,8 @@
 		playable?: boolean;
 		/** How many were bought this turn, so they can only be played from the next. */
 		waiting?: number;
+		/** Why it can't be played right now, shown on its tooltip. */
+		reason?: string;
 		onclick?: () => void;
 	} = $props();
 	// One pixel of card art: whole device pixels keep the frame crisp.
@@ -34,17 +37,23 @@
 	const secret = $derived(type === 'victoryPoint');
 	// Bought this turn and none ready yet: they wait for the next turn.
 	const fresh = $derived(!!type && !secret && waiting > 0 && waiting >= count);
-	const title = $derived(
+	// The tooltip: what the card does, then whether it can be played now and why not.
+	const head = $derived(type ? DEV_CARD_LABEL[type] : 'Development cards');
+	const text = $derived(
 		!type
-			? 'Development cards: buy one with a wool, a grain and an ore.'
+			? 'Buy one with a wool, a grain and an ore.'
 			: secret
-				? 'Victory Point: secret. Only you can see it, and it counts toward your points.'
-				: `${DEV_CARD_LABEL[type]}: ${DEV_CARD_TEXT[type]}` +
-					(playable
-						? ' Click to play it.'
-						: waiting
-							? ' Bought this turn: play it from your next.'
-							: '')
+				? 'Secret: only you can see it, and it counts toward your points.'
+				: DEV_CARD_TEXT[type]
+	);
+	const note = $derived(
+		!type
+			? undefined
+			: secret
+				? 'Never played: it counts on its own.'
+				: playable
+					? 'Click to play it.'
+					: reason
 	);
 </script>
 
@@ -53,9 +62,12 @@
 	class:dim={count === 0}
 	class:playable
 	style="--w:{size}px; --cp:{px}px"
-	disabled={!playable}
-	{onclick}
-	{title}
+	aria-disabled={!playable}
+	onclick={() => playable && onclick?.()}
+	title={text}
+	data-tip-head={head}
+	data-tip-note={note}
+	data-tip-tone={secret || playable ? 'good' : 'warn'}
 >
 	<span class="art"
 		><img
@@ -95,9 +107,6 @@
 			transform 0.14s,
 			filter 0.2s;
 		pointer-events: auto;
-	}
-	.card:disabled {
-		opacity: 1;
 	}
 	.art {
 		flex: 1;

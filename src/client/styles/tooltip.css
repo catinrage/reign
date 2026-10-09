@@ -1,0 +1,99 @@
+/* The game's tooltips (ui/tooltip.ts): a dark walnut plate with a gold rim and a pixel pointer,
+   drawn two screen pixels per art pixel so it stays crisp and small. */
+.reign-tip {
+	--tp: 2px;
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 1000;
+	max-width: 260px;
+	box-sizing: border-box;
+	padding: 2px 6px 3px;
+	border-style: solid;
+	border-width: calc(var(--tp) * 4);
+	border-image: var(--art-tip) 4 fill / calc(var(--tp) * 4) stretch;
+	color: var(--text);
+	font-family: var(--body);
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.35;
+	text-align: left;
+	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+	filter: drop-shadow(0 3px 0 rgba(20, 9, 4, 0.55)) drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+	pointer-events: none;
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		opacity 0.12s,
+		visibility 0s 0.12s;
+}
+.reign-tip.on {
+	opacity: 1;
+	visibility: visible;
+	transition: opacity 0.12s;
+}
+.tip-head {
+	font-family: var(--px);
+	font-size: 15px;
+	font-weight: 700;
+	color: var(--gold);
+	line-height: 1.2;
+	margin-bottom: 1px;
+}
+.tip-body {
+	white-space: pre-line;
+}
+.tip-note {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 5px -2px 1px;
+	padding: 3px 6px;
+	background: rgba(120, 24, 14, 0.55);
+	box-shadow:
+		inset 0 0 0 var(--tp) rgba(10, 4, 2, 0.6),
+		inset 0 var(--tp) 0 calc(var(--tp) * 1) rgba(0, 0, 0, 0.25);
+	color: #ffc2ae;
+	font-weight: 700;
+}
+.tip-note.good {
+	background: rgba(40, 92, 24, 0.55);
+	color: #c4f2a6;
+}
+.tip-note img {
+	flex: none;
+	width: 12px;
+	height: 12px;
+	image-rendering: pixelated;
+}
+.tip-head[hidden],
+.tip-body[hidden],
+.tip-note[hidden] {
+	display: none;
+}
+.tip-head + .tip-note:not([hidden]),
+.tip-body[hidden] + .tip-note {
+	margin-top: 3px;
+}
+/* Its top three rows lie over the plate's bottom edge (the padding box ends one art pixel
+   above it), so it hangs from the plate. */
+.tip-pointer {
+	position: absolute;
+	top: calc(100% + var(--tp));
+	width: calc(var(--tp) * 11);
+	height: calc(var(--tp) * 8);
+	transform: translateX(-50%);
+	background: var(--art-tip-pointer) center / 100% 100%;
+	image-rendering: pixelated;
+}
+.reign-tip.below .tip-pointer {
+	top: auto;
+	bottom: calc(100% + var(--tp));
+	transform: translateX(-50%) scaleY(-1);
+}
+@media (max-width: 700px) {
+	.reign-tip {
+		max-width: min(260px, calc(100vw - 16px));
+		font-size: 12px;
+	}
+}
