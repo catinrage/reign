@@ -12,7 +12,12 @@ import {
 	pips
 } from './config';
 import { STEWARD_EXTRA, type CharacterId } from './characters';
-import type { GameState, GameView } from './types';
+import type { BuiltKind, GameState, GameView } from './types';
+
+/** Where `GameState.builtTurns` keeps the turn a piece went up on: its kind and its spot. */
+export function builtKey(kind: BuiltKind, at: number): string {
+	return `${kind}:${at}`;
+}
 
 /** Read-only helpers shared by the engine, the bots and the client's highlighting. */
 type Shared = Pick<

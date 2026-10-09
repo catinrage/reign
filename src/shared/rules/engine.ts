@@ -28,6 +28,7 @@ import { WORKSHOP_LIMIT, allBuildings, cleanBuildingRules } from './buildings';
 import type { CharacterId } from './characters';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
+	builtKey,
 	canPlaceRoad,
 	canPlaceSettlement,
 	costOf,
@@ -123,6 +124,7 @@ export function createGame(
 		roads: topo.edges.map(() => null),
 		buildingRules: extended ? cleanBuildingRules(opts.buildings) : allBuildings(false),
 		workshops: b.hexes.map(() => null),
+		builtTurns: {},
 		bank: { wood: bank, brick: bank, sheep: bank, wheat: bank, ore: bank },
 		devDeck: deck,
 		devCardPlayedThisTurn: false,
@@ -171,6 +173,8 @@ class Ctx {
 		const ev = { ...e, seq: this.s.nextEventSeq++ } as GameEvent;
 		this.events.push(ev);
 		this.s.log.push(ev);
+		// Every piece goes up through a 'built' event, so new kinds of building get a date too.
+		if (ev.type === 'built') this.s.builtTurns[builtKey(ev.kind, ev.at)] = this.s.turn;
 		if (this.s.log.length > LOG_LIMIT) this.s.log.splice(0, this.s.log.length - LOG_LIMIT);
 	}
 }

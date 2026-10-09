@@ -186,6 +186,29 @@ function aim(el: Element, now = false) {
 
 let installed = false;
 
+/**
+ * Show `el`'s tooltip as if the pointer rested on it, for things the page never sees the
+ * pointer on, like a piece on the 3D board (`el` is then an anchor kept over the piece). It
+ * waits the usual delay unless `now`; `hideAfter` (ms) hides it again on its own, as after a
+ * tap. Null hides it, if it is still the one showing.
+ */
+export function tipFor(el: Element | null, opts: { now?: boolean; hideAfter?: number } = {}) {
+	if (!installed) return;
+	if (!el) {
+		if (target && target === pointed) hide();
+		pointed = null;
+		return;
+	}
+	pointed = el;
+	aim(el, opts.now);
+	if (opts.hideAfter) {
+		clearTimeout(touchHide);
+		touchHide = window.setTimeout(hide, opts.hideAfter);
+	}
+}
+/** The element `tipFor` last showed. */
+let pointed: Element | null = null;
+
 /** Turn on the custom tooltips for the whole page. Call once, after `installArt`. */
 export function installTooltips() {
 	if (installed) return;
