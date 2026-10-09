@@ -50,6 +50,19 @@ function storage(key: string, value?: string): string | null {
 	return null;
 }
 
+/** A room code from an invite link (`?room=ABCDE`), or null. */
+function invitedRoom(): string | null {
+	if (typeof location === 'undefined') return null;
+	const code = new URLSearchParams(location.search).get('room')?.trim().toUpperCase() ?? '';
+	return /^[A-Z]{5}$/.test(code) ? code : null;
+}
+
+/** An invite link being followed: the room it names and, once the server says no, why. */
+export interface Joining {
+	code: string;
+	error: string | null;
+}
+
 export interface Toast {
 	id: number;
 	text: string;
@@ -80,6 +93,11 @@ class GameClient {
 	name = $state<string>(storage('reign:name') ?? '');
 	toasts = $state<Toast[]>([]);
 	pendingJoin = $state(false);
+	/**
+	 * Set while an invite link (or a reload inside a room) is taking this player to their table, so
+	 * the interface shows a loading screen instead of the main menu. Cleared once the table is in.
+	 */
+	joining = $state<Joining | null>(null);
 	/** Whether this player has the game menu open (the table pauses when everyone does). */
 	menuOpen = $state(false);
 	/** The current turn's clock, with `until` on this browser's clock; null when turns are unlimited. */
@@ -98,6 +116,13 @@ class GameClient {
 	private tossTimer: ReturnType<typeof setTimeout> | undefined;
 	private dealBatch = 0;
 	private autoBots = 0;
+	/** The player backed out of a join the server is still answering: leave the room it seats us in. */
+	private dropJoin = false;
+
+	constructor() {
+		const code = invitedRoom();
+		if (code) this.joining = { code, error: null };
+	}
 
 	connect() {
 		const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -107,8 +132,8 @@ class GameClient {
 		ws.onopen = () => {
 			this.status = 'online';
 			this.retry = 0;
-			const room = this.code ?? new URLSearchParams(location.search).get('room');
-			if (room) this.join(room);
+			const room = this.code ?? this.joining?.code;
+			if (room && !this.joining?.error) this.join(room);
 			for (const m of this.queue.splice(0)) this.send(m);
 		};
 		ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data) as ServerMessage);
@@ -124,6 +149,11 @@ class GameClient {
 	private onMessage(msg: ServerMessage) {
 		switch (msg.t) {
 			case 'welcome':
+				if (this.dropJoin) {
+					this.dropJoin = false;
+					this.send({ t: 'leave' });
+					break;
+				}
 				this.code = msg.code;
 				this.seat = msg.seat;
 				this.pendingJoin = false;
@@ -138,17 +168,28 @@ class GameClient {
 				}
 				break;
 			case 'lobby':
+				// Stray news from a room this player has just left.
+				if (!this.seat) break;
 				this.lobby = msg.lobby;
 				this.setClock(msg.lobby.clock);
+				// A game in progress stays behind the loading screen until its state arrives.
+				if (!msg.lobby.started || this.view) this.joining = null;
 				break;
 			case 'game':
+				if (!this.seat) break;
 				this.receive(msg.view);
 				this.setClock(msg.clock);
+				this.joining = null;
 				break;
 			case 'error':
 				this.pendingJoin = false;
 				this.rollAsked = false;
-				this.toast(msg.message, 'error');
+				if (this.dropJoin) {
+					this.dropJoin = false;
+					break;
+				}
+				if (this.joining && !this.seat) this.joining = { ...this.joining, error: msg.message };
+				else this.toast(msg.message, 'error');
 				if (!this.seat) {
 					this.code = null;
 					this.setUrl(null);
@@ -288,6 +329,16 @@ class GameClient {
 		this.send({ t: 'join', code, name: this.name || 'Player', token: storage(`reign:token:${code}`) ?? undefined });
 	}
 
+	/** Back out of an invite link to the main menu, while it loads or after it failed. */
+	cancelJoin() {
+		if (this.seat) return this.leave();
+		if (this.pendingJoin) this.dropJoin = true;
+		this.pendingJoin = false;
+		this.joining = null;
+		this.code = null;
+		this.setUrl(null);
+	}
+
 	setMenuOpen(open: boolean) {
 		if (open === this.menuOpen) return;
 		this.menuOpen = open;
@@ -307,6 +358,7 @@ class GameClient {
 		this.rollAsked = false;
 		this.seat = null;
 		this.code = null;
+		this.joining = null;
 		this.setClock(null);
 		this.setUrl(null);
 	}
