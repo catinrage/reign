@@ -25,7 +25,7 @@
 
 	// Wooden taps for every button, and a faint tick when the mouse moves onto one.
 	const PRESSABLE =
-		'.btn, .icon-btn, .medal, .banner, .tile, .build, .devcard, .card.clickable, .seg .btn';
+		'.btn, .icon-btn, .medal, .banner, .tile, .build, .card.playable, .card.clickable, .seg .btn';
 	let hovered: Element | null = null;
 	function onPointerDown(e: PointerEvent) {
 		const el = (e.target as Element | null)?.closest?.(PRESSABLE);

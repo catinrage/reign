@@ -12,14 +12,15 @@
 	};
 
 	let {
-		type,
+		type = undefined,
 		count,
 		size = 58,
 		playable = false,
 		waiting = 0,
 		onclick = undefined
 	}: {
-		type: DevCardType;
+		/** Leave it out for a face-down card: an empty deck. */
+		type?: DevCardType;
 		count: number;
 		size?: number;
 		/** It can be played right now: it glows and a click plays it. */
@@ -31,11 +32,19 @@
 	// One pixel of card art: whole device pixels keep the frame crisp.
 	const px = $derived(size >= 56 ? 3 : 2);
 	const secret = $derived(type === 'victoryPoint');
+	// Bought this turn and none ready yet: they wait for the next turn.
+	const fresh = $derived(!!type && !secret && waiting > 0 && waiting >= count);
 	const title = $derived(
-		secret
-			? 'Victory Point: secret. Only you can see it, and it counts toward your points.'
-			: `${DEV_CARD_LABEL[type]}: ${DEV_CARD_TEXT[type]}` +
-					(playable ? ' Click to play it.' : waiting ? ' Bought this turn: play it from your next.' : '')
+		!type
+			? 'Development cards: buy one with a wool, a grain and an ore.'
+			: secret
+				? 'Victory Point: secret. Only you can see it, and it counts toward your points.'
+				: `${DEV_CARD_LABEL[type]}: ${DEV_CARD_TEXT[type]}` +
+					(playable
+						? ' Click to play it.'
+						: waiting
+							? ' Bought this turn: play it from your next.'
+							: '')
 	);
 </script>
 
@@ -48,10 +57,17 @@
 	{onclick}
 	{title}
 >
-	<span class="art"><img src={PIXEL[type]} alt={DEV_CARD_LABEL[type]} draggable="false" /></span>
-	<span class="name">{SHORT[type]}</span>
+	<span class="art"
+		><img
+			src={type ? PIXEL[type] : PIXEL.devBack}
+			alt={type ? DEV_CARD_LABEL[type] : 'Development card'}
+			draggable="false"
+		/></span
+	>
+	{#if type}<span class="name">{SHORT[type]}</span>{/if}
 	{#if count > 0}<span class="count">{count}</span>{/if}
-	{#if secret && count > 0}<span class="lock"><img src={PIXEL.lock} alt="Secret" /></span>{/if}
+	{#if secret && count > 0}<span class="corner"><img src={PIXEL.lock} alt="Secret" /></span>{/if}
+	{#if fresh}<span class="corner"><img src={PIXEL.hourglass} alt="New" /></span>{/if}
 </button>
 
 <style>
@@ -129,8 +145,9 @@
 		place-items: center;
 		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
 	}
-	/* Victory points stay in your hand, face down to everyone else. */
-	.lock {
+	/* A padlock on victory points (face down to everyone else), an hourglass on cards bought
+	   this turn. */
+	.corner {
 		position: absolute;
 		left: calc(var(--cp) * -2);
 		bottom: calc(var(--cp) * 6);
@@ -140,7 +157,7 @@
 		height: calc(var(--cp) * 10);
 		background: var(--art-badge) center / 100% 100%;
 	}
-	.lock img {
+	.corner img {
 		width: calc(var(--cp) * 4.2);
 		image-rendering: pixelated;
 	}
