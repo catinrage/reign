@@ -8,11 +8,11 @@ import {
 	type Resource,
 	type ResourceCounts
 } from './config';
-import { totalPoints } from './engine';
 import {
 	citySpots,
 	costOf,
 	playersOnHex,
+	publicPoints,
 	roadSpots,
 	settlementSpots,
 	tradeRatios,
@@ -53,7 +53,7 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 		case 'moveRobber':
 			return { type: 'moveRobber', hex: robberTarget(s, me) };
 		case 'steal':
-			return { type: 'steal', victim: best(s.stealCandidates, (p) => totalPoints(s, p) * 10 + totalResources(s.players[p].resources)) };
+			return { type: 'steal', victim: best(s.stealCandidates, (p) => publicPoints(s, p) * 10 + totalResources(s.players[p].resources)) };
 		case 'roadBuilding': {
 			const spots = roadSpots(s, me);
 			return { type: 'placeRoad', edge: best(spots, (e) => roadScore(s, me, e)) };
@@ -178,7 +178,7 @@ function robberTarget(s: GameState, me: number): number {
 		if (victims.includes(me)) return -100;
 		const hex = s.board.hexes[h];
 		let score = pips(hex.number);
-		for (const v of victims) score += totalPoints(s, v) * 2 + (totalResources(s.players[v].resources) > 0 ? 3 : 0);
+		for (const v of victims) score += publicPoints(s, v) * 2 + (totalResources(s.players[v].resources) > 0 ? 3 : 0);
 		return victims.length ? score : -50 + pips(hex.number);
 	});
 }
@@ -238,7 +238,8 @@ function wantsTrade(s: GameState, me: number): boolean {
 	const t = s.trade!;
 	const res = s.players[me].resources;
 	if (!hasResources(res, t.want)) return false;
-	if (totalPoints(s, t.from) >= 8) return false;
+	// Points everyone can see: victory point cards stay secret until the game ends.
+	if (publicPoints(s, t.from) >= 8) return false;
 	const gets = totalResources(t.give);
 	const gives = totalResources(t.want);
 	if (gets < gives) return false;
