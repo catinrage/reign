@@ -2,6 +2,7 @@ import type { ClientMessage, LobbyInfo, PigeonNote, ServerMessage, TurnClock } f
 import type { Cheat } from '../../shared/rules/cheats';
 import type { Resource } from '../../shared/rules/config';
 import type { Action, GameEvent, GameView, ResourceGain } from '../../shared/rules/types';
+import { account } from './account.svelte';
 
 /**
  * The one connection to the game server plus everything the interface renders from.
@@ -132,12 +133,17 @@ class GameClient {
 	/** The player backed out of a join the server is still answering: leave the room it seats us in. */
 	private dropJoin = false;
 
+	/** Stay connected (reconnect when the line drops). Off while signed out. */
+	private wanted = false;
+
 	constructor() {
 		const code = invitedRoom();
 		if (code) this.joining = { code, error: null };
 	}
 
 	connect() {
+		this.wanted = true;
+		if (this.ws) return;
 		const proto = location.protocol === 'https:' ? 'wss' : 'ws';
 		const ws = new WebSocket(`${proto}://${location.host}/ws`);
 		this.ws = ws;
@@ -152,16 +158,45 @@ class GameClient {
 		};
 		ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data) as ServerMessage);
 		ws.onclose = () => {
+			if (this.ws !== ws) return;
 			this.status = 'offline';
 			this.ws = null;
+			if (!this.wanted) return;
 			const delay = Math.min(8000, 400 * 2 ** this.retry++);
 			setTimeout(() => this.connect(), delay);
 		};
 		this.pinger ??= setInterval(() => this.send({ t: 'ping' }), 25000);
 	}
 
+	/** Close the connection for good (signing out), leaving any table first. */
+	disconnect() {
+		this.wanted = false;
+		if (this.code) this.leave();
+		this.queue = [];
+		const ws = this.ws;
+		this.ws = null;
+		ws?.close();
+		this.status = 'connecting';
+	}
+
 	private onMessage(msg: ServerMessage) {
 		switch (msg.t) {
+			case 'unauthorized':
+				this.wanted = false;
+				account.signedOut();
+				break;
+			case 'friends':
+				account.setFriends(msg.friends);
+				break;
+			case 'presence':
+				account.presence(msg.user, msg.where);
+				break;
+			case 'invited':
+				account.invited(msg.invite);
+				break;
+			case 'notice':
+				this.toast(msg.message, 'info');
+				break;
 			case 'welcome':
 				if (this.dropJoin) {
 					this.dropJoin = false;
@@ -390,9 +425,14 @@ class GameClient {
 		if (this.lobby && !this.lobby.started) this.send({ t: 'setName', name });
 	}
 
+	/** The name sent with a join; the server seats signed-in players under their nickname anyway. */
+	private get joinName() {
+		return account.me?.nickname ?? (this.name || 'Player');
+	}
+
 	create() {
 		this.pendingJoin = true;
-		this.send({ t: 'create', name: this.name || 'Player' });
+		this.send({ t: 'create', name: this.joinName });
 	}
 
 	/** Create a table, fill it with bots and start right away. */
@@ -406,7 +446,7 @@ class GameClient {
 		if (!code) return;
 		this.pendingJoin = true;
 		this.code = code;
-		this.send({ t: 'join', code, name: this.name || 'Player', token: storage(`reign:token:${code}`) ?? undefined });
+		this.send({ t: 'join', code, name: this.joinName, token: storage(`reign:token:${code}`) ?? undefined });
 	}
 
 	/** Back out of an invite link to the main menu, while it loads or after it failed. */

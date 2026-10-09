@@ -1,6 +1,7 @@
 // End-to-end smoke test: quick game vs bots in a real browser, screenshots along the way.
 // Usage: node scripts/e2e.mjs <baseUrl> <outDir> [maxSeconds]
 import { chromium } from 'playwright';
+import { signIn } from './dev/signin.mjs';
 import { mkdirSync } from 'node:fs';
 const [base = 'http://localhost:8787', out = 'test-results/e2e', maxS = '600'] = process.argv.slice(2);
 mkdirSync(out, { recursive: true });
@@ -12,11 +13,11 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+await signIn(page, `${base}/?autoplay`);
 await page.goto(`${base}/?autoplay`);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
 await page.waitForTimeout(3000);
 await page.screenshot({ path: `${out}/01-home.png`, animations: 'disabled', timeout: 90000 });
-await page.fill('input[placeholder="Settler"]', 'Komeil');
 await page.click('text=Play vs bots', { force: true });
 await page.waitForFunction(() => window.__client?.view, null, { timeout: 30000 });
 await page.waitForTimeout(4000);

@@ -5,6 +5,7 @@
 // Usage: node scripts/dev/robber-aim.mjs <outDir> [base]
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { signIn, signUp } from './signin.mjs';
 import WebSocket from 'ws';
 const [dir = '/tmp/robber-aim', base = 'http://localhost:8787'] = process.argv.slice(2);
 mkdirSync(dir, { recursive: true });
@@ -17,9 +18,9 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && !m.text().includes('WebSocket') && errors.push(m.text()));
+await signIn(page, base);
 await page.goto(base);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000 });
-await page.evaluate(() => window.__client.setName('Komeil'));
 const until = (fn, arg) => page.waitForFunction(fn, arg, { timeout: 900000, polling: 300 });
 /** A shot once the light on the tile has had time to come up (in game time: frames are slow here). */
 const shot = async (name, lit = true) => {
@@ -33,7 +34,7 @@ await page.evaluate(() => window.__client.create());
 const code = await until(() => window.__client.code).then((h) => h.jsonValue());
 
 // The other player: just a socket, keeping the aims it is told about.
-const guest = new WebSocket(`${base.replace(/^http/, 'ws')}/ws`);
+const guest = new WebSocket(`${base.replace(/^http/, 'ws')}/ws`, { headers: { cookie: await signUp(base, 'Bram') } });
 const told = [];
 guest.on('message', (data) => {
 	const m = JSON.parse(String(data));

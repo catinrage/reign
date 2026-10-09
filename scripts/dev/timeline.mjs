@@ -1,6 +1,8 @@
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+await signIn(page, 'http://localhost:8787/');
 await page.goto('http://localhost:8787/' + (process.argv[2] ?? ''));
 await page.waitForTimeout(8000);
 const a = await page.evaluate(() => [document.timeline.currentTime, performance.now()]);

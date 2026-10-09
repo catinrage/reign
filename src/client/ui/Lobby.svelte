@@ -4,13 +4,18 @@
 	import { PLAYER_COLORS } from '../../shared/rules/config';
 	import { GAME_MODES, MODE_INFO, POINT_GOALS } from '../../shared/rules/modes';
 	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
+	import { account } from '../state/account.svelte';
 	import { client } from '../state/client.svelte';
+	import Avatar from './account/Avatar.svelte';
+	import Friends from './account/Friends.svelte';
+	import { ACCOUNT_ICONS } from './account/icons';
 	import CharacterPicker from './extended/CharacterPicker.svelte';
 	import MapPicker from './extended/MapPicker.svelte';
 	import MapPreview from './extended/MapPreview.svelte';
 	import Portrait from './extended/Portrait.svelte';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
+	import Modal from './menu/Modal.svelte';
 	import { sideLayout } from './menu/sideLayout';
 	import { PIXEL } from './pixel';
 	import { sceneRef } from './sceneRef';
@@ -22,6 +27,7 @@
 	const notReady = $derived(lobby.seats.filter((s) => !s.ready));
 	const enough = $derived(lobby.seats.length >= MIN_PLAYERS);
 	let copied = $state(false);
+	let inviting = $state(false);
 	const settings = $derived(lobby.settings);
 	const extended = $derived(settings.mode === 'extended');
 	const myChar = $derived(mySeat?.character ? CHARACTER_INFO[mySeat.character] : null);
@@ -80,6 +86,10 @@
 								? 'Link copied!'
 								: 'Copy invite link'}
 						</button>
+						<button class="btn small" onclick={() => (inviting = true)}>
+							<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />Invite friends{#if account.onlineFriends.length}
+								<span class="online">{account.onlineFriends.length} online</span>{/if}
+						</button>
 					</div>
 
 
@@ -93,6 +103,11 @@
 								{#if extended}
 									<span class="face">
 										<Portrait id={s.character} size={46} />
+										<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
+									</span>
+								{:else if s.avatar}
+									<span class="face">
+										<Avatar id={s.avatar} size={40} />
 										<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
 									</span>
 								{:else}
@@ -305,6 +320,10 @@
 	<MapPicker onclose={() => (picking = null)} />
 {/if}
 
+{#if inviting}
+	<Modal title="Invite friends" width={500} onclose={() => (inviting = false)}><Friends inviting /></Modal>
+{/if}
+
 <style>
 	.lobby {
 		position: absolute;
@@ -356,6 +375,11 @@
 	}
 	.invite .btn img {
 		height: 18px;
+	}
+	.invite .online {
+		font-size: 12px;
+		color: #1f6a14;
+		text-shadow: none;
 	}
 	.seats {
 		display: flex;

@@ -2,6 +2,7 @@
 // One browser page at a time; the other player is a bare socket, which keeps it light.
 // Usage: node scripts/dev/ready.mjs <outDir> [width] [height] [mode] [base] [server]
 import { chromium } from 'playwright';
+import { signIn, signUp } from './signin.mjs';
 import WebSocket from 'ws';
 const [dir, w = '1600', h = '900', mode = 'classic', base = 'http://localhost:5173', server = 'ws://localhost:8787/ws'] =
 	process.argv.slice(2);
@@ -11,8 +12,8 @@ const browser = await chromium.launch({
 });
 
 /** A player with no screen: sends one message, resolves with the room code once seated. */
-function socket(first) {
-	const ws = new WebSocket(server);
+async function socket(first) {
+	const ws = new WebSocket(server, { headers: { cookie: await signUp(base, first.name) } });
 	const welcome = new Promise((res) =>
 		ws.on('message', (d) => {
 			const m = JSON.parse(String(d));
@@ -25,10 +26,10 @@ function socket(first) {
 async function open(name) {
 	const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 	page.on('pageerror', (e) => console.log(`[${name}]`, e.message));
+	await signIn(page, base, name);
 	await page.goto(`${base}/`);
 	await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000, polling: 500 });
 	await page.waitForTimeout(2000);
-	await page.fill('.name-row .input', name);
 	return page;
 }
 const lobby = (page) => page.waitForFunction(() => !!window.__client.lobby, null, { timeout: 60000 });
@@ -48,7 +49,7 @@ const shot = async (page, name, wait = 1500) => {
 		window.__client.send({ t: 'setMode', mode });
 	}, mode);
 	const code = await page.evaluate(() => window.__client.lobby.code);
-	const guest = socket({ t: 'join', code, name: 'Bram' });
+	const guest = await socket({ t: 'join', code, name: 'Bram' });
 	await guest.welcome;
 	await shot(page, `${mode}-host-waiting`, 2500);
 	guest.send({ t: 'setReady', ready: true });
@@ -58,7 +59,7 @@ const shot = async (page, name, wait = 1500) => {
 }
 // A guest's view, before and after they're ready.
 {
-	const host = socket({ t: 'create', name: 'Komeil' });
+	const host = await socket({ t: 'create', name: 'Komeil' });
 	const code = await host.welcome;
 	host.send({ t: 'addBot' });
 	host.send({ t: 'setMode', mode });

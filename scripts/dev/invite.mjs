@@ -3,6 +3,7 @@
 // so the loading screen can be caught.
 // Usage: node scripts/dev/invite.mjs <outDir> [width] [height] [base] [server]
 import { chromium } from 'playwright';
+import { signIn, signUp } from './signin.mjs';
 import WebSocket from 'ws';
 const [
 	dir,
@@ -16,7 +17,7 @@ const browser = await chromium.launch({
 	args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
 });
 
-const host = new WebSocket(server);
+const host = new WebSocket(server, { headers: { cookie: await signUp(base, 'Komeil') } });
 const code = await new Promise((res) => {
 	host.on('open', () => host.send(JSON.stringify({ t: 'create', name: 'Komeil' })));
 	host.on('message', (d) => {
@@ -56,6 +57,7 @@ async function open(room, holdMs) {
 			else srv.send(m);
 		});
 	});
+	await signIn(page, base);
 	await page.goto(`${base}/?room=${room}`);
 	return { page, screens };
 }

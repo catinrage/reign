@@ -4,6 +4,7 @@
 // Usage: BASE=http://localhost:8787 node scripts/dev/pieces-look.mjs <outPrefix> [width] [height]
 import { readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [out = '/tmp/pieces', w = '1280', h = '800'] = process.argv.slice(2);
 // BOARD=<file> reuses an island saved by an earlier run (<outPrefix>-board.json).
 // ONLY=game,mine,... takes just those shots.
@@ -30,6 +31,7 @@ page.on(
 	'console',
 	(m) => m.type() === 'error' && !m.text().includes('WebSocket') && errors.push(m.text())
 );
+await signIn(page, process.env.BASE ?? 'http://localhost:8787');
 await page.goto(`${process.env.BASE ?? 'http://localhost:8787'}/`);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 180000 });
 await page.waitForTimeout(3000);

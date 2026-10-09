@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { LogoView } from '../scene/logo';
+	import { account } from '../state/account.svelte';
 	import { client } from '../state/client.svelte';
+	import Avatar from './account/Avatar.svelte';
+	import Friends from './account/Friends.svelte';
+	import History from './account/History.svelte';
+	import Profile from './account/Profile.svelte';
+	import { ACCOUNT_ICONS } from './account/icons';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
 	import HowToPlay from './menu/HowToPlay.svelte';
@@ -11,33 +17,12 @@
 	import { PIXEL } from './pixel';
 	import { isMuted, setMuted, sfx } from './sound';
 
-	const NAMES = [
-		'Aldric',
-		'Brenna',
-		'Corwin',
-		'Dagny',
-		'Elric',
-		'Freya',
-		'Gideon',
-		'Hilde',
-		'Ivo',
-		'Jorunn',
-		'Kestrel',
-		'Leif',
-		'Maren',
-		'Osric',
-		'Petra',
-		'Rowan',
-		'Sigrid',
-		'Tamsin',
-		'Ulric',
-		'Wren'
-	];
-
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
-	let name = $state(client.name);
 	let muted = $state(isMuted());
-	let sheet = $state<'help' | 'settings' | null>(null);
+	let sheet = $state<'help' | 'settings' | 'profile' | 'friends' | 'history' | null>(null);
+	/** Whose games the history sheet shows: a friend's username, or yours when unset. */
+	let historyOf = $state<string | undefined>(undefined);
+	const me = $derived(account.me!);
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let logoOk = $state(true);
 	const busy = $derived(client.pendingJoin || client.status !== 'online');
@@ -61,34 +46,23 @@
 		};
 	});
 
-	function commitName() {
-		client.setName(name.trim().slice(0, 18));
-	}
-	function randomName() {
-		const pool = NAMES.filter((n) => n !== name);
-		name = pool[Math.floor(Math.random() * pool.length)];
-		commitName();
-	}
 	function play() {
-		commitName();
 		client.quickPlay(3);
 	}
 	function create() {
-		commitName();
 		client.create();
 	}
 	function join() {
 		if (code.length !== 5 || busy) return;
-		commitName();
 		client.join(code);
 	}
 	function rejoin() {
 		if (!client.resumable || busy) return;
-		commitName();
 		client.join(client.resumable.code);
 	}
-	function openSheet(s: 'help' | 'settings') {
+	function openSheet(s: NonNullable<typeof sheet>) {
 		sfx.open();
+		if (s === 'history') historyOf = undefined;
 		sheet = s;
 	}
 	function closeSheet() {
@@ -113,6 +87,19 @@
 		</header>
 
 		<div class="sign panel">
+			<div class="me">
+				<button class="me-face" onclick={() => openSheet('profile')} title="Edit your profile">
+					<Avatar id={me.avatar} size={60} />
+				</button>
+				<span class="me-name">
+					<span class="label">Playing as</span>
+					<b class="title">{me.nickname}</b>
+					<small>@{me.username}</small>
+				</span>
+				<button class="icon-btn edit" onclick={() => openSheet('profile')} title="Edit your profile" aria-label="Edit your profile">
+					<img src={ACCOUNT_ICONS.quill} alt="" />
+				</button>
+			</div>
 			{#if client.resumable}
 				{@const r = client.resumable}
 				<button class="btn purple block rejoin" onclick={rejoin} disabled={busy}>
@@ -125,27 +112,6 @@
 					>
 				</button>
 			{/if}
-			<label class="field">
-				<span class="label">Your name</span>
-				<div class="name-row">
-					<input
-						class="input"
-						bind:value={name}
-						maxlength="18"
-						placeholder="Settler"
-						onchange={commitName}
-						onkeydown={(e) => e.key === 'Enter' && play()}
-					/>
-					<button
-						class="icon-btn dice"
-						onclick={randomName}
-						title="Pick a random name"
-						aria-label="Random name"
-					>
-						<img src={PIXEL.die} alt="" />
-					</button>
-				</div>
-			</label>
 
 			<button class="btn big block shine" onclick={play} disabled={busy}>
 				<img src={PIXEL.play} alt="" />
@@ -167,6 +133,19 @@
 		</div>
 
 		<nav class="extras">
+			<button class="medal" onclick={() => openSheet('friends')}>
+				<span class="icon-btn"><img src={ACCOUNT_ICONS.friends} alt="" /></span>
+				<span class="cap">Friends</span>
+				{#if account.incoming.length}
+					<span class="count alert" title="Friend requests">{account.incoming.length}</span>
+				{:else if account.onlineFriends.length}
+					<span class="count" title="Friends online">{account.onlineFriends.length}</span>
+				{/if}
+			</button>
+			<button class="medal" onclick={() => openSheet('history')}>
+				<span class="icon-btn"><img src={ACCOUNT_ICONS.scroll} alt="" /></span>
+				<span class="cap">History</span>
+			</button>
 			<button class="medal" onclick={() => openSheet('help')}>
 				<span class="icon-btn"><img src={PIXEL.book} alt="" /></span>
 				<span class="cap">How to play</span>
@@ -187,6 +166,19 @@
 	<Modal title="How to play" frame="parch" width={760} onclose={closeSheet}><HowToPlay /></Modal>
 {:else if sheet === 'settings'}
 	<Modal title="Settings" width={460} onclose={closeSheet}><Settings /></Modal>
+{:else if sheet === 'profile'}
+	<Modal title="Your profile" width={640} onclose={closeSheet}><Profile onclose={closeSheet} /></Modal>
+{:else if sheet === 'friends'}
+	<Modal title="Friends" width={520} onclose={closeSheet}
+		><Friends
+			onhistory={(f) => {
+				historyOf = f.username;
+				sheet = 'history';
+			}}
+		/></Modal
+	>
+{:else if sheet === 'history'}
+	<Modal title={historyOf ? 'Their games' : 'Your games'} width={620} onclose={closeSheet}><History username={historyOf} /></Modal>
 {/if}
 
 <style>
@@ -272,27 +264,41 @@
 		padding: 10px 12px 14px;
 		animation: pop-in 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) 0.15s both;
 	}
-	.field {
+	.me {
 		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-	.name-row {
-		display: flex;
-		gap: 8px;
 		align-items: center;
+		gap: 12px;
 	}
-	.name-row .input {
+	.me-face {
+		all: unset;
+		pointer-events: auto;
+		cursor: pointer;
+		transition: transform 0.1s;
+	}
+	.me-face:hover {
+		transform: translateY(-2px) rotate(-2deg);
+	}
+	.me-name {
 		flex: 1;
 		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		line-height: 1.15;
 	}
-	.dice {
+	.me-name b {
+		font-size: 22px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.me-name small {
+		font-weight: 700;
+		color: var(--muted);
+	}
+	.edit {
 		width: calc(var(--s) * 14);
 		height: calc(var(--s) * 14);
 		flex: none;
-	}
-	.dice:active img {
-		transform: rotate(90deg);
 	}
 	.sign .btn.block {
 		justify-content: flex-start;
@@ -322,6 +328,7 @@
 	}
 	.medal {
 		all: unset;
+		position: relative;
 		pointer-events: auto;
 		display: flex;
 		flex-direction: column;
@@ -339,6 +346,28 @@
 	}
 	.medal:focus-visible .icon-btn {
 		filter: drop-shadow(0 0 5px rgba(255, 210, 90, 0.9));
+	}
+	.count {
+		position: absolute;
+		top: -6px;
+		right: -6px;
+		min-width: 20px;
+		height: 20px;
+		box-sizing: border-box;
+		padding: 0 5px;
+		display: grid;
+		place-items: center;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 13px;
+		color: #fff;
+		background: #3f9a2e;
+		border: 2px solid #1e0e06;
+		box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35);
+	}
+	.count.alert {
+		background: #d0302c;
+		animation: bob 1.2s ease-in-out infinite;
 	}
 	.cap {
 		font-family: var(--px);

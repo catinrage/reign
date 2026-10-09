@@ -4,6 +4,7 @@
 // can't be played shows why.
 // Usage: node scripts/dev/tips.mjs <outDir> [base]
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [dir = '/tmp/tips', base = 'http://localhost:8787'] = process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: '/opt/pw-browsers/chromium',
@@ -16,10 +17,10 @@ async function start(context) {
 	await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
 	page.on('pageerror', (e) => errors.push(e.message));
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+	await signIn(page, base);
 	await page.goto(base);
 	await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000 });
-	await page.evaluate(() => window.__client.setName('Komeil'));
-	await page.click('text=Play vs bots', { force: true });
+		await page.click('text=Play vs bots', { force: true });
 	await page.waitForFunction(() => !!window.__client.view, null, { timeout: 300000 });
 	await page.waitForTimeout(2500);
 	// Hold the bots so no new state replaces the made-up one; then let the hand believe the

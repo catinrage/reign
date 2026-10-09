@@ -1,9 +1,11 @@
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && errors.push(m.type() + ' ' + m.text()));
+await signIn(page, 'http://localhost:8787/');
 await page.goto('http://localhost:8787/?autoplay');
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
 await page.click('text=Quick game vs 3 bots');
