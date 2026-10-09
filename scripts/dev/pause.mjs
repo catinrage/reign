@@ -3,6 +3,7 @@
 // paused with the corner button and the bots are checked to wait.
 // Usage: node scripts/dev/pause.mjs <outDir> [base]
 import { chromium } from 'playwright';
+import { signIn, signUp } from './signin.mjs';
 import WebSocket from 'ws';
 const [dir = '/tmp/pause', base = 'http://localhost:8787'] = process.argv.slice(2);
 const browser = await chromium.launch({
@@ -17,6 +18,7 @@ const open = async (name) => {
 		'console',
 		(m) => m.type() === 'error' && !m.text().includes('WebSocket') && errors.push(m.text())
 	);
+	await signIn(page, base);
 	await page.goto(base);
 	await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000 });
 	await page.evaluate((n) => window.__client.setName(n), name);
@@ -34,7 +36,7 @@ await host.evaluate(() => window.__client.create());
 const code = await until(host, () => window.__client.code).then((h) => h.jsonValue());
 
 // The guest: just a socket.
-const guest = new WebSocket(`${base.replace(/^http/, 'ws')}/ws`);
+const guest = new WebSocket(`${base.replace(/^http/, 'ws')}/ws`, { headers: { cookie: await signUp(base, 'Bram') } });
 const lobbies = [];
 guest.on('message', (data) => {
 	const m = JSON.parse(String(data));

@@ -2,6 +2,7 @@
 // starting a quick game and injecting view states on the client.
 // Usage: node scripts/dev/states.mjs <outDir> [width] [height] [base]
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [dir, w = '1600', h = '900', base = 'http://localhost:5180'] = process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium',
@@ -17,10 +18,11 @@ const shot = async (name, wait = 1500) => {
 };
 const until = (fn, timeout = 300000) => page.waitForFunction(fn, null, { timeout, polling: 500 });
 
+await signIn(page, base);
+
 await page.goto(`${base}/?autoplay`);
 await until(() => window.__ready === true);
 await page.waitForTimeout(2500);
-await page.fill('.name-row .input', 'Komeil');
 await page.click('.sign .btn.green', { force: true });
 await until(() => !!window.__client.lobby);
 await page.evaluate(() => {

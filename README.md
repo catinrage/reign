@@ -44,8 +44,26 @@ pnpm install
 pnpm dev          # game server on :8787 + Vite on :5173 (open http://localhost:5173)
 ```
 
-Click **Create a game**, then **Copy invite link** and send it to friends on the same network (open the game via your PC's LAN address, e.g. `http://192.168.1.20:5173`, so the link points there),
+The first screen asks you to sign in or create an account (username, nickname, password and a
+voxel avatar, all changeable later from your profile). Then click **Create a room**, then **Copy invite link** and send it to friends on the same network (open the game via your PC's LAN address, e.g. `http://192.168.1.20:5173`, so the link points there),
 or click **Quick game vs 3 bots** to play solo.
+
+### Accounts and the database
+
+Players have accounts: a username friends find them by, a nickname shown at the table, a
+password and one of twelve voxel avatars. Every game is written down, so players can see their
+match history (and their friends'). Players add friends by username, see who is online, at a
+table or in a game, and invite online friends to their table from the lobby.
+
+The data lives in PostgreSQL. Set `DATABASE_URL` (`postgres://user:pass@host:5432/db`) to use a
+Postgres server; Docker compose and `render.yaml` do this for you. Without it, as under a plain
+`pnpm dev`, the server runs PGlite (Postgres compiled to WebAssembly) inside its own process and
+keeps the data in `./data/db`, so there is nothing else to install. Delete that folder to start
+over. The schema migrates itself on start (`src/server/db.ts`).
+
+Signing in sets an HttpOnly session cookie that the game's WebSocket carries too; passwords are
+hashed with scrypt and sessions are stored by their hash. The account API is under `/api`
+(`src/server/api.ts`).
 
 ### Dev cheats
 
@@ -71,15 +89,19 @@ docker compose down                 # stop it
 ```
 
 The image builds the client and runs the production server as one small container (no dev
-cheats, runs as a non-root user, health check on `/health`). Without compose:
-`docker build -t reign .` then `docker run -p 8787:8787 reign`.
+cheats, runs as a non-root user, health check on `/health`). Compose also starts Postgres
+(`postgres:17-alpine`, data in the `db` volume; set `POSTGRES_PASSWORD` to change its
+password). Without compose: `docker build -t reign .` then
+`docker run -p 8787:8787 -e DATABASE_URL=postgres://… reign` (leave `DATABASE_URL` out and the
+container keeps its data inside itself with PGlite, lost when the container goes).
 
 For development without installing Node or pnpm, `docker compose --profile dev up --build`
 runs `pnpm dev` from your working copy: Vite with hot reload on http://localhost:5173 and the
 game server with dev cheats on.
 
 The same image deploys as a single web service on any host that supports WebSockets (Fly.io,
-Railway, a VPS…). `render.yaml` deploys to Render without Docker.
+Railway, a VPS…). `render.yaml` deploys to Render without Docker, together with a free Render Postgres database for
+the accounts (Render's free databases expire after a while; move to a paid plan to keep the data).
 
 ## Controls
 
@@ -94,7 +116,8 @@ Railway, a VPS…). `render.yaml` deploys to Render without Docker.
 src/shared/   rules engine, board geometry, bots, network protocol (no DOM, no Three.js)
   board/        hex math, topology (vertices/edges/harbors derived from the map), map generator
   rules/        config (resources, costs, decks), engine (applyAction), queries, view redaction, bot
-src/server/   Node HTTP + WebSocket server: rooms, lobby, seats, reconnection, bots, static files
+src/server/   Node HTTP + WebSocket server: rooms, lobby, seats, reconnection, bots, static files,
+                accounts (db.ts, accounts.ts, api.ts) and who is online (hub.ts)
 src/client/   Vite + Svelte 5 interface over a Three.js scene
   scene/        voxel engine (grid, mesher with baked AO, beveled voxel shader), island terrain,
                 piece models, room, lighting, camera rig, dice, particles, post-processing

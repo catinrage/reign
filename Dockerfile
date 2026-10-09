@@ -32,6 +32,8 @@ COPY package.json tsconfig.json ./
 COPY src/shared ./src/shared
 COPY src/server ./src/server
 COPY --from=build /app/dist/client ./dist/client
+# Without DATABASE_URL the server keeps its database here (PGlite); compose passes Postgres instead.
+RUN mkdir -p data && chown node:node data
 USER node
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \

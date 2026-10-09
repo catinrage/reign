@@ -2,6 +2,7 @@
 // Bram and the host trade notes; Cleo sits at the same table and must never hear of them.
 // Usage: node scripts/dev/pigeon.mjs <outDir> [width] [height] [base] [server]
 import { chromium } from 'playwright';
+import { signIn, signUp } from './signin.mjs';
 import WebSocket from 'ws';
 const [
 	dir,
@@ -16,8 +17,8 @@ const browser = await chromium.launch({
 });
 
 /** A player with no screen: joins, records what it is sent, resolves with its seat once seated. */
-function socket(first) {
-	const ws = new WebSocket(server);
+async function socket(first) {
+	const ws = new WebSocket(server, { headers: { cookie: await signUp(base, first.name) } });
 	const got = [];
 	const welcome = new Promise((res) =>
 		ws.on('message', (d) => {
@@ -60,6 +61,7 @@ const landed = (page) =>
 
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 page.on('pageerror', (e) => console.log('[page]', e.message));
+await signIn(page, base);
 await page.goto(`${base}/`);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000, polling: 500 });
 await page.evaluate(() => {
@@ -72,8 +74,8 @@ await page.evaluate(() => {
 await page.waitForFunction(() => !!window.__client.lobby, null, { timeout: 60000 });
 const code = await page.evaluate(() => window.__client.lobby.code);
 const host = await page.evaluate(() => window.__client.seat);
-const bram = socket({ t: 'join', code, name: 'Bram' });
-const cleo = socket({ t: 'join', code, name: 'Cleo' });
+const bram = await socket({ t: 'join', code, name: 'Bram' });
+const cleo = await socket({ t: 'join', code, name: 'Cleo' });
 const bramSeat = await bram.welcome;
 await cleo.welcome;
 bram.send({ t: 'setReady', ready: true });

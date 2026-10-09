@@ -2,6 +2,10 @@
 # `docker compose --profile dev up --build` runs the dev setup instead: Vite with hot reload on
 # http://localhost:5173 and the game server with dev cheats on, both from your working copy.
 # Add -V after changing dependencies so the container gets fresh node_modules.
+# Accounts, friends and match history live in the `db` Postgres service, kept in the `db` volume.
+
+x-database: &database
+  DATABASE_URL: postgres://reign:${POSTGRES_PASSWORD:-reign}@db:5432/reign
 
 services:
   reign:
@@ -9,6 +13,25 @@ services:
     image: reign
     ports:
       - '${PORT:-8787}:8787'
+    environment: *database
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: reign
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reign}
+      POSTGRES_DB: reign
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reign -d reign']
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
   dev:
@@ -20,6 +43,13 @@ services:
     init: true
     ports:
       - '5173:5173'
+    environment: *database
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - .:/app
       - /app/node_modules
+
+volumes:
+  db:

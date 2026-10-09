@@ -1,11 +1,13 @@
 // Dev: play a quick autoplay game for N seconds, then take close-up screenshots.
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [out = '/tmp/closeup', secs = '50', w = '1600', h = '900'] = process.argv.slice(2);
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) }, deviceScaleFactor: Number(w) < 800 ? 2 : 1, hasTouch: Number(w) < 800 });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+await signIn(page, process.env.BASE ?? 'http://localhost:8787');
 await page.goto(`${process.env.BASE ?? 'http://localhost:8787'}/?autoplay`);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
 await page.click('text=Quick game vs 3 bots');

@@ -1,6 +1,7 @@
 // Dev helper: play a quick game vs bots and screenshot the HUD at key moments.
 // Usage: node scripts/dev/hud.mjs <outDir> [width] [height] [base]
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [dir, w = '1600', h = '900', base = 'http://localhost:5180'] = process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium',
@@ -15,6 +16,8 @@ const shot = async (name) => {
 	console.log('shot', name);
 };
 const until = (fn, timeout = 240000) => page.waitForFunction(fn, null, { timeout, polling: 500 });
+
+await signIn(page, base);
 
 await page.goto(`${base}/?autoplay`);
 await until(() => window.__ready === true);

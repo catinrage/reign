@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { account } from '../state/account.svelte';
 	import { client } from '../state/client.svelte';
+	import Auth from './account/Auth.svelte';
+	import Invites from './account/Invites.svelte';
 	import Hud from './game/Hud.svelte';
 	import Home from './Home.svelte';
 	import Joining from './Joining.svelte';
@@ -10,8 +13,10 @@
 	import { sceneRef } from './sceneRef';
 
 	const screen = $derived(
-		client.joining
-			? 'joining'
+		account.status !== 'in'
+			? 'auth'
+			: client.joining
+				? 'joining'
 			: client.view && client.lobby?.started
 				? 'game'
 				: client.lobby
@@ -57,7 +62,9 @@
 
 <svelte:window onpointerdown={onPointerDown} onpointerover={onPointerOver} />
 
-{#if screen === 'home'}
+{#if screen === 'auth'}
+	{#if account.status === 'out'}<Auth />{/if}
+{:else if screen === 'home'}
 	<Home />
 {:else if screen === 'joining'}
 	<Joining />
@@ -67,7 +74,9 @@
 	<Hud />
 {/if}
 
-{#if client.status !== 'online' && screen !== 'joining'}
+{#if account.status === 'in'}<Invites />{/if}
+
+{#if account.status === 'loading' || (account.status === 'in' && client.status !== 'online' && screen !== 'joining')}
 	<div class="conn plaque">
 		<img class="icon-px" src={PIXEL.hourglass} alt="" />{client.status === 'connecting'
 			? 'Connecting…'
