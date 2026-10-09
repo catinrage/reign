@@ -2,6 +2,7 @@
 	import { client } from '../../state/client.svelte';
 	import { myTurn, promptText } from '../helpers';
 	import { PIXEL } from '../pixel';
+	import TurnClock from './TurnClock.svelte';
 	import { ui } from './ui.svelte';
 
 	const view = $derived(client.view!);
@@ -15,7 +16,7 @@
 	const ended = $derived(view.phase === 'ended');
 </script>
 
-<div class="wrap">
+<div class="wrap" class:timed={!!client.clock}>
 	{#key text}
 		<div class="prompt">
 			<div class="ribbon" class:mine style="--rib: var(--art-ribbon-{ended ? 'gold' : color})">
@@ -27,6 +28,7 @@
 			{/if}
 		</div>
 	{/key}
+	<TurnClock />
 </div>
 
 <style>
@@ -66,6 +68,12 @@
 	}
 	.prompt .btn {
 		pointer-events: auto;
+	}
+	@media (min-width: 901px) {
+		/* Leave room for the turn clock beside the ribbon. */
+		.timed .prompt {
+			max-width: calc(100vw - 720px);
+		}
 	}
 	@media (max-width: 900px) {
 		.wrap {

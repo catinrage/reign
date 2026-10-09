@@ -17,6 +17,7 @@
 	import OfferCard from './OfferCard.svelte';
 	import Players from './Players.svelte';
 	import Prompt from './Prompt.svelte';
+	import TimeWarning from './TimeWarning.svelte';
 	import TradePanel from './TradePanel.svelte';
 	import Victory from './Victory.svelte';
 	import { ui } from './ui.svelte';
@@ -120,6 +121,10 @@
 					setTimeout(() => (ui.flash = false), 1600);
 				}
 				break;
+			case 'turnTimedOut':
+				if (e.player === me) client.toast("Time's up! Your turn is over.", 'error');
+				else client.toast(`${view.players[e.player].name} ran out of time`);
+				break;
 			case 'robberMoved':
 				sfx.robber();
 				break;
@@ -190,6 +195,7 @@
 	<Victory />
 	<Flyers />
 	<GameMenu />
+	<TimeWarning />
 </div>
 
 <style>

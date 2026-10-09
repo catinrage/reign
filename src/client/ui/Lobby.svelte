@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
-	import { MIN_PLAYERS } from '../../shared/protocol';
+	import { MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
 	import { client } from '../state/client.svelte';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
@@ -14,6 +14,13 @@
 	let copied = $state(false);
 
 	onMount(sideLayout);
+
+	function shortTime(t: number) {
+		return !t ? 'Unlimited' : t < 120 ? `${t} sec` : `${t / 60} min`;
+	}
+	function longTime(t: number) {
+		return !t ? 'Unlimited' : t < 120 ? `${t} seconds a turn` : `${t / 60} minutes a turn`;
+	}
 
 	async function copy() {
 		try {
@@ -104,6 +111,29 @@
 					</div>
 				</div>
 			{/if}
+
+			<div class="timer">
+				<div class="timer-head">
+					<span class="label">Turn timer</span>
+					<span class="chosen"
+						><img class="icon-px" src={PIXEL.watch} alt="" />{longTime(lobby.turnTime)}</span
+					>
+				</div>
+				{#if client.isHost}
+					<div class="seg times">
+						{#each TURN_TIMES as t (t)}
+							<button
+								class="btn small"
+								class:on={lobby.turnTime === t}
+								onclick={() => client.send({ t: 'setTurnTime', seconds: t })}>{shortTime(t)}</button
+							>
+						{/each}
+					</div>
+				{/if}
+				{#if lobby.turnTime}
+					<p class="note">When time runs out, the turn ends on its own.</p>
+				{/if}
+			</div>
 
 			<div class="foot">
 				<button class="btn wood" onclick={() => client.leave()}
@@ -297,6 +327,41 @@
 	.banner:disabled {
 		opacity: 0.22;
 		cursor: not-allowed;
+	}
+	.timer {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.timer-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.chosen {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 15px;
+		color: #fff2d2;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.chosen img {
+		width: 20px;
+		height: 22px;
+	}
+	.times {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 5px;
+	}
+	.note {
+		margin: 0;
+		color: var(--muted);
+		font-size: 13px;
 	}
 	.foot {
 		display: flex;

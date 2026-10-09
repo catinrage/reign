@@ -1,4 +1,4 @@
-import type { ClientMessage, LobbyInfo, ServerMessage } from '../../shared/protocol';
+import type { ClientMessage, LobbyInfo, ServerMessage, TurnClock } from '../../shared/protocol';
 import type { Action, GameView } from '../../shared/rules/types';
 
 /**
@@ -33,12 +33,17 @@ class GameClient {
 	pendingJoin = $state(false);
 	/** Whether this player has the game menu open (the table pauses when everyone does). */
 	menuOpen = $state(false);
+	/** The current turn's clock, with `until` on this browser's clock; null when turns are unlimited. */
+	clock = $state<(TurnClock & { until: number }) | null>(null);
+	/** performance.now(), refreshed while a turn clock runs so the countdowns move. */
+	now = $state(0);
 
 	private ws: WebSocket | null = null;
 	private retry = 0;
 	private toastId = 0;
 	private queue: ClientMessage[] = [];
 	private pinger: ReturnType<typeof setInterval> | null = null;
+	private ticker: ReturnType<typeof setInterval> | null = null;
 	private autoBots = 0;
 
 	connect() {
@@ -80,9 +85,11 @@ class GameClient {
 				break;
 			case 'lobby':
 				this.lobby = msg.lobby;
+				this.setClock(msg.lobby.clock);
 				break;
 			case 'game':
 				this.view = msg.view;
+				this.setClock(msg.clock);
 				break;
 			case 'error':
 				this.pendingJoin = false;
@@ -92,6 +99,17 @@ class GameClient {
 					this.setUrl(null);
 				}
 				break;
+		}
+	}
+
+	/** The server sends the time left (not a deadline: clocks differ), so the deadline is set here. */
+	private setClock(c: TurnClock | null) {
+		this.now = performance.now();
+		this.clock = c && { ...c, until: this.now + c.left };
+		if (c?.running) this.ticker ??= setInterval(() => (this.now = performance.now()), 100);
+		else if (this.ticker) {
+			clearInterval(this.ticker);
+			this.ticker = null;
 		}
 	}
 
@@ -145,6 +163,7 @@ class GameClient {
 		this.view = null;
 		this.seat = null;
 		this.code = null;
+		this.setClock(null);
 		this.setUrl(null);
 	}
 
@@ -164,6 +183,13 @@ class GameClient {
 
 	get isHost(): boolean {
 		return !!this.lobby?.seats.find((s) => s.id === this.seat)?.isHost;
+	}
+
+	/** Milliseconds left in the current turn, or null when turns are unlimited. */
+	get timeLeft(): number | null {
+		const c = this.clock;
+		if (!c) return null;
+		return c.running ? Math.max(0, c.until - this.now) : c.left;
 	}
 
 	get inviteLink(): string {

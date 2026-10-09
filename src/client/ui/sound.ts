@@ -561,6 +561,13 @@ function hover() {
 	play('hover');
 }
 
+/** A clock tick, synthesized (there is no sample): a wooden knock with a bright edge. */
+function tick() {
+	click(0, 0.34, 1.15);
+	tone(1175, 0.07, 'triangle', 0.16, 0, 0.92);
+	tone(2350, 0.035, 'square', 0.025);
+}
+
 export const sfx = {
 	dice: () => play('dice'),
 	build: () => play('build'),
@@ -579,5 +586,7 @@ export const sfx = {
 	/** A small book closing: a menu or sheet closing. */
 	close: () => play('close'),
 	/** A tiny, very quiet wooden tick; at most one every 70 ms. */
-	hover
+	hover,
+	/** A clock tick, once a second as a turn's time runs out. */
+	tick
 };

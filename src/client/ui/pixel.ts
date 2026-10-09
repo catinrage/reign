@@ -184,6 +184,23 @@ export const PIXEL = {
 		],
 		{ ...base, b: '#8a5430', w: '#d8eef5', y: '#f2c14e' }
 	),
+	watch: svg(
+		[
+			'....kkk....',
+			'....kyk....',
+			'...kkkkk...',
+			'.kkyyyyykk.',
+			'.kywwwwwYk.',
+			'kywwwkwwwYk',
+			'kywwwkwwwYk',
+			'kywwwkkkwYk',
+			'kywwwwwwwYk',
+			'.kYwwwwwYk.',
+			'.kkYYYYYkk.',
+			'...kkkkk...'
+		],
+		{ ...base, y: '#f2c14e', Y: '#b8740f', w: '#f6e3bd' }
+	),
 	gear: svg(
 		[
 			'.....kk.....',
