@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { mapName, presetById } from '../../shared/board/maps';
 	import { CHARACTER_INFO } from '../../shared/rules/characters';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
@@ -34,8 +33,15 @@
 	// The table shows the island that will be played.
 	$effect(() => sceneRef.current?.showMenuMap(extended ? mapTiles : null));
 
-	onMount(sideLayout);
+	// Reign Extended spreads the lobby over two columns, so the island slides over to the middle
+	// of the space left beside it.
+	$effect(() => sideLayout(extended ? wideShift : 0.16));
 
+	function wideShift() {
+		const w = window.innerWidth;
+		const right = Math.max(24, w * 0.04) + 880;
+		return Math.min(0.36, right / (2 * w));
+	}
 	function names(seats: { name: string }[]) {
 		const n = seats.map((s) => s.name);
 		return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
@@ -60,189 +66,196 @@
 
 <div class="lobby">
 	<Embers count={14} />
-	<div class="column">
-		<div class="card panel">
+	<div class="column" class:wide={extended}>
+		<div class="card panel" class:wide={extended}>
 			<div class="ribbon head">Gather your table</div>
 
-			<div class="invite">
-				<span class="label">Room code</span>
-				<CodeTiles value={lobby.code} size="big" />
-				<button class="btn small wood" onclick={copy}>
-					<img class="icon-px" src={copied ? PIXEL.check : PIXEL.letter} alt="" />{copied
-						? 'Link copied!'
-						: 'Copy invite link'}
-				</button>
-			</div>
+			<div class="cols">
+				<div class="col">
+					<div class="invite">
+						<span class="label">Room code</span>
+						<CodeTiles value={lobby.code} size="big" />
+						<button class="btn small wood" onclick={copy}>
+							<img class="icon-px" src={copied ? PIXEL.check : PIXEL.letter} alt="" />{copied
+								? 'Link copied!'
+								: 'Copy invite link'}
+						</button>
+					</div>
 
-			<div class="modes" role="radiogroup" aria-label="Game mode">
-				{#each GAME_MODES as m (m)}
-					<button
-						class="mode plaque"
-						class:on={settings.mode === m}
-						role="radio"
-						aria-checked={settings.mode === m}
-						disabled={!client.isHost}
-						onclick={() => client.send({ t: 'setMode', mode: m })}
-					>
-						<span class="mode-name title">
-							{#if m === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}{MODE_INFO[m].name}
-						</span>
-						<span class="mode-text">{MODE_INFO[m].text}</span>
-					</button>
-				{/each}
-			</div>
-
-			<div class="divider">
-				<i></i><span>Settlers {lobby.seats.length}/{lobby.maxPlayers}</span><i></i>
-			</div>
-
-			<div class="seats">
-				{#each lobby.seats as s (s.id)}
-					<div class="seat plaque" class:me={s.id === client.seat} class:ext={extended}>
-						{#if extended}
-							<span class="face">
-								<Portrait id={s.character} size={46} />
-								<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
-							</span>
-						{:else}
-							<span class="shield" style="--shield: var(--art-shield-{s.color})">
-								{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{s.name
-										.slice(0, 1)
-										.toUpperCase()}{/if}
-							</span>
-						{/if}
-						<span class="name title">
-							<span class="who">
-								<span>
-									{s.name}
-									{#if s.id === client.seat}<em>you</em>{/if}
-									{#if extended && s.isBot}<img class="icon-px botmark" src={PIXEL.bot} alt="bot" />{/if}
+					<div class="modes" role="radiogroup" aria-label="Game mode">
+						{#each GAME_MODES as m (m)}
+							<button
+								class="mode plaque"
+								class:on={settings.mode === m}
+								role="radio"
+								aria-checked={settings.mode === m}
+								disabled={!client.isHost}
+								onclick={() => client.send({ t: 'setMode', mode: m })}
+							>
+								<span class="mode-name title">
+									{#if m === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}{MODE_INFO[m].name}
 								</span>
-								{#if extended && s.character}
-									<small>{CHARACTER_INFO[s.character].name} {CHARACTER_INFO[s.character].title}</small>
-								{/if}
-							</span>
-						</span>
-						{#if s.isHost}<img class="icon-px tag" src={PIXEL.crown} alt="host" title="Host" />{/if}
-						{#if !s.connected}<span class="away">away</span>{/if}
-						{#if !s.isHost && !s.isBot && s.connected}
-							{#if s.ready}
-								<span class="ready on" title="Ready"><img class="icon-px" src={PIXEL.check} alt="" />Ready</span>
-							{:else}
-								<span class="ready" title="Not ready yet">Not ready</span>
-							{/if}
-						{/if}
-						{#if client.isHost && s.isBot}
-							<button
-								class="icon-btn kick"
-								onclick={() => client.send({ t: 'removeSeat', seat: s.id })}
-								title="Remove bot"
-								aria-label="Remove {s.name}"
-							>
-								<img src={PIXEL.close} alt="" />
+								<span class="mode-text">{MODE_INFO[m].text}</span>
 							</button>
-						{/if}
-					</div>
-				{/each}
-				{#each Array(open) as _, k (k)}
-					<div class="seat empty">
-						<span class="ghost"></span>
-						<span class="name">Open seat</span>
-						{#if client.isHost}
-							<button class="btn small wood" onclick={() => client.send({ t: 'addBot' })}
-								><img class="icon-px" src={PIXEL.bot} alt="" />Add bot</button
-							>
-						{/if}
-					</div>
-				{/each}
-			</div>
-
-			{#if mySeat}
-				<div class="colors">
-					<span class="label">Your banner</span>
-					<div class="banners">
-						{#each PLAYER_COLORS as c (c)}
-							{@const taken = lobby.seats.some((s) => s.color === c && s.id !== client.seat)}
-							<button
-								class="banner"
-								class:on={mySeat.color === c}
-								style="--shield: var(--art-shield-{c})"
-								disabled={taken}
-								title={taken ? `${c} is taken` : c}
-								aria-label={c}
-								onclick={() => client.send({ t: 'setColor', color: c })}
-							></button>
 						{/each}
 					</div>
-				</div>
-			{/if}
 
-			{#if extended}
-				<div class="extended">
-					{#if mySeat}
-						<button class="pick plaque" onclick={() => (picking = 'character')}>
-							<Portrait id={mySeat.character} size={78} />
-							<span class="pick-body">
-								<span class="label">Your character</span>
-								{#if myChar}
-									<span class="pick-name title">{myChar.name} <small>{myChar.title}</small></span>
-									<span class="trait"><b>{myChar.trait}.</b> {myChar.text}</span>
+					<div class="divider">
+						<i></i><span>Settlers {lobby.seats.length}/{lobby.maxPlayers}</span><i></i>
+					</div>
+
+					<div class="seats">
+						{#each lobby.seats as s (s.id)}
+							<div class="seat plaque" class:me={s.id === client.seat} class:ext={extended}>
+								{#if extended}
+									<span class="face">
+										<Portrait id={s.character} size={46} />
+										<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
+									</span>
 								{:else}
-									<span class="pick-name title">Pick a character</span>
+									<span class="shield" style="--shield: var(--art-shield-{s.color})">
+										{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{s.name
+												.slice(0, 1)
+												.toUpperCase()}{/if}
+									</span>
 								{/if}
-								<span class="change">Change</span>
-							</span>
-						</button>
+								<span class="name title">
+									<span class="who">
+										<span>
+											{s.name}
+											{#if s.id === client.seat}<em>you</em>{/if}
+											{#if extended && s.isBot}<img class="icon-px botmark" src={PIXEL.bot} alt="bot" />{/if}
+										</span>
+										{#if extended && s.character}
+											<small>{CHARACTER_INFO[s.character].name} {CHARACTER_INFO[s.character].title}</small>
+										{/if}
+									</span>
+								</span>
+								{#if s.isHost}<img class="icon-px tag" src={PIXEL.crown} alt="host" title="Host" />{/if}
+								{#if !s.connected}<span class="away">away</span>{/if}
+								{#if !s.isHost && !s.isBot && s.connected}
+									{#if s.ready}
+										<span class="ready on" title="Ready"><img class="icon-px" src={PIXEL.check} alt="" />Ready</span>
+									{:else}
+										<span class="ready" title="Not ready yet">Not ready</span>
+									{/if}
+								{/if}
+								{#if client.isHost && s.isBot}
+									<button
+										class="icon-btn kick"
+										onclick={() => client.send({ t: 'removeSeat', seat: s.id })}
+										title="Remove bot"
+										aria-label="Remove {s.name}"
+									>
+										<img src={PIXEL.close} alt="" />
+									</button>
+								{/if}
+							</div>
+						{/each}
+						{#each Array(open) as _, k (k)}
+							<div class="seat empty">
+								<span class="ghost"></span>
+								<span class="name">Open seat</span>
+								{#if client.isHost}
+									<button class="btn small wood" onclick={() => client.send({ t: 'addBot' })}
+										><img class="icon-px" src={PIXEL.bot} alt="" />Add bot</button
+									>
+								{/if}
+							</div>
+						{/each}
+					</div>
+
+				</div>
+				<div class="col">
+					{#if mySeat}
+						<div class="colors">
+							<span class="label">Your banner</span>
+							<div class="banners">
+								{#each PLAYER_COLORS as c (c)}
+									{@const taken = lobby.seats.some((s) => s.color === c && s.id !== client.seat)}
+									<button
+										class="banner"
+										class:on={mySeat.color === c}
+										style="--shield: var(--art-shield-{c})"
+										disabled={taken}
+										title={taken ? `${c} is taken` : c}
+										aria-label={c}
+										onclick={() => client.send({ t: 'setColor', color: c })}
+									></button>
+								{/each}
+							</div>
+						</div>
 					{/if}
-					<button class="pick plaque" disabled={!client.isHost} onclick={() => (picking = 'map')}>
-						<span class="map-well well"><MapPreview tiles={mapTiles} width={92} height={70} /></span>
-						<span class="pick-body">
-							<span class="label">Island</span>
-							<span class="pick-name title">{mapName(settings.map)} <small>{mapTiles.length} tiles</small></span>
-							<span class="trait">{mapBlurb}</span>
-							{#if client.isHost}<span class="change">Change or make your own</span>{/if}
-						</span>
-					</button>
-					<div class="goal">
-						<span class="label">Points to win</span>
+
+					{#if extended}
+						<div class="extended">
+							{#if mySeat}
+								<button class="pick plaque" onclick={() => (picking = 'character')}>
+									<Portrait id={mySeat.character} size={78} />
+									<span class="pick-body">
+										<span class="label">Your character</span>
+										{#if myChar}
+											<span class="pick-name title">{myChar.name} <small>{myChar.title}</small></span>
+											<span class="trait"><b>{myChar.trait}.</b> {myChar.text}</span>
+										{:else}
+											<span class="pick-name title">Pick a character</span>
+										{/if}
+										<span class="change">Change</span>
+									</span>
+								</button>
+							{/if}
+							<button class="pick plaque" disabled={!client.isHost} onclick={() => (picking = 'map')}>
+								<span class="map-well well"><MapPreview tiles={mapTiles} width={92} height={70} /></span>
+								<span class="pick-body">
+									<span class="label">Island</span>
+									<span class="pick-name title">{mapName(settings.map)} <small>{mapTiles.length} tiles</small></span>
+									<span class="trait">{mapBlurb}</span>
+									{#if client.isHost}<span class="change">Change or make your own</span>{/if}
+								</span>
+							</button>
+							<div class="goal">
+								<span class="label">Points to win</span>
+								{#if client.isHost}
+									<div class="seg">
+										{#each POINT_GOALS as g (g)}
+											<button
+												class="btn small"
+												class:on={settings.pointsToWin === g}
+												onclick={() => client.send({ t: 'setPointsToWin', points: g })}>{g}</button
+											>
+										{/each}
+									</div>
+								{:else}
+									<span class="chosen">{settings.pointsToWin}</span>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					<div class="timer">
+						<div class="timer-head">
+							<span class="label">Turn timer</span>
+							<span class="chosen"
+								><img class="icon-px" src={PIXEL.watch} alt="" />{longTime(lobby.turnTime)}</span
+							>
+						</div>
 						{#if client.isHost}
-							<div class="seg">
-								{#each POINT_GOALS as g (g)}
+							<div class="seg times">
+								{#each TURN_TIMES as t (t)}
 									<button
 										class="btn small"
-										class:on={settings.pointsToWin === g}
-										onclick={() => client.send({ t: 'setPointsToWin', points: g })}>{g}</button
+										class:on={lobby.turnTime === t}
+										onclick={() => client.send({ t: 'setTurnTime', seconds: t })}>{shortTime(t)}</button
 									>
 								{/each}
 							</div>
-						{:else}
-							<span class="chosen">{settings.pointsToWin}</span>
+						{/if}
+						{#if lobby.turnTime}
+							<p class="note">When time runs out, the turn ends on its own.</p>
 						{/if}
 					</div>
-				</div>
-			{/if}
 
-			<div class="timer">
-				<div class="timer-head">
-					<span class="label">Turn timer</span>
-					<span class="chosen"
-						><img class="icon-px" src={PIXEL.watch} alt="" />{longTime(lobby.turnTime)}</span
-					>
 				</div>
-				{#if client.isHost}
-					<div class="seg times">
-						{#each TURN_TIMES as t (t)}
-							<button
-								class="btn small"
-								class:on={lobby.turnTime === t}
-								onclick={() => client.send({ t: 'setTurnTime', seconds: t })}>{shortTime(t)}</button
-							>
-						{/each}
-					</div>
-				{/if}
-				{#if lobby.turnTime}
-					<p class="note">When time runs out, the turn ends on its own.</p>
-				{/if}
 			</div>
 
 			<div class="foot">
@@ -688,11 +701,48 @@
 	.goal .seg .btn {
 		min-width: 44px;
 	}
+	.cols,
+	.col {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+	/* Reign Extended has more to set up, so it spreads sideways instead of growing tall. */
+	@media (min-width: 820px) {
+		.card.wide {
+			width: min(860px, 100%);
+		}
+		.wide .cols {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 18px;
+		}
+		.card.wide,
+		.wide .col {
+			gap: 11px;
+		}
+		.wide .invite {
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			row-gap: 6px;
+		}
+		.wide .invite :global(.tiles) {
+			--t: calc(var(--s) * 12);
+		}
+		.wide .invite .label {
+			flex-basis: 100%;
+		}
+	}
 	@media (min-width: 1100px) and (min-aspect-ratio: 4/3) {
 		.column {
 			justify-content: flex-start;
 			width: 600px;
 			margin-left: max(24px, 4vw);
+		}
+		.column.wide {
+			width: 900px;
+			max-width: calc(100% - 2 * max(24px, 4vw));
 		}
 		.card {
 			margin: 0 auto;

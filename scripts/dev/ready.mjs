@@ -1,9 +1,9 @@
 // Dev helper: screenshot the lobby ready check from the host's side and from a guest's side.
 // One browser page at a time; the other player is a bare socket, which keeps it light.
-// Usage: node scripts/dev/ready.mjs <outDir> [width] [height] [base] [server]
+// Usage: node scripts/dev/ready.mjs <outDir> [width] [height] [mode] [base] [server]
 import { chromium } from 'playwright';
 import WebSocket from 'ws';
-const [dir, w = '1600', h = '900', base = 'http://localhost:5173', server = 'ws://localhost:8787/ws'] =
+const [dir, w = '1600', h = '900', mode = 'classic', base = 'http://localhost:5173', server = 'ws://localhost:8787/ws'] =
 	process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium',
@@ -43,13 +43,16 @@ const shot = async (page, name, wait = 1500) => {
 	const page = await open('Komeil');
 	await page.click('.sign .btn.green', { force: true });
 	await lobby(page);
-	await page.evaluate(() => window.__client.send({ t: 'addBot' }));
+	await page.evaluate((mode) => {
+		window.__client.send({ t: 'addBot' });
+		window.__client.send({ t: 'setMode', mode });
+	}, mode);
 	const code = await page.evaluate(() => window.__client.lobby.code);
 	const guest = socket({ t: 'join', code, name: 'Bram' });
 	await guest.welcome;
-	await shot(page, 'ready-host-waiting', 2500);
+	await shot(page, `${mode}-host-waiting`, 2500);
 	guest.send({ t: 'setReady', ready: true });
-	await shot(page, 'ready-host-can-start', 1000);
+	await shot(page, `${mode}-host-can-start`, 1000);
 	guest.ws.close();
 	await page.close();
 }
@@ -58,12 +61,13 @@ const shot = async (page, name, wait = 1500) => {
 	const host = socket({ t: 'create', name: 'Komeil' });
 	const code = await host.welcome;
 	host.send({ t: 'addBot' });
+	host.send({ t: 'setMode', mode });
 	const page = await open('Bram');
 	await page.evaluate((code) => window.__client.join(code), code);
 	await lobby(page);
-	await shot(page, 'ready-guest-not-ready', 2500);
+	await shot(page, `${mode}-guest-not-ready`, 2500);
 	await page.click('.ready-btn', { force: true });
-	await shot(page, 'ready-guest-ready', 1000);
+	await shot(page, `${mode}-guest-ready`, 1000);
 	host.ws.close();
 }
 await browser.close();
