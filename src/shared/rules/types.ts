@@ -2,6 +2,7 @@ import type { Board } from '../board/topology';
 import type { BuildingRules } from './buildings';
 import type { CharacterId } from './characters';
 import type { DevCardType, PlayerColor, Resource, ResourceCounts } from './config';
+import type { EventCard, EventsState, EventsView } from './events';
 import type { GameMode } from './modes';
 
 export interface DevCard {
@@ -37,7 +38,9 @@ export type TurnStep =
 	| 'moveRobber'
 	| 'steal'
 	| 'main'
-	| 'roadBuilding';
+	| 'roadBuilding'
+	/** Reign Extended's Royal Decree: the player in last place picks the round's event card. */
+	| 'eventChoice';
 
 export interface TradeOffer {
 	id: number;
@@ -86,6 +89,8 @@ export interface GameState {
 	workshops: (number | null)[];
 	/** Indexed by edge id: whether the road there is paved with stone (Reign Extended). */
 	stoneRoads: boolean[];
+	/** Reign Extended's Events deck and this round's card; null when the game has no events. */
+	events: EventsState | null;
 	/**
 	 * The turn each piece went up on (0: during setup), keyed by `builtKey`: a city keeps the
 	 * settlement's entry beside its own, and a stone road the road's. The board's tooltips show it.
@@ -165,8 +170,24 @@ export type GameEvent =
 	| Ev<'largestArmy', { player: number | null; knights: number }>
 	| Ev<'gameOver', { winner: number; points: number[] }>
 	| Ev<'chat', { player: number; text: string }>
+	/** A new event card flipped for the round (`by`: who picked it, for a Royal Decree). */
+	| Ev<'eventDrawn', { card: EventCard; round: number; by?: number }>
+	/**
+	 * Cards an event moved between hands and the bank (null). `resource` is null for viewers who
+	 * neither gave nor got the card. A Bandit Uprising says where the robber went; a Tournament who won.
+	 */
+	| Ev<'eventCards', { card: EventCard; moves: EventMove[]; hex?: number; champion?: number }>
+	/** Two tiles swapped number tokens. */
+	| Ev<'earthquake', { hexes: [number, number] }>
 	/** A dev cheat was used (only possible on the local dev server). */
 	| Ev<'cheat', { player: number; text: string }>;
+
+/** A card an event moved: from a player or the bank (null) to a player or the bank. */
+export interface EventMove {
+	from: number | null;
+	to: number | null;
+	resource: Resource | null;
+}
 
 /** A stone road is built on top of a road: `at` is its edge. */
 export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad';
@@ -203,7 +224,12 @@ export type Action =
 	| { type: 'cancelTrade' }
 	| { type: 'endTurn' }
 	/** Take a resource a trait owes you (see GameState.picks); allowed at any time. */
-	| { type: 'takePick'; resource: Resource };
+	| { type: 'takePick'; resource: Resource }
+
+	/** Royal Decree: the player in last place picks the round's card. */
+	| { type: 'chooseEvent'; card: EventCard }
+	/** Bountiful Year: take your resource from the bank. */
+	| { type: 'claimBounty'; resource: Resource };
 
 export type ActionResult = { ok: true; events: GameEvent[] } | { ok: false; error: string };
 
@@ -226,8 +252,9 @@ export interface PlayerView {
 }
 
 export interface GameView
-	extends Omit<GameState, 'rng' | 'devDeck' | 'players' | 'log'> {
+	extends Omit<GameState, 'rng' | 'devDeck' | 'players' | 'log' | 'events'> {
 	devDeckCount: number;
+	events: EventsView | null;
 	players: PlayerView[];
 	log: GameEvent[];
 	/** Index of the viewer, or -1 for a spectator. */

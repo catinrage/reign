@@ -16,6 +16,7 @@ import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
+import { cleanEventRules } from '../shared/rules/events';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
 import {
 	DEFAULT_SETTINGS,
@@ -357,6 +358,13 @@ export class Room {
 				if (this.settings.buildings[msg.building] !== !!msg.on) this.unready();
 				this.settings.buildings[msg.building] = !!msg.on;
 				return this.broadcastLobby();
+			case 'setEvents': {
+				if (!isHost || this.lockedSettings) return;
+				const events = cleanEventRules(msg.events);
+				if (JSON.stringify(events) !== JSON.stringify(this.settings.events)) this.unready();
+				this.settings.events = events;
+				return this.broadcastLobby();
+			}
 			case 'setCharacters':
 				if (!isHost || this.lockedSettings) return;
 				if (this.settings.characters !== !!msg.on) this.unready();
@@ -842,8 +850,14 @@ function forcedMove(g: GameState): { player: number; action: Action } | null {
 	if (g.trade) return { player: g.trade.from, action: { type: 'cancelTrade' } };
 	if (g.step === 'roll') return { player: g.current, action: { type: 'rollDice' } };
 	if (g.step === 'main') return { player: g.current, action: { type: 'endTurn' } };
-	// Discards still owed, setup placements, the robber and the steal: what a bot would pick.
-	const who = g.step === 'discard' ? Number(Object.keys(g.pendingDiscards)[0]) : g.current;
+	// Discards still owed, setup placements, the robber, the steal and a Royal Decree's pick:
+	// what a bot would pick.
+	const who =
+		g.step === 'discard'
+			? Number(Object.keys(g.pendingDiscards)[0])
+			: g.step === 'eventChoice'
+				? (g.events?.choice?.player ?? g.current)
+				: g.current;
 	const action = botAction(g, who);
 	return action && { player: who, action };
 }

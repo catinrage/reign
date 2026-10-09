@@ -13,6 +13,7 @@ import {
 	pips
 } from './config';
 import { STEWARD_EXTRA, type CharacterId } from './characters';
+import { eventRatio } from './events';
 import type { BuiltKind, GameState, GameView } from './types';
 
 /** Where `GameState.builtTurns` keeps the turn a piece went up on: its kind and its spot. */
@@ -33,6 +34,7 @@ type Shared = Pick<
 	| 'buildingRules'
 	| 'workshops'
 	| 'stoneRoads'
+	| 'events'
 > & { players: { character: GameState['players'][number]['character'] }[] };
 
 /** What a build costs this player: the standard price, bent by their character's trait. */
@@ -189,6 +191,9 @@ export function tradeRatios(s: Shared, player: number): Record<Resource, number>
 			harbor(topo.edges[e].b);
 		});
 	}
+	// Reign Extended events: a Traveling Fair trades 2:1 everywhere, a Storm at Sea shuts harbors.
+	const current = s.events?.current ?? null;
+	if (current) for (const r of RESOURCES) ratios[r] = eventRatio(current, ratios[r], base);
 	return ratios;
 }
 
