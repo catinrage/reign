@@ -13,7 +13,14 @@ export const sharedUniforms = {
 	uTime: { value: 0 },
 	uFlicker: { value: 1 },
 	/** 0 = day, 1 = night. Phase two's day/night cycle drives this. */
-	uNight: { value: 0 }
+	uNight: { value: 0 },
+	/**
+	 * Board tiles drained of color, for the robber: each is (center x, center z, amount, 0)
+	 * in world units. Two slots, so one tile can fade back while the next one grays.
+	 */
+	uGray: { value: [new THREE.Vector4(), new THREE.Vector4()] },
+	/** World size of one board voxel, to find which tile a fragment's voxel belongs to. */
+	uGrayVoxel: { value: 1 }
 };
 
 export interface VoxelMaterialOptions {
@@ -27,6 +34,8 @@ export interface VoxelMaterialOptions {
 	envMapIntensity?: number;
 	/** Voxel y where swaying starts (ground level). */
 	swayBase?: number;
+	/** Board tiles: can be grayed out per tile (see `sharedUniforms.uGray`). */
+	tileGray?: boolean;
 }
 
 const VERT_HEAD = /* glsl */ `
@@ -83,6 +92,21 @@ const FRAG_BEVEL = /* glsl */ `
 }
 `;
 
+/** Pointy-top hexes of circumradius 12 (HEX_R); voxels on the beige border keep their color. */
+const FRAG_GRAY = /* glsl */ `
+{
+	vec2 cell = (floor(vVox - vVoxN * 0.5).xz + 0.5) * uGrayVoxel;
+	for (int i = 0; i < 2; i++) {
+		vec4 g = uGray[i];
+		if (g.z <= 0.0) continue;
+		vec2 a = abs(cell - g.xy);
+		float edge = 10.3923 - max(a.x, 0.5 * a.x + 0.8660254 * a.y);
+		float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+		diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l * 0.95), g.z * step(0.63, edge));
+	}
+}
+`;
+
 const FRAG_RIM = /* glsl */ `
 {
 	vec2 uv = voxUV();
@@ -103,6 +127,10 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		shader.uniforms.uNight = sharedUniforms.uNight;
 		shader.uniforms.uBevel = bevel;
 		shader.uniforms.uBevelWidth = bevelWidth;
+		if (opts.tileGray) {
+			shader.uniforms.uGray = sharedUniforms.uGray;
+			shader.uniforms.uGrayVoxel = sharedUniforms.uGrayVoxel;
+		}
 
 		let vs = shader.vertexShader.replace('#include <common>', `#include <common>\n${VERT_HEAD}`);
 		vs = vs.replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_BODY}`);
@@ -124,6 +152,10 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 
 		let fs = shader.fragmentShader.replace('#include <common>', `#include <common>\n${FRAG_HEAD}`);
 		fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_RIM}`);
+		if (opts.tileGray) {
+			fs = fs.replace('#include <common>', '#include <common>\nuniform vec4 uGray[2];\nuniform float uGrayVoxel;');
+			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_GRAY}`);
+		}
 		if (kind === Mat.Water) {
 			fs = fs.replace(
 				'#include <color_fragment>',
@@ -153,7 +185,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		}
 		shader.fragmentShader = fs;
 	};
-	material.customProgramCacheKey = () => `voxel-${kind}`;
+	material.customProgramCacheKey = () => `voxel-${kind}${opts.tileGray ? '-gray' : ''}`;
 	return material;
 }
 

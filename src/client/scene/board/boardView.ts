@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { type Board, getTopology } from '../../../shared/board/topology';
 import { HEX_R, SEA_Y } from '../layout';
 import { getIcons } from '../icons';
+import { sharedUniforms } from '../voxel/materials';
 import { cloneModel, robberModel, sheepModel, shipModel } from './models';
-import { type BoardBuild, DECK_TOP, buildBoard } from './terrain';
+import { type BoardBuild, DECK_TOP, LAND_TOP, buildBoard } from './terrain';
 import { harborToken, numberToken } from './tokens';
 
 /** Number tokens are a little smaller than a third of a tile, as in the reference. */
@@ -28,6 +29,11 @@ export class BoardView {
 		phase: number;
 	}[] = [];
 	private faces: THREE.Object3D[] = [];
+	/** The robber's tile drains to gray (never the desert); the tile it left fades back. */
+	private gray = [
+		{ hex: -1, amount: 0, target: 0 },
+		{ hex: -1, amount: 0, target: 0 }
+	];
 	robberHex = -1;
 
 	constructor(
@@ -93,13 +99,23 @@ export class BoardView {
 		return new THREE.Vector3(t.x * HEX_R, 0, t.z * HEX_R);
 	}
 
-	/** Where the robber stands on a hex: beside the number token. */
+	/** Where the robber stands on a hex: beside the number token, in the lowest spot round it. */
 	robberSpot(h: number) {
 		const c = this.hexCenter(h);
-		const hasToken = this.board.hexes[h].number !== null;
-		if (hasToken) c.add(new THREE.Vector3(-5, 0, 2.4));
-		c.y = this.groundAt(c.x, c.z, 2);
-		return c;
+		if (this.board.hexes[h].number === null) {
+			c.y = this.groundAt(c.x, c.z, 2);
+			return c;
+		}
+		// The usual spot is to the token's left; on a mountain a valley between peaks wins.
+		let best: THREE.Vector3 | null = null;
+		const a0 = Math.atan2(2.4, -5);
+		for (let k = 0; k < 8; k++) {
+			const a = a0 + (k * Math.PI) / 4;
+			const p = new THREE.Vector3(c.x + Math.cos(a) * 5.5, 0, c.z + Math.sin(a) * 5.5);
+			p.y = this.groundAt(p.x, p.z, 2);
+			if (!best || p.y < best.y - 0.3) best = p;
+		}
+		return best!;
 	}
 
 	groundAt(x: number, z: number, r = 1.5) {
@@ -108,11 +124,21 @@ export class BoardView {
 		return y;
 	}
 
+	/**
+	 * Height a piece stands at: the land level, or higher only where the ground right under
+	 * it is. Sampling wider would lift pieces onto slopes beside them (mountains, hills).
+	 */
+	private standY(x: number, z: number, r: number) {
+		let y = LAND_TOP;
+		for (let dz = -r; dz <= r; dz += r) for (let dx = -r; dx <= r; dx += r) y = Math.max(y, this.build.groundY(x + dx, z + dz));
+		return y;
+	}
+
 	vertexPos(v: number) {
 		const p = getTopology(this.board).vertices[v];
 		const x = p.x * HEX_R;
 		const z = p.z * HEX_R;
-		return new THREE.Vector3(x, this.groundAt(x, z, 2), z);
+		return new THREE.Vector3(x, this.standY(x, z, 0.6), z);
 	}
 
 	edgePos(e: number) {
@@ -123,7 +149,10 @@ export class BoardView {
 		const x = ((a.x + b.x) / 2) * HEX_R;
 		const z = ((a.z + b.z) / 2) * HEX_R;
 		const angle = -Math.atan2((b.z - a.z), b.x - a.x);
-		return { pos: new THREE.Vector3(x, this.groundAt(x, z, 2), z), angle };
+		// Roads lie along the beige border, so sample along the edge itself.
+		let y = LAND_TOP;
+		for (const t of [0.2, 0.5, 0.8]) y = Math.max(y, this.standY((a.x + (b.x - a.x) * t) * HEX_R, (a.z + (b.z - a.z) * t) * HEX_R, 0.3));
+		return { pos: new THREE.Vector3(x, y, z), angle };
 	}
 
 	setRobber(h: number, instant: boolean) {
@@ -132,16 +161,40 @@ export class BoardView {
 			this.robber.position.copy(this.robberSpot(h));
 		}
 		this.tokens.forEach((t, i) => (t.userData.dim = i === h));
+		const hex = h >= 0 && this.board.hexes[h]?.terrain !== 'desert' ? h : -1;
+		if (!this.gray.some((g) => g.hex === hex && g.target === 1)) {
+			for (const g of this.gray) g.target = 0;
+			const slot = this.gray.find((g) => g.amount === 0) ?? this.gray.reduce((a, b) => (a.amount < b.amount ? a : b));
+			slot.hex = hex;
+			slot.target = hex >= 0 ? 1 : 0;
+		}
+		if (instant) for (const g of this.gray) g.amount = g.target;
+		this.applyGray();
+	}
+
+	private applyGray() {
+		this.gray.forEach((g, i) => {
+			const c = g.hex >= 0 ? this.hexCenter(g.hex) : new THREE.Vector3();
+			sharedUniforms.uGray.value[i].set(c.x, c.z, g.hex >= 0 ? g.amount : 0, 0);
+		});
 	}
 
 	update(dt: number, t: number, cameraAzimuth: number) {
 		for (const f of this.faces) f.rotation.y = cameraAzimuth;
+		// The color drains as the robber lands and comes back a little quicker.
+		for (const g of this.gray) {
+			if (g.amount < g.target) g.amount = Math.min(g.target, g.amount + dt / 1.1);
+			else if (g.amount > g.target) g.amount = Math.max(g.target, g.amount - dt / 0.8);
+		}
+		this.applyGray();
 		for (const tok of this.tokens) {
 			const target = tok.userData.dim ? 0.55 : 1;
 			const face = tok.getObjectByName('face') as THREE.Mesh | undefined;
 			if (face) {
 				const m = face.material as THREE.MeshStandardMaterial;
 				m.color.setScalar(THREE.MathUtils.lerp(m.color.r, target, 0.1));
+				const ghost = tok.getObjectByName('ghost') as THREE.Mesh | undefined;
+				if (ghost) (ghost.material as THREE.MeshBasicMaterial).color.copy(m.color);
 			}
 			if (tok.userData.highlight) tok.position.y = tok.userData.baseY + 1 + Math.sin(t * 4) * 0.5;
 			else if (tok.userData.baseY !== undefined) tok.position.y = tok.userData.baseY;
@@ -175,6 +228,7 @@ export class BoardView {
 
 	dispose() {
 		this.build.dispose();
+		for (const v of sharedUniforms.uGray.value) v.set(0, 0, 0, 0);
 	}
 }
 
