@@ -2,7 +2,7 @@
 	import { mapName, presetById } from '../../shared/board/maps';
 	import { CHARACTER_INFO } from '../../shared/rules/characters';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
-	import { GAME_MODES, MODE_INFO, POINT_GOALS } from '../../shared/rules/modes';
+	import { GAME_MODES, MODE_INFO, POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../shared/rules/modes';
 	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
 	import { client } from '../state/client.svelte';
 	import CharacterPicker from './extended/CharacterPicker.svelte';
@@ -21,6 +21,8 @@
 	// The host can only start once every other settler has said they are ready.
 	const notReady = $derived(lobby.seats.filter((s) => !s.ready));
 	const enough = $derived(lobby.seats.length >= MIN_PLAYERS);
+	// Seven or eight at the table: slimmer seat rows so the lobby still fits on one screen.
+	const many = $derived(lobby.seats.length + open > 6);
 	let copied = $state(false);
 	const settings = $derived(lobby.settings);
 	const extended = $derived(settings.mode === 'extended');
@@ -41,6 +43,18 @@
 		const w = window.innerWidth;
 		const right = Math.max(24, w * 0.04) + 880;
 		return Math.min(0.36, right / (2 * w));
+	}
+	/** Any whole number of points in range; anything else snaps back to the current goal. */
+	function otherGoal(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const n = Math.round(Number(input.value));
+		if (input.value.trim() && Number.isFinite(n)) {
+			const points = Math.max(POINTS_MIN, Math.min(POINTS_MAX, n));
+			client.send({ t: 'setPointsToWin', points });
+			if (points !== n) input.value = String(points);
+		} else {
+			input.value = POINT_GOALS.includes(settings.pointsToWin) ? '' : String(settings.pointsToWin);
+		}
 	}
 	function names(seats: { name: string }[]) {
 		const n = seats.map((s) => s.name);
@@ -87,12 +101,12 @@
 						<i></i><span>Settlers {lobby.seats.length}/{lobby.maxPlayers}</span><i></i>
 					</div>
 
-					<div class="seats">
+					<div class="seats" class:many>
 						{#each lobby.seats as s (s.id)}
 							<div class="seat plaque" class:me={s.id === client.seat} class:ext={extended}>
 								{#if extended}
 									<span class="face">
-										<Portrait id={s.character} size={46} />
+										<Portrait id={s.character} size={many ? 30 : 46} />
 										<span class="shield mini" style="--shield: var(--art-shield-{s.color})"></span>
 									</span>
 								{:else}
@@ -148,6 +162,43 @@
 						{/each}
 					</div>
 
+					<div class="end">
+						<div class="foot">
+							<button class="btn wood" onclick={() => client.leave()}
+								><img class="icon-px" src={PIXEL.door} alt="" />Leave</button
+							>
+							{#if client.isHost}
+								<button
+									class="btn big shine start"
+									disabled={!enough || notReady.length > 0}
+									onclick={() => client.send({ t: 'start' })}
+								>
+									<img src={PIXEL.play} alt="" />Start game
+								</button>
+							{:else if mySeat}
+								<button
+									class="btn big ready-btn"
+									class:shine={!mySeat.ready}
+									class:green={mySeat.ready}
+									aria-pressed={mySeat.ready}
+									onclick={() => client.send({ t: 'setReady', ready: !mySeat.ready })}
+								>
+									<img src={mySeat.ready ? PIXEL.check : PIXEL.hourglass} alt="" />{mySeat.ready
+										? 'Ready!'
+										: 'I am ready'}
+								</button>
+							{/if}
+						</div>
+						{#if client.isHost && !enough}
+							<p class="hint">Send the link to friends, or add a bot to start.</p>
+						{:else if client.isHost && notReady.length}
+							<p class="hint">Waiting for {names(notReady)} to be ready.</p>
+						{:else if !client.isHost && mySeat?.ready}
+							<p class="hint">Waiting for the host to start. Tap again if you are not ready.</p>
+						{:else if !client.isHost}
+							<p class="hint">The host can start once everyone is ready.</p>
+						{/if}
+					</div>
 				</div>
 				<div class="col">
 					<div class="modes" role="radiogroup" aria-label="Game mode">
@@ -226,6 +277,20 @@
 												onclick={() => client.send({ t: 'setPointsToWin', points: g })}>{g}</button
 											>
 										{/each}
+										<input
+											class="input other"
+											class:on={!POINT_GOALS.includes(settings.pointsToWin)}
+											type="number"
+											inputmode="numeric"
+											min={POINTS_MIN}
+											max={POINTS_MAX}
+											placeholder="Other"
+											aria-label="Other points to win, {POINTS_MIN} to {POINTS_MAX}"
+											title="Any number from {POINTS_MIN} to {POINTS_MAX}"
+											value={POINT_GOALS.includes(settings.pointsToWin) ? '' : settings.pointsToWin}
+											onchange={otherGoal}
+											onkeydown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+										/>
 									</div>
 								{:else}
 									<span class="chosen">{settings.pointsToWin}</span>
@@ -260,41 +325,6 @@
 				</div>
 			</div>
 
-			<div class="foot">
-				<button class="btn wood" onclick={() => client.leave()}
-					><img class="icon-px" src={PIXEL.door} alt="" />Leave</button
-				>
-				{#if client.isHost}
-					<button
-						class="btn big shine start"
-						disabled={!enough || notReady.length > 0}
-						onclick={() => client.send({ t: 'start' })}
-					>
-						<img src={PIXEL.play} alt="" />Start game
-					</button>
-				{:else if mySeat}
-					<button
-						class="btn big ready-btn"
-						class:shine={!mySeat.ready}
-						class:green={mySeat.ready}
-						aria-pressed={mySeat.ready}
-						onclick={() => client.send({ t: 'setReady', ready: !mySeat.ready })}
-					>
-						<img src={mySeat.ready ? PIXEL.check : PIXEL.hourglass} alt="" />{mySeat.ready
-							? 'Ready!'
-							: 'I am ready'}
-					</button>
-				{/if}
-			</div>
-			{#if client.isHost && !enough}
-				<p class="hint">Send the link to friends, or add a bot to start.</p>
-			{:else if client.isHost && notReady.length}
-				<p class="hint">Waiting for {names(notReady)} to be ready.</p>
-			{:else if !client.isHost && mySeat?.ready}
-				<p class="hint">Waiting for the host to start. Tap again if you are not ready.</p>
-			{:else if !client.isHost}
-				<p class="hint">The host can start once everyone is ready.</p>
-			{/if}
 		</div>
 	</div>
 </div>
@@ -603,6 +633,24 @@
 	.seat.ext {
 		min-height: 56px;
 	}
+	.many .seat.ext {
+		min-height: 38px;
+		padding-top: 0;
+		padding-bottom: 0;
+	}
+	.many {
+		gap: 4px;
+	}
+	.many .name {
+		font-size: 16px;
+	}
+	.many .who small {
+		font-size: 11.5px;
+	}
+	/* Same button, drawn at a smaller pixel size. */
+	.many .kick {
+		--s: 2.2px;
+	}
 	.face {
 		position: relative;
 		flex: none;
@@ -703,6 +751,35 @@
 	.goal .seg .btn {
 		min-width: 44px;
 	}
+	.goal .seg {
+		display: flex;
+		gap: 4px;
+		align-items: center;
+	}
+	.other {
+		width: 66px;
+		height: calc(var(--s) * 11);
+		padding: 0 2px;
+		box-sizing: border-box;
+		text-align: center;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 14px;
+		-moz-appearance: textfield;
+		appearance: textfield;
+	}
+	.other::-webkit-inner-spin-button,
+	.other::-webkit-outer-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+	.other::placeholder {
+		font-size: 12px;
+	}
+	.other.on {
+		outline: 3px solid #ffd45a;
+		outline-offset: 0;
+	}
 	.cols {
 		display: flex;
 		flex-direction: column;
@@ -718,6 +795,12 @@
 	.modes {
 		order: -1;
 	}
+	.end {
+		order: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
 	/* Reign Extended has more to set up, so it spreads sideways instead of growing tall. */
 	@media (min-width: 820px) {
 		.card.wide {
@@ -726,8 +809,11 @@
 		.wide .cols {
 			display: grid;
 			grid-template-columns: 1fr 1fr;
-			align-items: start;
 			gap: 18px;
+		}
+		/* Leave and Start sit at the foot of the seats, level with the end of the settings. */
+		.wide .end {
+			margin-top: auto;
 		}
 		.wide .col {
 			display: flex;
@@ -757,6 +843,8 @@
 			margin-left: max(24px, 4vw);
 		}
 		.column.wide {
+			padding-top: 34px;
+			padding-bottom: 8px;
 			width: 900px;
 			max-width: calc(100% - 2 * max(24px, 4vw));
 		}

@@ -855,3 +855,31 @@ describe('spectators', () => {
 		expect(fan.sent.at(-1)).toMatchObject({ t: 'error' });
 	});
 });
+
+describe('big custom islands and custom goals', () => {
+	it('takes any size of island, seats eight on 40 tiles or more, and any goal from 3 to 30', () => {
+		const room = new Room('HUGE1');
+		const a = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		const tiles = [];
+		for (let r = -9; r <= 9; r++)
+			for (let q = -9; q <= 9; q++) if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) <= 9) tiles.push({ q, r, terrain: null });
+		room.handle(host, { t: 'setMap', map: { custom: { name: 'Vast', tiles } } }, a.ws);
+		const map = room.lobbyInfo().settings.map;
+		expect('custom' in map ? map.custom.tiles : []).toHaveLength(271);
+		expect(room.lobbyInfo().maxPlayers).toBe(8);
+		for (let i = 0; i < 8; i++) room.handle(host, { t: 'addBot' }, a.ws);
+		expect(room.seats).toHaveLength(8);
+		expect(new Set(room.seats.map((s) => s.color)).size).toBe(8);
+
+		room.handle(host, { t: 'setPointsToWin', points: 17 }, a.ws);
+		expect(room.lobbyInfo().settings.pointsToWin).toBe(17);
+		for (const bad of [2, 31, 12.5, '20']) {
+			room.handle(host, { t: 'setPointsToWin', points: bad as number }, a.ws);
+			expect(room.lobbyInfo().settings.pointsToWin).toBe(17);
+		}
+		room.dispose();
+	});
+});

@@ -121,7 +121,7 @@ export type ServerMessage =
 	| { t: 'pong' };
 
 /** The most any table seats; how many a game actually takes depends on the mode and island. */
-export const MAX_PLAYERS = 6;
+export const MAX_PLAYERS = 8;
 /** Classic and the standard-size islands seat four. */
 export const CLASSIC_PLAYERS = 4;
 export const MIN_PLAYERS = 2;

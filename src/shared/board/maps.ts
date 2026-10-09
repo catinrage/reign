@@ -27,10 +27,12 @@ export interface CustomMap {
 	tiles: MapTile[];
 }
 
-/** Map editor bounds: tiles live within this many hexes of the center. */
-export const MAP_RADIUS = 4;
+/**
+ * Islands can be as big as players like. This bound is only a safety net far beyond anything
+ * drawn by hand (469 tiles), so a pasted code can't ask the table to build something absurd.
+ */
+export const MAP_MAX_RADIUS = 12;
 export const MAP_MIN_TILES = 10;
-export const MAP_MAX_TILES = 40;
 
 /** Single-letter terrain codes, used by the ASCII presets and by shareable map codes. */
 export const TERRAIN_CODE: Record<Terrain, string> = {
@@ -172,12 +174,15 @@ export function presetById(id: string): MapPreset | undefined {
 	return MAP_PRESETS.find((p) => p.id === id);
 }
 
+/** The most players any island seats. */
+export const MAP_MAX_SEATS = 8;
+
 /**
- * How many players an island seats: four on the standard size, five from 25 tiles and six from
- * 30 (the size of the 5-6 player board).
+ * How many players an island seats: one per five tiles, so four on the standard size, six on
+ * the 30-tile 5-6 player board and eight from 40 tiles.
  */
 export function mapSeats(tileCount: number): number {
-	return tileCount >= 30 ? 6 : tileCount >= 25 ? 5 : 4;
+	return Math.max(4, Math.min(MAP_MAX_SEATS, Math.floor(tileCount / 5)));
 }
 
 /** The tiles a map choice stands for, or null if it isn't valid. */
@@ -196,11 +201,10 @@ export function validateCustomMap(map: CustomMap): string | null {
 	if (!map || !Array.isArray(map.tiles)) return 'That map is empty.';
 	const tiles = map.tiles;
 	if (tiles.length < MAP_MIN_TILES) return `A map needs at least ${MAP_MIN_TILES} land tiles.`;
-	if (tiles.length > MAP_MAX_TILES) return `A map can have at most ${MAP_MAX_TILES} land tiles.`;
 	const seen = new Set<string>();
 	for (const t of tiles) {
 		if (!Number.isInteger(t.q) || !Number.isInteger(t.r)) return 'A tile is off the grid.';
-		if (hexDistance(t, { q: 0, r: 0 }) > MAP_RADIUS) return 'A tile is too far from the center.';
+		if (hexDistance(t, { q: 0, r: 0 }) > MAP_MAX_RADIUS) return 'A tile is too far from the center.';
 		if (t.terrain !== null && !TERRAINS.includes(t.terrain)) return 'A tile has an unknown terrain.';
 		const k = hexKey(t);
 		if (seen.has(k)) return 'Two tiles share a spot.';
