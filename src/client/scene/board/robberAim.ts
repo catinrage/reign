@@ -48,7 +48,8 @@ export class RobberAim {
 			uniforms: {
 				uColor: { value: this.hue },
 				uAmount: { value: 0 },
-				uTime: sharedUniforms.uTime
+				/** 0..1, where the rising bands are. */
+				uPhase: { value: 0 }
 			},
 			vertexShader: /* glsl */ `
 				varying float vY;
@@ -58,16 +59,18 @@ export class RobberAim {
 				}`,
 			// In steps like the pixel art of the interface: brightest at the foot, fading out
 			// upward, with bands of light rising through it. Only the far walls are drawn (their
-			// inside faces), so the light stands behind the tile and never fogs it over.
+			// inside faces), so the light stands behind the tile and never fogs it over. No pow and
+			// no clock in here (see `sharedUniforms.uAimWave`).
 			fragmentShader: /* glsl */ `
 				uniform vec3 uColor;
 				uniform float uAmount;
-				uniform float uTime;
+				uniform float uPhase;
 				varying float vY;
 				void main() {
 					float y = floor(vY * 11.0) / 11.0;
-					float band = step(0.55, fract(y * 2.75 - uTime * 0.9));
-					float a = pow(1.0 - y, 1.5) * (0.6 + 0.4 * band) * uAmount;
+					float band = step(0.55, fract(y * 2.75 - uPhase));
+					float f = clamp(1.0 - y, 0.0, 1.0);
+					float a = f * sqrt(f) * (0.6 + 0.4 * band) * uAmount;
 					gl_FragColor = vec4(mix(uColor, vec3(1.0), 0.15) * a, 1.0);
 				}`,
 			transparent: true,
@@ -137,6 +140,12 @@ export class RobberAim {
 		if (this.on) this.amount = Math.min(1, this.amount + dt / FADE_IN);
 		else this.amount = Math.max(0, this.amount - dt / FADE_OUT);
 		this.since += dt;
+		// How the light moves, worked out here rather than in the shaders (see
+		// `sharedUniforms.uAimWave`): the sparks' heading, a pulse, the phase of the rings and bands.
+		const spin = t * 2.6;
+		const phase = (t * 0.9) % 1;
+		sharedUniforms.uAimWave.value.set(Math.cos(spin), Math.sin(spin), 0.5 + 0.5 * Math.sin(t * 5), phase);
+		this.curtainMat.uniforms.uPhase.value = phase;
 		if (!this.on && this.amount === 0) {
 			this.hex = -1;
 			board.setAimed(-1);
