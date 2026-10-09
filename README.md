@@ -22,7 +22,13 @@ The host picks the mode in the lobby.
     twin highlands and a winding coast. Terrains, numbers and harbors are dealt fresh each game.
   - *Map maker:* paint your own island of any size (fixed or random tiles), save it in your
     browser and share it as a short code.
-  - *Points to win:* 8, 10, 12 or 14, or any number from 3 to 30.
+  - *Random islands:* pick a size (12 to 240 tiles), a shape (round, long, ragged, or several
+    islands joined by land bridges) and lakes, and generate until you like it. Everyone in
+    the lobby sees each island, and Reroll grows another of the same kind.
+  - *Points to win:* 8, 10, 12 or 14, or any number from 3 to 30, capped by the island and
+    the table: at most two points per tile each player has, plus two (so 19 tiles and four
+    players go to 11, 30 tiles and six players to 12). Goals past 10 come with an extra
+    settlement, city and two roads for every two points.
   - *Bigger tables:* an island seats one player per five tiles, from four up to eight (so
     25 tiles seat five, 30 seat six and 40 seat eight), in eight colors. Five or six players
     get the 5–6 player extension's bank (24 of each resource) and deck, seven or eight a
