@@ -11,6 +11,7 @@ import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
 import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
+import { animateStorehouse, storehouseObject, storehouseSpot, storehouseYard } from './board/storehouse';
 import { WORKSHOP_SCALE, animateWorkshop, workshopChimney, workshopObject } from './board/workshops';
 import { DIE_HALF, Dice } from './dice';
 import { Particles } from './effects';
@@ -22,10 +23,20 @@ import { type Quality, Stage } from './stage';
 import { sharedUniforms } from './voxel/materials';
 
 /**
- * `stoneRoad` picks one of your roads to pave, `tearDown` one of your own workshops to tear down,
- * `tile` any tile, lit up like the robber's target but with no robber (a character's power).
+ * `stoneRoad` picks one of your roads to pave, `storehouse` one of your buildings to add a
+ * storehouse onto, `tearDown` one of your own workshops to tear down, `tile` any tile, lit up like
+ * the robber's target but with no robber (a character's power).
  */
-export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop' | 'stoneRoad' | 'tearDown' | 'tile';
+export type PickKind =
+	| 'settlement'
+	| 'road'
+	| 'city'
+	| 'robber'
+	| 'workshop'
+	| 'stoneRoad'
+	| 'storehouse'
+	| 'tearDown'
+	| 'tile';
 
 export interface PickRequest {
 	kind: PickKind;
@@ -55,8 +66,11 @@ export interface BoardSpot {
 	at: number;
 }
 
-/** A piece's key starts with where it stands: v12 (vertex), e5 (edge), w3 (a tile's workshop). */
-const SPOT_PLACE: Record<string, BoardSpot['place']> = { v: 'vertex', e: 'edge', w: 'hex' };
+/**
+ * A piece's key starts with where it stands: v12 (vertex), e5 (edge), w3 (a tile's workshop), s12
+ * (the storehouse on the building on vertex 12, which shares its tooltip).
+ */
+const SPOT_PLACE: Record<string, BoardSpot['place']> = { v: 'vertex', e: 'edge', w: 'hex', s: 'vertex' };
 function spotOf(key: string): BoardSpot | null {
 	const m = /^([a-z])(\d+)/.exec(key);
 	const place = m && SPOT_PLACE[m[1]];
@@ -376,6 +390,18 @@ export class GameScene {
 	private clearPieces() {
 		for (const p of this.pieces.values()) this.stage.scene.remove(p.obj);
 		this.pieces.clear();
+		this.syncYards();
+	}
+
+	/** Tread the crops flat in front of each storehouse, so a field's wheat doesn't bury it. */
+	private syncYards() {
+		const yards = sharedUniforms.uYards.value;
+		let i = 0;
+		for (const p of this.pieces.values()) {
+			if (!p.key.startsWith('s') || i >= yards.length) continue;
+			storehouseYard(p.obj.position.clone().setY(p.ground), p.obj.rotation.y, PIECE_SCALE, yards[i++]);
+		}
+		for (; i < yards.length; i++) yards[i].set(0, 0, 0, 0);
 	}
 
 	private syncPieces(view: GameView, animate: boolean) {
@@ -388,7 +414,22 @@ export class GameScene {
 				const obj = cloneModel(b.kind === 'city' ? cityModel(color) : settlementModel(color));
 				obj.scale.setScalar(PIECE_SCALE);
 				obj.position.copy(bv.vertexPos(v));
-				obj.rotation.y = hashString(`r${v}`) % 4 * (Math.PI / 2) + Math.PI / 4;
+				obj.rotation.y = buildingYaw(v);
+				return obj;
+			});
+		});
+		// A storehouse leans on its building, so it moves to the city's wall when the settlement
+		// grows into one.
+		view.storehouses?.forEach((on, v) => {
+			const b = view.buildings[v];
+			if (!on || !b) return;
+			const color = PLAYER_RGB[view.players[b.owner].color];
+			want.set(`s${v}:${b.kind}:${b.owner}`, () => {
+				const obj = storehouseObject(color);
+				obj.scale.setScalar(PIECE_SCALE);
+				const spot = storehouseSpot(bv, v, b.kind, buildingYaw(v), PIECE_SCALE);
+				obj.position.copy(spot.pos);
+				obj.rotation.y = spot.yaw;
 				return obj;
 			});
 		});
@@ -439,6 +480,7 @@ export class GameScene {
 			this.pieces.set(key, { key, obj, owner, ground: obj.position.y, lift: 0, glow: null });
 			if (animate) this.dropIn(obj, key.startsWith('e'));
 		}
+		this.syncYards();
 	}
 
 	/** Ring the numbers of the tiles you're on, and show who holds each harbor. */
@@ -1007,6 +1049,7 @@ export class GameScene {
 			let model: THREE.Object3D | null = null;
 			let pos = new THREE.Vector3();
 			let rot = 0;
+			let lean: { pos: THREE.Vector3; yaw: number } | null = null;
 			if (req.kind === 'settlement') {
 				model = settlementModel(color);
 				pos = bv.vertexPos(id);
@@ -1025,6 +1068,13 @@ export class GameScene {
 				model = workshopObject(res, color);
 				pos = spot.pos;
 				rot = Math.PI / 2 - spot.angle;
+			} else if (req.kind === 'storehouse') {
+				const b = this.view?.buildings[id];
+				if (!b) continue;
+				model = storehouseObject(color);
+				pos = bv.vertexPos(id);
+				// The marker goes over the building; the ghost stands against the wall it would lean on.
+				lean = storehouseSpot(bv, id, b.kind, buildingYaw(id), PIECE_SCALE);
 			}
 			if (!model) continue;
 			// A slot is a small glowing marker; the full ghost piece appears on hover.
@@ -1050,6 +1100,10 @@ export class GameScene {
 			ghost.userData.base = ghost.scale.x;
 			ghost.name = 'ghost';
 			ghost.visible = false;
+			if (lean) {
+				ghost.position.set(lean.pos.x - pos.x, 0, lean.pos.z - pos.z);
+				ghost.rotation.y = lean.yaw;
+			}
 			slot.add(ghost);
 			if (edge) {
 				const bar = new THREE.Mesh(MARKER_BAR, markerMat);
@@ -1245,6 +1299,8 @@ export class GameScene {
 				p.lift += (level * (1.3 + Math.sin(t * 3) * 0.5) - p.lift) * Math.min(1, dt * 10);
 				p.obj.position.y = p.ground + p.lift;
 			}
+			// A storehouse floats with its building, under the building's ring and beam.
+			if (p.key.startsWith('s')) continue;
 			// The rings stay down on the ground as the building floats; the beam shoots up as it lights.
 			const unit = pieceScale(p.key);
 			const ground = p.glow.getObjectByName('ground')!;
@@ -1261,6 +1317,7 @@ export class GameScene {
 		const kit = glowKit(PLAYER_RGB[this.view!.players[p.owner].color]);
 		const road = p.key.startsWith('e');
 		const workshop = p.key.startsWith('w');
+		const store = p.key.startsWith('s');
 		const unit = pieceScale(p.key);
 		const glow = new THREE.Group();
 		glow.name = 'glow';
@@ -1277,9 +1334,9 @@ export class GameScene {
 			}
 		};
 		copy(p.obj, glow);
-		if (workshop) {
+		if (workshop || store) {
 			// A workshop's body is a model of its own, and its moving parts carry their own light,
-			// so it turns with the sails and rolls with the cart.
+			// so it turns with the sails and rolls with the cart (and a storehouse's sack rides its rope).
 			glow.userData.parts = [];
 			for (const part of p.obj.children) {
 				if (!part.name) {
@@ -1298,7 +1355,7 @@ export class GameScene {
 				}
 			}
 		}
-		if (!road) {
+		if (!road && !store) {
 			// Sizes are in the piece's own units: its voxels. The ring hugs the building, on the
 			// paths where the tiles meet, clear of the trees and wheat round about.
 			const city = p.key.includes(':city:');
@@ -1322,12 +1379,13 @@ export class GameScene {
 		return glow;
 	}
 
-	/** Workshops at work: sails and wheels turn, carts roll, and kilns smoke. */
+	/** Workshops at work: sails and wheels turn, carts roll, and kilns smoke; storehouses hoist sacks. */
 	private workshops(dt: number, t: number) {
 		this.kilnClock += dt;
 		const puff = this.kilnClock > 0.28;
 		if (puff) this.kilnClock = 0;
 		for (const p of this.pieces.values()) {
+			if (p.key.startsWith('s')) animateStorehouse(p.obj, t);
 			if (!p.key.startsWith('w')) continue;
 			animateWorkshop(p.obj, t, dt);
 			const at = puff ? workshopChimney(p.obj) : null;
@@ -1427,7 +1485,7 @@ function claimFlag(color: number): THREE.Group {
 
 /** How high a pick's glowing gem floats above its spot, clear of the piece that would go there. */
 function markerHeight(kind: PickKind) {
-	return kind === 'city' ? 11 : kind === 'workshop' || kind === 'tearDown' ? 9.5 : 4.5;
+	return kind === 'city' || kind === 'storehouse' ? 11 : kind === 'workshop' || kind === 'tearDown' ? 9.5 : 4.5;
 }
 
 /** Picking a workshop to tear down glows in this red. */
@@ -1646,6 +1704,11 @@ function hashString(s: string) {
 	let h = 2166136261;
 	for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
 	return h >>> 0;
+}
+
+/** Which way the settlement or city on vertex v is turned: each corner turns its own way. */
+function buildingYaw(v: number) {
+	return (hashString(`r${v}`) % 4) * (Math.PI / 2) + Math.PI / 4;
 }
 
 export { getTopology };

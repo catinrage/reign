@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { CHARACTER_INFO, POWER_INFO, traitText } from '../../../shared/rules/characters';
-	import { discardLimit, powerWait } from '../../../shared/rules/queries';
+	import { discardLimit, powerWait, safeCards } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import Portrait from '../extended/Portrait.svelte';
 	import { PLAYER_CSS } from '../helpers';
@@ -43,6 +43,7 @@
 		{@const road = view.longestRoadHolder === i}
 		{@const army = view.largestArmyHolder === i}
 		{@const limit = discardLimit(view, i)}
+		{@const safe = safeCards(view, i)}
 		{@const ch = p.character ? CHARACTER_INFO[p.character] : null}
 		{@const cards = cardsIn(i)}
 		{@const wait = view.powers && p.character ? powerWait(view, i) : undefined}
@@ -82,7 +83,9 @@
 					<!-- Cards dealt on the board fly here and count as they land, with a bump. -->
 					<span
 						class:warn={cards > limit}
-						title="Resource cards{cards > limit ? ': will discard on a 7' : ''}"
+						title="Resource cards{safe ? `, ${safe} of them safe in a storehouse` : ''}{cards > limit
+							? ': will discard on a 7'
+							: ''}"
 						data-plaque-cards={i}
 						><img class="icon-px" src={PIXEL.cards} alt="" />{#key cards}<b class="bump">{cards}</b
 						>{/key}</span

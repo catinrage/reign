@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CHARACTER_INFO } from '../../../shared/rules/characters';
 	import { RESOURCE_LABEL, emptyResources, type Resource } from '../../../shared/rules/config';
-	import { discardLimit } from '../../../shared/rules/queries';
+	import { discardLimit, safeCards } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
 	import Modal from '../menu/Modal.svelte';
@@ -14,6 +14,8 @@
 	const me = $derived(view.me);
 	const res = $derived(view.players[me]?.resources);
 	const mustDiscard = $derived(view.step === 'discard' ? (view.pendingDiscards[me] ?? 0) : 0);
+	/** Cards my storehouse keeps safe, which a 7 doesn't count. */
+	const safe = $derived(safeCards(view, me));
 	const choosingVictim = $derived(myTurn(view) && view.step === 'steal');
 	/** Cards a trait owes me (the Seer, the Jester, the Bard's partners), taken one at a time. */
 	const owed = $derived(view.phase === 'draft' || view.phase === 'ended' ? [] : (view.picks?.[me] ?? []));
@@ -40,7 +42,11 @@
 
 {#if mustDiscard && res}
 	<Modal title="The robber strikes!" ribbon="crimson" width={480}>
-		<p>You hold more than {discardLimit(view, view.me)} cards. Pick {mustDiscard} to give back to the bank.</p>
+		<p>
+			You hold more than {discardLimit(view, me)} cards.
+			{#if safe}Your storehouse keeps {safe} safe, so pick{:else}Pick{/if}
+			{mustDiscard} to give back to the bank.
+		</p>
 		<div class="row">
 			{#each RESOURCES as r (r)}
 				<div class="col">
