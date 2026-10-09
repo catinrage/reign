@@ -11,3 +11,4 @@ Dockerfile
 compose.yaml
 .dockerignore
 data
+Caddyfile

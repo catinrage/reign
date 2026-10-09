@@ -95,6 +95,20 @@ password). Without compose: `docker build -t reign .` then
 `docker run -p 8787:8787 -e DATABASE_URL=postgres://… reign` (leave `DATABASE_URL` out and the
 container keeps its data inside itself with PGlite, lost when the container goes).
 
+### On your own server
+
+Copy `.env.example` to `.env`, set a real `POSTGRES_PASSWORD` (letters and digits) and, for
+HTTPS, your `DOMAIN` with its DNS A record pointing at the server. Then:
+
+```bash
+docker compose --profile https up -d --build   # game + Postgres + Caddy on ports 80 and 443
+```
+
+Caddy gets and renews a Let's Encrypt certificate for `DOMAIN` and passes the page, `/api` and
+the WebSocket on to the game. Set `BIND=127.0.0.1` in `.env` so port 8787 only answers on the
+server itself and players come in through HTTPS. Without a domain, leave the profile off and
+play on `http://<server-ip>:8787` (there the invite button shows the link instead of copying it).
+
 For development without installing Node or pnpm, `docker compose --profile dev up --build`
 runs `pnpm dev` from your working copy: Vite with hot reload on http://localhost:5173 and the
 game server with dev cheats on.
