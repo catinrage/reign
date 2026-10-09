@@ -10,6 +10,14 @@
 	let confirmLeave = $state(false);
 	const lobby = $derived(client.lobby);
 	const paused = $derived(!!lobby?.paused);
+	/** Who paused the game for everyone; null when nobody did (the menu alone pauses bot games). */
+	const pausedBy = $derived(lobby?.pausedBy ?? null);
+	const pauser = $derived(
+		pausedBy === client.seat
+			? 'You'
+			: (lobby?.seats.find((s) => s.id === pausedBy)?.name ?? 'Someone')
+	);
+	const playing = $derived(!!client.view && client.view.phase !== 'ended');
 	const others = $derived(
 		(lobby?.seats ?? []).filter((s) => !s.isBot && s.id !== client.seat && s.connected).length
 	);
@@ -33,6 +41,13 @@
 			confirmLeave = false;
 		}
 	});
+	// Everyone at the table hears the game stop and go on.
+	let wasHeld = false;
+	$effect(() => {
+		const held = !!pausedBy;
+		if (held !== wasHeld) (held ? sfx.close : sfx.open)();
+		wasHeld = held;
+	});
 
 	function open() {
 		sfx.open();
@@ -50,13 +65,50 @@
 		ui.menu = false;
 		client.leave();
 	}
+	function resume() {
+		if (pausedBy) client.pauseGame(false);
+		close();
+	}
+	function onKey(e: KeyboardEvent) {
+		if (e.key.toLowerCase() !== 'p' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+		if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]'))
+			return;
+		if (playing) client.pauseGame(!pausedBy);
+	}
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <div class="corner">
 	<button class="icon-btn gear" onclick={open} aria-label="Menu" title="Menu (Esc)"
 		><img src={PIXEL.gear} alt="" /></button
 	>
+	{#if playing && !pausedBy}
+		<button
+			class="icon-btn"
+			onclick={() => client.pauseGame(true)}
+			aria-label="Pause"
+			title="Pause the game for everyone (P)"><img src={PIXEL.pause} alt="" /></button
+		>
+	{/if}
 </div>
+
+{#if pausedBy && !ui.menu}
+	<div class="modal-backdrop curtain" role="dialog" aria-modal="true" aria-label="Game paused">
+		<div class="drop">
+			<div class="board panel hanging">
+				<div class="ribbon" style="--rib: var(--art-ribbon-crimson)">Paused</div>
+				<p class="who">{pauser} paused the game.</p>
+				<button class="btn big block shine" onclick={() => client.pauseGame(false)}
+					><img src={PIXEL.play} alt="" />Resume</button
+				>
+				<p class="note">
+					<img class="icon-px" src={PIXEL.hourglass} alt="" />Anyone at the table can resume.
+				</p>
+			</div>
+		</div>
+	</div>
+{/if}
 
 {#if ui.menu}
 	<div
@@ -69,9 +121,18 @@
 				<div class="ribbon" style="--rib: var(--art-ribbon-crimson)">{title}</div>
 				{#if page === 'main'}
 					<div class="list">
-						<button class="btn big block shine" onclick={close}
+						<button class="btn big block shine" onclick={resume}
 							><img src={PIXEL.play} alt="" />Resume</button
 						>
+						{#if playing && others > 0 && !pausedBy}
+							<button
+								class="btn wood block"
+								onclick={() => {
+									close();
+									client.pauseGame(true);
+								}}><img src={PIXEL.pause} alt="" />Pause for everyone</button
+							>
+						{/if}
 						<button class="btn wood block" onclick={() => go('help')}
 							><img src={PIXEL.book} alt="" />How to play</button
 						>
@@ -101,7 +162,9 @@
 					</div>
 					<p class="note">
 						<img class="icon-px" src={paused ? PIXEL.hourglass : PIXEL.chat} alt="" />
-						{#if paused}
+						{#if pausedBy}
+							Paused for everyone until someone resumes.
+						{:else if paused}
 							The table waits until you return.
 						{:else if others > 0}
 							The others keep playing while this is open.
@@ -128,7 +191,21 @@
 		top: 14px;
 		left: 14px;
 		z-index: 30;
+		display: flex;
+		gap: 8px;
 		pointer-events: auto;
+	}
+	.curtain {
+		place-items: start center;
+		padding-top: 0;
+		z-index: 55;
+	}
+	.who {
+		margin: 4px 0 2px;
+		text-align: center;
+		font-family: var(--px);
+		font-size: 20px;
+		color: var(--text);
 	}
 	.gear img {
 		transition: transform 0.4s ease;
