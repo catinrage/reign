@@ -29,8 +29,8 @@ Form und Größe.
 > **Gleich ausprobieren:** Auf [reign-khaki.vercel.app](https://reign-khaki.vercel.app) läuft die
 > Version nur mit Bots im Browser. Kein Konto, keine Installation.
 
-> Die Oberfläche des Spiels ist bisher auf Englisch, daher stehen Namen von Kräften, Ereignissen
-> und Schaltflächen unten so, wie sie im Spiel erscheinen.
+> Das Spiel gibt es auf Deutsch, Englisch, Russisch und Chinesisch. Die Sprache wechselst du in
+> den Einstellungen oder direkt beim Anmelden.
 
 ## Inhalt
 
@@ -64,6 +64,8 @@ Form und Größe.
   Charakterkräfte ein und reagieren auf Ereignisse.
 - 🛡️ **Der Server hat das Sagen.** Der Server führt die Regeln aus und schickt jedem Spieler nur,
   was er sehen darf. Fremde Hände, der Stapel und der Würfel-Seed bleiben geheim.
+- 🌍 **Vier Sprachen.** Englisch, Russisch, vereinfachtes Chinesisch und Deutsch, passend zum
+  Browser und in den Einstellungen oder beim Anmelden umschaltbar.
 - 📚 **Eingebautes Tutorial.** Ein vollständig bebildertes Regelbuch für beide Modi, im
   Hauptmenü und im Spielmenü.
 
@@ -104,8 +106,8 @@ Alles aus Classic, und dazu:
 | Funktion | Was sie bringt |
 | --- | --- |
 | **Charaktere** | 16 Charaktere, jeder mit einer Eigenschaft, die eine Regel verbiegt, etwa 3:1-Handel mit der Bank, billigere Städte oder zwei Karten stehlen. Der Gastgeber kann sie wählen lassen, einzelne weglassen, Doppelte erlauben oder sie abschalten. |
-| **Kräfte** | Jeder Charakter hat außerdem eine Kraft, etwa so viel wert wie eine Entwicklungskarte: Market Day, Foresight, Hex, Blessing, Mischief und mehr. Einmal pro Partie oder alle 4 bzw. 6 Runden neu aufgeladen. |
-| **Ereignisstapel** | 13 Ereigniskarten, jede oder jede zweite Runde wird eine aufgedeckt: Harvest Festival, Comet, Earthquake, Royal Decree, Plague of Rats, Bandit Uprising und weitere. Der Gastgeber kann jede Karte herausnehmen. |
+| **Kräfte** | Jeder Charakter hat außerdem eine Kraft, etwa so viel wert wie eine Entwicklungskarte: Markttag, Voraussicht, Fluch, Segen, Schabernack und mehr. Einmal pro Partie oder alle 4 bzw. 6 Runden neu aufgeladen. |
+| **Ereignisstapel** | 13 Ereigniskarten, jede oder jede zweite Runde wird eine aufgedeckt: Erntefest, Komet, Erdbeben, Königlicher Erlass, Rattenplage, Banditenaufstand und weitere. Der Gastgeber kann jede Karte herausnehmen. |
 | **Gebäude** | **Werkstätten** (+1 Karte, wenn ihr Feld dir Ertrag bringt), **Steinstraßen** (zählen doppelt für die Längste Handelsstraße) und **Lagerhäuser** (3 Karten sicher vor Räuber und Ereignissen). |
 | **Inseln** | Sechs vorgefertigte Formen von der klassischen Insel bis zum Reich aus 37 Feldern, ein Editor für eigene Inseln und ein Zufallsgenerator (12 bis 240 Felder; rund, lang, zerklüftet oder verbundene Inseln, mit Seen). |
 | **Große Tische** | Eine Insel bietet einem Spieler pro fünf Feldern Platz, von 4 bis 8, in acht Farben. Bank und Stapel wachsen mit dem Tisch. |
@@ -137,8 +139,8 @@ pnpm install
 pnpm dev          # Spielserver auf :8787 + Vite auf :5173
 ```
 
-Öffne <http://localhost:5173>, lege ein Konto an und klicke auf **Play vs bots** oder
-**Create a room** und teile den Einladungslink. Um mit anderen im lokalen Netz zu spielen, öffne
+Öffne <http://localhost:5173>, lege ein Konto an und klicke auf **Gegen Bots spielen** oder
+**Raum erstellen** und teile den Einladungslink. Um mit anderen im lokalen Netz zu spielen, öffne
 das Spiel über die LAN-Adresse deines Rechners (zum Beispiel `http://192.168.1.20:5173`), damit der
 Link dorthin zeigt.
 
@@ -288,6 +290,10 @@ scripts/      Screenshot-, End-to-End- und Entwicklungs-Helfer
   Modelle in `scene/board/models.ts` ergänzen.
 - **Karten:** Vorlagen sind als Text in `board/maps.ts` gezeichnet; `generateBoard(tiles, rng)`
   verteilt Felder auf jede Form.
+- **Texte und Sprachen:** Jeder Text für Spieler läuft über `t('English text')` aus
+  `src/client/i18n`; der englische Text ist der Schlüssel. Jede Sprache ist eine Datei in
+  `src/client/i18n/locales`, Fehlendes erscheint auf Englisch. `pnpm i18n` zeigt, was fehlt.
+  Eine neue Sprache ist eine neue Datei plus eine Zeile in `languages.ts`.
 - **Tutorial:** Jede Extended-Funktion bekommt eine Seite in `ui/tutorial/` und eine Zeile in
   `chapters.ts`.
 

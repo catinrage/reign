@@ -1,6 +1,7 @@
 import type { WebSocket as ServerSocket } from 'ws';
 import type { ClientMessage } from '../../shared/protocol';
 import { Room, send } from '../../server/room';
+import { msg } from '../i18n/index.svelte';
 import { OFFLINE_USER } from './api';
 
 /**
@@ -11,6 +12,10 @@ import { OFFLINE_USER } from './api';
  */
 
 const rooms = new Map<string, Room>();
+
+// Errors this server sends; like the real server's, the client shows them through tx().
+const BROKEN = msg('Something went wrong.');
+const GONE = msg('That game is gone. Games against bots live in one browser tab, so reloading ends them.');
 
 function newCode(): string {
 	const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -62,7 +67,7 @@ export class LocalSocket {
 			this.handle(msg);
 		} catch (e) {
 			console.error(e);
-			send(this.server, { t: 'error', message: 'Something went wrong.' });
+			send(this.server, { t: 'error', message: BROKEN });
 		}
 	}
 
@@ -106,8 +111,7 @@ export class LocalSocket {
 				if (!room) {
 					return send(ws, {
 						t: 'error',
-						message:
-							'That game is gone. Games against bots live in one browser tab, so reloading ends them.'
+						message: GONE
 					});
 				}
 			}

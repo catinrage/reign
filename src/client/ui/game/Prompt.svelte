@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '../../i18n/index.svelte';
 	import { client } from '../../state/client.svelte';
 	import { myTurn, promptText } from '../helpers';
 	import { PIXEL } from '../pixel';
@@ -6,13 +7,25 @@
 	import { powerPick } from './power';
 	import { ui } from './ui.svelte';
 
-	/** What to click to build these (anything else goes on a glowing spot). */
-	const BUILD_PROMPT: Partial<Record<NonNullable<typeof ui.build>, string>> = {
-		workshop: 'Click a glowing tile to build your workshop',
-		stoneRoad: 'Click one of your roads to pave it with stone',
-		storehouse: 'Click a glowing building to add your storehouse',
-		tearDown: 'Click one of your workshops to tear it down'
-	};
+	/** What to click to build this. */
+	function buildPrompt(build: NonNullable<typeof ui.build>): string {
+		switch (build) {
+			case 'workshop':
+				return t('Click a glowing tile to build your workshop');
+			case 'stoneRoad':
+				return t('Click one of your roads to pave it with stone');
+			case 'storehouse':
+				return t('Click a glowing building to add your storehouse');
+			case 'tearDown':
+				return t('Click one of your workshops to tear it down');
+			case 'road':
+				return t('Click a glowing spot to place your road');
+			case 'settlement':
+				return t('Click a glowing spot to place your settlement');
+			case 'city':
+				return t('Click a glowing spot to place your city');
+		}
+	}
 
 	const view = $derived(client.view!);
 	const power = $derived(ui.power?.stage === 'pick' ? powerPick(view, ui.power.first) : null);
@@ -20,7 +33,7 @@
 		power
 			? power.prompt
 			: ui.build && view.step === 'main'
-				? (BUILD_PROMPT[ui.build] ?? `Click a glowing spot to place your ${ui.build}`)
+				? buildPrompt(ui.build)
 				: promptText(view)
 	);
 	const mine = $derived(myTurn(view));
@@ -46,7 +59,7 @@
 				onclick={() => {
 					ui.build = null;
 					ui.power = null;
-				}}>Cancel</button
+				}}>{t('Cancel')}</button
 			>
 		{/if}
 	</div>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * How many people are watching without a seat, shown to everyone at the table while anyone
@@ -8,7 +9,10 @@
 	 */
 	const count = $derived(client.lobby?.spectators ?? 0);
 	const tip = $derived(
-		`${count} ${count === 1 ? 'person is' : 'people are'} watching this game. Spectators never see a hand.`
+		t(
+			'{n, plural, one {# person is watching this game.} other {# people are watching this game.}} Spectators never see a hand.',
+			{ n: count }
+		)
 	);
 </script>
 

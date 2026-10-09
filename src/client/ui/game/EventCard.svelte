@@ -11,6 +11,7 @@
 	import { sfx } from '../sound';
 	import EventFace from './EventFace.svelte';
 	import { eventUi } from './eventUi.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Reign Extended's Events deck at the table: the big flip when a new card turns over, the cards
@@ -66,16 +67,17 @@
 	function moved(e: Extract<GameEvent, { type: 'eventCards' }>) {
 		const scene = sceneRef.current;
 		const mine = e.moves.filter((m) => m.from === me || m.to === me);
-		const name = EVENT_INFO[e.card].name;
-		const what = (r: Resource | null) => (r ? RESOURCE_LABEL[r] : 'a card');
+		const name = t(EVENT_INFO[e.card].name);
+		const what = (r: Resource | null) => (r ? t(RESOURCE_LABEL[r]) : t('a card'));
+		const list = (ms: typeof mine) => ms.map((m) => what(m.resource)).reduce((all, one) => t('{list}, {item}', { list: all, item: one }));
 		const gave = mine.filter((m) => m.from === me);
 		const got = mine.filter((m) => m.to === me);
 		if (e.card === 'bountifulYear') {
 			if (got.length) sfx.coin();
 		} else {
 			if (e.moves.length) sfx.steal();
-			if (got.length) client.toast(`${name}: you got ${got.map((m) => what(m.resource)).join(', ')}`, 'good');
-			else if (gave.length) client.toast(`${name}: you lost ${gave.map((m) => what(m.resource)).join(', ')}`, 'error');
+			if (got.length) client.toast(t('{event}: you got {cards}', { event: name, cards: list(got) }), 'good');
+			else if (gave.length) client.toast(t('{event}: you lost {cards}', { event: name, cards: list(gave) }), 'error');
 		}
 		e.moves.forEach((m, k) =>
 			setTimeout(() => {
@@ -115,12 +117,14 @@
 </script>
 
 {#if shown}
-	<button class="flip-backdrop" onclick={close} aria-label="Close">
+	<button class="flip-backdrop" onclick={close} aria-label={t('Close')}>
 		<div class="flip">
 			<div class="flip-head">
-				{shown.by !== undefined
-					? `${shown.by === me ? 'You' : view.players[shown.by]?.name} decreed`
-					: `Round ${shown.round} event`}
+				{shown.by === undefined
+					? t('Round {round} event', { round: shown.round ?? '' })
+					: shown.by === me
+						? t('You decreed')
+						: t('{player} decreed', { player: view.players[shown.by]?.name ?? '' })}
 			</div>
 			{#key shown.seq}
 				<div class:turn={shown.flip} class:lift={!shown.flip}><EventFace card={shown.card} size={220} /></div>
@@ -128,14 +132,14 @@
 		</div>
 	</button>
 {:else if choosing && choosing.player === me && !client.spectating && !waiting}
-	<Modal title="Royal Decree" width={620}>
-		<p>You're behind, so the crown lets you pick this round's event.</p>
+	<Modal title={t(EVENT_INFO.royalDecree.name)} width={620}>
+		<p>{t("You're behind, so the crown lets you pick this round's event.")}</p>
 		<div class="choices">
 			{#each choosing.cards as c (c)}
 				<button
 					class="choice"
-					title={EVENT_INFO[c].text}
-					data-tip-head={EVENT_INFO[c].name}
+					title={t(EVENT_INFO[c].text)}
+					data-tip-head={t(EVENT_INFO[c].name)}
 					onclick={() => client.act({ type: 'chooseEvent', card: c })}
 				>
 					<EventFace card={c} size={170} />
@@ -145,14 +149,14 @@
 	</Modal>
 {:else if eventUi.bountyOpen && !waiting}
 	<Modal
-		title="Bountiful Year"
+		title={t(EVENT_INFO.bountifulYear.name)}
 		width={480}
 		onclose={() => {
 			eventUi.bountyOpen = false;
 			eventUi.bountyDismissed = true;
 		}}
 	>
-		<p>Take any one resource from the bank.</p>
+		<p>{t('Take any one resource from the bank.')}</p>
 		<div class="row">
 			{#each RESOURCES as r (r)}
 				<ResCard res={r} size={58} dim={view.bank[r] === 0} onclick={() => view.bank[r] > 0 && claim(r)} />

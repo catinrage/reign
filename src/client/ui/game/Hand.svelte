@@ -8,6 +8,7 @@
 	import ResCard from '../ResCard.svelte';
 	import { dialogs } from './dialogs.svelte';
 	import { ui } from './ui.svelte';
+	import { msg, t } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
 	const me = $derived(view.players[view.me]);
@@ -39,31 +40,33 @@
 	// Why a card can't be played right now, or null when it can. The same checks the rules make,
 	// in the order a player would want to hear them.
 	const STEP_WAIT: Partial<Record<string, string>> = {
-		setupSettlement: 'Place your starting pieces first.',
-		setupRoad: 'Place your starting pieces first.',
-		discard: 'Wait until everyone has discarded.',
-		moveRobber: 'Move the robber first.',
-		steal: 'Pick someone to rob first.',
-		roadBuilding: 'Place your free roads first.'
+		setupSettlement: msg('Place your starting pieces first.'),
+		setupRoad: msg('Place your starting pieces first.'),
+		discard: msg('Wait until everyone has discarded.'),
+		moveRobber: msg('Move the robber first.'),
+		steal: msg('Pick someone to rob first.'),
+		roadBuilding: msg('Place your free roads first.')
 	};
 	function blocked(type: DevCardType, ready: number): string | null {
 		if (type === 'victoryPoint') return null;
-		if (view.phase === 'ended') return 'The game is over.';
-		if (!myTurn(view)) return 'Wait for your turn to play it.';
-		if (client.lobby?.pausedBy) return 'The game is paused.';
-		if (client.tossing) return 'Wait for the dice to land.';
-		if (client.presenting) return 'Wait for the event to play out.';
-		if (ready === 0) return 'Bought this turn: play it from your next turn.';
+		if (view.phase === 'ended') return t('The game is over.');
+		if (!myTurn(view)) return t('Wait for your turn to play it.');
+		if (client.lobby?.pausedBy) return t('The game is paused.');
+		if (client.tossing) return t('Wait for the dice to land.');
+		if (client.presenting) return t('Wait for the event to play out.');
+		if (ready === 0) return t('Bought this turn: play it from your next turn.');
 		if (view.devCardPlayedThisTurn)
-			return 'You already played a development card this turn. Only one per turn.';
-		if (view.step !== 'roll' && view.step !== 'main')
-			return STEP_WAIT[view.step] ?? "You can't play a card right now.";
+			return t('You already played a development card this turn. Only one per turn.');
+		if (view.step !== 'roll' && view.step !== 'main') {
+			const wait = STEP_WAIT[view.step];
+			return wait ? t(wait) : t("You can't play a card right now.");
+		}
 		if (type === 'roadBuilding') {
-			if (me.piecesLeft.road <= 0) return 'You have no roads left to place.';
-			if (roadSpots(view, view.me).length === 0) return 'There is nowhere left to build a road.';
+			if (me.piecesLeft.road <= 0) return t('You have no roads left to place.');
+			if (roadSpots(view, view.me).length === 0) return t('There is nowhere left to build a road.');
 		}
 		if (type === 'yearOfPlenty' && RESOURCES.reduce((n, r) => n + view.bank[r], 0) < 2)
-			return 'The bank is out of resources.';
+			return t('The bank is out of resources.');
 		return null;
 	}
 
@@ -94,11 +97,11 @@
 				class:warn={total > limit}
 				title={total > limit
 					? safe
-						? `More than ${limit} cards: on a 7 you will discard half of those beyond the ${safe} your storehouse keeps safe`
-						: `More than ${limit} cards: you will discard half on a 7`
+						? t('More than {limit} cards: on a 7 you will discard half of those beyond the {safe} your storehouse keeps safe', { limit, safe })
+						: t('More than {limit} cards: you will discard half on a 7', { limit })
 					: safe
-						? `Cards in hand (your storehouse keeps ${safe} safe)`
-						: 'Cards in hand'}
+						? t('Cards in hand (your storehouse keeps {safe} safe)', { safe })
+						: t('Cards in hand')}
 			>
 				<img class="icon-px" src={PIXEL.cards} alt="" />{total}
 			</div>
@@ -124,7 +127,7 @@
 					<DevCard count={0} />
 				{/each}
 			</div>
-			<div class="total" title="Development cards in hand">
+			<div class="total" title={t('Development cards in hand')}>
 				<img class="icon-px" src={PIXEL.dev} alt="" />{dev.length}
 			</div>
 		</div>

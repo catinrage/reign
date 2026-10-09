@@ -1,6 +1,7 @@
 import type { AvatarId, Me, SavedMap } from '../../shared/accounts';
 import { AVATARS, NICKNAME_MAX, isAvatar } from '../../shared/accounts';
 import type { CustomMap } from '../../shared/board/maps';
+import { msg } from '../i18n/index.svelte';
 
 /**
  * The account API for the offline build: no sign-in, one local player whose profile and saved
@@ -91,5 +92,6 @@ export async function offlineApi<T>(path: string, method: string, body?: any): P
 			return {} as T;
 		}
 	}
-	throw new Error('Not available when playing offline.');
+	// Shown through tx() by api() in account.svelte.ts.
+	throw new Error(msg('Not available when playing offline.'));
 }

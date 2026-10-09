@@ -18,6 +18,7 @@
 	import { PIXEL } from './pixel';
 	import { isMuted, setMuted, sfx } from './sound';
 	import Tutorial from './tutorial/Tutorial.svelte';
+	import { t } from '../i18n/index.svelte';
 
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let muted = $state(isMuted());
@@ -97,8 +98,8 @@
 	{#if reading}
 		<div class="book">
 			<div class="board panel">
-				<div class="ribbon">Tutorial</div>
-				<button class="icon-btn close" onclick={closeTutorial} aria-label="Back to the menu" title="Back to the menu"
+				<div class="ribbon">{t('Tutorial')}</div>
+				<button class="icon-btn close" onclick={closeTutorial} aria-label={t('Back to the menu')} title={t('Back to the menu')}
 					><img src={PIXEL.close} alt="" /></button
 				>
 				<Tutorial />
@@ -112,20 +113,20 @@
 				<canvas bind:this={canvas} aria-label="Reign"></canvas>
 				{#if !logoOk}<h1 class="title">REIGN</h1>{/if}
 			</div>
-			<div class="ribbon tagline">Settle <i>·</i> Trade <i>·</i> Build</div>
+			<div class="ribbon tagline">{t('Settle')} <i>·</i> {t('Trade')} <i>·</i> {t('Build')}</div>
 		</header>
 
 		<div class="sign panel">
 			<div class="me">
-				<button class="me-face" onclick={() => openSheet('profile')} title="Edit your profile">
+				<button class="me-face" onclick={() => openSheet('profile')} title={t('Edit your profile')}>
 					<Avatar id={me.avatar} size={60} />
 				</button>
 				<span class="me-name">
-					<span class="label">Playing as</span>
+					<span class="label">{t('Playing as')}</span>
 					<b class="title">{me.nickname}</b>
 					{#if !OFFLINE}<small>@{me.username}</small>{/if}
 				</span>
-				<button class="icon-btn edit" onclick={() => openSheet('profile')} title="Edit your profile" aria-label="Edit your profile">
+				<button class="icon-btn edit" onclick={() => openSheet('profile')} title={t('Edit your profile')} aria-label={t('Edit your profile')}>
 					<img src={ACCOUNT_ICONS.quill} alt="" />
 				</button>
 			</div>
@@ -134,9 +135,8 @@
 				<button class="btn purple block rejoin" onclick={rejoin} disabled={busy}>
 					<img src={PIXEL.door} alt="" />
 					<span class="stack"
-						>Rejoin game {r.code}<span class="sub"
-							>{r.players.join(', ')}
-							{r.players.length === 1 ? 'is' : 'are'} still playing, a bot holds your seat</span
+						>{t('Rejoin game {code}', { code: r.code })}<span class="sub"
+							>{t('{n, plural, one {{players} is still playing, a bot holds your seat} other {{players} are still playing, a bot holds your seat}}', { n: r.players.length, players: r.players.join(', ') })}</span
 						></span
 					>
 				</button>
@@ -145,22 +145,22 @@
 			<button class="btn big block shine" onclick={play} disabled={busy}>
 				<img src={PIXEL.play} alt="" />
 				<span class="stack"
-					>Play vs bots<span class="sub">Three rivals, start right away</span></span
+					>{t('Play vs bots')}<span class="sub">{t('Three rivals, start right away')}</span></span
 				>
 			</button>
 			<button class="btn green block" onclick={create} disabled={busy}>
 				<img src={PIXEL.house} alt="" />
 				<span class="stack"
-					>Create a room<span class="sub">{OFFLINE ? 'Pick the mode, map and bots' : 'Invite friends with a code'}</span></span
+					>{t('Create a room')}<span class="sub">{OFFLINE ? t('Pick the mode, map and bots') : t('Invite friends with a code')}</span></span
 				>
 			</button>
 
 			{#if !OFFLINE}
-				<div class="divider"><i></i><span>or join a friend</span><i></i></div>
+				<div class="divider"><i></i><span>{t('or join a friend')}</span><i></i></div>
 
 				<div class="join">
 					<CodeTiles bind:value={code} editable onenter={join} />
-					<button class="btn wood" onclick={join} disabled={code.length !== 5 || busy}>Join</button>
+					<button class="btn wood" onclick={join} disabled={code.length !== 5 || busy}>{t('Join')}</button>
 				</div>
 			{/if}
 		</div>
@@ -169,40 +169,40 @@
 			{#if !OFFLINE}
 				<button class="medal" onclick={() => openSheet('friends')}>
 					<span class="icon-btn"><img src={ACCOUNT_ICONS.friends} alt="" /></span>
-					<span class="cap">Friends</span>
+					<span class="cap">{t('Friends')}</span>
 					{#if account.incoming.length}
-						<span class="count alert" title="Friend requests">{account.incoming.length}</span>
+						<span class="count alert" title={t('Friend requests')}>{account.incoming.length}</span>
 					{:else if account.onlineFriends.length}
-						<span class="count" title="Friends online">{account.onlineFriends.length}</span>
+						<span class="count" title={t('Friends online')}>{account.onlineFriends.length}</span>
 					{/if}
 				</button>
 				<button class="medal" onclick={() => openSheet('history')}>
 					<span class="icon-btn"><img src={ACCOUNT_ICONS.scroll} alt="" /></span>
-					<span class="cap">History</span>
+					<span class="cap">{t('History')}</span>
 				</button>
 			{/if}
 			<button class="medal" onclick={openTutorial}>
 				<span class="icon-btn"><img src={PIXEL.book} alt="" /></span>
-				<span class="cap">Tutorial</span>
+				<span class="cap">{t('Tutorial')}</span>
 			</button>
 			<button class="medal" onclick={() => openSheet('settings')}>
 				<span class="icon-btn"><img src={PIXEL.gear} alt="" /></span>
-				<span class="cap">Settings</span>
+				<span class="cap">{t('Settings')}</span>
 			</button>
 			<button class="medal" onclick={toggleSound}>
 				<span class="icon-btn"><img src={muted ? PIXEL.mute : PIXEL.speaker} alt="" /></span>
-				<span class="cap">{muted ? 'Sound off' : 'Sound on'}</span>
+				<span class="cap">{muted ? t('Sound off') : t('Sound on')}</span>
 			</button>
 		</nav>
 	</div>
 </div>
 
 {#if sheet === 'settings'}
-	<Modal title="Settings" width={460} onclose={closeSheet}><Settings /></Modal>
+	<Modal title={t('Settings')} width={460} onclose={closeSheet}><Settings /></Modal>
 {:else if sheet === 'profile'}
-	<Modal title="Your profile" width={640} onclose={closeSheet}><Profile onclose={closeSheet} /></Modal>
+	<Modal title={t('Your profile')} width={640} onclose={closeSheet}><Profile onclose={closeSheet} /></Modal>
 {:else if sheet === 'friends'}
-	<Modal title="Friends" width={520} onclose={closeSheet}
+	<Modal title={t('Friends')} width={520} onclose={closeSheet}
 		><Friends
 			onhistory={(f) => {
 				historyOf = f.username;
@@ -211,7 +211,7 @@
 		/></Modal
 	>
 {:else if sheet === 'history'}
-	<Modal title={historyOf ? 'Their games' : 'Your games'} width={620} onclose={closeSheet}><History username={historyOf} /></Modal>
+	<Modal title={historyOf ? t('Their games') : t('Your games')} width={620} onclose={closeSheet}><History username={historyOf} /></Modal>
 {/if}
 
 <style>

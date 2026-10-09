@@ -2,6 +2,7 @@
 	import { PIGEON } from '../pigeon';
 	import { sfx } from '../sound';
 	import { loft } from './pigeons.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/** The pigeon loft: opens the pigeon post. Only shown when there is someone to write to. */
 	const unread = $derived(loft.unread);
@@ -18,9 +19,9 @@
 		class:on={loft.open}
 		bind:this={loft.button}
 		onclick={toggle}
-		aria-label={unread ? `Pigeon post, ${unread} unread` : 'Pigeon post'}
+		aria-label={unread ? t('{n, plural, one {Pigeon post, # unread} other {Pigeon post, # unread}}', { n: unread }) : t('Pigeon post')}
 		aria-expanded={loft.open}
-		title="Pigeon post: private notes only the reader sees"
+		title={t('Pigeon post: private notes only the reader sees')}
 		><img src={PIGEON.perched} alt="" />{#if unread}<span class="badge">{unread}</span>{/if}</button
 	>
 {/if}

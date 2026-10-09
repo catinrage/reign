@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
+	import { t } from '../../i18n/index.svelte';
+	import Rich from '../../i18n/Rich.svelte';
 
 	/** In place of a hand: whose game this is, that no hand is shown, and the way out. */
 	const others = $derived(Math.max(0, (client.lobby?.spectators ?? 1) - 1));
@@ -8,14 +10,19 @@
 
 <div class="watch">
 	<div class="bar parch">
-		<div class="ribbon tag">Spectating</div>
+		<div class="ribbon tag">{t('Spectating')}</div>
 		<p>
-			You're watching game <b>{client.code}</b>. Every hand stays hidden, so the game stays fair.
-			{#if others}<span class="more">{others} other{others === 1 ? '' : 's'} watching too.</span
+			<Rich
+				text={t("You're watching game {code}. Every hand stays hidden, so the game stays fair.")}
+				slots={{ code }}
+			/>
+			{#snippet code()}<b>{client.code}</b>{/snippet}
+			{#if others}<span class="more"
+					>{t('{n, plural, one {# other watching too.} other {# others watching too.}}', { n: others })}</span
 				>{/if}
 		</p>
 		<button class="btn small red" onclick={() => client.leave()}
-			><img src={PIXEL.door} alt="" />Stop watching</button
+			><img src={PIXEL.door} alt="" />{t('Stop watching')}</button
 		>
 	</div>
 </div>

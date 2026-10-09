@@ -3,6 +3,7 @@
 	import { client } from '../../state/client.svelte';
 	import { EVENT_ART, TONE_COLOR } from './eventArt';
 	import { eventUi } from './eventUi.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Reign Extended: this round's event card, in the corner beside the turn counter. Clicking it
@@ -18,14 +19,14 @@
 	const note = $derived(
 		choosing
 			? choosing.player === view.me
-				? 'You pick the event.'
-				: `${view.players[choosing.player]?.name} is picking the event.`
+				? t('You pick the event.')
+				: t('{player} is picking the event.', { player: view.players[choosing.player]?.name ?? '' })
 			: bounty
-				? 'Click to take your free card.'
+				? t('Click to take your free card.')
 				: info
 					? info.lasts
-						? 'Lasts until the next round starts.'
-						: 'Happened when the card turned over.'
+						? t('Lasts until the next round starts.')
+						: t('Happened when the card turned over.')
 					: undefined
 	);
 
@@ -41,17 +42,17 @@
 		class:quiet={!card}
 		class:glow={bounty}
 		style="--tone:{info ? TONE_COLOR[info.tone] : 'transparent'}"
-		title={info ? info.text : events.every === 2 ? 'Event cards turn over every other round.' : 'No event this round.'}
-		data-tip-head={info ? `Event: ${info.name}` : 'No event this round'}
+		title={info ? t(info.text) : events.every === 2 ? t('Event cards turn over every other round.') : t('No event this round.')}
+		data-tip-head={info ? t('Event: {event}', { event: t(info.name) }) : t('No event this round')}
 		data-tip-note={note}
 		data-tip-tone={bounty ? 'good' : undefined}
 		onclick={click}
 	>
 		{#if card}
 			<img src={EVENT_ART[card]} alt="" />
-			<span class="name">{info!.name}</span>
+			<span class="name">{t(info!.name)}</span>
 		{:else}
-			<span class="name none">No event</span>
+			<span class="name none">{t('No event')}</span>
 		{/if}
 	</button>
 {/if}

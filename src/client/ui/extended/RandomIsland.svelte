@@ -13,6 +13,7 @@
 	import { client } from '../../state/client.svelte';
 	import MapPreview from './MapPreview.svelte';
 	import { generateIsland } from './randomIsland';
+	import { t, tx } from '../../i18n/index.svelte';
 
 	let { onedit }: { onedit: (map: CustomMap) => void } = $props();
 
@@ -41,7 +42,7 @@
 <div class="random">
 	<div class="opts">
 		<label class="field">
-			<span class="label">Size</span>
+			<span class="label">{t('Size')}</span>
 			<span class="size">
 				<input
 					class="slider"
@@ -52,46 +53,53 @@
 					bind:value={tiles}
 					style="--fill:{((tiles - minTiles) / (RANDOM_MAX_TILES - minTiles)) * 100}%"
 				/>
-				<span class="val">{tiles} tiles</span>
+				<span class="val">{t('{tiles, plural, one {# tile} other {# tiles}}', { tiles })}</span>
 			</span>
 		</label>
 		<p class="note">
-			Seats up to {mapSeats(tiles)} players. With {players} players it plays best to about
-			{suggestedPoints(tiles, players)} points, {maxPointsFor(tiles, players)} at most.
+			{t(
+				'Seats up to {seats, plural, one {# player} other {# players}}. With {players, plural, one {# player} other {# players}} it plays best to about {points, plural, one {# point} other {# points}}, {max} at most.',
+				{ seats: mapSeats(tiles), players, points: suggestedPoints(tiles, players), max: maxPointsFor(tiles, players) }
+			)}
 		</p>
 		<div class="field">
-			<span class="label">Shape</span>
+			<span class="label">{t('Shape')}</span>
 			<div class="seg shapes">
 				{#each RANDOM_SHAPES as s (s)}
-					<button class="btn small" class:on={shape === s} title={RANDOM_SHAPE_INFO[s].text} onclick={() => (shape = s)}
-						>{RANDOM_SHAPE_INFO[s].name}</button
+					<button class="btn small" class:on={shape === s} title={t(RANDOM_SHAPE_INFO[s].text)} onclick={() => (shape = s)}
+						>{t(RANDOM_SHAPE_INFO[s].name)}</button
 					>
 				{/each}
 			</div>
-			<span class="hint">{RANDOM_SHAPE_INFO[shape].text}</span>
+			<span class="hint">{t(RANDOM_SHAPE_INFO[shape].text)}</span>
 		</div>
 		<div class="field row">
-			<span class="label">Lakes</span>
+			<span class="label">{t('Lakes')}</span>
 			<div class="seg">
-				<button class="btn small" class:on={!lakes} onclick={() => (lakes = false)}>None</button>
-				<button class="btn small" class:on={lakes} onclick={() => (lakes = true)}>A few</button>
+				<button class="btn small" class:on={!lakes} onclick={() => (lakes = false)}>{t('None')}</button>
+				<button class="btn small" class:on={lakes} onclick={() => (lakes = true)}>{t('A few')}</button>
 			</div>
 		</div>
 		<button class="btn green shine generate" onclick={generate}>
-			{onTable ? 'Generate another' : 'Generate'}
+			{onTable ? t('Generate another') : t('Generate')}
 		</button>
 	</div>
 	<div class="result well">
 		{#if onTable}
 			<MapPreview tiles={tableTiles} width={250} height={190} />
-			<span class="caption">On the table: {onTable.name}, {tableTiles.length} tiles. Everyone sees it.</span>
+			<span class="caption"
+				>{t('On the table: {map}, {tiles, plural, one {# tile} other {# tiles}}. Everyone sees it.', {
+					map: tx(onTable.name),
+					tiles: tableTiles.length
+				})}</span
+			>
 			<button
 				class="btn small wood"
-				title="Open it in the map maker to paint terrains or save it to your maps"
-				onclick={() => onedit({ name: onTable.name, tiles: onTable.tiles })}>Edit or save</button
+				title={t('Open it in the map maker to paint terrains or save it to your maps')}
+				onclick={() => onedit({ name: onTable.name, tiles: onTable.tiles })}>{t('Edit or save')}</button
 			>
 		{:else}
-			<span class="empty">Pick a size and shape, then Generate. Press it again until you like the island.</span>
+			<span class="empty">{t('Pick a size and shape, then Generate. Press it again until you like the island.')}</span>
 		{/if}
 	</div>
 </div>

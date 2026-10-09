@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { USERNAME_MAX, type Friend } from '../../../shared/accounts';
+	import { t, tx } from '../../i18n/index.svelte';
 	import { WHEREABOUTS, account } from '../../state/account.svelte';
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
@@ -52,7 +53,12 @@
 		run(async () => {
 			const res = await account.addFriend(who);
 			name = '';
-			client.toast(res.accepted ? `You and ${res.nickname} are friends now.` : `Asked ${res.nickname} to be friends.`, 'good');
+			client.toast(
+				res.accepted
+					? t('You and {player} are friends now.', { player: res.nickname })
+					: t('Asked {player} to be friends.', { player: res.nickname }),
+				'good'
+			);
 		});
 	}
 
@@ -69,7 +75,7 @@
 	function invite(f: Friend) {
 		client.send({ t: 'invite', user: f.id });
 		invited = { ...invited, [f.id]: Date.now() };
-		client.toast(`Invited ${f.nickname} to your table.`, 'good');
+		client.toast(t('Invited {player} to your table.', { player: f.nickname }), 'good');
 		setTimeout(() => {
 			const { [f.id]: _, ...rest } = invited;
 			invited = rest;
@@ -83,32 +89,32 @@
 			class="input"
 			bind:value={name}
 			maxlength={USERNAME_MAX + 1}
-			placeholder="Friend's username"
+			placeholder={t("Friend's username")}
 			autocapitalize="off"
 			spellcheck="false"
-			aria-label="Friend's username"
+			aria-label={t("Friend's username")}
 		/>
 		<button class="btn green" type="submit" disabled={busy || !name.trim()}
-			><img class="icon-px" src={ACCOUNT_ICONS.plus} alt="" />Add</button
+			><img class="icon-px" src={ACCOUNT_ICONS.plus} alt="" />{t('Add')}</button
 		>
 	</form>
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	{#if error}<p class="error" role="alert">{tx(error)}</p>{/if}
 
 	{#if incoming.length}
-		<div class="divider"><i></i><span>Asking to be friends</span><i></i></div>
+		<div class="divider"><i></i><span>{t('Asking to be friends')}</span><i></i></div>
 		<ul class="list">
 			{#each incoming as r (r.user.id)}
 				<li class="row plaque fresh">
 					<Avatar id={r.user.avatar} size={44} />
 					<span class="who"><b class="title">{r.user.nickname}</b><small>@{r.user.username}</small></span>
 					<button class="btn small green" disabled={busy} onclick={() => run(() => account.acceptFriend(r.user.id))}
-						><img class="icon-px" src={PIXEL.check} alt="" />Accept</button
+						><img class="icon-px" src={PIXEL.check} alt="" />{t('Accept')}</button
 					>
 					<button
 						class="icon-btn mini"
 						disabled={busy}
-						title="Decline"
-						aria-label="Decline {r.user.nickname}"
+						title={t('Decline')}
+						aria-label={t('Decline {player}', { player: r.user.nickname })}
 						onclick={() => run(() => account.removeFriend(r.user.id))}><img src={PIXEL.close} alt="" /></button
 					>
 				</li>
@@ -117,7 +123,7 @@
 	{/if}
 
 	<div class="divider">
-		<i></i><span>Friends {account.onlineFriends.length}/{account.friends.length} online</span><i></i>
+		<i></i><span>{t('Friends {online}/{total} online', { online: account.onlineFriends.length, total: account.friends.length })}</span><i></i>
 	</div>
 	{#if account.friends.length}
 		<ul class="list">
@@ -126,19 +132,20 @@
 					<Avatar id={f.avatar} size={44} where={f.where} />
 					<span class="who">
 						<b class="title">{f.nickname}</b>
-						<small>@{f.username} · <span class="where {f.where}">{WHEREABOUTS[f.where]}</span></small>
+						<small>@{f.username} · <span class="where {f.where}">{t(WHEREABOUTS[f.where])}</span></small>
 					</span>
 					{#if inviting && f.where !== 'offline'}
 						{#if atTable.has(f.id)}
-							<span class="here">At your table</span>
+							<span class="here">{t('At your table')}</span>
 						{:else}
 							<button class="btn small" disabled={!!invited[f.id]} onclick={() => invite(f)}
-								><img class="icon-px" src={PIXEL.letter} alt="" />{invited[f.id] ? 'Sent' : 'Invite'}</button
+								><img class="icon-px" src={PIXEL.letter} alt="" />{invited[f.id] ? t('Sent') : t('Invite')}</button
 							>
 						{/if}
 					{/if}
 					{#if onhistory}
-						<button class="icon-btn mini" title="{f.nickname}'s games" aria-label="{f.nickname}'s games" onclick={() => onhistory(f)}
+						<button class="icon-btn mini" title={t("{player}'s games", { player: f.nickname })}
+						aria-label={t("{player}'s games", { player: f.nickname })} onclick={() => onhistory(f)}
 							><img src={ACCOUNT_ICONS.scroll} alt="" /></button
 						>
 					{/if}
@@ -146,25 +153,25 @@
 						class="icon-btn mini"
 						class:arm={removing === f.id}
 						disabled={busy}
-						title={removing === f.id ? 'Press again to remove' : 'Remove friend'}
-						aria-label="Remove {f.nickname}"
+						title={removing === f.id ? t('Press again to remove') : t('Remove friend')}
+						aria-label={t('Remove {player}', { player: f.nickname })}
 						onclick={() => remove(f)}><img src={PIXEL.close} alt="" /></button
 					>
 				</li>
 			{/each}
 		</ul>
 	{:else}
-		<p class="empty">No friends yet. Add someone by their username, and they'll show up here once they say yes.</p>
+		<p class="empty">{t("No friends yet. Add someone by their username, and they'll show up here once they say yes.")}</p>
 	{/if}
 
 	{#if outgoing.length}
-		<div class="divider"><i></i><span>Waiting for an answer</span><i></i></div>
+		<div class="divider"><i></i><span>{t('Waiting for an answer')}</span><i></i></div>
 		<ul class="list">
 			{#each outgoing as r (r.user.id)}
 				<li class="row plaque off">
 					<Avatar id={r.user.avatar} size={36} />
 					<span class="who"><b class="title">{r.user.nickname}</b><small>@{r.user.username}</small></span>
-					<button class="btn small wood" disabled={busy} onclick={() => run(() => account.removeFriend(r.user.id))}>Cancel</button>
+					<button class="btn small wood" disabled={busy} onclick={() => run(() => account.removeFriend(r.user.id))}>{t('Cancel')}</button>
 				</li>
 			{/each}
 		</ul>

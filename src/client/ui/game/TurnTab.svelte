@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PlayerColor } from '../../../shared/rules/config';
 	import { PIXEL } from '../pixel';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Built into the plaque of the player whose turn it is: a pennant in their color jutting from
@@ -12,7 +13,7 @@
 <span
 	class="tab"
 	style="--pennant: var(--art-pennant-{color}); --tab: var(--art-tab-{color})"
-	title="Current turn"><img class="icon-px" src={PIXEL.pointer} alt="" /></span
+	title={t('Current turn')}><img class="icon-px" src={PIXEL.pointer} alt="" /></span
 >
 
 <style>

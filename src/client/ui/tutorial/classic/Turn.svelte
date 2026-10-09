@@ -1,86 +1,102 @@
 <script lang="ts">
 	import { BANK_PER_RESOURCE } from '../../../../shared/rules/config';
+	import { msg, t } from '../../../i18n/index.svelte';
+	import Rich from '../../../i18n/Rich.svelte';
 	import { getIcons } from '../../../scene/icons';
 	import { PIXEL } from '../../pixel';
 	import HexTile from '../bits/HexTile.svelte';
 
 	const icons = getIcons().urls;
+	// name and text are marked with msg() and shown through t().
 	const steps = [
 		{
 			icon: PIXEL.die,
-			name: 'Roll',
-			text: 'Roll both dice. Every tile showing that number pays out.'
+			name: msg('Roll'),
+			text: msg('Roll both dice. Every tile showing that number pays out.')
 		},
-		{ icon: PIXEL.trade, name: 'Trade', text: 'Swap cards with players, the bank or a harbor.' },
-		{ icon: PIXEL.hammer, name: 'Build', text: 'Spend cards on roads, towns, cities and cards.' },
-		{ icon: PIXEL.hourglass, name: 'End turn', text: 'The dice pass to the next player.' }
+		{ icon: PIXEL.trade, name: msg('Trade'), text: msg('Swap cards with players, the bank or a harbor.') },
+		{ icon: PIXEL.hammer, name: msg('Build'), text: msg('Spend cards on roads, towns, cities and cards.') },
+		{ icon: PIXEL.hourglass, name: msg('End turn'), text: msg('The dice pass to the next player.') }
 	];
 </script>
+
+{#snippet settlementPiece()}<img src={icons['settlement:blue']} alt="" />{/snippet}
+{#snippet cityPiece()}<img src={icons['city:red']} alt="" />{/snippet}
+{#snippet oneWheat()}<span class="res"><img src={icons.wheat} alt="" /></span>{/snippet}
+{#snippet twoWheat()}<span class="res"><img src={icons.wheat} alt="" /><img src={icons.wheat} alt="" /></span
+	>{/snippet}
+{#snippet settlement()}<b>{t('settlement')}</b>{/snippet}
+{#snippet city()}<b>{t('city')}</b>{/snippet}
+{#snippet knight()}<b>{t('Knight')}</b>{/snippet}
 
 <div class="figure track">
 	{#each steps as s, i (s.name)}
 		<div class="step">
 			<span class="badge"><img class="icon-px" src={s.icon} alt="" /></span>
-			<b>{i + 1}. {s.name}</b>
-			<span class="caption">{s.text}</span>
+			<b>{i + 1}. {t(s.name)}</b>
+			<span class="caption">{t(s.text)}</span>
 		</div>
 		{#if i < steps.length - 1}<span class="arrow">›</span>{/if}
 	{/each}
 </div>
 <p>
-	After rolling, you may trade and build as often as you like and in any order, then end your turn.
+	{t('After rolling, you may trade and build as often as you like and in any order, then end your turn.')}
 </p>
 
-<h3>Collecting resources</h3>
+<h3>{t('Collecting resources')}</h3>
 <div class="spread">
 	<div class="example">
 		<HexTile terrain="fields" n={9} size={92} />
 		<div class="gets">
-			<span
-				><img src={icons['settlement:blue']} alt="" /> takes
-				<span class="res"><img src={icons.wheat} alt="" /></span></span
-			>
-			<span
-				><img src={icons['city:red']} alt="" /> takes
-				<span class="res"><img src={icons.wheat} alt="" /><img src={icons.wheat} alt="" /></span
-				></span
-			>
+			<span><Rich text={t('{piece} takes {cards}')} slots={{ piece: settlementPiece, cards: oneWheat }} /></span>
+			<span><Rich text={t('{piece} takes {cards}')} slots={{ piece: cityPiece, cards: twoWheat }} /></span>
 		</div>
 	</div>
 	<ul class="rows">
 		<li>
 			<img class="piece" src={icons['settlement:red']} alt="" /><span
-				>A <b>settlement</b> takes one card from each touching tile that was rolled.</span
+				><Rich
+					text={t('A {settlement} takes one card from each touching tile that was rolled.')}
+					slots={{ settlement }}
+				/></span
 			>
 		</li>
 		<li>
-			<img class="piece" src={icons['city:red']} alt="" /><span>A <b>city</b> takes two.</span>
+			<img class="piece" src={icons['city:red']} alt="" /><span
+				><Rich text={t('A {city} takes two.')} slots={{ city }} /></span
+			>
 		</li>
 		<li>
 			<img class="icon-px" src={PIXEL.chat} alt="" /><span
-				>Everyone collects on every roll, not only the player who rolled. It pays to own towns on
-				many numbers.</span
+				>{t('Everyone collects on every roll, not only the player who rolled. It pays to own towns on many numbers.')}</span
 			>
 		</li>
 	</ul>
 </div>
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
-		>The bank holds {BANK_PER_RESOURCE} cards of each resource. If it can't pay everyone what a roll owes
-		in one resource, nobody gets that resource, unless only one player is owed it: they take what is left.</span
+		>{t(
+			"The bank holds {n, plural, one {# card} other {# cards}} of each resource. If it can't pay everyone what a roll owes in one resource, nobody gets that resource, unless only one player is owed it: they take what is left.",
+			{ n: BANK_PER_RESOURCE }
+		)}</span
 	>
 </p>
 
-<h3>Before you roll</h3>
+<h3>{t('Before you roll')}</h3>
 <p>
-	You may play a <b>Knight</b> before rolling, to chase the robber off one of your tiles first. Everything
-	else waits until the dice have landed.
+	<Rich
+		text={t(
+			'You may play a {knight} before rolling, to chase the robber off one of your tiles first. Everything else waits until the dice have landed.'
+		)}
+		slots={{ knight }}
+	/>
 </p>
 
-<h3>The turn timer</h3>
+<h3>{t('The turn timer')}</h3>
 <p>
-	The host can give each turn a time limit. When the sand runs out, anything the game still needs
-	from you (a discard, a robber move, a placement) is done for you, and your turn ends.
+	{t(
+		'The host can give each turn a time limit. When the sand runs out, anything the game still needs from you (a discard, a robber move, a placement) is done for you, and your turn ends.'
+	)}
 </p>
 
 <style>

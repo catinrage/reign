@@ -2,6 +2,7 @@
 	import type { Match, MatchHistory } from '../../../shared/accounts';
 	import { CHARACTER_INFO } from '../../../shared/rules/characters';
 	import { MODE_INFO } from '../../../shared/rules/modes';
+	import { i18n, t, tx } from '../../i18n/index.svelte';
 	import { account } from '../../state/account.svelte';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
@@ -32,15 +33,15 @@
 	}
 
 	function result(m: Match): { text: string; kind: string } {
-		if (m.status === 'playing') return { text: 'In progress', kind: 'live' };
-		if (m.status === 'abandoned') return { text: 'Unfinished', kind: 'gone' };
+		if (m.status === 'playing') return { text: t('In progress'), kind: 'live' };
+		if (m.status === 'abandoned') return { text: t('Unfinished'), kind: 'gone' };
 		const place = mine(m)?.place;
-		if (place === 1) return { text: 'Victory', kind: 'win' };
-		return { text: place ? `${ordinal(place)} place` : 'Finished', kind: 'lose' };
+		if (place === 1) return { text: t('Victory'), kind: 'win' };
+		return { text: place ? placeText(place) : t('Finished'), kind: 'lose' };
 	}
 
-	function ordinal(n: number) {
-		return n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`;
+	function placeText(n: number) {
+		return n === 2 ? t('2nd place') : n === 3 ? t('3rd place') : t('{place}th place', { place: n });
 	}
 
 	function when(iso: string) {
@@ -49,24 +50,24 @@
 		const day = 86400000;
 		const startOf = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
 		const days = Math.round((startOf(now) - startOf(d)) / day);
-		const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-		if (days === 0) return `Today ${time}`;
-		if (days === 1) return `Yesterday ${time}`;
-		return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+		const time = d.toLocaleTimeString(i18n.lang, { hour: '2-digit', minute: '2-digit' });
+		if (days === 0) return t('Today {time}', { time });
+		if (days === 1) return t('Yesterday {time}', { time });
+		return d.toLocaleDateString(i18n.lang, { month: 'short', day: 'numeric', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
 	}
 
 	function length(m: Match) {
 		if (!m.endedAt) return null;
 		const min = Math.max(1, Math.round((Date.parse(m.endedAt) - Date.parse(m.startedAt)) / 60000));
-		return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
+		return min < 60 ? t('{min} min', { min }) : t('{hours} h {min} min', { hours: Math.floor(min / 60), min: min % 60 });
 	}
 </script>
 
 <div class="history">
 	{#if error}
-		<p class="error" role="alert">{error}</p>
+		<p class="error" role="alert">{tx(error)}</p>
 	{:else if !data}
-		<p class="loading"><img class="icon-px" src={PIXEL.hourglass} alt="" />Opening the chronicle…</p>
+		<p class="loading"><img class="icon-px" src={PIXEL.hourglass} alt="" />{t('Opening the chronicle…')}</p>
 	{:else}
 		{#if username}
 			<div class="whose">
@@ -75,13 +76,13 @@
 			</div>
 		{/if}
 		<div class="stats">
-			<div class="stat well"><b>{data.stats.played}</b><span>Played</span></div>
-			<div class="stat well"><b>{data.stats.won}</b><span>Won</span></div>
-			<div class="stat well"><b>{winRate === null ? '–' : `${winRate}%`}</b><span>Win rate</span></div>
+			<div class="stat well"><b>{data.stats.played}</b><span>{t('Played')}</span></div>
+			<div class="stat well"><b>{data.stats.won}</b><span>{t('Won')}</span></div>
+			<div class="stat well"><b>{winRate === null ? '–' : t('{rate}%', { rate: winRate })}</b><span>{t('Win rate')}</span></div>
 		</div>
 
 		{#if !data.matches.length}
-			<p class="empty">No games yet. Every game played from now on is written down here.</p>
+			<p class="empty">{t('No games yet. Every game played from now on is written down here.')}</p>
 		{:else}
 			<ul class="matches">
 				{#each data.matches as m (m.id)}
@@ -93,7 +94,7 @@
 							</span>
 							<span class="what">
 								{#if m.mode === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}
-								{MODE_INFO[m.mode]?.name ?? m.mode}{m.mode === 'extended' ? ` · ${m.mapName}` : ''}
+								{MODE_INFO[m.mode] ? t(MODE_INFO[m.mode].name) : m.mode}{m.mode === 'extended' ? ` · ${tx(m.mapName)}` : ''}
 							</span>
 							<span class="when">{when(m.startedAt)}</span>
 						</div>
@@ -102,7 +103,7 @@
 								<span class="player" class:me={p.user?.id === data.user.id} class:won={p.place === 1}>
 									{#if p.isBot || !p.user}
 										<span class="bot shield mini" style="--shield: var(--art-shield-{p.color})"
-											><img class="icon-px" src={PIXEL.bot} alt="bot" /></span
+											><img class="icon-px" src={PIXEL.bot} alt={t('bot')} /></span
 										>
 									{:else}
 										<Avatar id={p.user.avatar} size={32} />
@@ -111,11 +112,11 @@
 										<span class="nm"><i class="swatch" style="background:{PLAYER_CSS[p.color]}"></i>{p.user?.nickname ?? p.name}{#if p.place === 1}<img
 												class="icon-px crown"
 												src={PIXEL.crown}
-												alt="winner"
+												alt={t('winner')}
 											/>{/if}</span>
 										<small
-											>{p.points} pts{#if p.character}
-												· {CHARACTER_INFO[p.character]?.name}{/if}</small
+											>{t('{points} pts', { points: p.points })}{#if p.character}
+												· {t(CHARACTER_INFO[p.character]?.name ?? '')}{/if}</small
 										>
 									</span>
 								</span>
@@ -123,8 +124,8 @@
 						</div>
 						<div class="meta">
 							{#if length(m)}<span>{length(m)}</span>{/if}
-							{#if m.turns}<span>{m.turns} {m.turns === 1 ? 'turn' : 'turns'}</span>{/if}
-							<span>to {m.pointsToWin} points</span>
+							{#if m.turns}<span>{t('{n, plural, one {# turn} other {# turns}}', { n: m.turns })}</span>{/if}
+							<span>{t('to {n, plural, one {# point} other {# points}}', { n: m.pointsToWin })}</span>
 						</div>
 					</li>
 				{/each}

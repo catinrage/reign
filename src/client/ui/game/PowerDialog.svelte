@@ -19,6 +19,7 @@
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
 	import { ui } from './ui.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * Using a character's power: what it does and, for powers that need one, the choice it asks for
@@ -50,13 +51,13 @@
 	const close = () => (ui.power = null);
 	const others = $derived(view.players.map((_, i) => i).filter((i) => i !== me));
 	/** Producing terrains the Alchemist can turn a tile into. */
-	const terrains = (Object.keys(TERRAIN_RESOURCE) as Terrain[]).filter((t) => TERRAIN_RESOURCE[t]);
+	const terrains = (Object.keys(TERRAIN_RESOURCE) as Terrain[]).filter((ter) => TERRAIN_RESOURCE[ter]);
 	const total = $derived(view.dice ? view.dice[0] + view.dice[1] : 0);
 </script>
 
 {#if choosingRoll}
-	<Modal title="Foresight" ribbon="purple" width={460}>
-		<p>Keep one of the three rolls. It plays out as if you had just rolled it.</p>
+	<Modal title={t('Foresight')} ribbon="purple" width={460}>
+		<p>{t('Keep one of the three rolls. It plays out as if you had just rolled it.')}</p>
 		<div class="rolls">
 			{#each view.rollChoices! as d, i (i)}
 				<button class="btn wood roll" onclick={() => client.act({ type: 'keepRoll', index: i })}>
@@ -68,13 +69,15 @@
 		</div>
 	</Modal>
 {:else if ui.power?.stage === 'dialog' && ch && info}
-	<Modal title={info.name} ribbon="purple" width={info.target === 'trade' ? 520 : 440} onclose={close}>
+	<Modal title={t(info.name)} ribbon="purple" width={info.target === 'trade' ? 520 : 440} onclose={close}>
 		<div class="lead">
 			<Portrait id={ch} size={54} />
 			<p>
-				<span class="who">{CHARACTER_INFO[ch].name}'s power.</span>
-				{info.text}
-				{view.powerRecharge ? `It comes back after ${view.powerRecharge} rounds.` : 'Once per game.'}
+				<span class="who">{t("{name}'s power.", { name: t(CHARACTER_INFO[ch].name) })}</span>
+				{t(info.text)}
+				{view.powerRecharge
+					? t('{n, plural, one {It comes back after # round.} other {It comes back after # rounds.}}', { n: view.powerRecharge })
+					: t('Once per game.')}
 			</p>
 		</div>
 
@@ -86,7 +89,7 @@
 					<button class="btn wood block victim" disabled={empty} onclick={() => use({ target: v })}>
 						<span class="shield" style="--shield: var(--art-shield-{p.color})">{p.name.slice(0, 1).toUpperCase()}</span>
 						<span class="vname">{p.name}</span>
-						{#if ch === 'witch' && view.hexed?.[v]}<small>hexed</small>{/if}
+						{#if ch === 'witch' && view.hexed?.[v]}<small>{t('hexed')}</small>{/if}
 						<small><img class="icon-px" src={PIXEL.cards} alt="" />{p.resourceCount}</small>
 					</button>
 				{/each}
@@ -104,7 +107,7 @@
 				{/each}
 			</div>
 		{:else if info.target === 'trade'}
-			<p class="sub">Give (from your hand)</p>
+			<p class="sub">{t('Give (from your hand)')}</p>
 			<div class="row">
 				{#each RESOURCES as r (r)}
 					<div class="col">
@@ -119,7 +122,7 @@
 					</div>
 				{/each}
 			</div>
-			<p class="sub">Take (from the bank)</p>
+			<p class="sub">{t('Take (from the bank)')}</p>
 			<div class="row">
 				{#each RESOURCES as r (r)}
 					<div class="col">
@@ -139,44 +142,44 @@
 					onclick={() => {
 						give = emptyResources();
 						get = emptyResources();
-					}}>Reset</button
+					}}>{t('Reset')}</button
 				>
 				<button class="btn purple" disabled={!giving || giving !== getting} onclick={() => use({ give, get })}
-					>{giving ? `Trade ${giving} for ${getting}` : 'Pick cards to trade'}</button
+					>{giving ? t('Trade {give} for {get}', { give: giving, get: getting }) : t('Pick cards to trade')}</button
 				>
 			</div>
 		{:else if info.target === 'none'}
 			{#if ch === 'bard'}
-				<p class="sub">Everyone collects the {total} again.</p>
+				<p class="sub">{t('Everyone collects the {total} again.', { total })}</p>
 			{/if}
 			<div class="foot">
-				<button class="btn wood" onclick={close}>Not now</button>
-				<button class="btn purple" onclick={() => use()}>Use {info.name}</button>
+				<button class="btn wood" onclick={close}>{t('Not now')}</button>
+				<button class="btn purple" onclick={() => use()}>{t('Use {power}', { power: t(info.name) })}</button>
 			</div>
 		{:else}
 			<div class="foot">
-				<button class="btn wood" onclick={close}>Not now</button>
-				<button class="btn purple" onclick={() => (ui.power = { stage: 'pick' })}>Pick on the board</button>
+				<button class="btn wood" onclick={close}>{t('Not now')}</button>
+				<button class="btn purple" onclick={() => (ui.power = { stage: 'pick' })}>{t('Pick on the board')}</button>
 			</div>
 		{/if}
 	</Modal>
 {:else if ui.power?.stage === 'terrain'}
 	{@const hex = view.board.hexes[ui.power.hex]}
 	{@const h = ui.power.hex}
-	<Modal title="Transmute Land" ribbon="purple" width={480} onclose={close}>
-		<p>The {TERRAIN_NAME[hex.terrain]} {hex.number} becomes, for the rest of the game:</p>
+	<Modal title={t('Transmute Land')} ribbon="purple" width={480} onclose={close}>
+		<p>{t('The {terrain} {number} becomes, for the rest of the game:', { terrain: t(TERRAIN_NAME[hex.terrain]), number: hex.number ?? '' })}</p>
 		<div class="row">
-			{#each terrains.filter((t) => t !== hex.terrain) as t (t)}
-				{@const r = TERRAIN_RESOURCE[t] as Resource}
+			{#each terrains.filter((ter) => ter !== hex.terrain) as ter (ter)}
+				{@const r = TERRAIN_RESOURCE[ter] as Resource}
 				<div class="col">
-					<ResCard res={r} size={58} onclick={() => use({ hex: h, terrain: t })} />
-					<span class="nm">{TERRAIN_NAME[t]}</span>
-					<span class="nm small">{RESOURCE_LABEL[r]}</span>
+					<ResCard res={r} size={58} onclick={() => use({ hex: h, terrain: ter })} />
+					<span class="nm">{t(TERRAIN_NAME[ter])}</span>
+					<span class="nm small">{t(RESOURCE_LABEL[r])}</span>
 				</div>
 			{/each}
 		</div>
 		<div class="foot">
-			<button class="btn wood" onclick={() => (ui.power = { stage: 'pick' })}>Another tile</button>
+			<button class="btn wood" onclick={() => (ui.power = { stage: 'pick' })}>{t('Another tile')}</button>
 		</div>
 	</Modal>
 {/if}

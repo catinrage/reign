@@ -8,6 +8,8 @@
 	import { settings } from '../settings.svelte';
 	import { sfx } from '../sound';
 	import { loft } from './pigeons.svelte';
+	import { t } from '../../i18n/index.svelte';
+	import Rich from '../../i18n/Rich.svelte';
 
 	/**
 	 * The pigeon post. Notes go to one player only: the server hands them to the writer and the
@@ -42,7 +44,7 @@
 	let input: HTMLInputElement | undefined = $state();
 	let sendBtn: HTMLButtonElement | undefined = $state();
 
-	const name = (seat: string) => seats.find((s) => s.id === seat)?.name ?? 'Someone';
+	const name = (seat: string) => seats.find((s) => s.id === seat)?.name ?? t('Someone');
 	const color = (seat: string) =>
 		PLAYER_CSS[seats.find((s) => s.id === seat)?.color ?? 'white'] ?? '#fff';
 
@@ -195,11 +197,11 @@
 <svelte:window onkeydowncapture={onKey} />
 
 {#if loft.open && reader}
-	<div class="loft panel" role="dialog" aria-label="Pigeon post">
+	<div class="loft panel" role="dialog" aria-label={t('Pigeon post')}>
 		<div class="head">
 			<img class="icon-px" src={PIGEON.perched} alt="" />
-			<span class="title">Pigeon Post</span>
-			<button class="x" onclick={close} aria-label="Close"><img src={PIXEL.close} alt="" /></button>
+			<span class="title">{t('Pigeon Post')}</span>
+			<button class="x" onclick={close} aria-label={t('Close')}><img src={PIXEL.close} alt="" /></button>
 		</div>
 		{#if people.length > 1}
 			<div class="tabs" role="tablist">
@@ -221,14 +223,16 @@
 			{#each notes as n (n.id)}
 				{@const mine = n.from === client.seat}
 				<div class="slip" class:mine>
-					<b style="--c:{color(n.from)}">{mine ? 'You' : name(n.from)}</b>
+					<b style="--c:{color(n.from)}">{mine ? t('You') : name(n.from)}</b>
 					<span>{n.text}</span>
 				</div>
 			{:else}
 				<p class="empty">
-					No pigeons yet. Whatever you write here flies to <b style="--c:{color(reader.id)}"
-						>{reader.name}</b
-					> alone; nobody else at the table sees it.
+					<Rich
+						text={t('No pigeons yet. Whatever you write here flies to {player} alone; nobody else at the table sees it.')}
+						slots={{ player }}
+					/>
+					{#snippet player()}<b style="--c:{color(reader.id)}">{reader.name}</b>{/snippet}
 				</p>
 			{/each}
 		</div>
@@ -244,15 +248,15 @@
 				bind:this={input}
 				bind:value={() => drafts[reader.id] ?? '', (v) => (drafts[reader.id] = v)}
 				maxlength={PIGEON_MAX_CHARS}
-				placeholder="A secret note for {reader.name}…"
-				aria-label="Note for {reader.name}"
+				placeholder={t('A secret note for {player}…', { player: reader.name })}
+				aria-label={t('Note for {player}', { player: reader.name })}
 			/>
 			<button class="btn green small send" bind:this={sendBtn} disabled={!drafts[reader.id]?.trim()}
-				>Send<img src={PIGEON.perched} alt="" /></button
+				>{t('Send')}<img src={PIGEON.perched} alt="" /></button
 			>
 		</form>
 		{#if !reader.connected}
-			<p class="away">{reader.name} is away. The pigeon will wait for them.</p>
+			<p class="away">{t('{player} is away. The pigeon will wait for them.', { player: reader.name })}</p>
 		{/if}
 	</div>
 {/if}

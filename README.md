@@ -58,6 +58,8 @@ of any shape and size.
   answer events.
 - 🛡️ **Server-authoritative.** The server runs the rules and sends each player only what they may
   see, so hands, the deck and the dice seed stay secret.
+- 🌍 **Four languages.** English, Russian, Simplified Chinese and German, picked from your browser
+  and switchable in Settings or on the sign-in screen.
 - 📚 **Built-in tutorial.** A full illustrated rule book for both modes, from the main menu or the
   in-game menu.
 
@@ -270,6 +272,10 @@ scripts/      screenshot, end-to-end and dev helpers
 - **Resources and tiles:** extend `config.ts`, then add terrain in `scene/board/terrain.ts` and
   models in `scene/board/models.ts`.
 - **Maps:** presets are drawn as text in `board/maps.ts`; `generateBoard(tiles, rng)` deals any shape.
+- **Text and languages:** every text the player reads goes through `t('English text')` from
+  `src/client/i18n`; the English is the key. Each language is one file in `src/client/i18n/locales`
+  mapping English to its translation, and anything missing shows in English. `pnpm i18n` lists
+  what each language lacks. A new language is a new locale file plus one line in `languages.ts`.
 - **Tutorial:** each Extended feature gets a page in `ui/tutorial/` and a line in `chapters.ts`.
 
 ## Tests

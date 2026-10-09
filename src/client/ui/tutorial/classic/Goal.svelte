@@ -1,87 +1,98 @@
 <script lang="ts">
 	import { VICTORY_POINTS_TO_WIN } from '../../../../shared/rules/config';
+	import { msg, t } from '../../../i18n/index.svelte';
+	import Rich from '../../../i18n/Rich.svelte';
 	import { getIcons } from '../../../scene/icons';
 	import { PIXEL } from '../../pixel';
 
 	const icons = getIcons().urls;
+	// name and text are marked with msg() and shown through t().
 	const sources: { icon: string; pixel?: boolean; pts: string; name: string; text: string }[] = [
 		{
 			icon: icons['settlement:red'],
 			pts: '1',
-			name: 'Settlement',
-			text: 'Each one on the island.'
+			name: msg('Settlement'),
+			text: msg('Each one on the island.')
 		},
-		{ icon: icons['city:red'], pts: '2', name: 'City', text: 'A settlement you upgraded.' },
+		{ icon: icons['city:red'], pts: '2', name: msg('City'), text: msg('A settlement you upgraded.') },
 		{
 			icon: PIXEL.road,
 			pixel: true,
 			pts: '+2',
-			name: 'Longest Road',
-			text: 'The longest unbroken road, five or more.'
+			name: msg('Longest Road'),
+			text: msg('The longest unbroken road, five or more.')
 		},
 		{
 			icon: PIXEL.army,
 			pixel: true,
 			pts: '+2',
-			name: 'Largest Army',
-			text: 'The most knights played, three or more.'
+			name: msg('Largest Army'),
+			text: msg('The most knights played, three or more.')
 		},
 		{
 			icon: PIXEL.victoryPoint,
 			pixel: true,
 			pts: '1',
-			name: 'Victory Point card',
-			text: 'Kept hidden until it wins you the game.'
+			name: msg('Victory Point card'),
+			text: msg('Kept hidden until it wins you the game.')
 		}
 	];
 </script>
 
+{#snippet goal()}<b
+		>{t('{points, plural, one {# victory point on their own turn} other {# victory points on their own turn}}', {
+			points: VICTORY_POINTS_TO_WIN
+		})}</b
+	>{/snippet}
+
 <p>
-	Reign is played on an island of hex tiles. Each player starts with two small settlements and grows
-	them into a realm of roads, settlements and cities. The first player to reach
-	<b>{VICTORY_POINTS_TO_WIN} victory points on their own turn</b> wins at once.
+	<Rich
+		text={t(
+			'Reign is played on an island of hex tiles. Each player starts with two small settlements and grows them into a realm of roads, settlements and cities. The first player to reach {goal} wins at once.'
+		)}
+		slots={{ goal }}
+	/>
 </p>
 
-<h3>Where points come from</h3>
+<h3>{t('Where points come from')}</h3>
 <div class="ledger">
 	{#each sources as s (s.name)}
 		<div class="entry">
 			<img class:icon-px={s.pixel} class:pixel={s.pixel} src={s.icon} alt="" />
 			<span class="pts">{s.pts}</span>
-			<b>{s.name}</b>
-			<span class="what">{s.text}</span>
+			<b>{t(s.name)}</b>
+			<span class="what">{t(s.text)}</span>
 		</div>
 	{/each}
 </div>
 
-<h3>How a game flows</h3>
+<h3>{t('How a game flows')}</h3>
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.house} alt="" /><span
-			>Everyone places two settlements to start. Where you put them decides what you will gather.</span
+			>{t('Everyone places two settlements to start. Where you put them decides what you will gather.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.die} alt="" /><span
-			>Each turn the dice decide which tiles pay out. Your towns collect from the tiles they touch.</span
+			>{t('Each turn the dice decide which tiles pay out. Your towns collect from the tiles they touch.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.trade} alt="" /><span
-			>No one gathers everything, so you trade for what you lack.</span
+			>{t('No one gathers everything, so you trade for what you lack.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
-			>You spend resources to build, and building earns points.</span
+			>{t('You spend resources to build, and building earns points.')}</span
 		>
 	</li>
 </ul>
 
 <p class="tip">
 	<img class="icon-px" src={PIXEL.book} alt="" /><span
-		>The chapters follow a game from start to finish. Use the arrow keys or the buttons below to
-		turn the page.</span
+		>{t('The chapters follow a game from start to finish. Use the arrow keys or the buttons below to turn the page.')}</span
 	>
 </p>
 

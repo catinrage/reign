@@ -5,6 +5,7 @@
 	import Portrait from '../extended/Portrait.svelte';
 	import Modal from '../menu/Modal.svelte';
 	import { sfx } from '../sound';
+	import { msg, t, tx } from '../../i18n/index.svelte';
 
 	/**
 	 * Reign Extended's character draft, at the start of the game. Players pick one at a time in
@@ -19,13 +20,15 @@
 	const many = $derived(draft.pool.length > 8);
 	/** Everyone who has this character (more than one when picks can repeat). */
 	const pickedBy = (c: CharacterId) => view.players.flatMap((p, i) => (p.character === c ? [i] : []));
-	const nameOf = (p: number) => (p === view.me ? 'You' : view.players[p].name);
+	const nameOf = (p: number) => (p === view.me ? t('You') : view.players[p].name);
 	/** Who has it, for the detail panel: "you", "Ann", "Ann and you". */
-	const names = (ps: number[]) =>
-		ps
-			.map((p) => (p === view.me ? 'you' : view.players[p].name))
-			.join(', ')
-			.replace(/, ([^,]*)$/, ' and $1');
+	const names = (ps: number[]) => {
+		const all = ps.map((p) => (p === view.me ? t('you') : view.players[p].name));
+		let out = all[0] ?? '';
+		for (let i = 1; i < all.length; i++)
+			out = i === all.length - 1 ? t('{list} and {last}', { list: out, last: all[i] }) : t('{list}, {next}', { list: out, next: all[i] });
+		return out;
+	};
 
 	let chosen = $state<CharacterId | null>(null);
 	let hovered = $state<CharacterId | null>(null);
@@ -52,17 +55,18 @@
 		if (!chosen || !mine) return;
 		client.act({ type: 'pickCharacter', character: chosen });
 	}
-	const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] ?? 'th'}`;
-	const status = $derived(mine ? 'Your pick!' : `${view.players[view.current].name} is picking…`);
+	/** Places in the picking order; a table never has more than eight players. */
+	const ORDINALS = [msg('1st'), msg('2nd'), msg('3rd'), msg('4th'), msg('5th'), msg('6th'), msg('7th'), msg('8th')];
+	const ordinal = (n: number) => (ORDINALS[n - 1] ? t(ORDINALS[n - 1]) : String(n));
+	const status = $derived(mine ? t('Your pick!') : t('{player} is picking…', { player: view.players[view.current].name }));
 </script>
 
-<Modal title="Character draft" width={980}>
+<Modal title={t('Character draft')} width={980}>
 	<p class="lead">
 		{#if draft.repeats}
-			One character each, and a character already picked is still yours to take. The first to place a
-			settlement picks last.
+			{t('One character each, and a character already picked is still yours to take. The first to place a settlement picks last.')}
 		{:else}
-			One character each. The first to place a settlement picks last, so the last to place picks first.
+			{t('One character each. The first to place a settlement picks last, so the last to place picks first.')}
 		{/if}
 	</p>
 
@@ -77,15 +81,15 @@
 					<span class="shield mini" style="--shield: var(--art-shield-{pl.color})"></span>
 				</span>
 				<span class="who">
-					<span class="nm">{p === view.me ? 'You' : pl.name}</span>
-					<small>{pl.character ? CHARACTER_INFO[pl.character].name : now ? 'picking' : 'waiting'}</small>
+					<span class="nm">{p === view.me ? t('You') : pl.name}</span>
+					<small>{pl.character ? t(CHARACTER_INFO[pl.character].name) : now ? t('picking') : t('waiting')}</small>
 				</span>
 			</li>
 		{/each}
 	</ol>
 
 	<div class="body">
-		<div class="pool" class:many role="group" aria-label="Characters" onpointerleave={() => point(null)}>
+		<div class="pool" class:many role="group" aria-label={t('Characters')} onpointerleave={() => point(null)}>
 			{#each draft.pool as c (c)}
 				{@const by = pickedBy(c)}
 				{@const ch = CHARACTER_INFO[c]}
@@ -101,8 +105,8 @@
 					onclick={() => choose(c)}
 				>
 					<Portrait id={c} size={many ? 54 : 84} tip={false} />
-					<span class="name title">{ch.name}</span>
-					<span class="epithet">{ch.title}</span>
+					<span class="name title">{t(ch.name)}</span>
+					<span class="epithet">{t(ch.title)}</span>
 					{#if by.length}
 						<span class="by" class:open={!taken}
 							>{#each by as p (p)}<span class="shield mini" style="--shield: var(--art-shield-{view.players[p].color})"
@@ -115,18 +119,24 @@
 
 		<aside class="detail well" aria-live="polite">
 			<Portrait id={shown} size={120} />
-			<span class="dname title">{info.name} <small>{info.title}</small></span>
-			<span class="label">Trait</span>
-			<span class="trait">{info.trait}</span>
-			<span class="text">{traitText(shown, view.handLimit)}</span>
+			<span class="dname title">{t(info.name)} <small>{t(info.title)}</small></span>
+			<span class="label">{t('Trait')}</span>
+			<span class="trait">{t(info.trait)}</span>
+			<span class="text">{tx(traitText(shown, view.handLimit))}</span>
 			{#if view.powers}
-				<span class="label">Power{view.powerRecharge ? `, every ${view.powerRecharge} rounds` : ', once per game'}</span>
-				<span class="trait power">{POWER_INFO[shown].name}</span>
-				<span class="text">{POWER_INFO[shown].text}</span>
+				<span class="label"
+					>{view.powerRecharge
+						? t('{n, plural, one {Power, every round} other {Power, every # rounds}}', { n: view.powerRecharge })
+						: t('Power, once per game')}</span
+				>
+				<span class="trait power">{t(POWER_INFO[shown].name)}</span>
+				<span class="text">{t(POWER_INFO[shown].text)}</span>
 			{/if}
 			{#if shownBy.length}
 				<span class="note"
-					>Picked by {names(shownBy)}.{draft.repeats && mine ? ' You can pick it too.' : ''}</span
+					>{draft.repeats && mine
+						? t('Picked by {names}. You can pick it too.', { names: names(shownBy) })
+						: t('Picked by {names}.', { names: names(shownBy) })}</span
 				>
 			{/if}
 		</aside>
@@ -136,7 +146,7 @@
 		<span class="status" class:mine>{status}</span>
 		{#if mine}
 			<button class="btn green shine" disabled={!chosen} onclick={lockIn}>
-				{chosen ? `Pick ${CHARACTER_INFO[chosen].name}` : 'Choose a character'}
+				{chosen ? t('Pick {name}', { name: t(CHARACTER_INFO[chosen].name) }) : t('Choose a character')}
 			</button>
 		{/if}
 	</div>

@@ -5,11 +5,12 @@
 		cleanBuildingRules,
 		type ExtraBuilding
 	} from '../../../shared/rules/buildings';
-	import { COSTS } from '../../../shared/rules/config';
+	import { COSTS, RESOURCE_LABEL } from '../../../shared/rules/config';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
 	import { countsList } from '../helpers';
 	import Modal from '../menu/Modal.svelte';
+	import { t } from '../../i18n/index.svelte';
 
 	/**
 	 * The Reign Extended buildings in the lobby: a plaque that says which are in the game, and a
@@ -24,52 +25,56 @@
 	let open = $state(false);
 
 	const summary = $derived(
-		on.length === EXTRA_BUILDINGS.length ? 'All in play' : on.length ? `${on.length} of ${EXTRA_BUILDINGS.length} in play` : 'None'
+		on.length === EXTRA_BUILDINGS.length
+			? t('All in play')
+			: on.length
+				? t('{count} of {total} in play', { count: on.length, total: EXTRA_BUILDINGS.length })
+				: t('None')
 	);
-	const names = $derived(on.length ? on.map((b) => BUILDING_INFO[b].name).join(', ') : 'Only settlements and cities.');
+	const names = $derived(on.length ? on.map((b) => t(BUILDING_INFO[b].name)).join(', ') : t('Only settlements and cities.'));
 
 	function set(b: ExtraBuilding, value: boolean) {
 		if (rules[b] !== value) client.send({ t: 'setBuilding', building: b, on: value });
 	}
 </script>
 
-<button class="pick plaque" title={client.isHost ? 'Choose buildings' : 'See what they do'} onclick={() => (open = true)}>
+<button class="pick plaque" title={client.isHost ? t('Choose buildings') : t('See what they do')} onclick={() => (open = true)}>
 	<span class="face well"><img src={icons[`${on[0] ?? EXTRA_BUILDINGS[0]}:${color}`]} alt="" class:dim={!on.length} /></span>
 	<span class="pick-body">
-		<span class="label">Buildings</span>
+		<span class="label">{t('Buildings')}</span>
 		<span class="pick-name title">{summary}</span>
 		<span class="trait">{names}</span>
-		<span class="change">{client.isHost ? 'Choose buildings' : 'See what they do'}</span>
+		<span class="change">{client.isHost ? t('Choose buildings') : t('See what they do')}</span>
 	</span>
 </button>
 
 {#if open}
-	<Modal title="Reign buildings" width={560} onclose={() => (open = false)}>
+	<Modal title={t('Reign buildings')} width={560} onclose={() => (open = false)}>
 		<p>
 			{client.isHost
-				? 'New buildings to play with besides settlements and cities. Bots build them too.'
-				: 'New buildings besides settlements and cities. The host picks which are in play.'}
+				? t('New buildings to play with besides settlements and cities. Bots build them too.')
+				: t('New buildings besides settlements and cities. The host picks which are in play.')}
 		</p>
 		<div class="list">
 			{#each EXTRA_BUILDINGS as b (b)}
 				<div class="row plaque" class:off={!rules[b]}>
 					<img class="icon" src={icons[`${b}:${color}`]} alt="" />
 					<div class="body">
-						<span class="name title">{BUILDING_INFO[b].name}</span>
-						<span class="text">{BUILDING_INFO[b].text}</span>
+						<span class="name title">{t(BUILDING_INFO[b].name)}</span>
+						<span class="text">{t(BUILDING_INFO[b].text)}</span>
 						<span class="cost">
 							{#each countsList(COSTS[b]) as c (c.res)}
-								{#each Array(c.n) as _, k (k)}<img src={icons[c.res]} alt={c.res} />{/each}
+								{#each Array(c.n) as _, k (k)}<img src={icons[c.res]} alt={t(RESOURCE_LABEL[c.res])} />{/each}
 							{/each}
 						</span>
 					</div>
 					{#if client.isHost}
-						<div class="seg" role="radiogroup" aria-label={BUILDING_INFO[b].name}>
-							<button class="btn small" class:on={rules[b]} role="radio" aria-checked={rules[b]} onclick={() => set(b, true)}>On</button>
-							<button class="btn small" class:on={!rules[b]} role="radio" aria-checked={!rules[b]} onclick={() => set(b, false)}>Off</button>
+						<div class="seg" role="radiogroup" aria-label={t(BUILDING_INFO[b].name)}>
+							<button class="btn small" class:on={rules[b]} role="radio" aria-checked={rules[b]} onclick={() => set(b, true)}>{t('On')}</button>
+							<button class="btn small" class:on={!rules[b]} role="radio" aria-checked={!rules[b]} onclick={() => set(b, false)}>{t('Off')}</button>
 						</div>
 					{:else}
-						<span class="state title">{rules[b] ? 'On' : 'Off'}</span>
+						<span class="state title">{rules[b] ? t('On') : t('Off')}</span>
 					{/if}
 				</div>
 			{/each}

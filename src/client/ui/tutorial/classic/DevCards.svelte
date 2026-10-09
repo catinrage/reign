@@ -5,8 +5,11 @@
 		DEV_CARD_TEXT,
 		DEV_CARDS,
 		DEV_DECK,
-		LARGEST_ARMY_MIN
+		LARGEST_ARMY_MIN,
+		RESOURCE_LABEL
 	} from '../../../../shared/rules/config';
+	import { msg, t } from '../../../i18n/index.svelte';
+	import Rich from '../../../i18n/Rich.svelte';
 	import { getIcons } from '../../../scene/icons';
 	import DevCard from '../../DevCard.svelte';
 	import { countsList } from '../../helpers';
@@ -14,19 +17,28 @@
 
 	const icons = getIcons().urls;
 	const deckSize = DEV_CARDS.reduce((n, c) => n + DEV_DECK[c], 0);
+	// Marked with msg() and shown through t(); {n} is LARGEST_ARMY_MIN.
 	const more: Partial<Record<(typeof DEV_CARDS)[number], string>> = {
-		knight: `It stays in front of you afterwards: play ${LARGEST_ARMY_MIN} or more and you can claim Largest Army.`,
-		victoryPoint:
+		knight: msg('It stays in front of you afterwards: play {n} or more and you can claim Largest Army.'),
+		victoryPoint: msg(
 			'You never play it. It counts toward your total, hidden from everyone else, and is revealed when you win.'
+		)
 	};
 </script>
 
+{#snippet cost()}<span class="res">
+		{#each countsList(COSTS.devCard) as c (c.res)}<img src={icons[c.res]} alt={t(RESOURCE_LABEL[c.res])} />{/each}
+	</span>{/snippet}
+{#snippet one()}<b>{t('one')}</b>{/snippet}
+
 <p>
-	Buy a development card for
-	<span class="res">
-		{#each countsList(COSTS.devCard) as c (c.res)}<img src={icons[c.res]} alt={c.res} />{/each}
-	</span>. It comes off the top of a shuffled deck of {deckSize}, and nobody else sees what you
-	drew.
+	<Rich
+		text={t(
+			'Buy a development card for {cost}. It comes off the top of a shuffled deck of {n}, and nobody else sees what you drew.',
+			{ n: deckSize }
+		)}
+		slots={{ cost }}
+	/>
 </p>
 
 <div class="deck">
@@ -34,30 +46,30 @@
 		<div class="kind">
 			<DevCard type={c} count={DEV_DECK[c]} size={64} />
 			<div class="text">
-				<b>{DEV_CARD_LABEL[c]}</b>
-				<span>{DEV_CARD_TEXT[c]}</span>
-				{#if more[c]}<span class="more">{more[c]}</span>{/if}
+				<b>{t(DEV_CARD_LABEL[c])}</b>
+				<span>{t(DEV_CARD_TEXT[c])}</span>
+				{#if more[c]}<span class="more">{t(more[c], { n: LARGEST_ARMY_MIN })}</span>{/if}
 			</div>
 		</div>
 	{/each}
 </div>
-<span class="caption">The number on each card is how many are in the deck.</span>
+<span class="caption">{t('The number on each card is how many are in the deck.')}</span>
 
-<h3>Playing them</h3>
+<h3>{t('Playing them')}</h3>
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.hourglass} alt="" /><span
-			>Not on the turn you bought it: a new card waits until your next turn.</span
+			>{t('Not on the turn you bought it: a new card waits until your next turn.')}</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.dev} alt="" /><span
-			>At most <b>one</b> development card per turn.</span
+			><Rich text={t('At most {one} development card per turn.')} slots={{ one }} /></span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.die} alt="" /><span
-			>You may play it before or after rolling.</span
+			>{t('You may play it before or after rolling.')}</span
 		>
 	</li>
 </ul>

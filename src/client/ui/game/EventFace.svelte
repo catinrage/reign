@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { EVENT_INFO, TONE_LABEL, type EventCard } from '../../../shared/rules/events';
 	import { EVENT_ART, TONE_COLOR } from './eventArt';
+	import { t } from '../../i18n/index.svelte';
 
 	/** An event card's face: its picture, tone, name and what it does. */
 	let { card, size = 180, text = true }: { card: EventCard; size?: number; text?: boolean } = $props();
@@ -8,10 +9,10 @@
 </script>
 
 <div class="ecard" style="--tone:{TONE_COLOR[info.tone]}; --w:{size}px">
-	<span class="tone">{TONE_LABEL[info.tone]}</span>
+	<span class="tone">{t(TONE_LABEL[info.tone])}</span>
 	<span class="art"><img src={EVENT_ART[card]} alt="" /></span>
-	<span class="name title">{info.name}</span>
-	{#if text}<span class="text">{info.text}</span>{/if}
+	<span class="name title">{t(info.name)}</span>
+	{#if text}<span class="text">{t(info.text)}</span>{/if}
 </div>
 
 <style>
@@ -63,6 +64,8 @@
 	.name {
 		font-size: max(12px, calc(var(--w) * 0.1));
 		line-height: 1.1;
+		overflow-wrap: break-word;
+		hyphens: auto;
 		color: #2a1a10;
 		text-shadow: none;
 	}

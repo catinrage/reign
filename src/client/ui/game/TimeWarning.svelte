@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
+	import { t } from '../../i18n/index.svelte';
 	import { myTurn } from '../helpers';
 	import { settings } from '../settings.svelte';
 	import { sfx } from '../sound';
@@ -24,7 +25,7 @@
 		{#key secs}
 			<div class="count" class:last={secs <= 2}>{secs}</div>
 		{/key}
-		<div class="ribbon hurry">Time's almost up!</div>
+		<div class="ribbon hurry">{t("Time's almost up!")}</div>
 	</div>
 {/if}
 

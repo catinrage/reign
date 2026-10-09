@@ -2,10 +2,20 @@
 	import { emptyResources, type Resource } from '../../../shared/rules/config';
 	import { tradeRatios } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
-	import { RESOURCES, RESOURCE_LABEL } from '../helpers';
+	import { RESOURCES } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
 	import { ui } from './ui.svelte';
+	import { msg, t } from '../../i18n/index.svelte';
+
+	/** A resource as the trade button names it, mid-sentence. */
+	const RES_WORD: Record<Resource, string> = {
+		wood: msg('lumber'),
+		brick: msg('brick'),
+		sheep: msg('wool'),
+		wheat: msg('grain'),
+		ore: msg('ore')
+	};
 
 	const view = $derived(client.view!);
 	const mine = $derived(view.players[view.me].resources!);
@@ -43,24 +53,24 @@
 
 <div class="trade">
 	<div class="ribbon" style="--rib: var(--art-ribbon-wood)">
-		<img class="icon-px" src={PIXEL.trade} alt="" />Trade
+		<img class="icon-px" src={PIXEL.trade} alt="" />{t('Trade')}
 	</div>
-	<button class="icon-btn close" onclick={() => (ui.trade = false)} aria-label="Close"
+	<button class="icon-btn close" onclick={() => (ui.trade = false)} aria-label={t('Close')}
 		><img src={PIXEL.close} alt="" /></button
 	>
 	<div class="frame panel">
 		<div class="seg tabs">
 			<button class="btn small" class:on={tab === 'bank'} onclick={() => (tab = 'bank')}
-				><img class="icon-px" src={PIXEL.anchor} alt="" />Bank & harbors</button
+				><img class="icon-px" src={PIXEL.anchor} alt="" />{t('Bank & harbors')}</button
 			>
 			<button class="btn small" class:on={tab === 'players'} onclick={() => (tab = 'players')}
-				><img class="icon-px" src={PIXEL.chat} alt="" />Players</button
+				><img class="icon-px" src={PIXEL.chat} alt="" />{t('Players')}</button
 			>
 		</div>
 
 		{#if tab === 'bank'}
 			<div class="sec">
-				<div class="label">Give</div>
+				<div class="label">{t('Give')}</div>
 				<div class="row">
 					{#each RESOURCES as r (r)}
 						<div class="pick">
@@ -75,7 +85,7 @@
 						</div>
 					{/each}
 				</div>
-				<div class="label">Get</div>
+				<div class="label">{t('Get')}</div>
 				<div class="row">
 					{#each RESOURCES as r (r)}
 						<div class="pick">
@@ -86,20 +96,21 @@
 								dim={view.bank[r] === 0 || r === give}
 								onclick={() => (get = r)}
 							/>
-							<span class="tag" title="Left in the bank">{view.bank[r]} left</span>
+							<span class="tag" title={t('Left in the bank')}>{t('{n} left', { n: view.bank[r] })}</span>
 						</div>
 					{/each}
 				</div>
 				<button class="btn green block" disabled={!canBank} onclick={bankTrade}>
-					{#if give && get}Trade {ratios[give]}
-						{RESOURCE_LABEL[give].toLowerCase()} for 1 {RESOURCE_LABEL[
-							get
-						].toLowerCase()}{:else}Pick what to give and get{/if}
+					{#if give && get}{t('Trade {n} {give} for 1 {get}', {
+							n: ratios[give],
+							give: t(RES_WORD[give]),
+							get: t(RES_WORD[get])
+						})}{:else}{t('Pick what to give and get')}{/if}
 				</button>
 			</div>
 		{:else}
 			<div class="sec">
-				<div class="label">You give</div>
+				<div class="label">{t('You give')}</div>
 				<div class="row">
 					{#each RESOURCES as r (r)}
 						<div class="pick">
@@ -114,12 +125,12 @@
 								class="minus"
 								disabled={offerGive[r] === 0}
 								onclick={() => bump('give', r, -1)}
-								aria-label="One less">−</button
+								aria-label={t('One less')}>−</button
 							>
 						</div>
 					{/each}
 				</div>
-				<div class="label">You want</div>
+				<div class="label">{t('You want')}</div>
 				<div class="row">
 					{#each RESOURCES as r (r)}
 						<div class="pick">
@@ -133,7 +144,7 @@
 								class="minus"
 								disabled={offerWant[r] === 0}
 								onclick={() => bump('want', r, -1)}
-								aria-label="One less">−</button
+								aria-label={t('One less')}>−</button
 							>
 						</div>
 					{/each}
@@ -141,7 +152,7 @@
 				<button
 					class="btn green block"
 					disabled={giveTotal === 0 || wantTotal === 0}
-					onclick={offer}>Offer to everyone</button
+					onclick={offer}>{t('Offer to everyone')}</button
 				>
 			</div>
 		{/if}

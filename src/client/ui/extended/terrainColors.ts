@@ -1,4 +1,5 @@
 import type { Terrain } from '../../../shared/rules/config';
+import { msg } from '../../i18n/index.svelte';
 
 /** Flat tile colors for 2D map previews and the editor, picked from the island's own palette. */
 export const TERRAIN_CSS: Record<Terrain | 'random', string> = {
@@ -11,12 +12,13 @@ export const TERRAIN_CSS: Record<Terrain | 'random', string> = {
 	random: '#e9dcc0'
 };
 
+/** Terrain names in English: shown with t(TERRAIN_NAME[terrain]). */
 export const TERRAIN_NAME: Record<Terrain | 'random', string> = {
-	forest: 'Forest',
-	hills: 'Hills',
-	pasture: 'Pasture',
-	fields: 'Fields',
-	mountains: 'Mountains',
-	desert: 'Desert',
-	random: 'Random'
+	forest: msg('Forest'),
+	hills: msg('Hills'),
+	pasture: msg('Pasture'),
+	fields: msg('Fields'),
+	mountains: msg('Mountains'),
+	desert: msg('Desert'),
+	random: msg('Random')
 };

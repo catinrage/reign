@@ -2,6 +2,7 @@
 	import type { Resource } from '../../shared/rules/config';
 	import { getIcons } from '../scene/icons';
 	import { RESOURCE_LABEL } from './helpers';
+	import { t } from '../i18n/index.svelte';
 
 	let {
 		res,
@@ -33,10 +34,10 @@
 	style="--w:{size}px; --cp:{px}px; --pat: var(--pat-{res})"
 	{onclick}
 	disabled={!onclick}
-	title={RESOURCE_LABEL[res]}
+	title={t(RESOURCE_LABEL[res])}
 >
-	<span class="art"><img src={icon} alt={RESOURCE_LABEL[res]} draggable="false" /></span>
-	{#if label}<span class="name">{RESOURCE_LABEL[res]}</span>{/if}
+	<span class="art"><img src={icon} alt={t(RESOURCE_LABEL[res])} draggable="false" /></span>
+	{#if label}<span class="name">{t(RESOURCE_LABEL[res])}</span>{/if}
 	{#if count !== undefined}<span class="count">{count}</span>{/if}
 </button>
 

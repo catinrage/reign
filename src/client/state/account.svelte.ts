@@ -1,4 +1,5 @@
 import type { AvatarId, Friend, FriendRequest, FriendsInfo, MatchHistory, Me, RoomInvite, Whereabouts } from '../../shared/accounts';
+import { msg, t, tx } from '../i18n/index.svelte';
 import { OFFLINE } from '../offline/flag';
 
 /**
@@ -13,7 +14,7 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 	if (OFFLINE) {
 		const { offlineApi } = await import('../offline/api');
 		return offlineApi<T>(path, method, body).catch((e) => {
-			throw new ApiError((e as Error).message);
+			throw new ApiError(tx((e as Error).message));
 		});
 	}
 	let res: Response;
@@ -25,11 +26,11 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 			body: method === 'GET' ? undefined : JSON.stringify(body ?? {})
 		});
 	} catch {
-		throw new ApiError("Can't reach the server. Check your connection.");
+		throw new ApiError(t("Can't reach the server. Check your connection."));
 	}
 	const data = await res.json().catch(() => ({}));
 	if (res.status === 401 && path !== 'login') account.signedOut();
-	if (!res.ok) throw new ApiError(data.error ?? 'Something went wrong.');
+	if (!res.ok) throw new ApiError(data.error ? tx(data.error) : t('Something went wrong.'));
 	return data as T;
 }
 
@@ -156,9 +157,10 @@ function sortFriends(list: Friend[]): Friend[] {
 
 export const account = new Account();
 
+/** Where a friend is, in words: shown with t(WHEREABOUTS[where]). */
 export const WHEREABOUTS: Record<Whereabouts, string> = {
-	offline: 'Offline',
-	menu: 'Online',
-	lobby: 'At a table',
-	game: 'In a game'
+	offline: msg('Offline'),
+	menu: msg('Online'),
+	lobby: msg('At a table'),
+	game: msg('In a game')
 };

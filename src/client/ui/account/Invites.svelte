@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { RoomInvite } from '../../../shared/accounts';
+	import { t } from '../../i18n/index.svelte';
+	import Rich from '../../i18n/Rich.svelte';
 	import { account } from '../../state/account.svelte';
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
@@ -37,14 +39,15 @@
 				<Avatar id={i.from.avatar} size={52} />
 				<div class="text">
 					<span class="who title">{i.from.nickname}</span>
-					<span class="what">invites you to their table <b>{i.code}</b></span>
-					{#if inGame}<span class="warn">Joining leaves the game you're in.</span>{/if}
+					<span class="what"><Rich text={t('invites you to their table {code}')} slots={{ code }} /></span>
+					{#snippet code()}<b>{i.code}</b>{/snippet}
+					{#if inGame}<span class="warn">{t("Joining leaves the game you're in.")}</span>{/if}
 				</div>
 				<div class="buttons">
 					<button class="btn small green" onclick={() => join(i)}
-						><img class="icon-px" src={PIXEL.check} alt="" />Join</button
+						><img class="icon-px" src={PIXEL.check} alt="" />{t('Join')}</button
 					>
-					<button class="btn small wood" onclick={() => decline(i)}>Decline</button>
+					<button class="btn small wood" onclick={() => decline(i)}>{t('Decline')}</button>
 				</div>
 			</div>
 		{/each}

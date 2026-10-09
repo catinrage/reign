@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { PIXEL } from '../pixel';
+	import { t } from '../../i18n/index.svelte';
 
 	let {
 		title,
@@ -28,7 +29,7 @@
 	<div class="modal" role="dialog" aria-label={title} style="--w:{width}px">
 		<div class="ribbon" style="--rib: var(--art-ribbon-{ribbon})">{title}</div>
 		{#if onclose}
-			<button class="icon-btn close" onclick={onclose} aria-label="Close"
+			<button class="icon-btn close" onclick={onclose} aria-label={t('Close')}
 				><img src={PIXEL.close} alt="" /></button
 			>
 		{/if}

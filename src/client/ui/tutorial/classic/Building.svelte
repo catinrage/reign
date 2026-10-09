@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { COSTS, PIECE_LIMITS, type BuildKind } from '../../../../shared/rules/config';
+	import { COSTS, PIECE_LIMITS, RESOURCE_LABEL, type BuildKind } from '../../../../shared/rules/config';
+	import { msg, t } from '../../../i18n/index.svelte';
 	import { getIcons } from '../../../scene/icons';
 	import { countsList } from '../../helpers';
 	import { PIXEL } from '../../pixel';
 
 	const icons = getIcons().urls;
+	// name, worth and rule are marked with msg() and shown through t().
 	const builds: {
 		kind: BuildKind;
 		name: string;
@@ -15,41 +17,40 @@
 	}[] = [
 		{
 			kind: 'road',
-			name: 'Road',
-			worth: 'No points, but counts toward Longest Road.',
-			rule: 'Goes on an edge next to one of your roads, settlements or cities.',
+			name: msg('Road'),
+			worth: msg('No points, but counts toward Longest Road.'),
+			rule: msg('Goes on an edge next to one of your roads, settlements or cities.'),
 			icon: icons['road:red'],
 			limit: PIECE_LIMITS.road
 		},
 		{
 			kind: 'settlement',
-			name: 'Settlement',
-			worth: '1 point.',
-			rule: 'Goes on an empty corner touched by your road, at least two steps from any other town.',
+			name: msg('Settlement'),
+			worth: msg('1 point.'),
+			rule: msg('Goes on an empty corner touched by your road, at least two steps from any other town.'),
 			icon: icons['settlement:red'],
 			limit: PIECE_LIMITS.settlement
 		},
 		{
 			kind: 'city',
-			name: 'City',
-			worth: '2 points, and it collects two cards per roll.',
-			rule: 'Replaces one of your settlements, which goes back to your supply.',
+			name: msg('City'),
+			worth: msg('2 points, and it collects two cards per roll.'),
+			rule: msg('Replaces one of your settlements, which goes back to your supply.'),
 			icon: icons['city:red'],
 			limit: PIECE_LIMITS.city
 		},
 		{
 			kind: 'devCard',
-			name: 'Development card',
-			worth: 'Drawn face down from the deck.',
-			rule: 'See the Development cards chapter.',
+			name: msg('Development card'),
+			worth: msg('Drawn face down from the deck.'),
+			rule: msg('See the Development cards chapter.'),
 			icon: PIXEL.dev
 		}
 	];
 </script>
 
 <p>
-	Once you have rolled, open the build panel and pick what to build. The island lights up the spots
-	you can use.
+	{t('Once you have rolled, open the build panel and pick what to build. The island lights up the spots you can use.')}
 </p>
 
 <div class="costs">
@@ -58,32 +59,34 @@
 			<img class="piece" class:icon-px={b.kind === 'devCard'} src={b.icon} alt="" />
 			<div class="what">
 				<div class="head">
-					<b class="title">{b.name}</b>
+					<b class="title">{t(b.name)}</b>
 					<span class="res">
 						{#each countsList(COSTS[b.kind]) as c (c.res)}
-							{#each Array(c.n) as _, k (k)}<img src={icons[c.res]} alt={c.res} />{/each}
+							{#each Array(c.n) as _, k (k)}<img src={icons[c.res]} alt={t(RESOURCE_LABEL[c.res])} />{/each}
 						{/each}
 					</span>
 				</div>
-				<span>{b.worth}</span>
-				<span class="rule">{b.rule}</span>
+				<span>{t(b.worth)}</span>
+				<span class="rule">{t(b.rule)}</span>
 			</div>
-			{#if b.limit}<span class="limit" title="Pieces each player has">×{b.limit}</span>{/if}
+			{#if b.limit}<span class="limit" title={t('Pieces each player has')}>×{b.limit}</span>{/if}
 		</div>
 	{/each}
 </div>
 
-<h3>Your supply</h3>
+<h3>{t('Your supply')}</h3>
 <p>
-	Each player has {PIECE_LIMITS.road} roads, {PIECE_LIMITS.settlement} settlements and {PIECE_LIMITS.city}
-	cities. When a piece runs out you can't build more of it, so upgrading settlements to cities frees them
-	up to build again.
+	{t(
+		"Each player has {roads, plural, one {# road} other {# roads}}, {settlements, plural, one {# settlement} other {# settlements}} and {cities, plural, one {# city} other {# cities}}. When a piece runs out you can't build more of it, so upgrading settlements to cities frees them up to build again.",
+		{ roads: PIECE_LIMITS.road, settlements: PIECE_LIMITS.settlement, cities: PIECE_LIMITS.city }
+	)}
 </p>
 
 <p class="tip">
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
-		>Settlements need fresh corners to grow into, and roads are how you reach them. Plan your roads
-		toward the corners you want before someone else takes them.</span
+		>{t(
+			'Settlements need fresh corners to grow into, and roads are how you reach them. Plan your roads toward the corners you want before someone else takes them.'
+		)}</span
 	>
 </p>
 

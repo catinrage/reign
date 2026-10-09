@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { MAP_PRESETS, mapName, presetById } from '../../shared/board/maps';
-	import { CHARACTERS, STEWARD_EXTRA } from '../../shared/rules/characters';
-	import { DISCARD_THRESHOLD, PLAYER_COLORS, VICTORY_POINTS_TO_WIN } from '../../shared/rules/config';
+	import { MAP_PRESETS, presetById, type MapChoice } from '../../shared/board/maps';
+	import { CHARACTER_INFO, CHARACTERS, STEWARD_EXTRA } from '../../shared/rules/characters';
+	import { DISCARD_THRESHOLD, PLAYER_COLORS, VICTORY_POINTS_TO_WIN, type PlayerColor } from '../../shared/rules/config';
 	import { RANDOM_SHAPE_INFO } from '../../shared/board/random';
 	import {
 		GAME_MODES,
@@ -23,7 +23,7 @@
 	import { ACCOUNT_ICONS } from './account/icons';
 	import BuildingRules from './extended/BuildingRules.svelte';
 	import EventRules from './extended/EventRules.svelte';
-	import CharacterPicker, { rechargeName } from './extended/CharacterPicker.svelte';
+	import CharacterPicker from './extended/CharacterPicker.svelte';
 	import MapPicker from './extended/MapPicker.svelte';
 	import MapPreview from './extended/MapPreview.svelte';
 	import { generateIsland } from './extended/randomIsland';
@@ -35,6 +35,18 @@
 	import { settings as prefs } from './settings.svelte';
 	import { PIXEL } from './pixel';
 	import { sceneRef } from './sceneRef';
+	import { i18n, msg, t, tx } from '../i18n/index.svelte';
+
+	const COLOR_LABEL: Record<PlayerColor, string> = {
+		red: msg('red'),
+		blue: msg('blue'),
+		yellow: msg('yellow'),
+		green: msg('green'),
+		white: msg('white'),
+		orange: msg('orange'),
+		purple: msg('purple'),
+		pink: msg('pink')
+	};
 
 	const lobby = $derived(client.lobby!);
 	const mySeat = $derived(lobby.seats.find((s) => s.id === client.seat));
@@ -53,18 +65,27 @@
 		'preset' in settings.map ? (presetById(settings.map.preset)?.tiles ?? []) : settings.map.custom.tiles
 	);
 	const random = $derived('custom' in settings.map ? settings.map.custom.random : undefined);
-	const mapBlurb = $derived(
-		'preset' in settings.map
-			? (presetById(settings.map.preset)?.blurb ?? '')
-			: random
-				? `A random island: ${RANDOM_SHAPE_INFO[random.shape].text.toLowerCase().replace(/\.$/, '')}${random.lakes ? ', with lakes' : ''}.`
-				: 'A map made in the map maker.'
-	);
+	const mapBlurb = $derived.by(() => {
+		if ('preset' in settings.map) {
+			const blurb = presetById(settings.map.preset)?.blurb;
+			return blurb ? t(blurb) : '';
+		}
+		if (!random) return t('A map made in the map maker.');
+		// The shape's sentence, mid-sentence: first letter lowered, full stop dropped.
+		const text = t(RANDOM_SHAPE_INFO[random.shape].text).replace(/[.。]$/, '');
+		const shape = text.charAt(0).toLocaleLowerCase(i18n.lang) + text.slice(1);
+		return random.lakes ? t('A random island: {shape}, with lakes.', { shape }) : t('A random island: {shape}.', { shape });
+	});
 	// Island size, players and points go together: a small island with a big table can't
 	// reach a big goal, so the server caps it and the picks above the cap are greyed out.
 	const pointsCap = $derived(maxPointsFor(mapTiles.length, lobby.seats.length));
 	const pointsTip = $derived(
-		`${mapTiles.length} tiles and ${lobby.seats.length} players: about ${suggestedPoints(mapTiles.length, lobby.seats.length)} plays well, ${pointsCap} at most`
+		t('{tiles, plural, one {# tile} other {# tiles}} and {players, plural, one {# player} other {# players}}: about {suggested} plays well, {max} at most', {
+			tiles: mapTiles.length,
+			players: lobby.seats.length,
+			suggested: suggestedPoints(mapTiles.length, lobby.seats.length),
+			max: pointsCap
+		})
 	);
 	let picking = $state<'character' | 'map' | null>(null);
 	const CLASSIC_TILES = MAP_PRESETS[0].tiles;
@@ -98,17 +119,46 @@
 	}
 	function names(seats: { name: string }[]) {
 		const n = seats.map((s) => s.name);
-		return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
+		return n.length < 2 ? n.join('') : t('{list} and {last}', { list: n.slice(0, -1).join(', '), last: n[n.length - 1] });
 	}
-	function shortTime(t: number) {
-		return !t ? 'Unlimited' : t < 120 ? `${t} sec` : `${t / 60} min`;
+	/** The map's name: a preset's translated, a random island's filled in, a drawn one's as typed. */
+	function mapTitle(map: MapChoice) {
+		if ('preset' in map) {
+			const preset = presetById(map.preset);
+			return preset ? t(preset.name) : t('Unknown map');
+		}
+		if (!map.custom.name) return t('Custom map');
+		return map.custom.random ? tx(map.custom.name) : map.custom.name;
+	}
+	/** What the characters card says about the draft and powers. */
+	function draftText() {
+		if (!settings.characters) return t('No characters: everyone plays by the plain rules.');
+		if (!settings.powers)
+			return settings.repeatPicks
+				? t('Everyone picks one at the start, and picks can repeat.')
+				: t('Everyone picks one at the start. The first settler picks last.');
+		const rounds = settings.powerRecharge;
+		if (settings.repeatPicks)
+			return rounds
+				? t('{rounds, plural, one {Drafted, repeats allowed. Powers every round.} other {Drafted, repeats allowed. Powers every # rounds.}}', { rounds })
+				: t('Drafted, repeats allowed. Powers once per game.');
+		return rounds
+			? t('{rounds, plural, one {Drafted at the start. Powers every round.} other {Drafted at the start. Powers every # rounds.}}', { rounds })
+			: t('Drafted at the start. Powers once per game.');
+	}
+	function shortTime(secs: number) {
+		return !secs ? t('Unlimited') : secs < 120 ? t('{seconds} sec', { seconds: secs }) : t('{minutes} min', { minutes: secs / 60 });
 	}
 	/** The same, for the one-row picker of the wide lobby. */
-	function tinyTime(t: number) {
-		return !t ? 'Off' : t < 120 ? `${t}s` : `${t / 60}m`;
+	function tinyTime(secs: number) {
+		return !secs ? t('Off') : secs < 120 ? t('{seconds}s', { seconds: secs }) : t('{minutes}m', { minutes: secs / 60 });
 	}
-	function longTime(t: number) {
-		return !t ? 'Unlimited' : t < 120 ? `${t} seconds a turn` : `${t / 60} minutes a turn`;
+	function longTime(secs: number) {
+		return !secs
+			? t('Unlimited')
+			: secs < 120
+				? t('{seconds, plural, one {# second a turn} other {# seconds a turn}}', { seconds: secs })
+				: t('{minutes, plural, one {# minute a turn} other {# minutes a turn}}', { minutes: secs / 60 });
 	}
 
 	async function copy() {
@@ -126,29 +176,29 @@
 	<Embers count={14} />
 	<div class="column wide">
 		<div class="card panel wide">
-			<div class="ribbon head">Gather your table</div>
+			<div class="ribbon head">{t('Gather your table')}</div>
 
 			<div class="cols">
 				<div class="col">
 					{#if !OFFLINE}
 						<div class="invite">
-							<span class="label">Room code</span>
+							<span class="label">{t('Room code')}</span>
 							<CodeTiles value={lobby.code} size="big" />
 							<button class="btn small wood" onclick={copy}>
 								<img class="icon-px" src={copied ? PIXEL.check : PIXEL.letter} alt="" />{copied
-									? 'Link copied!'
-									: 'Copy invite link'}
+									? t('Link copied!')
+									: t('Copy invite link')}
 							</button>
 							<button class="btn small" onclick={() => (inviting = true)}>
-								<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />Invite friends{#if account.onlineFriends.length}
-									<span class="online">{account.onlineFriends.length} online</span>{/if}
+								<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />{t('Invite friends')}{#if account.onlineFriends.length}
+									<span class="online">{t('{count} online', { count: account.onlineFriends.length })}</span>{/if}
 							</button>
 						</div>
 					{/if}
 
 
 					<div class="divider">
-						<i></i><span>Settlers {lobby.seats.length}/{lobby.maxPlayers}</span><i></i>
+						<i></i><span>{t('Settlers {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })}</span><i></i>
 					</div>
 
 					<div class="seats" class:many>
@@ -161,32 +211,32 @@
 									</span>
 								{:else}
 									<span class="shield" style="--shield: var(--art-shield-{s.color})">
-										{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt="bot" />{:else}{s.name.slice(0, 1).toUpperCase()}{/if}
+										{#if s.isBot}<img class="icon-px" src={PIXEL.bot} alt={t('bot')} />{:else}{s.name.slice(0, 1).toUpperCase()}{/if}
 									</span>
 								{/if}
 								<span class="name title">
 									<span class="who">
 										<span>
 											{s.name}
-											{#if s.id === client.seat}<em>you</em>{/if}
+											{#if s.id === client.seat}<em>{t('you')}</em>{/if}
 										</span>
 									</span>
 								</span>
-								{#if s.isHost}<img class="icon-px tag" src={PIXEL.crown} alt="host" title="Host" />{/if}
-								{#if !s.connected}<span class="away">away</span>{/if}
+								{#if s.isHost}<img class="icon-px tag" src={PIXEL.crown} alt={t('host')} title={t('Host')} />{/if}
+								{#if !s.connected}<span class="away">{t('away')}</span>{/if}
 								{#if !s.isHost && !s.isBot && s.connected}
 									{#if s.ready}
-										<span class="ready on" title="Ready"><img class="icon-px" src={PIXEL.check} alt="" />Ready</span>
+										<span class="ready on" title={t('Ready')}><img class="icon-px" src={PIXEL.check} alt="" />{t('Ready')}</span>
 									{:else}
-										<span class="ready" title="Not ready yet">Not ready</span>
+										<span class="ready" title={t('Not ready yet')}>{t('Not ready')}</span>
 									{/if}
 								{/if}
 								{#if client.isHost && s.isBot}
 									<button
 										class="icon-btn kick"
 										onclick={() => client.send({ t: 'removeSeat', seat: s.id })}
-										title="Remove bot"
-										aria-label="Remove {s.name}"
+										title={t('Remove bot')}
+										aria-label={t('Remove {name}', { name: s.name })}
 									>
 										<img src={PIXEL.close} alt="" />
 									</button>
@@ -196,10 +246,10 @@
 						{#each Array(open) as _, k (k)}
 							<div class="seat empty">
 								<span class="ghost"></span>
-								<span class="name">Open seat</span>
+								<span class="name">{t('Open seat')}</span>
 								{#if client.isHost}
 									<button class="btn small wood" onclick={() => client.send({ t: 'addBot' })}
-										><img class="icon-px" src={PIXEL.bot} alt="" />Add bot</button
+										><img class="icon-px" src={PIXEL.bot} alt="" />{t('Add bot')}</button
 									>
 								{/if}
 							</div>
@@ -209,7 +259,7 @@
 					<div class="end">
 						<div class="foot">
 							<button class="btn wood" onclick={() => client.leave()}
-								><img class="icon-px" src={PIXEL.door} alt="" />Leave</button
+								><img class="icon-px" src={PIXEL.door} alt="" />{t('Leave')}</button
 							>
 							{#if client.isHost}
 								<button
@@ -217,7 +267,7 @@
 									disabled={!enough || notReady.length > 0}
 									onclick={() => client.send({ t: 'start' })}
 								>
-									<img src={PIXEL.play} alt="" />Start game
+									<img src={PIXEL.play} alt="" />{t('Start game')}
 								</button>
 							{:else if mySeat}
 								<button
@@ -228,24 +278,24 @@
 									onclick={() => client.send({ t: 'setReady', ready: !mySeat.ready })}
 								>
 									<img src={mySeat.ready ? PIXEL.check : PIXEL.hourglass} alt="" />{mySeat.ready
-										? 'Ready!'
-										: 'I am ready'}
+										? t('Ready!')
+										: t('I am ready')}
 								</button>
 							{/if}
 						</div>
 						{#if client.isHost && !enough}
-							<p class="hint">{OFFLINE ? 'Add a bot or two to start.' : 'Send the link to friends, or add a bot to start.'}</p>
+							<p class="hint">{OFFLINE ? t('Add a bot or two to start.') : t('Send the link to friends, or add a bot to start.')}</p>
 						{:else if client.isHost && notReady.length}
-							<p class="hint">Waiting for {names(notReady)} to be ready.</p>
+							<p class="hint">{t('Waiting for {players} to be ready.', { players: names(notReady) })}</p>
 						{:else if !client.isHost && mySeat?.ready}
-							<p class="hint">Waiting for the host to start. Tap again if you are not ready.</p>
+							<p class="hint">{t('Waiting for the host to start. Tap again if you are not ready.')}</p>
 						{:else if !client.isHost}
-							<p class="hint">The host can start once everyone is ready.</p>
+							<p class="hint">{t('The host can start once everyone is ready.')}</p>
 						{/if}
 					</div>
 				</div>
 				<div class="col">
-					<div class="modes" role="radiogroup" aria-label="Game mode">
+					<div class="modes" role="radiogroup" aria-label={t('Game mode')}>
 						{#each GAME_MODES as m (m)}
 							<button
 								class="mode plaque"
@@ -253,20 +303,22 @@
 								role="radio"
 								aria-checked={settings.mode === m}
 								disabled={!client.isHost || (m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS)}
-								title={m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS ? 'Classic seats 4 players' : MODE_INFO[m].text}
+								title={m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS
+									? t('{count, plural, one {Classic seats # player} other {Classic seats # players}}', { count: CLASSIC_PLAYERS })
+									: t(MODE_INFO[m].text)}
 								onclick={() => client.send({ t: 'setMode', mode: m })}
 							>
 								<span class="mode-name title">
-									{#if m === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}{MODE_INFO[m].name}
+									{#if m === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}{t(MODE_INFO[m].name)}
 								</span>
-								<span class="mode-text">{MODE_INFO[m].text}</span>
+								<span class="mode-text">{t(MODE_INFO[m].text)}</span>
 							</button>
 						{/each}
 					</div>
 
 					{#if mySeat}
 						<div class="colors">
-							<span class="label">Your banner</span>
+							<span class="label">{t('Your banner')}</span>
 							<div class="banners">
 								{#each PLAYER_COLORS as c (c)}
 									{@const taken = lobby.seats.some((s) => s.color === c && s.id !== client.seat)}
@@ -275,8 +327,8 @@
 										class:on={mySeat.color === c}
 										style="--shield: var(--art-shield-{c})"
 										disabled={taken}
-										title={taken ? `${c} is taken` : c}
-										aria-label={c}
+										title={taken ? t('{color} is taken', { color: t(COLOR_LABEL[c]) }) : t(COLOR_LABEL[c])}
+										aria-label={t(COLOR_LABEL[c])}
 										onclick={() => client.send({ t: 'setColor', color: c })}
 									></button>
 								{/each}
@@ -293,45 +345,37 @@
 									{/each}
 								</span>
 								<span class="pick-body">
-									<span class="label">Characters</span>
+									<span class="label">{t('Characters')}</span>
 									<span class="pick-name title"
-										>{settings.characters ? (settings.powers ? 'Traits and powers' : 'Traits') : 'Off'}
-										{#if settings.characters}<small>{pool.length} of {CHARACTERS.length}</small>{/if}</span
+										>{settings.characters ? (settings.powers ? t('Traits and powers') : t('Traits')) : t('Off')}
+										{#if settings.characters}<small>{t('{count} of {total}', { count: pool.length, total: CHARACTERS.length })}</small>{/if}</span
 									>
-									<span class="trait"
-										>{settings.characters
-											? settings.powers
-												? `${settings.repeatPicks ? 'Drafted, repeats allowed.' : 'Drafted at the start.'} Powers ${rechargeName(settings.powerRecharge).toLowerCase()}.`
-												: settings.repeatPicks
-													? 'Everyone picks one at the start, and picks can repeat.'
-													: 'Everyone picks one at the start. The first settler picks last.'
-											: 'No characters: everyone plays by the plain rules.'}</span
-									>
-									<span class="change">{client.isHost ? 'Change' : 'See them all'}</span>
+									<span class="trait">{draftText()}</span>
+									<span class="change">{client.isHost ? t('Change') : t('See them all')}</span>
 								</span>
 							</button>
 							<div class="island">
 								<button class="pick plaque" disabled={!client.isHost} onclick={() => (picking = 'map')}>
 									<span class="map-well well"><MapPreview tiles={mapTiles} width={92} height={70} /></span>
 									<span class="pick-body">
-										<span class="label">Island</span>
-										<span class="pick-name title">{mapName(settings.map)} <small>{mapTiles.length} tiles</small></span>
+										<span class="label">{t('Island')}</span>
+										<span class="pick-name title">{mapTitle(settings.map)} <small>{t('{tiles, plural, one {# tile} other {# tiles}}', { tiles: mapTiles.length })}</small></span>
 										<span class="trait">{mapBlurb}</span>
-										{#if client.isHost}<span class="change">{random ? 'Change' : 'Change, generate or make your own'}</span>{/if}
+										{#if client.isHost}<span class="change">{random ? t('Change') : t('Change, generate or make your own')}</span>{/if}
 									</span>
 								</button>
 								{#if client.isHost && random}
 									<button
 										class="btn small green reroll"
-										title="Grow another island with the same size and shape"
-										onclick={() => generateIsland(random)}>Reroll</button
+										title={t('Grow another island with the same size and shape')}
+										onclick={() => generateIsland(random)}>{t('Reroll')}</button
 									>
 								{/if}
 							</div>
 							<div class="goal">
 								<span class="goal-head">
-									<span class="label">Points to win</span>
-									<span class="cap" title={pointsTip}>At most {pointsCap} here</span>
+									<span class="label">{t('Points to win')}</span>
+									<span class="cap" title={pointsTip}>{t('At most {max} here', { max: pointsCap })}</span>
 								</span>
 								{#if client.isHost}
 									<div class="seg">
@@ -340,7 +384,7 @@
 												class="btn small"
 												class:on={settings.pointsToWin === g}
 												disabled={g > pointsCap}
-												title={g > pointsCap ? `Too many for this island: ${pointsTip}.` : undefined}
+												title={g > pointsCap ? t('Too many for this island: {why}.', { why: pointsTip }) : undefined}
 												onclick={() => client.send({ t: 'setPointsToWin', points: g })}>{g}</button
 											>
 										{/each}
@@ -351,9 +395,9 @@
 											inputmode="numeric"
 											min={POINTS_MIN}
 											max={pointsCap}
-											placeholder="Other"
-											aria-label="Other points to win, {POINTS_MIN} to {pointsCap}"
-											title="Any number from {POINTS_MIN} to {pointsCap}. {pointsTip}."
+											placeholder={t('Other')}
+											aria-label={t('Other points to win, {min} to {max}', { min: POINTS_MIN, max: pointsCap })}
+											title={t('Any number from {min} to {max}. {why}.', { min: POINTS_MIN, max: pointsCap, why: pointsTip })}
 											value={POINT_GOALS.includes(settings.pointsToWin) ? '' : settings.pointsToWin}
 											onchange={otherGoal}
 											onkeydown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
@@ -365,33 +409,37 @@
 							</div>
 							<div class="goal">
 								<span class="goal-head">
-									<span class="label">Hand limit on a 7</span>
+									<span class="label">{t('Hand limit on a 7')}</span>
 									<span class="cap"
 										>{settings.characters && pool.includes('steward')
-											? `Aldous the Steward: ${settings.handLimit + STEWARD_EXTRA}`
-											: 'More cards than this: discard half'}</span
+											? t('{name} {title}: {limit}', {
+												name: t(CHARACTER_INFO.steward.name),
+												title: t(CHARACTER_INFO.steward.title),
+												limit: settings.handLimit + STEWARD_EXTRA
+											})
+											: t('More cards than this: discard half')}</span
 									>
 								</span>
 								{#if client.isHost}
 									<div class="seg stepper">
 										<button
 											class="btn small"
-											aria-label="Lower the hand limit"
+											aria-label={t('Lower the hand limit')}
 											disabled={settings.handLimit <= HAND_LIMIT_MIN}
 											onclick={() => client.send({ t: 'setHandLimit', cards: settings.handLimit - 1 })}>−</button
 										>
-										<span class="chosen" title="Players holding more than this many cards discard half when a 7 is rolled"
-											>{settings.handLimit} cards</span
+										<span class="chosen" title={t('Players holding more than this many cards discard half when a 7 is rolled')}
+											>{t('{cards, plural, one {# card} other {# cards}}', { cards: settings.handLimit })}</span
 										>
 										<button
 											class="btn small"
-											aria-label="Raise the hand limit"
+											aria-label={t('Raise the hand limit')}
 											disabled={settings.handLimit >= HAND_LIMIT_MAX}
 											onclick={() => client.send({ t: 'setHandLimit', cards: settings.handLimit + 1 })}>+</button
 										>
 									</div>
 								{:else}
-									<span class="chosen">{settings.handLimit} cards</span>
+									<span class="chosen">{t('{cards, plural, one {# card} other {# cards}}', { cards: settings.handLimit })}</span>
 								{/if}
 							</div>
 							<div class="duo">
@@ -404,11 +452,13 @@
 						<div class="pick plaque fixed">
 							<span class="map-well well"><MapPreview tiles={CLASSIC_TILES} width={92} height={70} /></span>
 							<span class="pick-body">
-								<span class="label">Island</span>
-								<span class="pick-name title">Classic Isle <small>{CLASSIC_TILES.length} tiles</small></span>
+								<span class="label">{t('Island')}</span>
+								<span class="pick-name title">{t('Classic Isle')} <small>{t('{tiles, plural, one {# tile} other {# tiles}}', { tiles: CLASSIC_TILES.length })}</small></span>
 								<span class="trait"
-									>Terrains, numbers and harbors dealt fresh each game. First to {VICTORY_POINTS_TO_WIN} points wins,
-									and a 7 makes anyone holding more than {DISCARD_THRESHOLD} cards discard half.</span
+									>{t('Terrains, numbers and harbors dealt fresh each game. First to {points} points wins, and a 7 makes anyone holding more than {cards} cards discard half.', {
+										points: VICTORY_POINTS_TO_WIN,
+										cards: DISCARD_THRESHOLD
+									})}</span
 								>
 							</span>
 						</div>
@@ -416,25 +466,25 @@
 
 					<div class="timer">
 						<div class="timer-head">
-							<span class="label">Turn timer</span>
-							<span class="chosen" title={lobby.turnTime ? 'When time runs out, the turn ends on its own.' : undefined}
+							<span class="label">{t('Turn timer')}</span>
+							<span class="chosen" title={lobby.turnTime ? t('When time runs out, the turn ends on its own.') : undefined}
 								><img class="icon-px" src={PIXEL.watch} alt="" />{longTime(lobby.turnTime)}</span
 							>
 						</div>
 						{#if client.isHost}
 							<div class="seg times">
-								{#each TURN_TIMES as t (t)}
+								{#each TURN_TIMES as time (time)}
 									<button
 										class="btn small"
-										class:on={lobby.turnTime === t}
-										onclick={() => client.send({ t: 'setTurnTime', seconds: t })}
-										><span class="long">{shortTime(t)}</span><span class="short">{tinyTime(t)}</span></button
+										class:on={lobby.turnTime === time}
+										onclick={() => client.send({ t: 'setTurnTime', seconds: time })}
+										><span class="long">{shortTime(time)}</span><span class="short">{tinyTime(time)}</span></button
 									>
 								{/each}
 							</div>
 						{/if}
 						{#if lobby.turnTime}
-							<p class="note">When time runs out, the turn ends on its own.</p>
+							<p class="note">{t('When time runs out, the turn ends on its own.')}</p>
 						{/if}
 					</div>
 
@@ -452,7 +502,7 @@
 {/if}
 
 {#if inviting}
-	<Modal title="Invite friends" width={500} onclose={() => (inviting = false)}><Friends inviting /></Modal>
+	<Modal title={t('Invite friends')} width={500} onclose={() => (inviting = false)}><Friends inviting /></Modal>
 {/if}
 
 <style>

@@ -8,6 +8,8 @@
 	import { buildAvailable, buildNote, countsList, extraStock, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
+	import { RESOURCE_LABEL } from '../../../shared/rules/config';
+	import { msg, t } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
 	const mine = $derived(myTurn(view));
@@ -17,10 +19,10 @@
 
 	type Build = { kind: BuildKind; label: string };
 	const builds: Build[] = [
-		{ kind: 'road', label: 'Road' },
-		{ kind: 'settlement', label: 'Settlement' },
-		{ kind: 'city', label: 'City' },
-		{ kind: 'devCard', label: 'Dev card' }
+		{ kind: 'road', label: msg('Road') },
+		{ kind: 'settlement', label: msg('Settlement') },
+		{ kind: 'city', label: msg('City') },
+		{ kind: 'devCard', label: msg('Dev card') }
 	];
 	/** Reign Extended buildings the host put in this game. */
 	const reign = $derived<Build[]>(
@@ -74,18 +76,18 @@
 		class:active={ui.build === b.kind}
 		disabled={!ok && !extra}
 		aria-disabled={extra ? !ok : undefined}
-		title={info?.text}
-		data-tip-head={extra ? b.label : undefined}
+		title={info ? t(info.text) : undefined}
+		data-tip-head={extra ? t(b.label) : undefined}
 		data-tip-note={extra && !ok ? buildNote(view, b.kind) : undefined}
 		onclick={() => ok && onBuild(b.kind)}
 	>
 		<img class="piece" class:icon-px={b.kind === 'devCard'} src={iconFor(b.kind)} alt="" />
 		<span class="bname title"
-			>{b.label}<small title={extra ? undefined : 'Left to build'}>{stock(b.kind)}</small></span
+			>{t(b.label)}<small title={extra ? undefined : t('Left to build')}>{stock(b.kind)}</small></span
 		>
 		<span class="cost">
 			{#each countsList(costOf(view, view.me, b.kind)) as c (c.res)}
-				{#each Array(c.n) as _, k (k)}<img class="res" src={icons[c.res]} alt={c.res} />{/each}
+				{#each Array(c.n) as _, k (k)}<img class="res" src={icons[c.res]} alt={t(RESOURCE_LABEL[c.res])} />{/each}
 			{/each}
 		</span>
 	</button>
@@ -95,15 +97,15 @@
 	<button
 		class="build plaque"
 		class:active={ui.build === 'tearDown'}
-		title="Tear down one of your workshops to build it somewhere better. The bank gives you back a Lumber."
-		data-tip-head="Tear down"
+		title={t('Tear down one of your workshops to build it somewhere better. The bank gives you back a Lumber.')}
+		data-tip-head={t('Tear down')}
 		onclick={() => (ui.build = ui.build === 'tearDown' ? null : 'tearDown')}
 	>
 		<span class="piece torn"><img src={icons[`workshop:${color}`]} alt="" /><img class="icon-px hammer" src={PIXEL.hammer} alt="" /></span>
-		<span class="bname title">Tear down<small title="Your workshops">{owned.length}</small></span>
+		<span class="bname title">{t('Tear down')}<small title={t('Your workshops')}>{owned.length}</small></span>
 		<span class="cost back"
 			><b>+</b>{#each countsList(WORKSHOP_REFUND) as c (c.res)}
-				{#each Array(c.n) as _, k (k)}<img class="res" src={icons[c.res]} alt={c.res} />{/each}
+				{#each Array(c.n) as _, k (k)}<img class="res" src={icons[c.res]} alt={t(RESOURCE_LABEL[c.res])} />{/each}
 			{/each}</span
 		>
 	</button>
@@ -112,13 +114,13 @@
 {#if view.me >= 0 && view.phase !== 'ended'}
 	<div class="actions">
 		{#if power && !client.presenting}
-			<button class="btn purple power" class:on={!!ui.power} title={power.text} data-tip-head="Power: {power.name}" onclick={onPower}>
-				<span class="gem"></span>{power.name}
+			<button class="btn purple power" class:on={!!ui.power} title={t(power.text)} data-tip-head={t('Power: {power}', { power: t(power.name) })} onclick={onPower}>
+				<span class="gem"></span>{t(power.name)}
 			</button>
 		{/if}
 		{#if mine && view.step === 'roll' && !client.rollAsked && !client.tossing && !client.presenting}
 			<button class="btn big shine roll" onclick={() => client.act({ type: 'rollDice' })}>
-				<img src={PIXEL.die} alt="" /> Roll dice
+				<img src={PIXEL.die} alt="" /> {t('Roll dice')}
 			</button>
 		{/if}
 		{#if mine && view.step === 'main'}
@@ -134,7 +136,7 @@
 			{/if}
 			<div class="row">
 				<button class="btn wood" class:on={ui.trade} onclick={() => (ui.trade = !ui.trade)}>
-					<img class="icon-px" src={PIXEL.trade} alt="" /> Trade
+					<img class="icon-px" src={PIXEL.trade} alt="" /> {t('Trade')}
 				</button>
 				<button
 					class="btn red"
@@ -142,7 +144,7 @@
 						ui.build = null;
 						ui.trade = false;
 						client.act({ type: 'endTurn' });
-					}}><img class="icon-px" src={PIXEL.hourglass} alt="" /> End turn</button
+					}}><img class="icon-px" src={PIXEL.hourglass} alt="" /> {t('End turn')}</button
 				>
 			</div>
 		{/if}

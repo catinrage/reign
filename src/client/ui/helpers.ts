@@ -29,6 +29,7 @@ import {
 import type { BuiltKind, GameEvent, GameView } from '../../shared/rules/types';
 import type { BoardSpot } from '../scene/gameScene';
 import { PLAYER_CSS } from '../scene/layout';
+import { t, tParts, tx } from '../i18n/index.svelte';
 import { tint } from './art';
 import { TERRAIN_NAME } from './extended/terrainColors';
 
@@ -64,9 +65,9 @@ export function playerInk(view: GameView | null, i: number): string {
 	const hex = playerColor(view, i);
 	let ink = inkCache.get(hex);
 	if (!ink) {
-		let t = 0;
-		while (t < 0.6 && luminance(tint(hex, t)) < 0.3) t += 0.05;
-		ink = tint(hex, t);
+		let lift = 0;
+		while (lift < 0.6 && luminance(tint(hex, lift)) < 0.3) lift += 0.05;
+		ink = tint(hex, lift);
 		inkCache.set(hex, ink);
 	}
 	return ink;
@@ -109,51 +110,77 @@ export function extraStock(view: GameView, kind: ExtraBuilding): number {
 
 /** Words in a list: "a, b and c". */
 export function andList(parts: string[]): string {
-	return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? '');
+	if (parts.length < 2) return parts[0] ?? '';
+	let list = parts[0];
+	for (const item of parts.slice(1, -1)) list = t('{list}, {item}', { list, item });
+	return t('{list} and {item}', { list, item: parts[parts.length - 1] });
 }
 
 /** A list of cards in words: "1 Lumber, 1 Brick and 1 Ore". */
 export function cardsText(r: Partial<ResourceCounts>): string {
-	return andList(countsList(r).map((c) => `${c.n} ${RESOURCE_LABEL[c.res]}`));
+	return andList(countsList(r).map((c) => t('{count} {resource}', { count: c.n, resource: t(RESOURCE_LABEL[c.res]) })));
 }
 
 /** Why a build can't be made right now, for its tooltip ('' when it can). */
 export function buildNote(view: GameView, kind: BuildKind): string {
 	if (kind === 'workshop') {
-		if (workshopCount(view, view.me) >= WORKSHOP_LIMIT) return `You have built all ${WORKSHOP_LIMIT} of your workshops.`;
-		if (!workshopSpots(view, view.me).length) return 'Every tile beside your buildings already has a workshop.';
+		if (workshopCount(view, view.me) >= WORKSHOP_LIMIT) return t('You have built all {limit} of your workshops.', { limit: WORKSHOP_LIMIT });
+		if (!workshopSpots(view, view.me).length) return t('Every tile beside your buildings already has a workshop.');
 	}
-	if (kind === 'stoneRoad' && !paveSpots(view, view.me).length) return 'Every one of your roads is paved already.';
-	if (kind === 'storehouse' && storehouseOf(view, view.me) !== null) return 'You already have a storehouse.';
-	if (!canAfford(view, kind)) return `You need ${cardsText(costOf(view, view.me, kind))}.`;
+	if (kind === 'stoneRoad' && !paveSpots(view, view.me).length) return t('Every one of your roads is paved already.');
+	if (kind === 'storehouse' && storehouseOf(view, view.me) !== null) return t('You already have a storehouse.');
+	if (!canAfford(view, kind)) return t('You need {cards}.', { cards: cardsText(costOf(view, view.me, kind)) });
 	return '';
 }
 
 /** The workshop a tile would get: a Mill on fields, a Kiln on hills... */
 export function workshopName(view: GameView, hex: number): string {
 	const res = TERRAIN_RESOURCE[view.board.hexes[hex]?.terrain ?? 'desert'];
-	return res ? WORKSHOP_NAME[res] : 'Workshop';
+	return res ? t(WORKSHOP_NAME[res]) : t('Workshop');
 }
 
-/** What was built, as the log says it: "a road", "a Mill". */
-function builtName(view: GameView, kind: BuiltKind, at: number): string {
-	if (kind === 'workshop') return `a ${workshopName(view, at)}`;
-	if (kind === 'stoneRoad') return 'a stone road';
-	return `a ${kind}`;
+/** The log line for something built: "Ada built a road", "You built a Mill". */
+function builtParts(view: GameView, kind: BuiltKind, at: number, player: LogPart, T: (text: string) => LogPart): LogPart[] {
+	const slots = { player };
+	switch (kind) {
+		case 'road':
+			return tParts('{player} built a road', slots, T);
+		case 'settlement':
+			return tParts('{player} built a settlement', slots, T);
+		case 'city':
+			return tParts('{player} built a city', slots, T);
+		case 'stoneRoad':
+			return tParts('{player} built a stone road', slots, T);
+		case 'storehouse':
+			return tParts('{player} built a storehouse', slots, T);
+		case 'workshop':
+			return tParts('{player} built a {workshop}', slots, T, { workshop: workshopName(view, at) });
+	}
 }
 
 /** A piece's name, as its tooltip heads it: "Road", "City", "Mill". */
 export function pieceName(view: GameView, kind: BuiltKind, at: number): string {
-	if (kind === 'workshop') return workshopName(view, at);
-	if (kind === 'stoneRoad') return 'Stone road';
-	return kind.charAt(0).toUpperCase() + kind.slice(1);
+	switch (kind) {
+		case 'workshop':
+			return workshopName(view, at);
+		case 'stoneRoad':
+			return t('Stone road');
+		case 'road':
+			return t('Road');
+		case 'settlement':
+			return t('Settlement');
+		case 'city':
+			return t('City');
+		case 'storehouse':
+			return t('Storehouse');
+	}
 }
 
 /** When a piece went up, in words: "during setup", "on turn 6" (null if the game never said). */
 export function builtWhen(view: GameView, kind: BuiltKind, at: number): string | null {
 	const turn = view.builtTurns?.[builtKey(kind, at)];
 	if (turn === undefined) return null;
-	return turn === 0 ? 'during setup' : `on turn ${turn}`;
+	return turn === 0 ? t('during setup') : t('on turn {turn}', { turn });
 }
 
 /**
@@ -177,19 +204,22 @@ export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text:
 		kind = 'workshop';
 	}
 	if (owner === null || owner === undefined || !view.players[owner]) return null;
-	const lines = [`Owner: ${name(view, owner)}`];
-	const when = (k: BuiltKind, verb: string) => {
-		const w = builtWhen(view, k, at);
-		if (w) lines.push(`${verb} ${w}`);
+	const lines = [t('Owner: {player}', { player: name(view, owner) })];
+	/** Adds a line for when piece `k` went up, if the game said: `say` words it for that turn (0: setup). */
+	const when = (k: BuiltKind, say: (turn: number) => string) => {
+		const turn = view.builtTurns?.[builtKey(k, at)];
+		if (turn !== undefined) lines.push(say(turn));
 	};
+	const built = (turn: number) => (turn ? t('Built on turn {turn}', { turn }) : t('Built during setup'));
 	if (kind === 'city') {
-		when('settlement', 'Settled');
-		when('city', 'Became a city');
+		when('settlement', (turn) => (turn ? t('Settled on turn {turn}', { turn }) : t('Settled during setup')));
+		when('city', (turn) => (turn ? t('Became a city on turn {turn}', { turn }) : t('Became a city during setup')));
 	} else if (kind === 'stoneRoad') {
-		when('road', 'Built');
-		when('stoneRoad', 'Paved');
-	} else when(kind, 'Built');
-	if (place === 'vertex' && view.storehouses?.[at]) when('storehouse', 'Storehouse added');
+		when('road', built);
+		when('stoneRoad', (turn) => (turn ? t('Paved on turn {turn}', { turn }) : t('Paved during setup')));
+	} else when(kind, built);
+	if (place === 'vertex' && view.storehouses?.[at])
+		when('storehouse', (turn) => (turn ? t('Storehouse added on turn {turn}', { turn }) : t('Storehouse added during setup')));
 	return { head: pieceName(view, kind, at), text: lines.join('\n') };
 }
 
@@ -198,41 +228,44 @@ export function myTurn(view: GameView | null): boolean {
 }
 
 export function name(view: GameView, i: number): string {
-	return i === view.me ? 'You' : (view.players[i]?.name ?? '?');
+	return i === view.me ? t('You') : (view.players[i]?.name ?? '?');
 }
 
 export function promptText(view: GameView): string {
 	const cur = view.players[view.current];
 	const mine = view.me === view.current;
-	const who = cur?.name ?? '';
-	if (view.phase === 'ended') return `${view.winner === view.me ? 'You win' : `${view.players[view.winner!].name} wins`}!`;
+	const player = cur?.name ?? '';
+	if (view.phase === 'ended') return view.winner === view.me ? t('You win!') : t('{player} wins!', { player: view.players[view.winner!].name });
 	switch (view.step) {
 		case 'pickCharacter':
-			return mine ? 'Pick your character' : `${who} is picking a character`;
+			return mine ? t('Pick your character') : t('{player} is picking a character', { player });
 		case 'setupSettlement': {
 			const second = view.setupIndex >= view.players.length;
-			return mine ? `Place your ${second ? 'second' : 'first'} settlement` : `${who} is placing a settlement`;
+			if (!mine) return t('{player} is placing a settlement', { player });
+			return second ? t('Place your second settlement') : t('Place your first settlement');
 		}
 		case 'setupRoad':
-			return mine ? 'Place a road next to it' : `${who} is placing a road`;
+			return mine ? t('Place a road next to it') : t('{player} is placing a road', { player });
 		case 'roll':
-			return mine ? 'Your turn: roll the dice' : `${who} is about to roll`;
+			return mine ? t('Your turn: roll the dice') : t('{player} is about to roll', { player });
 		case 'discard':
-			if (view.pendingDiscards[view.me]) return `Discard ${view.pendingDiscards[view.me]} cards`;
-			return 'Waiting for players to discard';
+			if (view.pendingDiscards[view.me]) return t('Discard {n, plural, one {# card} other {# cards}}', { n: view.pendingDiscards[view.me] });
+			return t('Waiting for players to discard');
 		case 'moveRobber':
-			return mine ? 'Move the robber: click a tile' : `${who} is moving the robber`;
+			return mine ? t('Move the robber: click a tile') : t('{player} is moving the robber', { player });
 		case 'steal':
-			return mine ? 'Choose who to rob' : `${who} is choosing who to rob`;
+			return mine ? t('Choose who to rob') : t('{player} is choosing who to rob', { player });
 		case 'roadBuilding':
-			return mine ? `Place ${view.roadBuildingLeft} free road${view.roadBuildingLeft > 1 ? 's' : ''}` : `${who} is building roads`;
+			return mine
+				? t('Place {n, plural, one {# free road} other {# free roads}}', { n: view.roadBuildingLeft })
+				: t('{player} is building roads', { player });
 		case 'chooseRoll':
-			return mine ? 'Foresight: keep one of the three rolls' : `${who} is choosing a roll`;
+			return mine ? t('Foresight: keep one of the three rolls') : t('{player} is choosing a roll', { player });
 		case 'main':
-			return mine ? 'Build, trade, or end your turn' : `${who}'s turn`;
+			return mine ? t('Build, trade, or end your turn') : t("{player}'s turn", { player });
 		case 'eventChoice': {
 			const p = view.events?.choice?.player ?? -1;
-			return p === view.me ? "Royal Decree: pick this round's event" : `${view.players[p]?.name ?? '?'} is picking the event`;
+			return p === view.me ? t("Royal Decree: pick this round's event") : t('{player} is picking the event', { player: view.players[p]?.name ?? '?' });
 		}
 	}
 }
@@ -248,20 +281,29 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 	const P = (i: number): LogPart => ({ text: name(view, i), player: i });
 	const T = (text: string): LogPart => ({ text });
 	const R = (res: Resource, count = 1): LogPart => ({ text: '', res, count });
+	const cards = (r: Partial<ResourceCounts>) => countsList(r).map((c) => R(c.res, c.n));
 	switch (e.type) {
 		case 'turnStarted':
-			return e.turn === 0 ? null : [P(e.player), T(e.player === view.me ? ' start your turn' : "'s turn")];
+			if (e.turn === 0) return null;
+			return e.player === view.me ? tParts('{you} start your turn', { you: P(e.player) }, T) : tParts("{player}'s turn", { player: P(e.player) }, T);
 		case 'turnTimedOut':
-			return [P(e.player), T(' ran out of time')];
+			return tParts('{player} ran out of time', { player: P(e.player) }, T);
 		case 'built':
-			return [P(e.player), T(` built ${builtName(view, e.kind, e.at)}`)];
+			return builtParts(view, e.kind, e.at, P(e.player), T);
 		case 'tornDown': {
-			const parts = [P(e.player), T(` tore down ${e.player === view.me ? 'your' : 'their'} ${workshopName(view, e.hex)}`)];
-			const back = countsList(e.refund);
-			return back.length ? [...parts, T(' and got '), ...back.map((c) => R(c.res, c.n)), T(' back')] : parts;
+			const workshop = workshopName(view, e.hex);
+			const back = cards(e.refund);
+			if (e.player === view.me) {
+				return back.length
+					? tParts('{you} tore down your {workshop} and got {cards} back', { you: P(e.player), cards: back }, T, { workshop })
+					: tParts('{you} tore down your {workshop}', { you: P(e.player) }, T, { workshop });
+			}
+			return back.length
+				? tParts('{player} tore down their {workshop} and got {cards} back', { player: P(e.player), cards: back }, T, { workshop })
+				: tParts('{player} tore down their {workshop}', { player: P(e.player) }, T, { workshop });
 		}
 		case 'diceRolled':
-			return [P(e.player), T(` rolled ${e.dice[0] + e.dice[1]}`)];
+			return tParts('{player} rolled {total}', { player: P(e.player) }, T, { total: e.dice[0] + e.dice[1] });
 		case 'produced': {
 			const per = new Map<number, Partial<ResourceCounts>>();
 			for (const g of e.gains) {
@@ -269,102 +311,120 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 				m[g.resource] = (m[g.resource] ?? 0) + g.amount;
 				per.set(g.player, m);
 			}
-			const parts: LogPart[] = [];
-			for (const [p, m] of per) {
-				if (parts.length) parts.push(T(', '));
-				parts.push(P(p), T(' got '));
-				for (const c of countsList(m)) parts.push(R(c.res, c.n));
+			const clauses: LogPart[][] = [];
+			for (const [p, m] of per) clauses.push(tParts('{player} got {cards}', { player: P(p), cards: cards(m) }, T));
+			if (e.blocked.length) {
+				if (clauses.length) clauses.push(tParts('{production} (robber blocked a tile)', { production: joinClauses(clauses.splice(0), T) }, T));
+				else clauses.push([T(t('The robber blocked production'))]);
 			}
-			if (e.blocked.length) parts.push(T(parts.length ? ' (robber blocked a tile)' : 'The robber blocked production'));
-			for (const p of e.hexed ?? []) {
-				if (parts.length) parts.push(T(', '));
-				parts.push(P(p), T(' got nothing (hexed)'));
-			}
-			return parts.length ? parts : null;
+			for (const p of e.hexed ?? []) clauses.push(tParts('{player} got nothing (hexed)', { player: P(p) }, T));
+			return clauses.length ? joinClauses(clauses, T) : null;
 		}
-		case 'setupResources': {
-			const parts: LogPart[] = [P(e.player), T(' got ')];
-			for (const g of e.gains) parts.push(R(g.resource));
-			return parts;
-		}
+		case 'setupResources':
+			return tParts('{player} got {cards}', { player: P(e.player), cards: e.gains.map((g) => R(g.resource)) }, T);
 		case 'nothingProduced':
-			return [T(`Nobody produced on ${e.total}`)];
+			return [T(t('Nobody produced on {total}', { total: e.total }))];
 		case 'mustDiscard':
-			return [T(`Robber! Players with more than ${view.handLimit ?? 7} cards discard half`)];
+			return [T(t('Robber! Players with more than {limit, plural, one {# card} other {# cards}} discard half', { limit: view.handLimit ?? 7 }))];
 		case 'discarded':
-			return [P(e.player), T(` discarded ${e.count}`)];
+			return tParts('{player} discarded {count}', { player: P(e.player) }, T, { count: e.count });
 		case 'robberMoved':
-			return [P(e.player), T(' moved the robber')];
+			return tParts('{player} moved the robber', { player: P(e.player) }, T);
 		case 'stole':
 			return e.resource
-				? [P(e.thief), T(' stole '), R(e.resource), T(' from '), P(e.victim)]
-				: [P(e.thief), T(' stole a card from '), P(e.victim)];
+				? tParts('{thief} stole {res} from {victim}', { thief: P(e.thief), res: R(e.resource), victim: P(e.victim) }, T)
+				: tParts('{thief} stole a card from {victim}', { thief: P(e.thief), victim: P(e.victim) }, T);
 		case 'draftStarted':
-			return [T('Character draft: the first to place a settlement picks last')];
-		case 'characterPicked':
-			return [P(e.player), T(` picked ${CHARACTER_INFO[e.character].name} ${CHARACTER_INFO[e.character].title}`)];
+			return [T(t('Character draft: the first to place a settlement picks last'))];
+		case 'characterPicked': {
+			const info = CHARACTER_INFO[e.character];
+			return tParts('{player} picked {character} {title}', { player: P(e.player) }, T, { character: t(info.name), title: t(info.title) });
+		}
 		case 'traitGain':
-			return [P(e.player), T(` (${CHARACTER_INFO[e.character].trait}) took `), R(e.resource)];
+			return tParts('{player} ({trait}) took {res}', { player: P(e.player), res: R(e.resource) }, T, { trait: t(CHARACTER_INFO[e.character].trait) });
 		case 'pickOwed':
-			return [P(e.player), T(` may take a resource of choice (${CHARACTER_INFO[e.character].trait})`)];
+			return tParts('{player} may take a resource of choice ({trait})', { player: P(e.player) }, T, { trait: t(CHARACTER_INFO[e.character].trait) });
 		case 'traitToll': {
-			const why = e.character === 'witch' ? " (the Witch's purse)" : " (the Baron's toll)";
+			const slots = { from: P(e.from), to: P(e.to) };
+			if (e.character === 'witch') {
+				return e.resource
+					? tParts("{from} paid {res} to {to} (the Witch's purse)", { ...slots, res: R(e.resource) }, T)
+					: tParts("{from} paid a card to {to} (the Witch's purse)", slots, T);
+			}
 			return e.resource
-				? [P(e.from), T(' paid '), R(e.resource), T(' to '), P(e.to), T(why)]
-				: [P(e.from), T(' paid a card to '), P(e.to), T(why)];
+				? tParts("{from} paid {res} to {to} (the Baron's toll)", { ...slots, res: R(e.resource) }, T)
+				: tParts("{from} paid a card to {to} (the Baron's toll)", slots, T);
 		}
 		case 'powerUsed':
 			return powerParts(e, view, P, T, R);
 		case 'rollChoices':
-			return [P(e.player), T(` foresaw ${e.rolls.map((r) => r[0] + r[1]).join(', ')}`)];
+			return tParts('{player} foresaw {rolls}', { player: P(e.player) }, T, { rolls: e.rolls.map((r) => r[0] + r[1]).join(', ') });
 		case 'mischief':
-			return [P(e.player), T(' pooled every hand and dealt it back out')];
+			return tParts('{player} pooled every hand and dealt it back out', { player: P(e.player) }, T);
 		case 'nothingToSteal':
-			return [T('Nobody to rob there')];
+			return [T(t('Nobody to rob there'))];
 		case 'devCardBought':
-			return [P(e.player), T(' bought a development card')];
+			return tParts('{player} bought a development card', { player: P(e.player) }, T);
 		case 'devCardPlayed':
-			return [P(e.player), T(` played ${DEV_CARD_LABEL[e.card]}`)];
+			return tParts('{player} played {card}', { player: P(e.player) }, T, { card: t(DEV_CARD_LABEL[e.card]) });
 		case 'yearOfPlenty':
-			return [P(e.player), T(' took '), ...e.resources.map((r) => R(r))];
+			return tParts('{player} took {cards}', { player: P(e.player), cards: e.resources.map((r) => R(r)) }, T);
 		case 'monopoly': {
 			const n = Object.values(e.taken).reduce((a, b) => a + b, 0);
-			return [P(e.player), T(` took ${n} `), R(e.resource), T(' with Monopoly')];
+			return tParts('{player} took {count} {res} with Monopoly', { player: P(e.player), res: R(e.resource) }, T, { count: n });
 		}
 		case 'bankTrade':
-			return [P(e.player), T(' traded '), R(e.give, e.giveCount), T(' for '), R(e.get)];
+			return tParts('{player} traded {give} for {get}', { player: P(e.player), give: R(e.give, e.giveCount), get: R(e.get) }, T);
 		case 'tradeOffered':
-			return [P(e.offer.from), T(' offers '), ...countsList(e.offer.give).map((c) => R(c.res, c.n)), T(' for '), ...countsList(e.offer.want).map((c) => R(c.res, c.n))];
+			return tParts('{player} offers {give} for {want}', { player: P(e.offer.from), give: cards(e.offer.give), want: cards(e.offer.want) }, T);
 		case 'tradeCompleted':
-			return [P(e.from), T(' traded with '), P(e.to)];
+			return tParts('{from} traded with {to}', { from: P(e.from), to: P(e.to) }, T);
 		case 'tradeCancelled':
 			return null;
 		case 'longestRoad':
-			return e.player === null ? [T('Nobody holds the Longest Road now')] : [P(e.player), T(` took the Longest Road (${e.length})`)];
+			return e.player === null
+				? [T(t('Nobody holds the Longest Road now'))]
+				: tParts('{player} took the Longest Road ({length})', { player: P(e.player) }, T, { length: e.length });
 		case 'largestArmy':
-			return e.player === null ? null : [P(e.player), T(` took the Largest Army (${e.knights})`)];
+			return e.player === null ? null : tParts('{player} took the Largest Army ({knights})', { player: P(e.player) }, T, { knights: e.knights });
 		case 'gameOver':
-			return [P(e.winner), T(e.winner === view.me ? ' win the game!' : ' won the game!')];
+			return e.winner === view.me
+				? tParts('{you} win the game!', { you: P(e.winner) }, T)
+				: tParts('{player} won the game!', { player: P(e.winner) }, T);
 		case 'chat':
-			return [P(e.player), T(`: ${e.text}`)];
+			// The chat line itself is the player's own words: never translated.
+			return tParts('{player}: {text}', { player: P(e.player), text: T(e.text) }, T);
 		case 'cheat':
 			return [T('[cheat] '), P(e.player), T(` ${e.text}`)];
 		case 'eventDrawn':
 			return e.by !== undefined
-				? [P(e.by), T(` decreed ${EVENT_INFO[e.card].name}`)]
-				: [T(`Round ${e.round} event: ${EVENT_INFO[e.card].name}`)];
+				? tParts('{player} decreed {event}', { player: P(e.by) }, T, { event: t(EVENT_INFO[e.card].name) })
+				: [T(t('Round {round} event: {event}', { round: e.round, event: t(EVENT_INFO[e.card].name) }))];
 		case 'eventCards':
 			return eventCardsParts(e, view, P, T, R);
 		case 'earthquake': {
-			const [a, b] = e.hexes.map((h) => view.board.hexes[h]?.number);
-			return [T(`Earthquake! The ${a} and the ${b} swapped tiles`)];
+			const [a, b] = e.hexes.map((h) => view.board.hexes[h]?.number ?? '');
+			return [T(t('Earthquake! The {a} and the {b} swapped tiles', { a, b }))];
 		}
 		case 'gameStarted':
-			return view.mode === 'extended'
-				? [T(`Reign Extended on ${view.mapName}, first to ${view.pointsToWin} points.${view.draft ? '' : ' Place your settlements!'}`)]
-				: [T('The game begins. Place your settlements!')];
+			if (view.mode !== 'extended') return [T(t('The game begins. Place your settlements!'))];
+			return [
+				T(
+					view.draft
+						? t('Reign Extended on {map}, first to {points, plural, one {# point} other {# points}}.', { map: tx(view.mapName ?? ''), points: view.pointsToWin })
+						: t('Reign Extended on {map}, first to {points, plural, one {# point} other {# points}}. Place your settlements!', {
+								map: tx(view.mapName ?? ''),
+								points: view.pointsToWin
+							})
+				)
+			];
 	}
 	return null;
+}
+
+/** Clauses of one chronicle line, one after another: "Ada got 2 wood, you got 1 ore". */
+function joinClauses(clauses: LogPart[][], T: (text: string) => LogPart): LogPart[] {
+	return clauses.reduce((a, b) => tParts('{a}, {b}', { a, b }, T));
 }
 
 /** The chronicle's line for cards an event moved. */
@@ -376,23 +436,26 @@ function eventCardsParts(
 	R: (res: Resource) => LogPart
 ): LogPart[] | null {
 	const n = e.moves.length;
-	const cards = `${n} card${n === 1 ? '' : 's'}`;
 	switch (e.card) {
 		case 'bountifulYear': {
 			const m = e.moves[0];
-			return m?.to != null && m.resource ? [P(m.to), T(' took '), R(m.resource), T(' (Bountiful Year)')] : null;
+			return m?.to != null && m.resource ? tParts('{player} took {res} (Bountiful Year)', { player: P(m.to), res: R(m.resource) }, T) : null;
 		}
 		case 'royalWedding':
-			return n ? [T('Wedding gifts: '), P(e.moves[0].to!), T(` got ${cards}`)] : null;
+			return n ? tParts('Wedding gifts: {player} got {n, plural, one {# card} other {# cards}}', { player: P(e.moves[0].to!) }, T, { n }) : null;
 		case 'tournament':
-			return e.champion === undefined ? [T('The Tournament had no champion')] : [P(e.champion), T(` won the Tournament and took ${cards}`)];
+			return e.champion === undefined
+				? [T(t('The Tournament had no champion'))]
+				: tParts('{player} won the Tournament and took {n, plural, one {# card} other {# cards}}', { player: P(e.champion) }, T, { n });
 		case 'plagueOfRats':
-			return [T(n ? `Rats ate ${cards}` : 'The rats found nothing to eat')];
+			return [T(n ? t('Rats ate {n, plural, one {# card} other {# cards}}', { n }) : t('The rats found nothing to eat'))];
 		case 'taxCollector':
-			return [T(n ? `The Tax Collector took ${cards}` : 'The Tax Collector found no cities to tax')];
+			return [T(n ? t('The Tax Collector took {n, plural, one {# card} other {# cards}}', { n }) : t('The Tax Collector found no cities to tax'))];
 		case 'banditUprising': {
-			const at = e.hex !== undefined ? ` raided the ${view.board.hexes[e.hex]?.number ?? 'desert'} and` : '';
-			return [T(n ? `Bandits${at} took ${cards}` : 'The bandits found nobody to rob')];
+			if (!n) return [T(t('The bandits found nobody to rob'))];
+			if (e.hex === undefined) return [T(t('Bandits took {n, plural, one {# card} other {# cards}}', { n }))];
+			const tile = view.board.hexes[e.hex]?.number ?? t('desert');
+			return [T(t('Bandits raided the {tile} and took {n, plural, one {# card} other {# cards}}', { tile, n }))];
 		}
 	}
 	return null;
@@ -406,32 +469,40 @@ function powerParts(
 	T: (text: string) => LogPart,
 	R: (res: Resource, count?: number) => LogPart
 ): LogPart[] {
-	const head = [P(e.player), T(` used ${POWER_INFO[e.character].name}`)];
+	const player = P(e.player);
+	const power = t(POWER_INFO[e.character].name);
 	const tileName = (h: number | undefined) => {
 		const hex = h === undefined ? undefined : view.board.hexes[h];
-		if (!hex) return 'a tile';
+		if (!hex) return t('a tile');
 		const res = TERRAIN_RESOURCE[hex.terrain];
-		return `the ${res ? RESOURCE_LABEL[res] : 'desert'} ${hex.number ?? ''}`.trim();
+		const number = hex.number;
+		if (res) return number === null || number === undefined ? t('the {resource}', { resource: t(RESOURCE_LABEL[res]) }) : t('the {resource} {number}', { resource: t(RESOURCE_LABEL[res]), number });
+		return number === null || number === undefined ? t('the desert') : t('the desert {number}', { number });
 	};
+	const counts = (r: Partial<ResourceCounts> | undefined) => countsList(r ?? {}).map((c) => R(c.res, c.n));
 	switch (e.character) {
 		case 'merchant':
-			return [...head, T(': '), ...countsList(e.give ?? {}).map((c) => R(c.res, c.n)), T(' for '), ...countsList(e.get ?? {}).map((c) => R(c.res, c.n))];
+			return tParts('{player} used {power}: {give} for {get}', { player, give: counts(e.give), get: counts(e.get) }, T, { power });
 		case 'rogue':
 		case 'witch':
-			return e.target === undefined ? head : [...head, T(' on '), P(e.target)];
+			return e.target === undefined
+				? tParts('{player} used {power}', { player }, T, { power })
+				: tParts('{player} used {power} on {target}', { player, target: P(e.target) }, T, { power });
 		case 'steward':
 		case 'bard':
-			return [...head, T(` on ${e.number}`)];
+			return tParts('{player} used {power} on {number}', { player }, T, { power, number: e.number ?? '' });
 		case 'alchemist':
-			return [...head, T(`: ${tileName(e.hex)} is now ${e.terrain ? TERRAIN_NAME[e.terrain] : 'changed'}`)];
+			return e.terrain
+				? tParts('{player} used {power}: {tile} is now {terrain}', { player }, T, { power, tile: tileName(e.hex), terrain: t(TERRAIN_NAME[e.terrain]) })
+				: tParts('{player} used {power}: {tile} is now changed', { player }, T, { power, tile: tileName(e.hex) });
 		case 'cartographer':
-			return [...head, T(`: swapped the numbers on ${tileName(e.hex)} and ${tileName(e.hex2)}`)];
+			return tParts('{player} used {power}: swapped the numbers on {tile} and {other}', { player }, T, { power, tile: tileName(e.hex), other: tileName(e.hex2) });
 		case 'abbess':
-			return [...head, T(` on ${tileName(e.hex)}`)];
+			return tParts('{player} used {power} on {tile}', { player }, T, { power, tile: tileName(e.hex) });
 		case 'baron':
-			return [...head, T(' and claimed a corner')];
+			return tParts('{player} used {power} and claimed a corner', { player }, T, { power });
 		default:
-			return head;
+			return tParts('{player} used {power}', { player }, T, { power });
 	}
 }
 

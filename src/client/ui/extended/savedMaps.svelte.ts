@@ -1,5 +1,6 @@
 import type { SavedMap } from '../../../shared/accounts';
 import type { CustomMap } from '../../../shared/board/maps';
+import { t } from '../../i18n/index.svelte';
 import { account, api } from '../../state/account.svelte';
 import { client } from '../../state/client.svelte';
 
@@ -26,7 +27,7 @@ function later(job: () => Promise<unknown>) {
 		.then(() => (gen === generation ? job() : undefined))
 		.catch((e) => {
 			if (gen !== generation) return;
-			client.toast(`Couldn't save your maps: ${(e as Error).message}`, 'error');
+			client.toast(t("Couldn't save your maps: {error}", { error: (e as Error).message }), 'error');
 			// Show what the server really has.
 			return load(gen);
 		});
