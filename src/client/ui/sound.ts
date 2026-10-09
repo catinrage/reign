@@ -25,7 +25,8 @@ const SAMPLES = [
 	'click',
 	'open',
 	'close',
-	'hover'
+	'hover',
+	'seven'
 ] as const;
 type SampleName = (typeof SAMPLES)[number];
 
@@ -45,7 +46,8 @@ const VOLUME: Record<SampleName, number> = {
 	click: 0.55,
 	open: 0.45,
 	close: 0.5,
-	hover: 0.13
+	hover: 0.13,
+	seven: 0.8
 };
 /** Random pitch spread (playbackRate +/- this) for sounds that repeat a lot. */
 const VARY: Partial<Record<SampleName, number>> = {
@@ -542,6 +544,11 @@ const synth: Record<SampleName, () => void> = {
 	},
 	hover() {
 		click(0, 0.04, 0.9);
+	},
+	seven() {
+		tone(73, 1.1, 'sine', 0.3, 0, 0.8);
+		tone(110, 0.9, 'sawtooth', 0.05, 0.05, 0.75);
+		tone(131, 0.9, 'sawtooth', 0.04, 0.05, 0.75);
 	}
 };
 
@@ -588,5 +595,7 @@ export const sfx = {
 	/** A tiny, very quiet wooden tick; at most one every 70 ms. */
 	hover,
 	/** A clock tick, once a second as a turn's time runs out. */
-	tick
+	tick,
+	/** A dark sting (a drum boom and a low brass chord) as the dice land on 7. */
+	seven: () => play('seven')
 };
