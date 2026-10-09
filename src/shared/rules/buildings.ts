@@ -5,7 +5,7 @@ import type { Resource, ResourceCounts } from './config';
  * off in the lobby, and Classic never has any. This file holds their data (names, what they do,
  * limits); the rules live in the engine and queries, and the bots know how to use each one.
  */
-export const EXTRA_BUILDINGS = ['workshop', 'stoneRoad'] as const;
+export const EXTRA_BUILDINGS = ['workshop', 'stoneRoad', 'storehouse'] as const;
 export type ExtraBuilding = (typeof EXTRA_BUILDINGS)[number];
 /** Which extra buildings a game has. */
 export type BuildingRules = Record<ExtraBuilding, boolean>;
@@ -28,6 +28,11 @@ export const BUILDING_INFO: Record<ExtraBuilding, BuildingInfo> = {
 		name: 'Stone roads',
 		label: 'Stone road',
 		text: 'Pave one of your roads with stone and it counts as two roads towards the Longest Road.'
+	},
+	storehouse: {
+		name: 'Storehouses',
+		label: 'Storehouse',
+		text: "Added onto one of your settlements or cities, one each. It keeps three of your cards safe: nothing takes your last three at random (not the robber, a thief, a toll or an event), and on a 7 they don't count towards your hand."
 	}
 };
 
@@ -36,6 +41,9 @@ export const WORKSHOP_LIMIT = 3;
 
 /** What tearing down one of your workshops gives back, so you can build it somewhere better. */
 export const WORKSHOP_REFUND: Partial<ResourceCounts> = { wood: 1 };
+
+/** Cards a player's storehouse keeps safe from the robber, thieves, tolls, events and discards. */
+export const STOREHOUSE_SAFE = 3;
 
 /** A workshop is named after the work of its tile. */
 export const WORKSHOP_NAME: Record<Resource, string> = {

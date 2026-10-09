@@ -94,6 +94,8 @@ export interface GameState {
 	workshops: (number | null)[];
 	/** Indexed by edge id: whether the road there is paved with stone (Reign Extended). */
 	stoneRoads: boolean[];
+	/** Indexed by vertex id: whether the settlement or city there has a storehouse (Reign Extended). */
+	storehouses: boolean[];
 	/** Reign Extended's Events deck and this round's card; null when the game has no events. */
 	events: EventsState | null;
 	/**
@@ -241,8 +243,8 @@ export interface EventMove {
 	resource: Resource | null;
 }
 
-/** A stone road is built on top of a road: `at` is its edge. */
-export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad';
+/** A stone road is built on top of a road (`at` is its edge), a storehouse onto a building (its vertex). */
+export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad' | 'storehouse';
 
 export interface ResourceGain {
 	player: number;
@@ -262,6 +264,7 @@ export type Action =
 	| { type: 'buildCity'; vertex: number }
 	| { type: 'buildWorkshop'; hex: number }
 	| { type: 'paveRoad'; edge: number }
+	| { type: 'buildStorehouse'; vertex: number }
 	| { type: 'tearDownWorkshop'; hex: number }
 	| { type: 'rollDice' }
 	| { type: 'discard'; resources: Partial<ResourceCounts> }

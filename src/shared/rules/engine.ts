@@ -28,7 +28,7 @@ import {
 } from './config';
 import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules } from './buildings';
 import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
-import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, startRound, tilePays } from './events';
+import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
 	builtKey,
@@ -45,6 +45,8 @@ import {
 	powerReady,
 	publicPoints,
 	roadSpots,
+	safeCards,
+	storehouseOf,
 	tradeRatios,
 	workshopCount
 } from './queries';
@@ -135,6 +137,7 @@ export function createGame(
 		buildingRules: extended ? cleanBuildingRules(opts.buildings) : allBuildings(false),
 		workshops: b.hexes.map(() => null),
 		stoneRoads: topo.edges.map(() => false),
+		storehouses: topo.vertices.map(() => false),
 		// The deck is shuffled from a seed of its own, so it leaves the island and dice as they were.
 		events: extended ? newEvents(cleanEventRules(opts.events), { rng: (seed ^ 0x2f6b1d) | 0 }) : null,
 		builtTurns: {},
@@ -288,6 +291,8 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 			return buildWorkshop(ctx, p, a.hex);
 		case 'paveRoad':
 			return paveRoad(ctx, p, a.edge);
+		case 'buildStorehouse':
+			return buildStorehouse(ctx, p, a.vertex);
 		case 'tearDownWorkshop':
 			return tearDownWorkshop(ctx, p, a.hex);
 		case 'rollDice':
@@ -450,8 +455,9 @@ function rollWith(ctx: Ctx, p: number, dice: [number, number]) {
 	if (total === 7) {
 		const pending: Record<number, number> = {};
 		s.players.forEach((pl, i) => {
+			// A storehouse's cards don't count: half of the rest goes.
 			const n = totalResources(pl.resources);
-			if (n > discardLimit(s, i)) pending[i] = Math.floor(n / 2);
+			if (n > discardLimit(s, i)) pending[i] = Math.floor((n - safeCards(s, i)) / 2);
 		});
 		// The Shepherd's flock: a Wool from the bank on every 7.
 		s.players.forEach((pl, i) => {
@@ -620,13 +626,11 @@ function takePick(ctx: Ctx, p: number, res: Resource) {
 	checkWin(ctx);
 }
 
-/** One random card from `from`'s hand to `to`, because of a trait. */
+/** One random card from `from`'s hand to `to`, because of a trait (none past their storehouse's). */
 function traitToll(ctx: Ctx, from: number, to: number, character: CharacterId) {
 	const s = ctx.s;
-	const hand: Resource[] = [];
-	for (const r of RESOURCES) for (let i = 0; i < s.players[from].resources[r]; i++) hand.push(r);
-	if (!hand.length) return;
-	const res = hand[randomInt(s, hand.length)];
+	const res = randomCard(s, from);
+	if (!res) return;
 	s.players[from].resources[res]--;
 	s.players[to].resources[res]++;
 	ctx.emit({ type: 'traitToll', from, to, character, resource: res });
@@ -640,8 +644,9 @@ function moveRobber(ctx: Ctx, p: number, hex: number) {
 	s.robberHex = hex;
 	s.robberMover = p;
 	ctx.emit({ type: 'robberMoved', player: p, hex });
+	// Only players holding more than their storehouse keeps safe can be robbed.
 	const victims = playersOnHex(s, hex, p).filter(
-		(v) => totalResources(s.players[v].resources) > 0
+		(v) => totalResources(s.players[v].resources) > safeCards(s, v)
 	);
 	if (victims.length === 0) {
 		ctx.emit({ type: 'nothingToSteal', player: p });
@@ -670,14 +675,15 @@ function doSteal(ctx: Ctx, p: number, victim: number) {
 	s.step = s.resumeStep;
 }
 
-/** One random card from the victim to the thief; the Witch's purse bites back and the thief pays her instead. */
+/**
+ * One random card from the victim to the thief, never one their storehouse keeps safe; the Witch's
+ * purse bites back and the thief pays her instead.
+ */
 function stealOne(ctx: Ctx, p: number, victim: number) {
 	const s = ctx.s;
 	if (s.players[victim].character === 'witch') return traitToll(ctx, p, victim, 'witch');
-	const hand: Resource[] = [];
-	for (const r of RESOURCES) for (let i = 0; i < s.players[victim].resources[r]; i++) hand.push(r);
-	if (!hand.length) return;
-	const res = hand[randomInt(s, hand.length)];
+	const res = randomCard(s, victim);
+	if (!res) return;
 	s.players[victim].resources[res]--;
 	s.players[p].resources[res]++;
 	ctx.emit({ type: 'stole', thief: p, victim, resource: res });
@@ -799,6 +805,19 @@ function paveRoad(ctx: Ctx, p: number, edge: number) {
 	ctx.emit({ type: 'built', player: p, kind: 'stoneRoad', at: edge, free: false, paid });
 	updateLongestRoad(ctx);
 	checkWin(ctx);
+}
+
+/** Add a storehouse onto one of your settlements or cities: one each, and it keeps three cards safe. */
+function buildStorehouse(ctx: Ctx, p: number, vertex: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (!s.buildingRules.storehouse) fail('Storehouses are not part of this game.');
+	if (!Number.isInteger(vertex) || s.buildings[vertex] === undefined) fail('Pick a spot on the island.');
+	if (s.buildings[vertex]?.owner !== p) fail('Pick one of your own settlements or cities.');
+	if (storehouseOf(s, p) !== null) fail('You already have a storehouse.');
+	const paid = pay(s, p, 'storehouse');
+	s.storehouses[vertex] = true;
+	ctx.emit({ type: 'built', player: p, kind: 'storehouse', at: vertex, free: false, paid });
 }
 
 /** Tear down one of your workshops (to build it somewhere better): the bank gives back a Lumber. */
@@ -981,7 +1000,10 @@ function usePower(ctx: Ctx, p: number, a: PowerAction) {
 			break;
 		case 'rogue': {
 			const t = target(s, p, a.target);
-			if (totalResources(s.players[t].resources) === 0) fail('They have no cards to steal.');
+			const safe = safeCards(s, t);
+			if (totalResources(s.players[t].resources) <= safe) {
+				fail(safe ? `Their storehouse keeps their last ${safe} cards safe.` : 'They have no cards to steal.');
+			}
 			used({ target: t });
 			stealOne(ctx, p, t);
 			stealOne(ctx, p, t);
@@ -1078,10 +1100,16 @@ function usePower(ctx: Ctx, p: number, a: PowerAction) {
 			used();
 			const before = s.players.map((o) => totalResources(o.resources));
 			const pool: Resource[] = [];
-			for (const o of s.players) {
-				for (const r of RESOURCES) for (let i = 0; i < o.resources[r]; i++) pool.push(r);
+			// A storehouse keeps its cards out of it: that many of its owner's cards, at random, stay put.
+			const kept = s.players.map((o, i) => {
+				const hand: Resource[] = [];
+				for (const r of RESOURCES) for (let j = 0; j < o.resources[r]; j++) hand.push(r);
+				const safe = Math.min(safeCards(s, i), hand.length);
+				if (safe) shuffle(s, hand);
+				pool.push(...hand.slice(safe));
 				o.resources = emptyResources();
-			}
+				return hand.slice(0, safe);
+			});
 			shuffle(s, pool);
 			// Even shares; the cards left over go to players picked at random, one each.
 			const n = s.players.length;
@@ -1091,6 +1119,7 @@ function usePower(ctx: Ctx, p: number, a: PowerAction) {
 			s.players.forEach((o, i) => {
 				const count = share + (extra.has(i) ? 1 : 0);
 				for (let j = 0; j < count; j++) o.resources[pool[k++]]++;
+				for (const r of kept[i]) o.resources[r]++;
 			});
 			// Hands changed under any open offer.
 			s.trade = null;
