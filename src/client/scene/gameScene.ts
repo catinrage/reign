@@ -49,6 +49,7 @@ export class GameScene {
 	private room: Room;
 	private boardView: BoardView | null = null;
 	private boardKey = '';
+	private boardSeed = 0;
 	private pieces = new Map<string, PieceObj>();
 	private dice: Dice;
 	private lastSeq = 0;
@@ -65,7 +66,12 @@ export class GameScene {
 	private smokeClock = 0;
 	private diceDown = false;
 
-	constructor(canvas: HTMLCanvasElement, quality: Quality) {
+	constructor(
+		canvas: HTMLCanvasElement,
+		quality: Quality,
+		/** Voxels per terrain unit for the island: 1 standard, 2 finer (experimental). */
+		private detail = 1
+	) {
 		this.stage = new Stage(canvas, quality);
 		this.particles = new Particles(this.stage.scene);
 		this.room = buildRoom(this.stage);
@@ -118,8 +124,24 @@ export class GameScene {
 			this.stage.scene.remove(this.boardView.group);
 			this.boardView.dispose();
 		}
-		this.boardView = new BoardView(board, seed);
+		this.boardSeed = seed;
+		this.boardView = new BoardView(board, seed, this.detail);
 		this.stage.scene.add(this.boardView.group);
+	}
+
+	/** Rebuild the island at another voxel detail, keeping the game (pieces, robber) as it is. */
+	setDetail(detail: number) {
+		if (detail === this.detail || !this.boardView) return;
+		this.detail = detail;
+		if (this.mode === 'game' && this.view) {
+			const view = this.view;
+			this.boardKey = '';
+			this.setView(view);
+			return;
+		}
+		const robber = this.boardView.robberHex;
+		this.setBoard(this.boardView.board, this.boardSeed);
+		this.boardView!.setRobber(robber, true);
 	}
 
 	// ------------------------------------------------------------ game state

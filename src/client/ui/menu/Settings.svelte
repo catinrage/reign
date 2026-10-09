@@ -62,6 +62,25 @@
 			Low turns off shadows and depth of field for older devices. The game reloads to apply it.
 		</p>
 		<div class="row">
+			<span class="name">Island detail</span>
+			<div class="seg">
+				<button
+					class="btn small"
+					class:on={settings.detail === 1}
+					onclick={() => settings.setDetail(1)}>Standard</button
+				>
+				<button
+					class="btn small"
+					class:on={settings.detail === 2}
+					onclick={() => settings.setDetail(2)}>Fine</button
+				>
+			</div>
+		</div>
+		<p class="hint">
+			Experimental: Fine builds the island from voxels half the size, for more detail. It takes
+			a moment to rebuild and asks more of your device.
+		</p>
+		<div class="row">
 			<span class="name">Reduce motion</span>
 			<div class="seg">
 				<button

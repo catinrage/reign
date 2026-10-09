@@ -34,12 +34,20 @@ export interface VoxelMaterialOptions {
 	envMapIntensity?: number;
 	/** Voxel y where swaying starts (ground level). */
 	swayBase?: number;
+	/** Voxels per sway unit: finer grids pass 2 so their foliage sways just as far. */
+	swayScale?: number;
 	/** Board tiles: can be grayed out per tile (see `sharedUniforms.uGray`). */
 	tileGray?: boolean;
+	/**
+	 * Fade each block's bevel and rim out as blocks shrink to a pixel or two on screen, where
+	 * they would only shimmer into moiré (for small voxels seen from afar).
+	 */
+	antialias?: boolean;
 }
 
 const VERT_HEAD = /* glsl */ `
 uniform float uSwayBase;
+uniform float uSwayScale;
 varying vec3 vVox;
 varying vec3 vVoxN;
 varying vec3 vTanU;
@@ -80,6 +88,13 @@ vec2 voxUV() {
 	vec3 an = abs(vVoxN);
 	return an.x > 0.5 ? f.yz : (an.y > 0.5 ? f.zx : f.xy);
 }
+#ifdef VOXEL_AA
+/** 1 while a block covers a few pixels, falling to 0 as it shrinks to about one. */
+float voxAA() {
+	vec3 w = fwidth(vVox);
+	return 1.0 - smoothstep(0.3, 0.7, max(w.x, max(w.y, w.z)));
+}
+#endif
 `;
 
 const FRAG_BEVEL = /* glsl */ `
@@ -88,6 +103,9 @@ const FRAG_BEVEL = /* glsl */ `
 	vec2 dEdge = min(uv, 1.0 - uv);
 	vec2 w = 1.0 - smoothstep(0.0, uBevelWidth, dEdge);
 	vec2 sgn = vec2(uv.x < 0.5 ? -1.0 : 1.0, uv.y < 0.5 ? -1.0 : 1.0);
+#ifdef VOXEL_AA
+	w *= voxAA();
+#endif
 	normal = normalize(normal + (vTanU * sgn.x * w.x + vTanV * sgn.y * w.y) * uBevel);
 }
 `;
@@ -112,6 +130,10 @@ const FRAG_RIM = /* glsl */ `
 	vec2 uv = voxUV();
 	vec2 dEdge = min(uv, 1.0 - uv);
 	float e = 1.0 - smoothstep(0.0, uBevelWidth * 0.9, min(dEdge.x, dEdge.y));
+#ifdef VOXEL_AA
+	// Faded out to the rim's average over a face, so far-off blocks keep their brightness.
+	e = mix(0.23, e, voxAA());
+#endif
 	diffuseColor.rgb *= 1.0 - e * 0.16;
 }
 `;
@@ -120,8 +142,10 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 	const bevel = { value: opts.bevel ?? 0.55 };
 	const bevelWidth = { value: opts.bevelWidth ?? 0.14 };
 	const swayBase = { value: opts.swayBase ?? 0 };
+	const swayScale = { value: opts.swayScale ?? 1 };
 	material.onBeforeCompile = (shader) => {
 		shader.uniforms.uSwayBase = swayBase;
+		shader.uniforms.uSwayScale = swayScale;
 		shader.uniforms.uTime = sharedUniforms.uTime;
 		shader.uniforms.uFlicker = sharedUniforms.uFlicker;
 		shader.uniforms.uNight = sharedUniforms.uNight;
@@ -140,17 +164,17 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 				/* glsl */ `#include <begin_vertex>
 				{
 					vec4 wp = modelMatrix * vec4(position, 1.0);
-					float k = clamp((position.y - uSwayBase) / 6.0, 0.0, 1.0);
+					float k = clamp((position.y - uSwayBase) / (6.0 * uSwayScale), 0.0, 1.0);
 					k *= k;
 					float sway = sin(uTime * 1.6 + wp.x * 0.12 + wp.z * 0.08) * 0.5 + sin(uTime * 2.7 + wp.z * 0.2) * 0.25;
-					transformed.x += sway * 0.5 * k;
-					transformed.z += sway * 0.3 * k;
+					transformed.x += sway * 0.5 * k * uSwayScale;
+					transformed.z += sway * 0.3 * k * uSwayScale;
 				}`
 			);
 		}
 		shader.vertexShader = vs;
 
-		let fs = shader.fragmentShader.replace('#include <common>', `#include <common>\n${FRAG_HEAD}`);
+		let fs = shader.fragmentShader.replace('#include <common>', `#include <common>\n${opts.antialias ? '#define VOXEL_AA\n' : ''}${FRAG_HEAD}`);
 		fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_RIM}`);
 		if (opts.tileGray) {
 			fs = fs.replace('#include <common>', '#include <common>\nuniform vec4 uGray[2];\nuniform float uGrayVoxel;');
@@ -185,7 +209,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		}
 		shader.fragmentShader = fs;
 	};
-	material.customProgramCacheKey = () => `voxel-${kind}${opts.tileGray ? '-gray' : ''}`;
+	material.customProgramCacheKey = () => `voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}`;
 	return material;
 }
 

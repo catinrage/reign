@@ -11,15 +11,17 @@ import { armAudio } from './ui/sound';
 
 export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	let quality: 'high' | 'low' = 'high';
+	let detail = 1;
 	try {
 		quality = (localStorage.getItem('reign:quality') as 'high' | 'low') ?? 'high';
+		detail = localStorage.getItem('reign:detail') === '2' ? 2 : 1;
 	} catch {
 		/* ignore */
 	}
 	installArt();
 	applySettings();
 	getIcons();
-	sceneRef.current = new GameScene(canvas, quality);
+	sceneRef.current = new GameScene(canvas, quality, detail);
 	(window as any).__scene = sceneRef.current;
 	mount(App, { target: el });
 	armAudio();

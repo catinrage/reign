@@ -38,9 +38,11 @@ export class BoardView {
 
 	constructor(
 		readonly board: Board,
-		seed: number
+		seed: number,
+		/** Voxels per terrain unit: 1 is the standard island, 2 the finer experiment. */
+		detail = 1
 	) {
-		this.build = buildBoard(board, seed);
+		this.build = buildBoard(board, seed, detail);
 		this.group.add(this.build.group);
 		const topo = getTopology(board);
 

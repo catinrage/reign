@@ -9,7 +9,7 @@ export function runSandbox(canvas: HTMLCanvasElement) {
 	const seed = Number(params.get('seed') ?? 7);
 	const stage = new Stage(canvas, (params.get('q') as 'high' | 'low') ?? 'high');
 	const board = generateStandardBoard({ rng: seed });
-	const view = new BoardView(board, seed);
+	const view = new BoardView(board, seed, Number(params.get('detail') ?? 1));
 	view.setRobber(board.hexes.findIndex((h) => h.terrain === 'desert'), true);
 	stage.scene.add(view.group);
 	const room = buildRoom(stage);
@@ -24,5 +24,6 @@ export function runSandbox(canvas: HTMLCanvasElement) {
 	stage.onFrame((dt, t) => view.update(dt, t, stage.rig.azimuth));
 	stage.start();
 	(window as any).__stage = stage;
+	(window as any).__view = view;
 	(window as any).__ready = true;
 }
