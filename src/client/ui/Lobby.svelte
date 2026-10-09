@@ -2,12 +2,14 @@
 	import { mapName, presetById } from '../../shared/board/maps';
 	import { CHARACTER_INFO } from '../../shared/rules/characters';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
-	import { GAME_MODES, MODE_INFO, POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../shared/rules/modes';
+	import { RANDOM_SHAPE_INFO } from '../../shared/board/random';
+	import { GAME_MODES, MODE_INFO, POINT_GOALS, POINTS_MIN, maxPointsFor, suggestedPoints } from '../../shared/rules/modes';
 	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
 	import { client } from '../state/client.svelte';
 	import CharacterPicker from './extended/CharacterPicker.svelte';
 	import MapPicker from './extended/MapPicker.svelte';
 	import MapPreview from './extended/MapPreview.svelte';
+	import { generateIsland } from './extended/randomIsland';
 	import Portrait from './extended/Portrait.svelte';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
@@ -30,7 +32,20 @@
 	const mapTiles = $derived(
 		'preset' in settings.map ? (presetById(settings.map.preset)?.tiles ?? []) : settings.map.custom.tiles
 	);
-	const mapBlurb = $derived('preset' in settings.map ? (presetById(settings.map.preset)?.blurb ?? '') : 'A map made in the map maker.');
+	const random = $derived('custom' in settings.map ? settings.map.custom.random : undefined);
+	const mapBlurb = $derived(
+		'preset' in settings.map
+			? (presetById(settings.map.preset)?.blurb ?? '')
+			: random
+				? `A random island: ${RANDOM_SHAPE_INFO[random.shape].text.toLowerCase().replace(/\.$/, '')}${random.lakes ? ', with lakes' : ''}.`
+				: 'A map made in the map maker.'
+	);
+	// Island size, players and points go together: a small island with a big table can't
+	// reach a big goal, so the server caps it and the picks above the cap are greyed out.
+	const pointsCap = $derived(maxPointsFor(mapTiles.length, lobby.seats.length));
+	const pointsTip = $derived(
+		`${mapTiles.length} tiles and ${lobby.seats.length} players: about ${suggestedPoints(mapTiles.length, lobby.seats.length)} plays well, ${pointsCap} at most`
+	);
 	let picking = $state<'character' | 'map' | null>(null);
 	// The table shows the island that will be played.
 	$effect(() => sceneRef.current?.showMenuMap(extended ? mapTiles : null));
@@ -49,7 +64,7 @@
 		const input = e.currentTarget as HTMLInputElement;
 		const n = Math.round(Number(input.value));
 		if (input.value.trim() && Number.isFinite(n)) {
-			const points = Math.max(POINTS_MIN, Math.min(POINTS_MAX, n));
+			const points = Math.max(POINTS_MIN, Math.min(pointsCap, n));
 			client.send({ t: 'setPointsToWin', points });
 			if (points !== n) input.value = String(points);
 		} else {
@@ -257,23 +272,37 @@
 									</span>
 								</button>
 							{/if}
-							<button class="pick plaque" disabled={!client.isHost} onclick={() => (picking = 'map')}>
-								<span class="map-well well"><MapPreview tiles={mapTiles} width={92} height={70} /></span>
-								<span class="pick-body">
-									<span class="label">Island</span>
-									<span class="pick-name title">{mapName(settings.map)} <small>{mapTiles.length} tiles</small></span>
-									<span class="trait">{mapBlurb}</span>
-									{#if client.isHost}<span class="change">Change or make your own</span>{/if}
-								</span>
-							</button>
+							<div class="island">
+								<button class="pick plaque" disabled={!client.isHost} onclick={() => (picking = 'map')}>
+									<span class="map-well well"><MapPreview tiles={mapTiles} width={92} height={70} /></span>
+									<span class="pick-body">
+										<span class="label">Island</span>
+										<span class="pick-name title">{mapName(settings.map)} <small>{mapTiles.length} tiles</small></span>
+										<span class="trait">{mapBlurb}</span>
+										{#if client.isHost}<span class="change">{random ? 'Change' : 'Change, generate or make your own'}</span>{/if}
+									</span>
+								</button>
+								{#if client.isHost && random}
+									<button
+										class="btn small green reroll"
+										title="Grow another island with the same size and shape"
+										onclick={() => generateIsland(random)}>Reroll</button
+									>
+								{/if}
+							</div>
 							<div class="goal">
-								<span class="label">Points to win</span>
+								<span class="goal-head">
+									<span class="label">Points to win</span>
+									<span class="cap" title={pointsTip}>At most {pointsCap} here</span>
+								</span>
 								{#if client.isHost}
 									<div class="seg">
 										{#each POINT_GOALS as g (g)}
 											<button
 												class="btn small"
 												class:on={settings.pointsToWin === g}
+												disabled={g > pointsCap}
+												title={g > pointsCap ? `Too many for this island: ${pointsTip}.` : undefined}
 												onclick={() => client.send({ t: 'setPointsToWin', points: g })}>{g}</button
 											>
 										{/each}
@@ -283,10 +312,10 @@
 											type="number"
 											inputmode="numeric"
 											min={POINTS_MIN}
-											max={POINTS_MAX}
+											max={pointsCap}
 											placeholder="Other"
-											aria-label="Other points to win, {POINTS_MIN} to {POINTS_MAX}"
-											title="Any number from {POINTS_MIN} to {POINTS_MAX}"
+											aria-label="Other points to win, {POINTS_MIN} to {pointsCap}"
+											title="Any number from {POINTS_MIN} to {pointsCap}. {pointsTip}."
 											value={POINT_GOALS.includes(settings.pointsToWin) ? '' : settings.pointsToWin}
 											onchange={otherGoal}
 											onkeydown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
@@ -747,6 +776,26 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
+	}
+	.island {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+	}
+	.reroll {
+		position: absolute;
+		right: 8px;
+		bottom: 8px;
+	}
+	.goal-head {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+	.cap {
+		font-size: 12px;
+		color: var(--muted);
+		white-space: nowrap;
 	}
 	.goal .seg .btn {
 		min-width: 44px;
