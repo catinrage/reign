@@ -11,6 +11,7 @@
 		DISCARD_THRESHOLD,
 		VICTORY_POINTS_TO_WIN
 	} from '../../../../shared/rules/config';
+	import { BUILDING_INFO, EXTRA_BUILDINGS } from '../../../../shared/rules/buildings';
 	import { CHARACTERS } from '../../../../shared/rules/characters';
 	import { CLASSIC_PLAYERS, MAX_PLAYERS } from '../../../../shared/protocol';
 	import { HAND_LIMIT_MAX, HAND_LIMIT_MIN, POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../../../shared/rules/modes';
@@ -30,6 +31,12 @@
 			name: 'Characters',
 			classic: 'None.',
 			extended: `Each player has one of ${CHARACTERS.length}, with a trait that bends a rule.`
+		},
+		{
+			icon: PIXEL.hammer,
+			name: 'Buildings',
+			classic: 'Roads, settlements and cities.',
+			extended: `Also ${EXTRA_BUILDINGS.map((b) => BUILDING_INFO[b].name.toLowerCase()).join(', ')}, if the host keeps them on.`
 		},
 		{
 			icon: PIXEL.crown,
@@ -96,6 +103,11 @@
 		<img class="icon-px" src={TUT_ICON.mask} alt="" /><span
 			>Turn <b>characters</b> on or off, and leave out any you don't want. Everyone drafts one when the
 			game starts.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.hammer} alt="" /><span
+			>Under <b>Buildings</b>, pick which of the new buildings are in the game.</span
 		>
 	</li>
 </ul>

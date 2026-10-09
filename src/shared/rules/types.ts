@@ -1,4 +1,5 @@
 import type { Board } from '../board/topology';
+import type { BuildingRules } from './buildings';
 import type { CharacterId } from './characters';
 import type { DevCardType, PlayerColor, Resource, ResourceCounts } from './config';
 import type { GameMode } from './modes';
@@ -79,6 +80,10 @@ export interface GameState {
 	buildings: (Building | null)[];
 	/** Indexed by edge id; owner index. */
 	roads: (number | null)[];
+	/** Reign Extended: which extra buildings the host put in the game (all off in Classic). */
+	buildingRules: BuildingRules;
+	/** Indexed by hex id: who owns the workshop on that tile, if anyone. */
+	workshops: (number | null)[];
 	bank: ResourceCounts;
 	devDeck: DevCardType[];
 	devCardPlayedThisTurn: boolean;
@@ -102,7 +107,8 @@ export type GameEvent =
 	| Ev<'turnStarted', { player: number; turn: number }>
 	/** The turn clock ran out; the steps the turn still needed were played for them. */
 	| Ev<'turnTimedOut', { player: number }>
-	| Ev<'built', { player: number; kind: 'road' | 'settlement' | 'city'; at: number; free: boolean }>
+	/** `at` is a vertex, an edge, or for a workshop the hex it stands on. */
+	| Ev<'built', { player: number; kind: BuiltKind; at: number; free: boolean }>
 	| Ev<'setupResources', { player: number; gains: ResourceGain[] }>
 	| Ev<'diceRolled', { player: number; dice: [number, number] }>
 	| Ev<'produced', { gains: ResourceGain[]; blocked: number[]; shortages: Resource[] }>
@@ -138,11 +144,15 @@ export type GameEvent =
 	/** A dev cheat was used (only possible on the local dev server). */
 	| Ev<'cheat', { player: number; text: string }>;
 
+export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop';
+
 export interface ResourceGain {
 	player: number;
 	hex: number;
 	resource: Resource;
 	amount: number;
+	/** The extra card from the player's workshop on the tile. */
+	workshop?: true;
 }
 
 export type Action =
@@ -150,6 +160,7 @@ export type Action =
 	| { type: 'placeSettlement'; vertex: number }
 	| { type: 'placeRoad'; edge: number }
 	| { type: 'buildCity'; vertex: number }
+	| { type: 'buildWorkshop'; hex: number }
 	| { type: 'rollDice' }
 	| { type: 'discard'; resources: Partial<ResourceCounts> }
 	| { type: 'moveRobber'; hex: number }

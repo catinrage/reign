@@ -44,9 +44,11 @@ export class BoardView {
 		readonly board: Board,
 		seed: number,
 		/** Voxels per terrain unit: 1 is the standard island, 2 the finer experiment. */
-		detail = 1
+		detail = 1,
+		/** Lay out a workshop plot on every tile that produces (Reign Extended workshops). */
+		plots = false
 	) {
-		this.build = buildBoard(board, seed, detail);
+		this.build = buildBoard(board, seed, detail, plots);
 		this.group.add(this.build.group);
 		const topo = getTopology(board);
 
@@ -114,16 +116,26 @@ export class BoardView {
 			c.y = this.groundAt(c.x, c.z, 2);
 			return c;
 		}
-		// The usual spot is to the token's left; on a mountain a valley between peaks wins.
+		// The usual spot is to the token's left; on a mountain a valley between peaks wins. A
+		// workshop's plot is never in the way.
 		let best: THREE.Vector3 | null = null;
 		const a0 = Math.atan2(2.4, -5);
+		const plot = this.build.plots[h];
 		for (let k = 0; k < 8; k++) {
 			const a = a0 + (k * Math.PI) / 4;
+			if (plot && Math.abs(Math.atan2(Math.sin(a - plot.angle), Math.cos(a - plot.angle))) < 0.9) continue;
 			const p = new THREE.Vector3(c.x + Math.cos(a) * 5.5, 0, c.z + Math.sin(a) * 5.5);
 			p.y = this.groundAt(p.x, p.z, 2);
 			if (!best || p.y < best.y - 0.3) best = p;
 		}
 		return best!;
+	}
+
+	/** Where a workshop stands on tile h, and which way its plot faces (null: the tile has none). */
+	plotSpot(h: number): { pos: THREE.Vector3; angle: number } | null {
+		const p = this.build.plots[h];
+		if (!p) return null;
+		return { pos: new THREE.Vector3(p.x, this.standY(p.x, p.z, 1.2), p.z), angle: p.angle };
 	}
 
 	groundAt(x: number, z: number, r = 1.5) {

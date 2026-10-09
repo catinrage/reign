@@ -19,7 +19,8 @@ import {
 	roadSpots,
 	settlementSpots,
 	tradeRatios,
-	vertexValue
+	vertexValue,
+	workshopSpots
 } from './queries';
 import type { Action, GameState } from './types';
 
@@ -105,6 +106,10 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	if (hasResources(res, costOf(s, me, 'settlement')) && pl.piecesLeft.settlement > 0 && settleSpots.length) {
 		return { type: 'placeSettlement', vertex: best(settleSpots, (v) => spotScore(s, me, v)) };
 	}
+	// Reign Extended: a workshop on its best tile, if that tile pays often enough to be worth it
+	// (bots that keep to 4-pip tiles beat bots without workshops a little over half the time).
+	const shop = bestWorkshop(s, me);
+	if (shop !== null && hasResources(res, costOf(s, me, 'workshop'))) return { type: 'buildWorkshop', hex: shop };
 	const roadsOk = roadSpots(s, me);
 	const wantsRoad = settleSpots.length === 0 || pl.longestRoad >= 4;
 	if (hasResources(res, costOf(s, me, 'road')) && pl.piecesLeft.road > 0 && roadsOk.length && wantsRoad) {
@@ -118,6 +123,20 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	const trade = bankTradeTowards(s, me);
 	if (trade) return trade;
 	return { type: 'endTurn' };
+}
+
+/** The tile a bot would put a workshop on: its best paying one, or null if none pays enough. */
+function bestWorkshop(s: GameState, me: number): number | null {
+	const spots = workshopSpots(s, me);
+	if (!spots.length) return null;
+	const score = (h: number) => {
+		const hex = s.board.hexes[h];
+		// Grain and ore build cities, so their tiles are worth a little more.
+		const res = TERRAIN_RESOURCE[hex.terrain];
+		return pips(hex.number) + (res === 'wheat' || res === 'ore' ? 0.5 : 0) - (h === s.robberHex ? 2 : 0);
+	};
+	const h = best(spots, score);
+	return score(h) >= 4 ? h : null;
 }
 
 function playableCard(s: GameState, me: number, type: string) {
@@ -225,6 +244,7 @@ function bankTradeTowards(s: GameState, me: number): Action | null {
 	const goals: Partial<ResourceCounts>[] = [];
 	if (citySpots(s, me).length && s.players[me].piecesLeft.city > 0) goals.push(costOf(s, me, 'city'));
 	if (settlementSpots(s, me, false).length && s.players[me].piecesLeft.settlement > 0) goals.push(costOf(s, me, 'settlement'));
+	if (bestWorkshop(s, me) !== null) goals.push(costOf(s, me, 'workshop'));
 	goals.push(costOf(s, me, 'devCard'));
 	for (const goal of goals) {
 		const need = missingFor(res, goal);

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getTopology } from '../../../shared/board/topology';
 	import type { Resource } from '../../../shared/rules/config';
-	import { roadSpots, settlementSpots, citySpots } from '../../../shared/rules/queries';
+	import { roadSpots, settlementSpots, citySpots, workshopSpots } from '../../../shared/rules/queries';
 	import type { GameEvent } from '../../../shared/rules/types';
 	import type { PickKind } from '../../scene/gameScene';
 	import { client } from '../../state/client.svelte';
@@ -79,6 +79,9 @@
 					} else if (ui.build === 'city') {
 						kind = 'city';
 						options = citySpots(view, me);
+					} else if (ui.build === 'workshop') {
+						kind = 'workshop';
+						options = workshopSpots(view, me);
 					}
 					break;
 			}
@@ -93,6 +96,7 @@
 				if (k === 'robber') client.act({ type: 'moveRobber', hex: id });
 				else if (k === 'road') client.act({ type: 'placeRoad', edge: id });
 				else if (k === 'settlement') client.act({ type: 'placeSettlement', vertex: id });
+				else if (k === 'workshop') client.act({ type: 'buildWorkshop', hex: id });
 				else client.act({ type: 'buildCity', vertex: id });
 				if (view.step === 'main') ui.build = null;
 			}

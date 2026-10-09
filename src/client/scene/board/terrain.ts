@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { type Axial, hexKey, worldToHex } from '../../../shared/board/hex';
 import { type Board, getTopology } from '../../../shared/board/topology';
-import type { Terrain } from '../../../shared/rules/config';
+import { TERRAIN_RESOURCE, type Terrain } from '../../../shared/rules/config';
 import { HEX_R, SEA_Y, VOXEL } from '../layout';
 import { Mat, VoxelGrid, fbm, hash3, hex, mix, noise2, pick, shade } from '../voxel/grid';
 import { meshesFor, sharedUniforms } from '../voxel/materials';
@@ -88,12 +88,23 @@ export interface PortSpot {
 	edge: number;
 }
 
+/** A flat, clear patch inside a tile where a Reign Extended workshop can stand. */
+export interface TilePlot {
+	/** World position of its center. */
+	x: number;
+	z: number;
+	/** Direction from the tile's center out to the plot (radians; x = cos, z = sin). */
+	angle: number;
+}
+
 export interface BoardBuild {
 	group: THREE.Group;
 	/** World y of the surface at the hex center, where its number token sits. */
 	tokenY: number[];
 	sheepSpots: { hex: number; x: number; z: number }[];
 	ports: PortSpot[];
+	/** Per hex: its workshop plot, when the island was built with them (null on the desert). */
+	plots: (TilePlot | null)[];
 	/** World y of the top of everything (trees, wheat...) or the water at a world position. */
 	surfaceY: (x: number, z: number) => number;
 	/** World y of the bare ground (tiles and borders, no features): where pieces stand. */
@@ -108,6 +119,43 @@ interface Col {
 	edge: number;
 	/** Distance to the nearest hex corner, where settlements stand. */
 	corner: number;
+	/** Distance to the center of the tile's workshop plot (Infinity without one). */
+	plot: number;
+}
+
+/** How far out from a tile's center its workshop plot lies, and its radius (VOXEL units). */
+const PLOT_OUT = 12;
+const PLOT_R = 4.6;
+
+/** 1 outside a workshop plot, falling to 0 across its rim: tall ground flattens there. */
+function plotFade(d: number) {
+	return Math.min(1, Math.max(0, (d - PLOT_R) / 2.5));
+}
+
+/**
+ * Where a tile's workshop plot lies (VOXEL units from its center): out towards the middle of a
+ * side, clear of the robber's usual spot to the left of the token and of the corners, where
+ * settlements stand. On mountains it takes the side that looks into the widest valley.
+ */
+function plotSpot(terrain: Terrain, hs: number) {
+	let angle: number;
+	if (terrain === 'mountains') {
+		const peaks = mountainPeaks(hs).map((p) => p.a);
+		let best = -Infinity;
+		angle = 0;
+		for (let k = 0; k < 6; k++) {
+			const a = (k * Math.PI) / 3;
+			const room = Math.min(...peaks.map((p) => Math.abs(Math.atan2(Math.sin(a - p), Math.cos(a - p)))));
+			if (room > best) {
+				best = room;
+				angle = a;
+			}
+		}
+	} else {
+		const sides = [0, 60, 240, 300];
+		angle = (sides[Math.floor(hash3(hs, 21, 21) * sides.length)] * Math.PI) / 180;
+	}
+	return { lx: Math.cos(angle) * PLOT_OUT, lz: Math.sin(angle) * PLOT_OUT, angle };
 }
 
 const CORNERS = Array.from({ length: 6 }, (_, i) => {
@@ -130,7 +178,7 @@ function hexEdgeDistance(lx: number, lz: number): number {
 	return inR - Math.max(a, b, c);
 }
 
-export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
+export function buildBoard(board: Board, seed: number, detail = 1, withPlots = false): BoardBuild {
 	const S = detail;
 	const vox = VOXEL / S;
 	const topo = getTopology(board);
@@ -142,6 +190,14 @@ export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 	const hexIndex = new Map<string, number>();
 	board.hexes.forEach((h, i) => hexIndex.set(hexKey(h), i));
 	const centers = topo.hexes.map((t) => ({ x: (t.x * HEX_R) / VOXEL, z: (t.z * HEX_R) / VOXEL }));
+	// Reign Extended workshops stand on a plot inside their tile, kept flat and clear of trees,
+	// crops and sheep. Without workshops the island is built exactly as before.
+	const plots = board.hexes.map((hx, h) => (withPlots && TERRAIN_RESOURCE[hx.terrain] ? plotSpot(hx.terrain, seed + h * 101) : null));
+	/** Whether a feature at (lx, lz) on tile h keeps `margin` away from the tile's plot. */
+	const offPlot = (h: number, lx: number, lz: number, margin: number) => {
+		const p = plots[h];
+		return !p || Math.hypot(lx - p.lx, lz - p.lz) > PLOT_R + margin;
+	};
 
 	// ---- classify columns
 	const cols: (Col | null)[] = new Array(W * D).fill(null);
@@ -155,7 +211,9 @@ export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 			if (h === undefined) continue;
 			const lx = x / S - centers[h].x;
 			const lz = z / S - centers[h].z;
-			cols[ix + iz * W] = { hex: h, lx, lz, edge: hexEdgeDistance(lx, lz), corner: cornerDistance(lx, lz) };
+			const p = plots[h];
+			const plot = p ? Math.hypot(lx - p.lx, lz - p.lz) : Infinity;
+			cols[ix + iz * W] = { hex: h, lx, lz, edge: hexEdgeDistance(lx, lz), corner: cornerDistance(lx, lz), plot };
 			land[ix + iz * W] = 1;
 		}
 	}
@@ -244,7 +302,7 @@ export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 		const at = (lx: number, lz: number) => [Math.floor((cx + lx) * S), Math.floor((cz + lz) * S)] as const;
 		switch (hx.terrain) {
 			case 'forest': {
-				const spots = scatter(hs, 64, 3.3, (lx, lz) => clear(lx, lz, 3.1) && Math.hypot(lx, lz) > 8.2);
+				const spots = scatter(hs, 64, 3.3, (lx, lz) => clear(lx, lz, 3.1) && Math.hypot(lx, lz) > 8.2 && offPlot(h, lx, lz, 2.5));
 				spots.forEach(([lx, lz], k) => {
 					const [x, z] = at(lx, lz);
 					const base = topAt(x, z) + 1;
@@ -255,16 +313,19 @@ export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 				break;
 			}
 			case 'pasture': {
-				const spots = scatter(hs, 14, 5, (lx, lz) => clear(lx, lz, 3) && Math.hypot(lx, lz) > 6.5);
+				const spots = scatter(hs, 14, 5, (lx, lz) => clear(lx, lz, 3) && Math.hypot(lx, lz) > 6.5 && offPlot(h, lx, lz, 2));
 				spots.slice(0, 5).forEach(([lx, lz], k) => {
 					const [x, z] = at(lx, lz);
 					bush(grid, x, topAt(x, z) + 1, z, hs + k, raise, S);
 				});
-				for (const [lx, lz] of spots.slice(5, 10)) sheepSpots.push({ hex: h, x: (cx + lx) * VOXEL, z: (cz + lz) * VOXEL });
+				// Sheep wander a little way from home, so theirs keep further off a plot.
+				for (const [lx, lz] of spots.slice(5, 10)) {
+					if (offPlot(h, lx, lz, 6)) sheepSpots.push({ hex: h, x: (cx + lx) * VOXEL, z: (cz + lz) * VOXEL });
+				}
 				break;
 			}
 			case 'fields': {
-				const spots = scatter(hs, 3, 8, (lx, lz) => clear(lx, lz, 4) && Math.hypot(lx, lz) > 8);
+				const spots = scatter(hs, 3, 8, (lx, lz) => clear(lx, lz, 4) && Math.hypot(lx, lz) > 8 && offPlot(h, lx, lz, 3));
 				spots.slice(0, 1).forEach(([lx, lz]) => {
 					const [x, z] = at(lx, lz);
 					hayBale(grid, x, G * S, z, raise, S);
@@ -272,7 +333,7 @@ export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 				break;
 			}
 			case 'hills': {
-				const spots = scatter(hs, 6, 5, (lx, lz) => clear(lx, lz, 3) && Math.hypot(lx, lz) > 6);
+				const spots = scatter(hs, 6, 5, (lx, lz) => clear(lx, lz, 3) && Math.hypot(lx, lz) > 6 && offPlot(h, lx, lz, 2));
 				spots.slice(0, 3).forEach(([lx, lz], k) => {
 					const [x, z] = at(lx, lz);
 					brickStack(grid, x, topAt(x, z) + 1, z, hs + k, raise, S);
@@ -361,6 +422,7 @@ export function buildBoard(board: Board, seed: number, detail = 1): BoardBuild {
 		tokenY,
 		sheepSpots,
 		ports,
+		plots: plots.map((p, h) => (p ? { x: (centers[h].x + p.lx) * VOXEL, z: (centers[h].z + p.lz) * VOXEL, angle: p.angle } : null)),
 		surfaceY,
 		groundY,
 		dispose: () => group.traverse((o) => (o as THREE.Mesh).geometry?.dispose())
@@ -406,6 +468,16 @@ const MOUNTAIN_PEAKS = [
 	{ h: 13, r: 6 }
 ];
 
+/** A mountain tile's three peaks: direction and distance from its center, and their size. */
+function mountainPeaks(hs: number) {
+	const spin = hash3(hs, 7, 7) * Math.PI * 2;
+	return [0, 1, 2].map((k) => ({
+		a: spin + (k * Math.PI * 2) / 3 + (hash3(hs, k, 11) - 0.5) * 0.6,
+		d: 11.5 + hash3(hs, k, 12),
+		peak: MOUNTAIN_PEAKS[(k + Math.floor(hash3(hs, 13, 13) * 3)) % 3]
+	}));
+}
+
 /**
  * Fills one column and returns the y of its top voxel. `x`, `z` and heights are in grid voxels;
  * noise, distances and layer depths are in VOXEL units, so every detail gives the same island.
@@ -429,16 +501,16 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 	const gt = layerTop(g);
 	switch (terrain) {
 		case 'forest': {
-			const bump = fbm(X * 0.09, Z * 0.09, hs) > 0.6 ? 1 : 0;
+			const bump = fbm(X * 0.09, Z * 0.09, hs) > 0.6 && col.plot > PLOT_R + 1 ? 1 : 0;
 			const c = r > 0.9 ? pick(C.bush, hash3(x, 9, z, hs)) : pick(C.forestFloor, r);
 			return fill(layerTop(g + bump * (edgeFade > 0.5 ? 1 : 0)), c);
 		}
 		case 'pasture': {
 			const n = fbm(X * 0.07, Z * 0.07, hs);
-			const bump = n > 0.62 && edgeFade > 0.6 ? 1 : 0;
+			const bump = n > 0.62 && edgeFade > 0.6 && col.plot > PLOT_R + 1 ? 1 : 0;
 			const c = mix(pick(C.grass, r), C.grassHi[0], Math.max(0, n - 0.45) * 0.9);
 			const top = fill(layerTop(g + bump), c);
-			if (center > 5.5 && col.edge > 2 && col.corner > 4.5) {
+			if (center > 5.5 && col.edge > 2 && col.corner > 4.5 && col.plot > PLOT_R + 0.5) {
 				const blade = pick(C.grassHi, hash3(x, 6, z, hs));
 				if (r > 0.982) {
 					const flower = pick(C.flower, hash3(x, 5, z, hs));
@@ -465,7 +537,7 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 			// Rows of stalks run diagonally; every fourth row is a furrow.
 			const row = Math.floor((X * 0.6 + Z * 0.8) / 1.25);
 			const furrow = ((row % 4) + 4) % 4 === 0;
-			if (center < 4.6 || col.edge < 1.9 || col.corner < 3.5 || furrow) {
+			if (center < 4.6 || col.edge < 1.9 || col.corner < 3.5 || furrow || col.plot < PLOT_R + r * 0.8) {
 				const c = pick(C.soil, hash3(x, 1, z, hs));
 				for (let y = g * S; y <= gt; y++) grid.set(x, y, z, c);
 				return gt;
@@ -483,7 +555,7 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 		case 'hills': {
 			const n = fbm(X * 0.075, Z * 0.075, hs, 3);
 			const m = fbm(X * 0.2, Z * 0.2, hs + 9, 2);
-			let h = Math.max(0, Math.round(((n - 0.36) * 13 + (m - 0.5) * 2) * edgeFade * cornerFade * S));
+			let h = Math.max(0, Math.round(((n - 0.36) * 13 + (m - 0.5) * 2) * edgeFade * cornerFade * plotFade(col.plot) * S));
 			if (center < 4.8) h = Math.min(h, S);
 			const top = gt + h;
 			grid.box(x, 0, z, x, top, z, (_, y) => {
@@ -498,17 +570,13 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 			// stepped peaks around it. The peaks stand back far enough, and low enough, that the
 			// token stays in sight from every side down to a fairly low camera.
 			const ledge = 8;
-			const spin = hash3(hs, 7, 7) * Math.PI * 2;
 			let h = ledge * Math.min(1, Math.max(0, 1 - (center - 5) / 9));
-			for (let k = 0; k < 3; k++) {
-				const a = spin + (k * Math.PI * 2) / 3 + (hash3(hs, k, 11) - 0.5) * 0.6;
-				const d = 11.5 + hash3(hs, k, 12);
-				const peak = MOUNTAIN_PEAKS[(k + Math.floor(hash3(hs, 13, 13) * 3)) % 3];
+			for (const { a, d, peak } of mountainPeaks(hs)) {
 				const dist = Math.hypot(col.lx - Math.cos(a) * d, col.lz - Math.sin(a) * d);
 				h = Math.max(h, peak.h * Math.pow(Math.max(0, 1 - dist / peak.r), 1.05));
 			}
 			h += (fbm(X * 0.22, Z * 0.22, hs) - 0.5) * 2;
-			h *= Math.min(1, Math.max(0, (col.edge - 1) / 3)) * cornerFade;
+			h *= Math.min(1, Math.max(0, (col.edge - 1) / 3)) * cornerFade * plotFade(col.plot);
 			if (center < 5) h = ledge;
 			h = Math.max(0, Math.floor(h * S));
 			// Terraces: snap the slopes to two-voxel steps away from the summits.

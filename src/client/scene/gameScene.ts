@@ -3,12 +3,14 @@ import { generateBoard, generateStandardBoard } from '../../shared/board/generat
 import type { MapTile } from '../../shared/board/maps';
 import { type Board, getTopology } from '../../shared/board/topology';
 import { worldToHex, hexKey } from '../../shared/board/hex';
+import { TERRAIN_RESOURCE } from '../../shared/rules/config';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
 import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel } from './board/models';
+import { WORKSHOP_SCALE, animateWorkshop, workshopChimney, workshopObject } from './board/workshops';
 import { DIE_HALF, Dice } from './dice';
 import { Particles } from './effects';
 import { HEX_R, PLAYER_RGB } from './layout';
@@ -18,7 +20,7 @@ import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { sharedUniforms } from './voxel/materials';
 
-export type PickKind = 'settlement' | 'road' | 'city' | 'robber';
+export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop';
 
 export interface PickRequest {
 	kind: PickKind;
@@ -52,6 +54,8 @@ interface PieceObj {
 
 const ROAD_LEN = 8;
 const PIECE_SCALE = 0.64;
+/** How much a piece's model is scaled on the board, by its key. */
+const pieceScale = (key: string) => (key.startsWith('w') ? WORKSHOP_SCALE : PIECE_SCALE);
 
 /**
  * The 3D side of the game: owns the stage, room, island and pieces, plays the animations
@@ -65,6 +69,8 @@ export class GameScene {
 	private boardView: BoardView | null = null;
 	private boardKey = '';
 	private boardSeed = 0;
+	/** Whether the island was laid out with workshop plots (Reign Extended workshops are on). */
+	private boardPlots = false;
 	private pieces = new Map<string, PieceObj>();
 	private dice: Dice;
 	private lastSeq = 0;
@@ -84,6 +90,7 @@ export class GameScene {
 	private mode: 'menu' | 'game' = 'menu';
 	private callbacks: SceneCallbacks = {};
 	private smokeClock = 0;
+	private kilnClock = 0;
 	private diceDown = false;
 	/** How far the island's land reaches from the center, in world units (about 54 for the classic isle). */
 	private reach = 54;
@@ -158,14 +165,15 @@ export class GameScene {
 		this.stage.rig.set({ radius: Math.min(470, (360 * this.reach) / 54) });
 	}
 
-	private setBoard(board: Board, seed: number) {
+	private setBoard(board: Board, seed: number, plots = false) {
 		this.aim.clear(this.boardView);
 		if (this.boardView) {
 			this.stage.scene.remove(this.boardView.group);
 			this.boardView.dispose();
 		}
 		this.boardSeed = seed;
-		this.boardView = new BoardView(board, seed, this.detail);
+		this.boardPlots = plots;
+		this.boardView = new BoardView(board, seed, this.detail, plots);
 		this.stage.scene.add(this.boardView.group);
 		// Bigger islands (Reign Extended maps) get a bigger table, so the sea still fits inside the rim.
 		this.reach = islandReach(board);
@@ -183,18 +191,21 @@ export class GameScene {
 			return;
 		}
 		const robber = this.boardView.robberHex;
-		this.setBoard(this.boardView.board, this.boardSeed);
+		this.setBoard(this.boardView.board, this.boardSeed, this.boardPlots);
 		this.boardView!.setRobber(robber, true);
 	}
 
 	// ------------------------------------------------------------ game state
 
 	setView(view: GameView) {
-		const key = JSON.stringify(view.board);
+		// Workshops need plots laid out on the tiles; the island is otherwise dealt the same.
+		const plots = !!view.buildingRules?.workshop;
+		const board = JSON.stringify(view.board);
+		const key = plots ? `${board}+plots` : board;
 		const first = key !== this.boardKey;
 		if (first) {
 			this.boardKey = key;
-			this.setBoard(view.board, hashString(key));
+			this.setBoard(view.board, hashString(board), plots);
 			this.clearPieces();
 			this.boardView!.setRobber(view.robberHex, true);
 			this.lastSeq = view.log.length ? view.log[view.log.length - 1].seq : 0;
@@ -250,6 +261,20 @@ export class GameScene {
 				obj.scale.setScalar(PIECE_SCALE);
 				obj.position.copy(bv.vertexPos(v));
 				obj.rotation.y = hashString(`r${v}`) % 4 * (Math.PI / 2) + Math.PI / 4;
+				return obj;
+			});
+		});
+		view.workshops?.forEach((owner, h) => {
+			const res = TERRAIN_RESOURCE[view.board.hexes[h].terrain];
+			const spot = bv.plotSpot(h);
+			if (owner === null || !res || !spot) return;
+			const color = PLAYER_RGB[view.players[owner].color];
+			want.set(`w${h}:${owner}`, () => {
+				const obj = workshopObject(res, color);
+				obj.scale.setScalar(WORKSHOP_SCALE);
+				obj.position.copy(spot.pos);
+				// Its front faces out from the tile's center.
+				obj.rotation.y = Math.PI / 2 - spot.angle;
 				return obj;
 			});
 		});
@@ -351,9 +376,13 @@ export class GameScene {
 				break;
 			}
 			case 'produced':
-				// The resources rise from their tiles as the dice land.
+				// The resources rise from their tiles as the dice land, a workshop's from the workshop.
 				this.diceLanded.then(() => {
-					for (const g of e.gains) this.popResource(g.hex, g.resource, g.player, g.amount);
+					for (const g of e.gains) {
+						const shop = g.workshop ? this.pieces.get(`w${g.hex}:${g.player}`)?.obj : undefined;
+						if (shop) this.workshopPays(shop);
+						this.popResource(g.hex, g.resource, g.player, g.amount, shop?.position);
+					}
 				});
 				break;
 			case 'setupResources':
@@ -471,11 +500,28 @@ export class GameScene {
 		});
 	}
 
-	private popResource(hex: number, resource: string, player: number, amount: number) {
+	/** A workshop that just paid gives a little hop and a sparkle. */
+	private workshopPays(obj: THREE.Object3D) {
+		const base = obj.position.y;
+		const s = obj.scale.x;
+		this.particles.sparkle(obj.position.clone().setY(base + 6), '#ffe39a', 14);
+		this.anim.tween(0.45, (t) => {
+			const k = Math.sin(t * Math.PI);
+			obj.position.y = base + k * 1.2;
+			obj.scale.set(s * (1 - k * 0.06), s * (1 + k * 0.1), s * (1 - k * 0.06));
+		}, ease.linear).then(() => {
+			obj.position.y = base;
+			obj.scale.setScalar(s);
+		});
+	}
+
+	/** Resources rise from a tile (or from `from`, a workshop on it) and fly to their player. */
+	private popResource(hex: number, resource: string, player: number, amount: number, from?: THREE.Vector3) {
 		const bv = this.boardView!;
 		for (let k = 0; k < amount; k++) {
-			const c = bv.hexCenter(hex);
-			const start = new THREE.Vector3(c.x + (Math.random() - 0.5) * 6, bv.groundAt(c.x, c.z, 3) + 3, c.z + (Math.random() - 0.5) * 6);
+			const c = from ?? bv.hexCenter(hex);
+			const spread = from ? 2 : 6;
+			const start = new THREE.Vector3(c.x + (Math.random() - 0.5) * spread, (from ? from.y + 4 : bv.groundAt(c.x, c.z, 3)) + 3, c.z + (Math.random() - 0.5) * spread);
 			this.riseAndFly(start, resource, player, k * 0.15 + Math.random() * 0.1);
 		}
 	}
@@ -561,6 +607,13 @@ export class GameScene {
 				const ep = bv.edgePos(id);
 				pos = ep.pos;
 				rot = ep.angle;
+			} else if (req.kind === 'workshop') {
+				const res = TERRAIN_RESOURCE[bv.board.hexes[id].terrain];
+				const spot = bv.plotSpot(id);
+				if (!res || !spot) continue;
+				model = workshopObject(res, color);
+				pos = spot.pos;
+				rot = Math.PI / 2 - spot.angle;
 			}
 			if (!model) continue;
 			// A slot is a small glowing marker; the full ghost piece appears on hover.
@@ -577,7 +630,7 @@ export class GameScene {
 				m.material = mat;
 				m.castShadow = false;
 			});
-			ghost.scale.setScalar(req.kind === 'road' ? 0.7 : PIECE_SCALE);
+			ghost.scale.setScalar(req.kind === 'road' ? 0.7 : req.kind === 'workshop' ? WORKSHOP_SCALE : PIECE_SCALE);
 			ghost.userData.base = ghost.scale.x;
 			ghost.name = 'ghost';
 			ghost.visible = false;
@@ -589,7 +642,7 @@ export class GameScene {
 				slot.add(bar);
 			} else {
 				const gem = new THREE.Mesh(MARKER_GEM, markerMat);
-				gem.position.y = req.kind === 'city' ? 11 : 4.5;
+				gem.position.y = markerHeight(req.kind);
 				gem.name = 'marker';
 				slot.add(gem);
 				const ring = new THREE.Mesh(MARKER_RING, ringMaterial(color));
@@ -696,7 +749,10 @@ export class GameScene {
 		for (const p of this.pieces.values()) {
 			const level = this.lit[p.owner] ?? 0;
 			if (!level) {
-				if (p.glow) p.obj.remove(p.glow);
+				if (p.glow) {
+					p.obj.remove(p.glow);
+					for (const part of p.glow.userData.parts ?? []) part.removeFromParent();
+				}
 				p.glow = null;
 				if (p.lift && !p.obj.userData.landing) p.obj.position.y = p.ground;
 				p.lift = 0;
@@ -709,12 +765,13 @@ export class GameScene {
 				p.obj.position.y = p.ground + p.lift;
 			}
 			// The rings stay down on the ground as the building floats; the beam shoots up as it lights.
+			const unit = pieceScale(p.key);
 			const ground = p.glow.getObjectByName('ground')!;
-			ground.position.y = -p.lift / PIECE_SCALE;
+			ground.position.y = -p.lift / unit;
 			const ripple = ground.getObjectByName('ripple')!;
 			ripple.scale.setScalar(ripple.userData.radius * (1 + wave));
 			const beam = p.glow.getObjectByName('beam')!;
-			beam.scale.y = (BEAM_HEIGHT / PIECE_SCALE) * ease.outCubic(level);
+			beam.scale.y = (BEAM_HEIGHT / unit) * ease.outCubic(level);
 		}
 	}
 
@@ -722,23 +779,49 @@ export class GameScene {
 	private addGlow(p: PieceObj) {
 		const kit = glowKit(PLAYER_RGB[this.view!.players[p.owner].color]);
 		const road = p.key.startsWith('e');
+		const workshop = p.key.startsWith('w');
+		const unit = pieceScale(p.key);
 		const glow = new THREE.Group();
 		glow.name = 'glow';
 		// The piece drawn again as light on top of itself, and a rim round its dark outline.
-		for (const c of p.obj.children) {
-			const m = c as THREE.Mesh;
-			if (!m.isMesh) continue;
-			const rim = m.name === 'outline';
-			const copy = new THREE.Mesh(m.geometry, rim ? (road ? kit.rimRoad : kit.rim) : road ? kit.litRoad : kit.lit);
-			copy.position.copy(m.position);
-			copy.scale.copy(m.scale);
-			glow.add(copy);
+		const copy = (from: THREE.Object3D, into: THREE.Object3D) => {
+			for (const c of from.children) {
+				const m = c as THREE.Mesh;
+				if (!m.isMesh) continue;
+				const rim = m.name === 'outline';
+				const lit = new THREE.Mesh(m.geometry, rim ? (road ? kit.rimRoad : kit.rim) : road ? kit.litRoad : kit.lit);
+				lit.position.copy(m.position);
+				lit.scale.copy(m.scale);
+				into.add(lit);
+			}
+		};
+		copy(p.obj, glow);
+		if (workshop) {
+			// A workshop's body is a model of its own, and its moving parts carry their own light,
+			// so it turns with the sails and rolls with the cart.
+			glow.userData.parts = [];
+			for (const part of p.obj.children) {
+				if (!part.name) {
+					copy(part, glow);
+					continue;
+				}
+				for (const model of [...part.children]) {
+					const lit = new THREE.Group();
+					lit.name = 'glow';
+					copy(model, lit);
+					lit.position.copy(model.position);
+					lit.rotation.copy(model.rotation);
+					lit.scale.copy(model.scale);
+					part.add(lit);
+					glow.userData.parts.push(lit);
+				}
+			}
 		}
 		if (!road) {
 			// Sizes are in the piece's own units: its voxels. The ring hugs the building, on the
 			// paths where the tiles meet, clear of the trees and wheat round about.
 			const city = p.key.includes(':city:');
-			const radius = (city ? 5.9 : 4.8) / PIECE_SCALE;
+			const radius = (workshop ? 4.2 : city ? 5.9 : 4.8) / unit;
 			const ground = new THREE.Group();
 			ground.name = 'ground';
 			const ring = new THREE.Mesh(HALO, kit.ring);
@@ -746,16 +829,29 @@ export class GameScene {
 			const ripple = new THREE.Mesh(HALO, kit.ripple);
 			ripple.name = 'ripple';
 			ripple.userData.radius = radius;
-			ring.position.y = ripple.position.y = 0.4 / PIECE_SCALE;
+			ring.position.y = ripple.position.y = 0.4 / unit;
 			ground.add(ring, ripple);
 			const beam = new THREE.Mesh(BEAM, kit.beam);
 			beam.name = 'beam';
-			beam.scale.set(2.6 / PIECE_SCALE, 0, 2.6 / PIECE_SCALE);
-			beam.position.y = city ? 12 : 7;
+			beam.scale.set(2.6 / unit, 0, 2.6 / unit);
+			beam.position.y = workshop ? 13 : city ? 12 : 7;
 			glow.add(ground, beam);
 		}
 		p.obj.add(glow);
 		return glow;
+	}
+
+	/** Workshops at work: sails and wheels turn, carts roll, and kilns smoke. */
+	private workshops(dt: number, t: number) {
+		this.kilnClock += dt;
+		const puff = this.kilnClock > 0.28;
+		if (puff) this.kilnClock = 0;
+		for (const p of this.pieces.values()) {
+			if (!p.key.startsWith('w')) continue;
+			animateWorkshop(p.obj, t, dt);
+			const at = puff ? workshopChimney(p.obj) : null;
+			if (at) this.particles.emit({ at, count: 1, colors: ['#8d867e', '#a59e95', '#77706a'], speed: 0.5, up: 3.6, spread: 0.35, life: 3.4, size: 1.1, gravity: -0.45, drag: 0.4 });
+		}
 	}
 
 	// ------------------------------------------------------------ frame
@@ -769,6 +865,7 @@ export class GameScene {
 			this.dice.place(this.diceSpots().ends);
 		}
 		this.smoke(dt);
+		this.workshops(dt, t);
 		this.lightUp(dt, t);
 		const bv = this.boardView;
 		if (bv) {
@@ -794,7 +891,7 @@ export class GameScene {
 				marker.visible = !hovered || this.pick?.kind === 'road';
 				if (this.pick?.kind !== 'road') {
 					marker.rotation.y = t * 1.8 + slot.userData.phase;
-					marker.position.y = (this.pick?.kind === 'city' ? 11 : 4.5) + Math.sin(t * 3 + slot.userData.phase) * 0.7;
+					marker.position.y = markerHeight(this.pick!.kind) + Math.sin(t * 3 + slot.userData.phase) * 0.7;
 				}
 			}
 			if (ring) ring.scale.setScalar(1 + Math.sin(t * 3 + slot.userData.phase) * 0.12);
@@ -816,6 +913,11 @@ export class GameScene {
 	dispose() {
 		this.stage.dispose();
 	}
+}
+
+/** How high a pick's glowing gem floats above its spot, clear of the piece that would go there. */
+function markerHeight(kind: PickKind) {
+	return kind === 'city' ? 11 : kind === 'workshop' ? 9.5 : 4.5;
 }
 
 const MARKER_GEM = new THREE.OctahedronGeometry(1.5, 0).scale(1, 1.45, 1);
