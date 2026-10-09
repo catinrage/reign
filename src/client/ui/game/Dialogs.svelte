@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { RESOURCE_LABEL, emptyResources, type Resource } from '../../../shared/rules/config';
+	import { discardLimit } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
 	import Modal from '../menu/Modal.svelte';
@@ -35,7 +36,7 @@
 
 {#if mustDiscard && res}
 	<Modal title="The robber strikes!" ribbon="crimson" width={480}>
-		<p>You hold more than 7 cards. Pick {mustDiscard} to give back to the bank.</p>
+		<p>You hold more than {discardLimit(view, view.me)} cards. Pick {mustDiscard} to give back to the bank.</p>
 		<div class="row">
 			{#each RESOURCES as r (r)}
 				<div class="col">

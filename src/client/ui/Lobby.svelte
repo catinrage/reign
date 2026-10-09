@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { mapName, presetById } from '../../shared/board/maps';
-	import { CHARACTERS } from '../../shared/rules/characters';
+	import { CHARACTERS, STEWARD_EXTRA } from '../../shared/rules/characters';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
 	import { RANDOM_SHAPE_INFO } from '../../shared/board/random';
 	import {
 		GAME_MODES,
+		HAND_LIMIT_MAX,
+		HAND_LIMIT_MIN,
 		MODE_INFO,
 		POINT_GOALS,
 		POINTS_MIN,
@@ -340,6 +342,37 @@
 									</div>
 								{:else}
 									<span class="chosen">{settings.pointsToWin}</span>
+								{/if}
+							</div>
+							<div class="goal">
+								<span class="goal-head">
+									<span class="label">Hand limit on a 7</span>
+									<span class="cap"
+										>{settings.characters && pool.includes('steward')
+											? `Aldous the Steward: ${settings.handLimit + STEWARD_EXTRA}`
+											: 'More cards than this: discard half'}</span
+									>
+								</span>
+								{#if client.isHost}
+									<div class="seg stepper">
+										<button
+											class="btn small"
+											aria-label="Lower the hand limit"
+											disabled={settings.handLimit <= HAND_LIMIT_MIN}
+											onclick={() => client.send({ t: 'setHandLimit', cards: settings.handLimit - 1 })}>−</button
+										>
+										<span class="chosen" title="Players holding more than this many cards discard half when a 7 is rolled"
+											>{settings.handLimit} cards</span
+										>
+										<button
+											class="btn small"
+											aria-label="Raise the hand limit"
+											disabled={settings.handLimit >= HAND_LIMIT_MAX}
+											onclick={() => client.send({ t: 'setHandLimit', cards: settings.handLimit + 1 })}>+</button
+										>
+									</div>
+								{:else}
+									<span class="chosen">{settings.handLimit} cards</span>
 								{/if}
 							</div>
 						</div>
@@ -800,6 +833,10 @@
 		font-size: 12px;
 		color: var(--muted);
 		white-space: nowrap;
+	}
+	.stepper .chosen {
+		min-width: 84px;
+		justify-content: center;
 	}
 	.goal .seg .btn {
 		min-width: 44px;

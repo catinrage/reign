@@ -8,11 +8,12 @@
 		DEV_DECK,
 		DEV_DECK_HUGE,
 		DEV_DECK_LARGE,
+		DISCARD_THRESHOLD,
 		VICTORY_POINTS_TO_WIN
 	} from '../../../../shared/rules/config';
 	import { CHARACTERS } from '../../../../shared/rules/characters';
 	import { CLASSIC_PLAYERS, MAX_PLAYERS } from '../../../../shared/protocol';
-	import { POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../../../shared/rules/modes';
+	import { HAND_LIMIT_MAX, HAND_LIMIT_MIN, POINT_GOALS, POINTS_MAX, POINTS_MIN } from '../../../../shared/rules/modes';
 	import { PIXEL } from '../../pixel';
 	import { TUT_ICON } from '../icons';
 
@@ -41,6 +42,12 @@
 			name: 'Players',
 			classic: `Up to ${CLASSIC_PLAYERS}.`,
 			extended: `Up to ${MAX_PLAYERS} on the bigger islands.`
+		},
+		{
+			icon: PIXEL.cards,
+			name: 'Hand limit on a 7',
+			classic: `Discard half above ${DISCARD_THRESHOLD} cards.`,
+			extended: `The host sets it, from ${HAND_LIMIT_MIN} to ${HAND_LIMIT_MAX} (${DISCARD_THRESHOLD} unless changed).`
 		},
 		{
 			icon: PIXEL.cards,

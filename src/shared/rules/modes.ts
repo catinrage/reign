@@ -1,5 +1,6 @@
 import { mapSeats, mapTiles, type MapChoice } from '../board/maps';
 import { CHARACTERS, type CharacterId } from './characters';
+import { DISCARD_THRESHOLD } from './config';
 
 /**
  * Reign has two modes. Classic is the standard game on the standard island, exactly as before.
@@ -18,6 +19,14 @@ export const POINT_GOALS = [8, 10, 12, 14];
 /** The host can also type any whole number in this range. */
 export const POINTS_MIN = 3;
 export const POINTS_MAX = 30;
+
+/** Reign Extended: the cards a player can hold when a 7 lands without discarding half. */
+export const HAND_LIMIT_MIN = 3;
+export const HAND_LIMIT_MAX = 20;
+
+export function validHandLimit(n: unknown): n is number {
+	return Number.isInteger(n) && (n as number) >= HAND_LIMIT_MIN && (n as number) <= HAND_LIMIT_MAX;
+}
 
 export function validPointGoal(n: unknown): n is number {
 	return Number.isInteger(n) && (n as number) >= POINTS_MIN && (n as number) <= POINTS_MAX;
@@ -55,6 +64,8 @@ export interface GameSettings {
 	/** Ignored in Classic, which always deals the standard island. */
 	map: MapChoice;
 	pointsToWin: number;
+	/** Reign Extended: cards a player can hold on a 7 without discarding. Classic is always 7. */
+	handLimit: number;
 	/** Reign Extended: whether players draft characters when the game starts. */
 	characters: boolean;
 	/** Characters the host left out of the draft. */
@@ -77,6 +88,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
 	mode: 'classic',
 	map: { preset: 'great' },
 	pointsToWin: 10,
+	handLimit: DISCARD_THRESHOLD,
 	characters: true,
 	leftOut: []
 };

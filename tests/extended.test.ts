@@ -5,11 +5,11 @@ import { RANDOM_SHAPES, randomMap } from '../src/shared/board/random';
 import { hexesInRadius } from '../src/shared/board/hex';
 import { getTopology } from '../src/shared/board/topology';
 import { botAction } from '../src/shared/rules/bot';
-import { CHARACTERS, type CharacterId } from '../src/shared/rules/characters';
+import { CHARACTERS, traitText, type CharacterId } from '../src/shared/rules/characters';
 import { BANK_PER_RESOURCE, BANK_PER_RESOURCE_HUGE, BANK_PER_RESOURCE_LARGE, RESOURCES } from '../src/shared/rules/config';
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
 import { maxPointsFor, type GameSettings } from '../src/shared/rules/modes';
-import { costOf, tradeRatios } from '../src/shared/rules/queries';
+import { costOf, discardLimit, tradeRatios } from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
 
@@ -101,7 +101,7 @@ describe('character traits', () => {
 		expect(s.players[0].knightsPlayed).toBe(0);
 	});
 
-	it('Steward keeps up to 9 cards and Shepherd gets wool on a 7', () => {
+	it('Steward keeps up to 10 cards and Shepherd gets wool on a 7', () => {
 		let g = createGame(players(['steward', 'shepherd', null]), 3, undefined, extended());
 		while (g.phase === 'setup') g = act(g, g.current, botAction(g, g.current)!);
 		// Rig a 7: find a seed state that rolls one.
@@ -248,5 +248,35 @@ describe('character draft', () => {
 		const s = createGame(players([null, null]), 5, undefined, { ...extended(), characters: false });
 		expect(s.phase).toBe('setup');
 		expect(s.draft).toBeNull();
+	});
+});
+
+describe('hand limit', () => {
+	it('lets the host change the hand limit on a 7, and the Steward holds three more', () => {
+		expect(createGame(players([null, null]), 1).handLimit).toBe(7);
+		expect(createGame(players([null, null]), 1, undefined, { mode: 'classic', handLimit: 12 } as never).handLimit).toBe(7);
+		let g = createGame(players(['steward', null, null]), 3, undefined, { ...extended(), handLimit: 4 });
+		expect(g.handLimit).toBe(4);
+		expect(discardLimit(g, 0)).toBe(7);
+		expect(discardLimit(g, 1)).toBe(4);
+		expect(traitText('steward', 4)).toContain('more than 7 cards');
+		expect(traitText('steward', 10)).toContain('more than 13 cards');
+		while (g.phase === 'setup') g = act(g, g.current, botAction(g, g.current)!);
+		for (let tries = 0; tries < 400; tries++) {
+			const trial = structuredClone(g);
+			trial.board = g.board;
+			// Steward with 7 cards keeps them; 5 cards is one too many for everyone else.
+			trial.players[0].resources = { wood: 2, brick: 2, sheep: 1, wheat: 1, ore: 1 };
+			trial.players[1].resources = { wood: 1, brick: 1, sheep: 1, wheat: 1, ore: 1 };
+			trial.players[2].resources = { wood: 1, brick: 1, sheep: 1, wheat: 1, ore: 0 };
+			trial.rng = tries * 7919;
+			const r = applyAction(trial, trial.current, { type: 'rollDice' });
+			if (!r.ok || r.state.dice![0] + r.state.dice![1] !== 7) continue;
+			expect(r.state.pendingDiscards[0]).toBeUndefined();
+			expect(r.state.pendingDiscards[1]).toBe(2);
+			expect(r.state.pendingDiscards[2]).toBeUndefined();
+			return;
+		}
+		throw new Error('never rolled a 7');
 	});
 });

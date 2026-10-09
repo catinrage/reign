@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CHARACTERS, CHARACTER_INFO, type CharacterId } from '../../../shared/rules/characters';
+	import { CHARACTERS, CHARACTER_INFO, traitText, type CharacterId } from '../../../shared/rules/characters';
 	import { characterPool } from '../../../shared/rules/modes';
 	import { client } from '../../state/client.svelte';
 	import Modal from '../menu/Modal.svelte';
@@ -68,7 +68,7 @@
 					<span class="epithet">{info.title}</span>
 				</span>
 				<span class="trait">{info.trait}</span>
-				<span class="text">{info.text}</span>
+				<span class="text">{traitText(c, settings.handLimit)}</span>
 				{#if out}<span class="tag">Left out</span>{/if}
 			</button>
 		{/each}

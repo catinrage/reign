@@ -22,6 +22,7 @@ import {
 	characterPool,
 	maxPointsFor,
 	seatsFor,
+	validHandLimit,
 	validPointGoal,
 	type GameSettings
 } from '../shared/rules/modes';
@@ -344,6 +345,11 @@ export class Room {
 				}
 				if (this.settings.pointsToWin !== msg.points) this.unready();
 				this.settings.pointsToWin = msg.points;
+				return this.broadcastLobby();
+			case 'setHandLimit':
+				if (!isHost || this.lockedSettings || !validHandLimit(msg.cards)) return;
+				if (this.settings.handLimit !== msg.cards) this.unready();
+				this.settings.handLimit = msg.cards;
 				return this.broadcastLobby();
 			case 'setCharacters':
 				if (!isHost || this.lockedSettings) return;

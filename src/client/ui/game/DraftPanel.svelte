@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CHARACTER_INFO, type CharacterId } from '../../../shared/rules/characters';
+	import { CHARACTER_INFO, traitText, type CharacterId } from '../../../shared/rules/characters';
 	import { draftLeft } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import Portrait from '../extended/Portrait.svelte';
@@ -104,7 +104,7 @@
 			<span class="dname title">{info.name} <small>{info.title}</small></span>
 			<span class="label">Trait</span>
 			<span class="trait">{info.trait}</span>
-			<span class="text">{info.text}</span>
+			<span class="text">{traitText(shown, view.handLimit)}</span>
 			{#if shownBy >= 0}
 				<span class="note">Picked by {shownBy === view.me ? 'you' : view.players[shownBy].name}.</span>
 			{/if}

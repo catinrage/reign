@@ -10,13 +10,13 @@ import {
 	type ResourceCounts,
 	pips
 } from './config';
-import type { CharacterId } from './characters';
+import { STEWARD_EXTRA, type CharacterId } from './characters';
 import type { GameState, GameView } from './types';
 
 /** Read-only helpers shared by the engine, the bots and the client's highlighting. */
 type Shared = Pick<
 	GameState | GameView,
-	'board' | 'buildings' | 'roads' | 'robberHex' | 'longestRoadHolder' | 'largestArmyHolder'
+	'board' | 'buildings' | 'roads' | 'robberHex' | 'longestRoadHolder' | 'largestArmyHolder' | 'handLimit'
 > & { players: { character: GameState['players'][number]['character'] }[] };
 
 /** What a build costs this player: the standard price, bent by their character's trait. */
@@ -29,7 +29,8 @@ export function costOf(s: Shared, player: number, kind: BuildKind): Partial<Reso
 
 /** A 7 makes this player discard half their hand when they hold more than this many cards. */
 export function discardLimit(s: Shared, player: number): number {
-	return s.players[player]?.character === 'steward' ? 9 : DISCARD_THRESHOLD;
+	const limit = s.handLimit ?? DISCARD_THRESHOLD;
+	return s.players[player]?.character === 'steward' ? limit + STEWARD_EXTRA : limit;
 }
 
 /** Roads this player needs to claim Longest Road. */
