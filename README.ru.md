@@ -8,7 +8,7 @@
 
 [![Играть в демо](https://img.shields.io/badge/%D0%B8%D0%B3%D1%80%D0%B0%D1%82%D1%8C-%D0%B4%D0%B5%D0%BC%D0%BE%20%D1%81%20%D0%B1%D0%BE%D1%82%D0%B0%D0%BC%D0%B8-f5b301?style=for-the-badge)](https://reign-khaki.vercel.app)
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178c6?logo=typescript&logoColor=white)
 ![Svelte](https://img.shields.io/badge/Svelte-5-ff3e00?logo=svelte&logoColor=white)
 ![Three.js](https://img.shields.io/badge/Three.js-r180-000000?logo=threedotjs&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white)
