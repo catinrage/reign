@@ -154,11 +154,16 @@
 				if (e.dice[0] + e.dice[1] === 7) sfx.seven();
 				break;
 			case 'turnStarted':
+				// A horn call whenever your turn comes, setup turns included.
+				if (e.player === me) sfx.horn();
 				if (e.player === me && e.turn > 0) {
-					sfx.turn();
 					ui.flash = true;
 					setTimeout(() => (ui.flash = false), 1600);
 				}
+				break;
+			case 'tradeOffered':
+				// A bell for everyone at the table but the player who made the offer.
+				if (e.offer.from !== me) sfx.trade();
 				break;
 			case 'turnTimedOut':
 				if (e.player === me) client.toast("Time's up! Your turn is over.", 'error');

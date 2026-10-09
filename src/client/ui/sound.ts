@@ -28,7 +28,9 @@ const SAMPLES = [
 	'hover',
 	'seven',
 	'flutter',
-	'coo'
+	'coo',
+	'horn',
+	'trade'
 ] as const;
 type SampleName = (typeof SAMPLES)[number];
 
@@ -51,7 +53,9 @@ const VOLUME: Record<SampleName, number> = {
 	hover: 0.13,
 	seven: 0.8,
 	flutter: 0.5,
-	coo: 0.55
+	coo: 0.55,
+	horn: 0.7,
+	trade: 0.5
 };
 /** Random pitch spread (playbackRate +/- this) for sounds that repeat a lot. */
 const VARY: Partial<Record<SampleName, number>> = {
@@ -564,6 +568,19 @@ const synth: Record<SampleName, () => void> = {
 		tone(392, 0.22, 'sine', 0.12, 0, 0.9);
 		tone(330, 0.42, 'sine', 0.14, 0.2, 0.88);
 		tone(784, 0.2, 'triangle', 0.015, 0, 0.9);
+	},
+	horn() {
+		// A rising call on a horn: the fifth, then the root held.
+		tone(196, 0.3, 'sawtooth', 0.05, 0, 1.12);
+		tone(294, 1.0, 'sawtooth', 0.06, 0.26, 0.99);
+		tone(147, 1.0, 'triangle', 0.08, 0.26, 0.99);
+	},
+	trade() {
+		// Two quick rings of a small shop bell.
+		tone(1568, 0.5, 'sine', 0.08);
+		tone(2350, 0.3, 'sine', 0.02);
+		tone(1568, 0.6, 'sine', 0.08, 0.14);
+		tone(2350, 0.35, 'sine', 0.02, 0.14);
 	}
 };
 
@@ -613,6 +630,10 @@ export const sfx = {
 	tick,
 	/** A dark sting (a drum boom and a low brass chord) as the dice land on 7. */
 	seven: () => play('seven'),
+	/** A medieval horn call: your turn has come. */
+	horn: () => play('horn'),
+	/** A merchant's little bell: another player put a trade on the table. */
+	trade: () => play('trade'),
 	/** Wings beating as a carrier pigeon takes off. */
 	flutter: () => play('flutter'),
 	/** A soft coo as a carrier pigeon lands with a note. */
