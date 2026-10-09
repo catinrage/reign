@@ -234,7 +234,7 @@
 	}
 	@media (max-width: 900px) {
 		.corner {
-			top: 104px;
+			top: calc(104px + var(--clock-h, 0px));
 			left: 6px;
 		}
 	}

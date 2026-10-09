@@ -5,28 +5,37 @@
 	import Portrait from '../extended/Portrait.svelte';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
+	import TurnTab from './TurnTab.svelte';
 
 	const view = $derived(client.view!);
 	const seats = $derived(client.lobby?.seats ?? []);
+	const playing = $derived(view.phase !== 'ended');
+	/** Resource cards in a hand. Cards dealt on the board count once they get there. */
+	function cardsIn(i: number) {
+		return Math.max(0, view.players[i].resourceCount - client.onTheWay(i));
+	}
 </script>
 
 <div class="players">
 	{#each view.players as p, i (i)}
-		{@const current = i === view.current && view.phase !== 'ended'}
+		{@const current = i === view.current && playing}
 		{@const pts = p.totalPoints ?? p.publicPoints}
 		{@const offline = seats[i] && !seats[i].connected}
 		{@const road = view.longestRoadHolder === i}
 		{@const army = view.largestArmyHolder === i}
 		{@const limit = discardLimit(view, i)}
 		{@const ch = p.character ? CHARACTER_INFO[p.character] : null}
+		{@const cards = cardsIn(i)}
 		<div
 			class="player plaque"
 			class:current
+			class:waiting={playing && !current}
 			class:me={i === view.me}
 			class:offline
-			style="--c:{PLAYER_CSS[p.color]}"
+			style="--c:{PLAYER_CSS[p.color]}; --frame: var(--art-plaque-{p.color})"
+			aria-current={current ? 'true' : undefined}
 		>
-			{#if current}<img class="turn icon-px" src={PIXEL.hourglass} alt="Current turn" />{/if}
+			{#if current}<TurnTab color={p.color} />{/if}
 			{#if ch}
 				<span class="face" title="{ch.name} {ch.title}. {ch.trait}: {ch.text}">
 					<Portrait id={p.character} size={44} />
@@ -43,9 +52,9 @@
 				<div class="name title">{i === view.me ? `${p.name} (you)` : p.name}</div>
 				<div class="stats">
 					<span
-						class:warn={p.resourceCount > limit}
-						title="Resource cards{p.resourceCount > limit ? ': will discard on a 7' : ''}"
-						><img class="icon-px" src={PIXEL.cards} alt="" />{p.resourceCount}</span
+						class:warn={cards > limit}
+						title="Resource cards{cards > limit ? ': will discard on a 7' : ''}"
+						><img class="icon-px" src={PIXEL.cards} alt="" />{cards}</span
 					>
 					<span title="Development cards"
 						><img class="icon-px" src={PIXEL.dev} alt="" />{p.devCardCount}</span
@@ -97,26 +106,19 @@
 		padding: 3px 6px 3px 4px;
 		pointer-events: auto;
 		filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.4));
-		transition:
-			transform 0.3s cubic-bezier(0.2, 1.4, 0.4, 1),
-			filter 0.3s;
+		transition: filter 0.3s;
 	}
+	/* Whose turn it is: their plaque is framed in their color and its wood warmed with it. */
 	.player.current {
-		transform: translateX(-14px);
-		animation: glow 1.8s ease-in-out infinite;
+		border-image-source: var(--frame);
+		background-color: color-mix(in srgb, var(--c) 16%, #4d2b16);
+	}
+	/* Everyone else waits a shade darker. */
+	.player.waiting {
+		filter: brightness(0.74) saturate(0.7) drop-shadow(0 6px 8px rgba(0, 0, 0, 0.4));
 	}
 	.player.offline {
 		opacity: 0.6;
-	}
-	.turn {
-		position: absolute;
-		left: -34px;
-		top: 50%;
-		width: 24px;
-		height: 24px;
-		margin-top: -12px;
-		filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6));
-		animation: bob 1.2s ease-in-out infinite;
 	}
 	.shield {
 		--s: 2.6px;
@@ -225,12 +227,6 @@
 			min-width: 0;
 			gap: 5px;
 			padding: 1px 4px 1px 2px;
-		}
-		.player.current {
-			transform: translateY(3px);
-		}
-		.turn {
-			display: none;
 		}
 		.shield {
 			--s: 1.8px;

@@ -24,10 +24,14 @@
 	import { ui } from './ui.svelte';
 
 	const view = $derived(client.view!);
+	// A timed game hangs its clock under the turn banner (see the styles below).
+	const timed = $derived(!!client.lobby?.turnTime && view.phase !== 'ended');
 
-	// Feed every new state to the 3D scene.
+	// Feed every new state to the 3D scene the moment it arrives. The interface renders from
+	// `client.view`, which waits for the dice of a roll to land.
 	$effect(() => {
-		sceneRef.current?.setView(view);
+		const live = client.latest;
+		if (live) sceneRef.current?.setView(live);
 	});
 
 	// Leave build mode when it no longer applies.
@@ -43,7 +47,7 @@
 		const color = view.players[me]?.color ?? 'white';
 		let kind: PickKind | null = null;
 		let options: number[] = [];
-		if (myTurn(view)) {
+		if (myTurn(view) && !client.tossing) {
 			switch (view.step) {
 				case 'setupSettlement':
 					kind = 'settlement';
@@ -91,30 +95,38 @@
 		});
 	});
 
-	// Sounds, toasts and flying cards for new events.
-	let lastSeq = -1;
+	/** Events new since the last call: none at first, nor when a new game starts the log over. */
+	function newEvents() {
+		let last = -1;
+		return (log: GameEvent[]) => {
+			const newest = log.length ? log[log.length - 1].seq : 0;
+			const fresh = last >= 0 && newest >= last ? log.filter((e) => e.seq > last) : [];
+			last = newest;
+			return fresh;
+		};
+	}
+	const liveEvents = newEvents();
+	const shownEvents = newEvents();
+
+	// Sounds for what the scene plays as soon as a state arrives: the dice rattle with the toss.
 	$effect(() => {
-		const log = view.log;
-		const newest = log.length ? log[log.length - 1].seq : 0;
-		if (lastSeq < 0) {
-			lastSeq = newest;
-			return;
+		const live = client.latest;
+		if (!live) return;
+		for (const e of liveEvents(live.log)) {
+			if (e.type === 'diceRolled') sfx.dice();
+			else if (e.type === 'built') sfx.build();
+			else if (e.type === 'robberMoved') sfx.robber();
 		}
-		const fresh = log.filter((e) => e.seq > lastSeq);
-		lastSeq = newest;
-		for (const e of fresh) react(e);
+	});
+
+	// Sounds, toasts and flashes for what the interface shows.
+	$effect(() => {
+		for (const e of shownEvents(view.log)) react(e);
 	});
 
 	function react(e: GameEvent) {
 		const me = view.me;
 		switch (e.type) {
-			case 'diceRolled':
-				sfx.dice();
-				ui.rolling = true;
-				break;
-			case 'built':
-				sfx.build();
-				break;
 			case 'turnStarted':
 				if (e.player === me && e.turn > 0) {
 					sfx.turn();
@@ -125,9 +137,6 @@
 			case 'turnTimedOut':
 				if (e.player === me) client.toast("Time's up! Your turn is over.", 'error');
 				else client.toast(`${view.players[e.player].name} ran out of time`);
-				break;
-			case 'robberMoved':
-				sfx.robber();
 				break;
 			case 'stole':
 				sfx.steal();
@@ -159,12 +168,18 @@
 	$effect(() => {
 		const scene = sceneRef.current;
 		scene?.setCallbacks({
-			onDiceSettled: () => (ui.rolling = false),
+			// The dice came to rest: the interface catches up with the roll.
+			onDiceSettled: (_dice, seq) => client.landed(seq),
+			// A resource rose from its tile: yours flies into your hand and counts as it gets
+			// there; another player's counts on their plaque right away.
 			onResourcePopped: (player, resource, screen) => {
 				if (player === client.view?.me) {
 					sfx.coin();
-					flyers.add(resource, screen);
-				} else sfx.pop();
+					flyers.add(resource, screen, () => client.arrived(player, resource));
+				} else {
+					sfx.pop();
+					client.arrived(player, resource);
+				}
 			}
 		});
 	});
@@ -183,7 +198,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="hud" class:flash={ui.flash}>
+<div class="hud" class:flash={ui.flash} class:timed>
 	<Prompt />
 	<Players />
 	<DiceBadge />
@@ -205,6 +220,15 @@
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
+	}
+	/* How far the turn clock hangs below the banner: what sits under the banner moves down by it. */
+	.hud.timed {
+		--clock-h: calc(var(--s) * 8);
+	}
+	@media (max-width: 900px) {
+		.hud.timed {
+			--clock-h: calc(var(--s) * 10);
+		}
 	}
 	.hud.flash::after {
 		content: '';

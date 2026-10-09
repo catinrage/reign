@@ -14,7 +14,14 @@
 
 	const view = $derived(client.view!);
 	const me = $derived(view.players[view.me]);
-	const res = $derived(me?.resources);
+	const res = $derived.by(() => {
+		const held = me?.resources;
+		if (!held) return undefined;
+		// Cards dealt on the board count once they have flown into the hand.
+		const shown = { ...held };
+		for (const r of RESOURCES) shown[r] = Math.max(0, held[r] - client.onTheWay(view.me, r));
+		return shown;
+	});
 	const dev = $derived(me?.devCards ?? []);
 	const total = $derived(res ? RESOURCES.reduce((n, r) => n + res[r], 0) : 0);
 	const groups = $derived(
@@ -27,7 +34,10 @@
 	// On phones the build bar sits under the hand, so the hand moves up while it shows.
 	const raised = $derived(myTurn(view) && view.step === 'main' && !ui.trade);
 	const canPlay = $derived(
-		myTurn(view) && (view.step === 'roll' || view.step === 'main') && !view.devCardPlayedThisTurn
+		myTurn(view) &&
+			!client.tossing &&
+			(view.step === 'roll' || view.step === 'main') &&
+			!view.devCardPlayedThisTurn
 	);
 
 	function play(type: DevCardType) {
@@ -120,9 +130,10 @@
 			transform: translateY(-12px) scale(1.1);
 		}
 	}
+	/* On the tray's top edge, clear of the cards and their counts. */
 	.total {
 		position: absolute;
-		top: -14px;
+		top: -29px;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;

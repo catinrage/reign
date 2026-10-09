@@ -126,6 +126,60 @@ function plaque(): string {
 	});
 }
 
+/** Light, face and shadow of a player color, for the pieces that mark whose turn it is. */
+function turnPalette(color: string) {
+	return { light: tint(color, 0.3), base: tint(color, 0.06), dark: tint(color, -0.3) };
+}
+
+/**
+ * The plaque framed in a player color, for the player whose turn it is: a bright rim lit from the
+ * top left, between the dark outline and a dark line that sets it off the wood. 12×12, slice 4.
+ */
+function plaqueRim(color: string): string {
+	const W = 12;
+	const { light, base, dark } = turnPalette(color);
+	return pixelSvg(W, W, (x, y) => {
+		const { e, lit } = edge(x, y, W, W);
+		if ((x === 0 || x === W - 1) && (y === 0 || y === W - 1)) return null;
+		if (e === 0) return '#140904';
+		if (e === 1) return lit ? light : base;
+		if (e === 2) return lit ? base : dark;
+		return '#2a1609';
+	});
+}
+
+/**
+ * A pennant in a player color that juts from the left side of their plaque: a notch at the free
+ * end, and open at the other, where it lies over the frame's outline. 8×9, slice 2 1 2 4.
+ */
+function pennant(color: string): string {
+	const { light, base, dark } = turnPalette(color);
+	const rows = [
+		'kkkkkkkk',
+		'kLLLLLLL',
+		'.kBBBBBB',
+		'..kBBBBB',
+		'...kBBBB',
+		'..kBBBBB',
+		'.kBBBBBB',
+		'kDDDDDDD',
+		'kkkkkkkk'
+	];
+	const pal: Record<string, string> = { k: '#140904', L: light, B: base, D: dark };
+	return pixelSvg(8, 9, (x, y) => pal[rows[y][x]] ?? null);
+}
+
+/**
+ * The same tab hanging under a plaque (phones, where the plaques sit in a row): open at the top,
+ * where it lies over the frame's outline. 7×6, slice 1 1 2 2.
+ */
+function tabBelow(color: string): string {
+	const { light, base, dark } = turnPalette(color);
+	const rows = ['kBBBBBk', 'kLBBBBk', 'kLBBBBk', 'kLBBBBk', 'kDDDDDk', '.kkkkk.'];
+	const pal: Record<string, string> = { k: '#140904', L: light, B: base, D: dark };
+	return pixelSvg(7, 6, (x, y) => pal[rows[y][x]] ?? null);
+}
+
 /** Parchment with a deckled, slightly singed edge. 20×20, slice 7. */
 function parchment(): string {
 	const W = 20;
@@ -525,6 +579,9 @@ export function installArt() {
 	for (const c of PLAYER_COLORS) {
 		vars[`--art-ribbon-${c}`] = ribbon(PLAYER_CSS[c]);
 		vars[`--art-shield-${c}`] = shield(PLAYER_CSS[c]);
+		vars[`--art-plaque-${c}`] = plaqueRim(PLAYER_CSS[c]);
+		vars[`--art-pennant-${c}`] = pennant(PLAYER_CSS[c]);
+		vars[`--art-tab-${c}`] = tabBelow(PLAYER_CSS[c]);
 	}
 	vars['--art-ribbon-gold'] = ribbon('#e8a92a');
 	vars['--art-ribbon-crimson'] = ribbon('#b8322a');

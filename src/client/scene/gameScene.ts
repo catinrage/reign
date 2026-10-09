@@ -28,7 +28,8 @@ export interface PickRequest {
 export interface SceneCallbacks {
 	/** A resource item reached the top of its arc above a hex (for 2D fly-to-hand effects). */
 	onResourcePopped?: (player: number, resource: string, screen: { x: number; y: number }) => void;
-	onDiceSettled?: (dice: [number, number]) => void;
+	/** The dice of the roll event `seq` came to rest on the table. */
+	onDiceSettled?: (dice: [number, number], seq: number) => void;
 	onHover?: (label: string | null) => void;
 }
 
@@ -71,6 +72,8 @@ export class GameScene {
 	private reach = 54;
 	/** The map shown on the lobby table ('' for the classic island). */
 	private menuMap = '';
+	/** Settles when the dice of the latest roll come to rest. */
+	private diceLanded: Promise<void> = Promise.resolve();
 
 	constructor(
 		canvas: HTMLCanvasElement,
@@ -294,14 +297,17 @@ export class GameScene {
 		switch (e.type) {
 			case 'diceRolled': {
 				const spot = this.diceSpots();
-				this.dice.roll(e.dice, spot.from, spot.ends).then(() => this.callbacks.onDiceSettled?.(e.dice));
-				// Highlight producing tokens once the dice land.
 				const total = e.dice[0] + e.dice[1];
-				this.anim.wait(1.4).then(() => this.flashTokens(total));
+				// As the dice land, the numbers rolled light up and the interface shows the roll.
+				this.diceLanded = this.dice.roll(e.dice, spot.from, spot.ends).then(() => {
+					this.flashTokens(total);
+					this.callbacks.onDiceSettled?.(e.dice, e.seq);
+				});
 				break;
 			}
 			case 'produced':
-				this.anim.wait(1.55).then(() => {
+				// The resources rise from their tiles as the dice land.
+				this.diceLanded.then(() => {
 					for (const g of e.gains) this.popResource(g.hex, g.resource, g.player, g.amount);
 				});
 				break;

@@ -175,7 +175,7 @@
 	}
 	@media (max-width: 900px) {
 		.log {
-			top: 104px;
+			top: calc(104px + var(--clock-h, 0px));
 			bottom: auto;
 			left: 62px;
 			width: 250px;

@@ -1,11 +1,44 @@
 import type { ClientMessage, LobbyInfo, ServerMessage, TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
-import type { Action, GameView } from '../../shared/rules/types';
+import type { Resource } from '../../shared/rules/config';
+import type { Action, GameEvent, GameView, ResourceGain } from '../../shared/rules/types';
 
 /**
  * The one connection to the game server plus everything the interface renders from.
  * Reconnects on its own and reclaims the seat with the token saved for that room.
  */
+
+/** How long the interface waits for the scene to land the dice before it shows the roll anyway. */
+const TOSS_TIMEOUT_MS = 4000;
+/** How long dealt cards may take to reach their hands before they are counted anyway. */
+const DEAL_TIMEOUT_MS = 5000;
+
+export interface Roll {
+	seq: number;
+	player: number;
+	dice: [number, number];
+}
+
+/** Cards of one resource dealt on the board to a player, still on their way to the hand. */
+interface Dealt {
+	batch: number;
+	player: number;
+	resource: Resource;
+	left: number;
+}
+
+function newestSeq(log: GameEvent[]): number {
+	return log.length ? log[log.length - 1].seq : -1;
+}
+
+/** The newest roll in a log after event `after`, if there is one. */
+function newestRoll(log: GameEvent[], after = -1): Roll | null {
+	for (let i = log.length - 1; i >= 0 && log[i].seq > after; i--) {
+		const e = log[i];
+		if (e.type === 'diceRolled') return { seq: e.seq, player: e.player, dice: e.dice };
+	}
+	return null;
+}
 
 function storage(key: string, value?: string): string | null {
 	try {
@@ -26,7 +59,22 @@ export interface Toast {
 class GameClient {
 	status = $state<'connecting' | 'online' | 'offline'>('connecting');
 	lobby = $state<LobbyInfo | null>(null);
+	/** The newest state from the server. The 3D scene plays it the moment it arrives. */
+	latest = $state.raw<GameView | null>(null);
+	/**
+	 * The state the interface shows. While dice are in the air it keeps the state from before the
+	 * roll, so the hand, the plaques, the log, the prompt and the dialogs never give the result
+	 * away before the dice land (see `landed`).
+	 */
 	view = $state.raw<GameView | null>(null);
+	/** The roll whose dice are in the air, or null. */
+	tossing = $state.raw<Roll | null>(null);
+	/** The last roll the interface has shown. It stays after the turn is over. */
+	lastRoll = $state.raw<Roll | null>(null);
+	/** Cards dealt on the board (a roll, a second settlement) that haven't reached a hand yet. */
+	dealt = $state.raw<Dealt[]>([]);
+	/** This player asked for a roll and the server hasn't answered yet. */
+	rollAsked = $state(false);
 	seat = $state<string | null>(null);
 	code = $state<string | null>(null);
 	name = $state<string>(storage('reign:name') ?? '');
@@ -47,6 +95,8 @@ class GameClient {
 	private queue: ClientMessage[] = [];
 	private pinger: ReturnType<typeof setInterval> | null = null;
 	private ticker: ReturnType<typeof setInterval> | null = null;
+	private tossTimer: ReturnType<typeof setTimeout> | undefined;
+	private dealBatch = 0;
 	private autoBots = 0;
 
 	connect() {
@@ -92,11 +142,12 @@ class GameClient {
 				this.setClock(msg.lobby.clock);
 				break;
 			case 'game':
-				this.view = msg.view;
+				this.receive(msg.view);
 				this.setClock(msg.clock);
 				break;
 			case 'error':
 				this.pendingJoin = false;
+				this.rollAsked = false;
 				this.toast(msg.message, 'error');
 				if (!this.seat) {
 					this.code = null;
@@ -104,6 +155,84 @@ class GameClient {
 				}
 				break;
 		}
+	}
+
+	/**
+	 * A new state goes to the scene at once, and to the interface too, unless the interface is
+	 * holding the state from before a roll whose dice are still in the air. Then it gets the newest
+	 * state when they land.
+	 */
+	private receive(view: GameView) {
+		const prev = this.latest;
+		this.latest = view;
+		if (view.step !== 'roll' || view.current !== view.me) this.rollAsked = false;
+		// Only a roll made since the last state is tossed (a new game starts its log over).
+		const after = prev ? newestSeq(prev.log) : Infinity;
+		const roll = after <= newestSeq(view.log) ? newestRoll(view.log, after) : null;
+		if (roll) {
+			this.tossing = roll;
+			clearTimeout(this.tossTimer);
+			this.tossTimer = setTimeout(() => this.landed(roll.seq), TOSS_TIMEOUT_MS);
+		}
+		if (!this.tossing) this.show(view);
+	}
+
+	/** The scene landed the dice of roll `seq` (or waiting for that ran out): show what it did. */
+	landed(seq: number) {
+		if (!this.tossing || seq < this.tossing.seq) return;
+		clearTimeout(this.tossTimer);
+		this.tossing = null;
+		if (this.latest) this.show(this.latest);
+	}
+
+	/** Hand a state to the interface. Cards it deals on the board count once they reach a hand. */
+	private show(view: GameView) {
+		const prev = this.view;
+		this.view = view;
+		const after = prev ? newestSeq(prev.log) : Infinity;
+		const sameGame = after <= newestSeq(view.log);
+		this.lastRoll = newestRoll(view.log) ?? (sameGame ? this.lastRoll : null);
+		if (!sameGame) {
+			this.dealt = [];
+			return;
+		}
+		const gains: ResourceGain[] = [];
+		for (const e of view.log) {
+			if (e.seq > after && (e.type === 'produced' || e.type === 'setupResources')) {
+				gains.push(...e.gains);
+			}
+		}
+		if (gains.length) this.deal(gains);
+	}
+
+	private deal(gains: ResourceGain[]) {
+		const batch = ++this.dealBatch;
+		this.dealt = [
+			...this.dealt,
+			...gains.map((g) => ({ batch, player: g.player, resource: g.resource, left: g.amount }))
+		];
+		// Cards that haven't arrived by then (in a hidden tab, say) are counted anyway.
+		setTimeout(() => {
+			this.dealt = this.dealt.filter((d) => d.batch !== batch);
+		}, DEAL_TIMEOUT_MS);
+	}
+
+	/** A dealt card reached its hand: it flew into yours, or rose from its tile for another. */
+	arrived(player: number, resource: string) {
+		const i = this.dealt.findIndex((d) => d.player === player && d.resource === resource);
+		if (i < 0) return;
+		this.dealt = this.dealt.flatMap((d, k) =>
+			k !== i ? [d] : d.left > 1 ? [{ ...d, left: d.left - 1 }] : []
+		);
+	}
+
+	/** Dealt cards still on their way to a player's hand: of one resource, or all of them. */
+	onTheWay(player: number, resource?: Resource): number {
+		let n = 0;
+		for (const d of this.dealt) {
+			if (d.player === player && (!resource || d.resource === resource)) n += d.left;
+		}
+		return n;
 	}
 
 	/** The server sends the time left (not a deadline: clocks differ), so the deadline is set here. */
@@ -164,7 +293,13 @@ class GameClient {
 		this.menuOpen = false;
 		this.send({ t: 'leave' });
 		this.lobby = null;
+		this.latest = null;
 		this.view = null;
+		clearTimeout(this.tossTimer);
+		this.tossing = null;
+		this.lastRoll = null;
+		this.dealt = [];
+		this.rollAsked = false;
 		this.seat = null;
 		this.code = null;
 		this.setClock(null);
@@ -172,6 +307,13 @@ class GameClient {
 	}
 
 	act(action: Action) {
+		// Until the dice land the interface shows the state from before the roll: nothing is played
+		// from it.
+		if (this.tossing) return;
+		if (action.type === 'rollDice') {
+			if (this.rollAsked) return;
+			this.rollAsked = true;
+		}
 		this.send({ t: 'action', action });
 	}
 

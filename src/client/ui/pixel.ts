@@ -280,6 +280,11 @@ export const PIXEL = {
 		],
 		{ k: '#3a1d04', y: '#fff3b8' }
 	),
+	/** A small arrow that points at whose turn it is. */
+	pointer: svg(['kk...', 'kwk..', 'kwwk.', 'kwwwk', 'kwwk.', 'kwk..', 'kk...'], {
+		k: '#1a0c05',
+		w: '#fff6e0'
+	}),
 	letter: svg(
 		[
 			'kkkkkkkkkkkk',
