@@ -28,6 +28,7 @@
 	import PigeonLoft from './PigeonLoft.svelte';
 	import Players from './Players.svelte';
 	import Prompt from './Prompt.svelte';
+	import TileIncome from './TileIncome.svelte';
 	import SpectatorBar from './SpectatorBar.svelte';
 	import TimeWarning from './TimeWarning.svelte';
 	import TradePanel from './TradePanel.svelte';
@@ -325,6 +326,7 @@
 		<SpectatorBar />
 	{:else}
 		<Hand />
+		<TileIncome />
 		<Actions />
 		<OfferCard />
 		{#if ui.trade}<TradePanel />{/if}
