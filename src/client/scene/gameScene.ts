@@ -970,10 +970,17 @@ function beamMaterial(color: THREE.Color, core: THREE.Color) {
 			varying vec3 vWorld;
 			varying vec2 vSide;
 			void main() {
+				// No normalize of a vector that can be zero and no pow of a base that can dip below
+				// zero: some graphics cards make NaN of those, and the bloom spreads one NaN pixel
+				// over the whole screen.
 				// 1 down the middle of the tube as the camera sees it, 0 at its edges.
-				float across = abs(dot(normalize(vSide), normalize(cameraPosition.xz - vWorld.xz)));
-				float along = smoothstep(0.0, 0.16, vUp) * pow(1.0 - vUp, 1.5);
-				vec3 light = uColor * across * across + uCore * pow(across, 24.0);
+				vec2 toCamera = cameraPosition.xz - vWorld.xz;
+				float across = min(1.0, abs(dot(vSide, toCamera)) / max(length(vSide) * length(toCamera), 1e-4));
+				float top = clamp(1.0 - vUp, 0.0, 1.0);
+				float along = smoothstep(0.0, 0.16, vUp) * top * sqrt(top);
+				float a2 = across * across;
+				float a8 = a2 * a2 * a2 * a2;
+				vec3 light = uColor * a2 + uCore * a8 * a8 * a8;
 				gl_FragColor = vec4(light, along * uOpacity);
 			}`,
 		side: THREE.DoubleSide,
