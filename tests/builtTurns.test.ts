@@ -73,6 +73,10 @@ describe('build turns', () => {
 			end.stoneRoads.forEach(
 				(stone, e) => stone && expect(end.builtTurns[builtKey('stoneRoad', e)]).toBeGreaterThan(0)
 			);
+			end.cityPaths.forEach(
+				(path, v) =>
+					path && expect(end.builtTurns[builtKey(path, v)]).toBeGreaterThanOrEqual(end.builtTurns[builtKey('city', v)])
+			);
 			if (extended) expect(end.workshops.some((o) => o !== null)).toBe(true);
 			// Setup pieces say so.
 			expect(Object.values(end.builtTurns).filter((t) => t === 0)).toHaveLength(players.length * 4);
@@ -82,7 +86,8 @@ describe('build turns', () => {
 	it('words the tooltip of each kind of piece', () => {
 		const end = botGame(11, true).at(-1)!;
 		const view = viewFor(end, 0);
-		const city = end.buildings.findIndex((b) => b?.kind === 'city');
+		// A plain city: no path taken, no storehouse added.
+		const city = end.buildings.findIndex((b, v) => b?.kind === 'city' && !end.cityPaths[v] && !end.storehouses[v]);
 		const tip = pieceTip(view, { place: 'vertex', at: city })!;
 		expect(tip.head).toBe('City');
 		const owner = end.buildings[city]!.owner;

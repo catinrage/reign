@@ -1,5 +1,14 @@
 import { getTopology } from '../../shared/board/topology';
-import { WORKSHOP_LIMIT, WORKSHOP_NAME, type ExtraBuilding } from '../../shared/rules/buildings';
+import {
+	BUILDING_INFO,
+	CASTLE_POINTS,
+	CITY_PATHS,
+	WORKSHOP_LIMIT,
+	WORKSHOP_NAME,
+	isCityPath,
+	type CityPath,
+	type ExtraBuilding
+} from '../../shared/rules/buildings';
 import {
 	COSTS,
 	DEV_CARD_LABEL,
@@ -18,7 +27,10 @@ import {
 	citySpots,
 	canPay,
 	costOf,
+	fortressOf,
+	guildGoodsFor,
 	paveSpots,
+	pathSpots,
 	roadSpots,
 	settlementSpots,
 	storehouseOf,
@@ -98,13 +110,33 @@ export function buildAvailable(view: GameView, kind: BuildKind): boolean {
 			return paveSpots(view, view.me).length > 0;
 		case 'storehouse':
 			return storehouseSpots(view, view.me).length > 0;
+		case 'castle':
+		case 'guildHall':
+		case 'fortress':
+			return pathSpots(view, view.me, kind).length > 0;
 	}
+}
+
+/** Whether any of the city paths can be taken right now. */
+export function pathAvailable(view: GameView): boolean {
+	return CITY_PATHS.some((p) => view.buildingRules?.[p] && buildAvailable(view, p));
+}
+
+/** Your cities that haven't taken a path yet. */
+function openCities(view: GameView): number {
+	return view.buildings.filter((b, v) => b?.owner === view.me && b.kind === 'city' && !view.cityPaths?.[v]).length;
 }
 
 /** How many more of a Reign Extended building this player can build. */
 export function extraStock(view: GameView, kind: ExtraBuilding): number {
 	if (kind === 'workshop') return WORKSHOP_LIMIT - workshopCount(view, view.me);
 	if (kind === 'storehouse') return storehouseOf(view, view.me) === null ? 1 : 0;
+	if (isCityPath(kind)) {
+		const open = openCities(view);
+		if (kind === 'fortress') return fortressOf(view, view.me) === null ? Math.min(1, open) : 0;
+		if (kind === 'guildHall') return Math.min(open, guildGoodsFor(view, view.me).length);
+		return open;
+	}
 	return paveSpots(view, view.me).length;
 }
 
@@ -129,8 +161,28 @@ export function buildNote(view: GameView, kind: BuildKind): string {
 	}
 	if (kind === 'stoneRoad' && !paveSpots(view, view.me).length) return t('Every one of your roads is paved already.');
 	if (kind === 'storehouse' && storehouseOf(view, view.me) !== null) return t('You already have a storehouse.');
+	if (isCityPath(kind)) {
+		if (kind === 'fortress' && fortressOf(view, view.me) !== null) return t('You already have a fortress.');
+		if (kind === 'guildHall' && !guildGoodsFor(view, view.me).length) return t('You already trade every good at 2:1.');
+		const why = pathsClosed(view);
+		if (why) return why;
+	}
 	if (!canAfford(view, kind)) return t('You need {cards}.', { cards: cardsText(costOf(view, view.me, kind)) });
 	return '';
+}
+
+/** Why none of your cities can take a path ('' when one can). */
+function pathsClosed(view: GameView): string {
+	if (openCities(view)) return '';
+	return view.buildings.some((b) => b?.owner === view.me && b.kind === 'city')
+		? t('Every one of your cities has taken its path.')
+		: t('A path is for a city: build one first.');
+}
+
+/** Why no city path can be taken right now, for the City path plaque ('' when one can). */
+export function pathNote(view: GameView): string {
+	if (pathAvailable(view)) return '';
+	return pathsClosed(view) || t('You need the cards for one of them.');
 }
 
 /** The workshop a tile would get: a Mill on fields, a Kiln on hills... */
@@ -155,6 +207,12 @@ function builtParts(view: GameView, kind: BuiltKind, at: number, player: LogPart
 			return tParts('{player} built a storehouse', slots, T);
 		case 'workshop':
 			return tParts('{player} built a {workshop}', slots, T, { workshop: workshopName(view, at) });
+		case 'castle':
+			return tParts('{player} built a castle', slots, T);
+		case 'guildHall':
+			return tParts('{player} built a guild hall', slots, T);
+		case 'fortress':
+			return tParts('{player} built a fortress', slots, T);
 	}
 }
 
@@ -173,6 +231,10 @@ export function pieceName(view: GameView, kind: BuiltKind, at: number): string {
 			return t('City');
 		case 'storehouse':
 			return t('Storehouse');
+		case 'castle':
+		case 'guildHall':
+		case 'fortress':
+			return t(BUILDING_INFO[kind].label);
 	}
 }
 
@@ -185,17 +247,20 @@ export function builtWhen(view: GameView, kind: BuiltKind, at: number): string |
 
 /**
  * What the tooltip of a piece on the board says: its name over who owns it and the turn it went
- * up on. A city also says when it was settled, a stone road when it was a plain road, and a
- * building when its storehouse went up. Null when nothing stands on the spot.
+ * up on. A city also says when it was settled (and when it took its path, with what that path
+ * does), a stone road when it was a plain road, and a building when its storehouse went up. Null
+ * when nothing stands on the spot.
  */
 export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text: string } | null {
 	const { place, at } = spot;
 	let owner: number | null | undefined;
 	let kind: BuiltKind;
+	let path: CityPath | null = null;
 	if (place === 'vertex') {
 		const b = view.buildings[at];
 		owner = b?.owner;
 		kind = b?.kind ?? 'settlement';
+		if (kind === 'city') path = view.cityPaths?.[at] ?? null;
 	} else if (place === 'edge') {
 		owner = view.roads[at];
 		kind = view.stoneRoads?.[at] ? 'stoneRoad' : 'road';
@@ -214,13 +279,30 @@ export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text:
 	if (kind === 'city') {
 		when('settlement', (turn) => (turn ? t('Settled on turn {turn}', { turn }) : t('Settled during setup')));
 		when('city', (turn) => (turn ? t('Became a city on turn {turn}', { turn }) : t('Became a city during setup')));
+		if (path) when(path, (turn) => pathWhen(path, turn));
 	} else if (kind === 'stoneRoad') {
 		when('road', built);
 		when('stoneRoad', (turn) => (turn ? t('Paved on turn {turn}', { turn }) : t('Paved during setup')));
 	} else when(kind, built);
 	if (place === 'vertex' && view.storehouses?.[at])
 		when('storehouse', (turn) => (turn ? t('Storehouse added on turn {turn}', { turn }) : t('Storehouse added during setup')));
-	return { head: pieceName(view, kind, at), text: lines.join('\n') };
+	if (path) lines.push(pathLine(view, path, at));
+	return { head: pieceName(view, path ?? kind, at), text: lines.join('\n') };
+}
+
+/** When a city took its path, for its tooltip (a path is only ever taken on a turn, never in setup). */
+function pathWhen(path: CityPath, turn: number): string {
+	if (path === 'castle') return t('Became a castle on turn {turn}', { turn });
+	if (path === 'guildHall') return t('Became a guild hall on turn {turn}', { turn });
+	return t('Became a fortress on turn {turn}', { turn });
+}
+
+/** What a city's path does for its owner, in a line. */
+function pathLine(view: GameView, path: CityPath, at: number): string {
+	if (path === 'castle') return t('Worth {n, plural, one {# point} other {# points}}', { n: CASTLE_POINTS });
+	if (path === 'fortress') return t('Knights count double for the Largest Army');
+	const goods = view.guildGoods?.[at];
+	return goods ? t('Trades {resource} with the bank at 2:1', { resource: t(RESOURCE_LABEL[goods]) }) : t('Trades with the bank at 2:1');
 }
 
 export function myTurn(view: GameView | null): boolean {
@@ -289,7 +371,10 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 		case 'turnTimedOut':
 			return tParts('{player} ran out of time', { player: P(e.player) }, T);
 		case 'built':
-			return builtParts(view, e.kind, e.at, P(e.player), T);
+			// A guild hall says the goods it trades.
+			return e.kind === 'guildHall' && e.resource
+				? tParts('{player} built a guild hall for {res} at 2:1', { player: P(e.player), res: R(e.resource) }, T)
+				: builtParts(view, e.kind, e.at, P(e.player), T);
 		case 'tornDown': {
 			const workshop = workshopName(view, e.hex);
 			const back = cards(e.refund);
