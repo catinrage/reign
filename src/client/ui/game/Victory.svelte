@@ -102,7 +102,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		width: min(460px, calc(100vw - 24px));
+		width: min(460px, calc(100vw / var(--ui-zoom) - 24px));
 		animation: pop-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
 	}
 	.rays {

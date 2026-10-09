@@ -2,6 +2,7 @@
 	import { client } from '../../state/client.svelte';
 	import { pieceTip } from '../helpers';
 	import { sceneRef } from '../sceneRef';
+	import { settings } from '../settings.svelte';
 	import { tipFor } from '../tooltip';
 	import { ui } from './ui.svelte';
 
@@ -18,7 +19,9 @@
 	function follow(): boolean {
 		const at = ui.piece && sceneRef.current?.pieceTipPoint(ui.piece.spot);
 		if (!at) return false;
-		anchor.style.transform = `translate(${Math.round(at.x) - 1}px, ${Math.round(at.y) - 2}px)`;
+		// The point is in screen pixels; the HUD's own pixels are bigger or smaller by its size.
+		const z = settings.hudSize;
+		anchor.style.transform = `translate(${(Math.round(at.x) - 1) / z}px, ${(Math.round(at.y) - 2) / z}px)`;
 		return true;
 	}
 

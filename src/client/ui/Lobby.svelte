@@ -32,6 +32,7 @@
 	import Embers from './menu/Embers.svelte';
 	import Modal from './menu/Modal.svelte';
 	import { sideLayout } from './menu/sideLayout';
+	import { settings as prefs } from './settings.svelte';
 	import { PIXEL } from './pixel';
 	import { sceneRef } from './sceneRef';
 
@@ -72,11 +73,15 @@
 
 	// The lobby spreads over two columns, so the table slides over to the middle of the space
 	// left beside it.
-	$effect(() => sideLayout(wideShift));
+	$effect(() => {
+		const size = prefs.menuSize;
+		return sideLayout(() => wideShift(size));
+	});
 
-	function wideShift() {
+	/** The two columns are drawn `size` times their standard size (the player's menu size). */
+	function wideShift(size: number) {
 		const w = window.innerWidth;
-		const right = Math.max(24, w * 0.04) + 880;
+		const right = Math.max(24 * size, w * 0.04) + 880 * size;
 		return Math.min(0.36, right / (2 * w));
 	}
 	/** Any whole number of points in range; anything else snaps back to the current goal. */
@@ -1085,13 +1090,13 @@
 		.column {
 			justify-content: flex-start;
 			width: 600px;
-			margin-left: max(24px, 4vw);
+			margin-left: max(24px, calc(4vw / var(--ui-zoom)));
 		}
 		.column.wide {
 			padding-top: 26px;
 			padding-bottom: 8px;
 			width: 900px;
-			max-width: calc(100% - 2 * max(24px, 4vw));
+			max-width: calc(100% - 2 * max(24px, calc(4vw / var(--ui-zoom))));
 		}
 		.card {
 			margin: 0 auto;

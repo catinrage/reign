@@ -3,6 +3,7 @@
 	import type { GameEvent, GameView } from '../../../shared/rules/types';
 	import { client } from '../../state/client.svelte';
 	import { sceneRef } from '../sceneRef';
+	import { settings } from '../settings.svelte';
 	import { sfx } from '../sound';
 	import { EVENT_ART, TONE_COLOR } from './eventArt';
 
@@ -219,7 +220,7 @@
 				</span>
 			</div>
 			{#each shown.change as c (c.player)}
-				<span class="delta" class:gain={c.n > 0} style="--x:{c.x}px; --y:{c.y}px">{c.n > 0 ? `+${c.n}` : c.n}</span>
+				<span class="delta" class:gain={c.n > 0} style="--x:{c.x / settings.hudSize}px; --y:{c.y / settings.hudSize}px">{c.n > 0 ? `+${c.n}` : c.n}</span>
 			{/each}
 		</div>
 	{/key}
@@ -241,7 +242,7 @@
 		display: flex;
 		align-items: center;
 		gap: 14px;
-		max-width: min(640px, calc(100vw - 24px));
+		max-width: min(640px, calc(100vw / var(--ui-zoom) - 24px));
 		padding: 8px 20px 10px 12px;
 		box-shadow:
 			inset 0 0 0 3px var(--tone),
@@ -352,7 +353,7 @@
 			translate: 0 0;
 		}
 		to {
-			translate: calc(-100vw - 120px) 0;
+			translate: calc(-100vw / var(--ui-zoom) - 120px) 0;
 		}
 	}
 	@keyframes run-right {
@@ -360,7 +361,7 @@
 			translate: 0 0;
 		}
 		to {
-			translate: calc(100vw + 120px) 0;
+			translate: calc(100vw / var(--ui-zoom) + 120px) 0;
 		}
 	}
 	@keyframes hop {
@@ -397,7 +398,7 @@
 			opacity: 1;
 		}
 		to {
-			translate: 0 calc(100vh + 80px);
+			translate: 0 calc(100vh / var(--ui-zoom) + 80px);
 			rotate: var(--spin);
 			opacity: 0;
 		}
@@ -484,7 +485,7 @@
 			scale: 0.6;
 		}
 		to {
-			translate: 55vw 52vh;
+			translate: calc(55vw / var(--ui-zoom)) calc(52vh / var(--ui-zoom));
 			scale: 1.1;
 			opacity: 0.2;
 		}

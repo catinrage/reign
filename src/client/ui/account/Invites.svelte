@@ -61,7 +61,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		width: min(440px, calc(100vw - 24px));
+		width: min(440px, calc(100vw / var(--ui-zoom) - 24px));
 		pointer-events: none;
 	}
 	.invite {

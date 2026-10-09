@@ -66,7 +66,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		max-width: calc(100vw - 580px);
+		max-width: calc(100vw / var(--ui-zoom) - 580px);
 	}
 	.banner {
 		position: relative;
@@ -104,7 +104,7 @@
 			top: 68px;
 		}
 		.prompt {
-			max-width: calc(100vw - 32px);
+			max-width: calc(100vw / var(--ui-zoom) - 32px);
 		}
 		.ribbon {
 			font-size: 15px;

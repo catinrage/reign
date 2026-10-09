@@ -11,6 +11,7 @@
 	import { PIXEL } from './pixel';
 	import { setMusicMode, sfx } from './sound';
 	import { sceneRef } from './sceneRef';
+	import { settings } from './settings.svelte';
 
 	const screen = $derived(
 		account.status !== 'in'
@@ -23,6 +24,11 @@
 					? 'lobby'
 					: 'home'
 	);
+
+	// Players pick how big the interface is drawn: the HUD in a game, the menus everywhere else.
+	// The whole layer is zoomed, so `--ui-zoom` lets its styles size things from the screen
+	// (100vw would grow with the zoom too).
+	const size = $derived(screen === 'game' ? settings.hudSize : settings.menuSize);
 
 	$effect(() => {
 		if (screen !== 'game') {
@@ -70,30 +76,37 @@
 
 <svelte:window onpointerdown={onPointerDown} onpointerover={onPointerOver} />
 
-{#if screen === 'auth'}
-	{#if account.status === 'out'}<Auth />{/if}
-{:else if screen === 'home'}
-	<Home />
-{:else if screen === 'joining'}
-	<Joining />
-{:else if screen === 'lobby'}
-	<Lobby />
-{:else}
-	<Hud />
-{/if}
+<div class="ui" style:zoom={size === 1 ? undefined : size} style:--ui-zoom={size}>
+	{#if screen === 'auth'}
+		{#if account.status === 'out'}<Auth />{/if}
+	{:else if screen === 'home'}
+		<Home />
+	{:else if screen === 'joining'}
+		<Joining />
+	{:else if screen === 'lobby'}
+		<Lobby />
+	{:else}
+		<Hud />
+	{/if}
 
-{#if account.status === 'in'}<Invites />{/if}
+	{#if account.status === 'in'}<Invites />{/if}
 
-{#if account.status === 'loading' || (account.status === 'in' && client.status !== 'online' && screen !== 'joining')}
-	<div class="conn plaque">
-		<img class="icon-px" src={PIXEL.hourglass} alt="" />{client.status === 'connecting'
-			? 'Connecting…'
-			: 'Reconnecting…'}
-	</div>
-{/if}
-<Toasts />
+	{#if account.status === 'loading' || (account.status === 'in' && client.status !== 'online' && screen !== 'joining')}
+		<div class="conn plaque">
+			<img class="icon-px" src={PIXEL.hourglass} alt="" />{client.status === 'connecting'
+				? 'Connecting…'
+				: 'Reconnecting…'}
+		</div>
+	{/if}
+	<Toasts />
+</div>
 
 <style>
+	.ui {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
 	.conn {
 		position: fixed;
 		top: 50%;

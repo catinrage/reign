@@ -5,6 +5,7 @@
 	import { PLAYER_CSS } from '../helpers';
 	import { PIGEON } from '../pigeon';
 	import { PIXEL } from '../pixel';
+	import { settings } from '../settings.svelte';
 	import { sfx } from '../sound';
 	import { loft } from './pigeons.svelte';
 
@@ -142,6 +143,8 @@
 		};
 		const frames: Keyframe[] = [];
 		const steps = 30;
+		// The path is in screen pixels; the HUD's own pixels are bigger or smaller by its size.
+		const z = settings.hudSize;
 		for (let i = 0; i <= steps; i++) {
 			const t = i / steps;
 			const u = 1 - t;
@@ -150,7 +153,7 @@
 			const scale = 0.9 + 0.7 * Math.sin(Math.PI * t);
 			// A pigeon we sent fades out as it reaches its reader; one for us lands in full view.
 			const opacity = Math.min(1, t / 0.1, f.incoming ? 1 : (1 - t) / 0.15);
-			frames.push({ transform: `translate(${x}px, ${y}px) scale(${scale})`, opacity });
+			frames.push({ transform: `translate(${x / z}px, ${y / z}px) scale(${scale})`, opacity });
 		}
 		const anim = node.animate(frames, {
 			duration: Math.min(2300, Math.max(1300, dist * 1.7)),
@@ -281,7 +284,7 @@
 		left: var(--left);
 		z-index: 32;
 		width: 340px;
-		max-width: calc(100vw - var(--left) - 8px);
+		max-width: calc(100vw / var(--ui-zoom) - var(--left) - 8px);
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
