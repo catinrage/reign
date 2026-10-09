@@ -3,6 +3,7 @@
 		import Settings from '../menu/Settings.svelte';
 	import { PIXEL } from '../pixel';
 	import PigeonButton from './PigeonButton.svelte';
+	import SpectatorBadge from './SpectatorBadge.svelte';
 	import { sfx } from '../sound';
 	import Tutorial from '../tutorial/Tutorial.svelte';
 	import { ui } from './ui.svelte';
@@ -94,6 +95,7 @@
 			title="Pause the game for everyone (P)"><img src={PIXEL.pause} alt="" /></button
 		>
 	{/if}
+	<SpectatorBadge />
 </div>
 
 {#if pausedBy && !ui.menu}

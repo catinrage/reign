@@ -87,6 +87,8 @@ host.ws.close();
 	];
 	await Promise.all(fans.map((f) => f.ready));
 	await shot(page, 'player-watched', 3000);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await shot(page, 'player-watched-phone', 3000);
 	for (const f of fans) f.ws.close();
 	await page.close();
 }
