@@ -1,3 +1,7 @@
+:root {
+	/* The zoom the interface layer is drawn at (see App.svelte): styles divide 100vw by it. */
+	--ui-zoom: 1;
+}
 html,
 body {
 	margin: 0;

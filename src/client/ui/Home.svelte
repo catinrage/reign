@@ -14,6 +14,7 @@
 	import Modal from './menu/Modal.svelte';
 	import Settings from './menu/Settings.svelte';
 	import { sideLayout } from './menu/sideLayout';
+	import { settings } from './settings.svelte';
 	import { PIXEL } from './pixel';
 	import { isMuted, setMuted, sfx } from './sound';
 	import Tutorial from './tutorial/Tutorial.svelte';
@@ -29,7 +30,11 @@
 	let logoOk = $state(true);
 	const busy = $derived(client.pendingJoin || client.status !== 'online');
 
-	onMount(sideLayout);
+	// A bigger menu column pushes the island further over.
+	$effect(() => {
+		const size = settings.menuSize;
+		return sideLayout(Math.min(0.3, 0.16 * size));
+	});
 
 	onMount(() => {
 		if (!canvas) return;
@@ -291,7 +296,7 @@
 		animation: drop-in 0.8s cubic-bezier(0.2, 1.2, 0.4, 1) both;
 	}
 	.logo {
-		width: min(700px, 94vw);
+		width: min(700px, calc(94vw / var(--ui-zoom)));
 		aspect-ratio: 700 / 230;
 		margin-bottom: -18px;
 		pointer-events: none;
@@ -310,7 +315,7 @@
 		margin: 0;
 		display: grid;
 		place-items: center;
-		font-size: clamp(64px, 13vw, 132px);
+		font-size: clamp(64px, calc(13vw / var(--ui-zoom)), 132px);
 		color: #ffd86b;
 		letter-spacing: 0.08em;
 		text-shadow:
@@ -455,7 +460,7 @@
 		.column {
 			align-items: flex-start;
 			width: 600px;
-			margin-left: max(24px, 4vw);
+			margin-left: max(24px, calc(4vw / var(--ui-zoom)));
 		}
 		.crest,
 		.sign,
@@ -471,7 +476,7 @@
 	}
 	@media (max-height: 760px) and (min-width: 701px) {
 		.logo {
-			width: min(560px, 80vw);
+			width: min(560px, calc(80vw / var(--ui-zoom)));
 		}
 	}
 	@media (max-width: 700px) {

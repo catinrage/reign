@@ -34,7 +34,7 @@
 		z-index: 70;
 		pointer-events: none;
 		width: max-content;
-		max-width: calc(100vw - 24px);
+		max-width: calc(100vw / var(--ui-zoom) - 24px);
 	}
 	.toast {
 		--s: 2px;

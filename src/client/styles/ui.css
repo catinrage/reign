@@ -479,8 +479,8 @@
 /* A framed dialog: a ribbon title over the top edge, a close medallion and a body that scrolls. */
 .modal {
 	position: relative;
-	width: min(var(--w, 440px), calc(100vw - 24px));
-	max-height: calc(100dvh - 64px);
+	width: min(var(--w, 440px), calc(100vw / var(--ui-zoom) - 24px));
+	max-height: calc(100dvh / var(--ui-zoom) - 64px);
 	display: flex;
 	flex-direction: column;
 	animation: pop-in 0.32s cubic-bezier(0.2, 1.4, 0.4, 1);

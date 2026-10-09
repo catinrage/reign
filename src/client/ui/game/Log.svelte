@@ -196,7 +196,7 @@
 			bottom: auto;
 			left: 62px;
 			width: 250px;
-			max-width: calc(100vw - 70px);
+			max-width: calc(100vw / var(--ui-zoom) - 70px);
 			z-index: 5;
 		}
 		.log.closed {

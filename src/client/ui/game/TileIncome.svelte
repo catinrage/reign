@@ -349,7 +349,7 @@
 			--below: 290px;
 			left: 6px;
 			min-width: 150px;
-			max-width: calc(100vw - 12px);
+			max-width: calc(100vw / var(--ui-zoom) - 12px);
 		}
 		.tiles.log-closed {
 			--below: 290px;

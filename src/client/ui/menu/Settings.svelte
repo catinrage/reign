@@ -1,12 +1,40 @@
 <script lang="ts">
 	import { PIXEL } from '../pixel';
-	import { CHANNELS, settings } from '../settings.svelte';
+	import { CHANNELS, SIZE_MAX, SIZE_MIN, settings } from '../settings.svelte';
 	import { isMuted, setMuted } from '../sound';
 
 	let muted = $state(isMuted());
 	function toggleMute(m: boolean) {
 		muted = m;
 		setMuted(m);
+	}
+
+	/**
+	 * The menu size shown while its slider is dragged. The menus (this one too) only change size
+	 * once it is let go, or the slider would slide away under the pointer.
+	 */
+	let menuDrag = $state<number | null>(null);
+	const sizes = $derived([
+		{
+			label: 'Game HUD',
+			value: settings.hudSize,
+			set: (v: number) => settings.setHudSize(v)
+		},
+		{
+			label: 'Menus',
+			value: menuDrag ?? settings.menuSize,
+			drag: (v: number) => (menuDrag = v),
+			set: (v: number) => {
+				menuDrag = null;
+				settings.setMenuSize(v);
+			}
+		}
+	]);
+	const fill = (v: number) => ((v - SIZE_MIN) / (SIZE_MAX - SIZE_MIN)) * 100;
+	const standard = $derived(settings.hudSize === 1 && settings.menuSize === 1);
+	function resetSizes() {
+		settings.setHudSize(1);
+		settings.setMenuSize(1);
 	}
 </script>
 
@@ -39,6 +67,33 @@
 				<span class="val">{Math.round(v * 100)}</span>
 			</label>
 		{/each}
+	</section>
+
+	<section>
+		<div class="divider"><i></i><span>Interface size</span><i></i></div>
+		{#each sizes as s (s.label)}
+			<label class="row">
+				<span class="name">{s.label}</span>
+				<input
+					class="slider"
+					type="range"
+					min={SIZE_MIN}
+					max={SIZE_MAX}
+					step="0.05"
+					value={s.value}
+					style="--fill:{fill(s.value)}%"
+					oninput={(e) => (s.drag ?? s.set)(Number(e.currentTarget.value))}
+					onchange={(e) => s.set(Number(e.currentTarget.value))}
+				/>
+				<span class="val wide">{Math.round(s.value * 100)}%</span>
+			</label>
+		{/each}
+		<div class="row reset">
+			<p class="hint">
+				Bigger or smaller panels, cards and buttons. Menus change size when you let go.
+			</p>
+			<button class="btn small" disabled={standard} onclick={resetSizes}>Default</button>
+		</div>
 	</section>
 
 	<section>
@@ -144,6 +199,15 @@
 		font-weight: 700;
 		font-size: 15px;
 		color: var(--gold);
+	}
+	.val.wide {
+		min-width: 48px;
+	}
+	.row.reset {
+		grid-template-columns: 1fr auto;
+	}
+	.row > .hint {
+		margin: 0 !important;
 	}
 	.hint {
 		margin: -4px 0 0 !important;

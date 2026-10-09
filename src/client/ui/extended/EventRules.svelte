@@ -181,7 +181,7 @@
 		grid-template-columns: 1fr 1fr;
 		gap: 6px;
 		padding-top: 10px;
-		max-height: min(56vh, 520px);
+		max-height: min(calc(56vh / var(--ui-zoom)), 520px);
 		overflow-y: auto;
 	}
 	.list.off {

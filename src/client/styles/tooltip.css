@@ -93,7 +93,7 @@
 }
 @media (max-width: 700px) {
 	.reign-tip {
-		max-width: min(260px, calc(100vw - 16px));
+		max-width: min(260px, calc(100vw / var(--ui-zoom) - 16px));
 		font-size: 12px;
 	}
 }

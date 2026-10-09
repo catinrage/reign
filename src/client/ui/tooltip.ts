@@ -119,23 +119,35 @@ function fill(el: Element): boolean {
 	return true;
 }
 
+/** The zoom `el` is drawn at: players can make the HUD and the menus bigger or smaller. */
+function zoomOf(el: Element): number {
+	return (el as Element & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
+}
+
 function place() {
 	if (!target || !shown) return;
 	if (!target.isConnected) return hide();
 	const r = target.getBoundingClientRect();
 	if (r.width === 0 && r.height === 0) return hide();
+	// The tooltip takes the size of what it belongs to. Placing it is done in screen pixels, and
+	// its own pixels are `z` of those.
+	const z = zoomOf(target);
+	if (tip.style.zoom !== (z === 1 ? '' : String(z))) {
+		tip.style.zoom = z === 1 ? '' : String(z);
+		tip.style.setProperty('--ui-zoom', String(z));
+	}
 	const vw = innerWidth;
-	const w = tip.offsetWidth;
-	const h = tip.offsetHeight;
+	const w = tip.offsetWidth * z;
+	const h = tip.offsetHeight * z;
 	const cx = r.left + r.width / 2;
 	let below = r.top - h - GAP < EDGE;
 	if (below && r.bottom + h + GAP > innerHeight - EDGE) below = false;
 	const top = below ? r.bottom + GAP : r.top - h - GAP;
 	const left = Math.min(Math.max(cx - w / 2, EDGE), vw - w - EDGE);
-	tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+	tip.style.transform = `translate(${Math.round(left) / z}px, ${Math.round(top) / z}px)`;
 	tip.classList.toggle('below', below);
 	// The pointer sits in the padding box, inside the plate's border.
-	const ax = Math.min(Math.max(cx - left, 16), w - 16) - tip.clientLeft;
+	const ax = Math.min(Math.max((cx - left) / z, 16), w / z - 16) - tip.clientLeft;
 	arrow.style.left = `${Math.round(ax / 2) * 2}px`;
 }
 

@@ -2,6 +2,7 @@
 	import { client } from '../../state/client.svelte';
 		import Settings from '../menu/Settings.svelte';
 	import { PIXEL } from '../pixel';
+	import { settings } from '../settings.svelte';
 	import PigeonButton from './PigeonButton.svelte';
 	import SpectatorBadge from './SpectatorBadge.svelte';
 	import TurnCounter from './TurnCounter.svelte';
@@ -54,6 +55,9 @@
 		wasHeld = held;
 	});
 
+	// The menu and the pause curtain are drawn at the menu size, not the HUD's they sit in.
+	const zoom = $derived(settings.menuSize / settings.hudSize);
+
 	function open() {
 		sfx.open();
 		ui.menu = true;
@@ -102,7 +106,14 @@
 </div>
 
 {#if pausedBy && !ui.menu}
-	<div class="modal-backdrop curtain" role="dialog" aria-modal="true" aria-label="Game paused">
+	<div
+		class="modal-backdrop curtain"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Game paused"
+		style:zoom={zoom === 1 ? undefined : zoom}
+		style:--ui-zoom={settings.menuSize}
+	>
 		<div class="drop">
 			<div class="board panel hanging">
 				<div class="ribbon" style="--rib: var(--art-ribbon-crimson)">Paused</div>
@@ -122,6 +133,8 @@
 	<div
 		class="modal-backdrop menu-backdrop"
 		role="presentation"
+		style:zoom={zoom === 1 ? undefined : zoom}
+		style:--ui-zoom={settings.menuSize}
 		onclick={(e) => e.target === e.currentTarget && close()}
 	>
 		<div class="drop" class:wide={page === 'help'}>
@@ -240,19 +253,19 @@
 		z-index: 60;
 	}
 	.drop {
-		width: min(400px, calc(100vw - 24px));
+		width: min(400px, calc(100vw / var(--ui-zoom) - 24px));
 		padding-top: 70px;
 		animation: drop-in 0.55s cubic-bezier(0.2, 1.25, 0.4, 1) both;
 	}
 	.drop.wide {
-		width: min(1100px, calc(100vw - 24px));
+		width: min(1100px, calc(100vw / var(--ui-zoom) - 24px));
 	}
 	.drop.wide .board {
-		height: calc(100dvh - 110px);
+		height: calc(100dvh / var(--ui-zoom) - 110px);
 	}
 	.board {
 		width: 100%;
-		max-height: calc(100dvh - 110px);
+		max-height: calc(100dvh / var(--ui-zoom) - 110px);
 		display: flex;
 		flex-direction: column;
 		gap: 10px;

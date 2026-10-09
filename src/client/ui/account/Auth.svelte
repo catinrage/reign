@@ -210,7 +210,7 @@
 	}
 	.logo {
 		position: relative;
-		width: min(620px, 94vw);
+		width: min(620px, calc(94vw / var(--ui-zoom)));
 		aspect-ratio: 700 / 230;
 		margin-bottom: -18px;
 		pointer-events: none;
@@ -226,7 +226,7 @@
 		margin: 0;
 		display: grid;
 		place-items: center;
-		font-size: clamp(64px, 13vw, 132px);
+		font-size: clamp(64px, calc(13vw / var(--ui-zoom)), 132px);
 		color: #ffd86b;
 		letter-spacing: 0.08em;
 		text-shadow:
@@ -352,7 +352,7 @@
 	@media (min-width: 1100px) and (min-aspect-ratio: 4/3) {
 		.column {
 			width: 760px;
-			margin-left: max(24px, 4vw);
+			margin-left: max(24px, calc(4vw / var(--ui-zoom)));
 		}
 		.sign {
 			width: 420px;

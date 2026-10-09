@@ -100,12 +100,19 @@
 	};
 </script>
 
+<script lang="ts">
+	import { settings } from '../settings.svelte';
+
+	// Flights are measured in screen pixels; the HUD's own pixels are bigger or smaller by its size.
+	const z = $derived(settings.hudSize);
+</script>
+
 {#each list as f (f.id)}
 	<img
 		class="flyer icon-px"
 		src={f.src}
 		alt=""
-		style="--x:{f.x}px; --y:{f.y}px; --tx:{f.tx}px; --ty:{f.ty}px; --end:{f.end}"
+		style="--x:{f.x / z}px; --y:{f.y / z}px; --tx:{f.tx / z}px; --ty:{f.ty / z}px; --end:{f.end}"
 	/>
 {/each}
 

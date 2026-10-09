@@ -3,8 +3,8 @@ import { getVolume, setVolume, type Channel } from './sound';
 
 /**
  * Player preferences that live in this browser: volumes (owned by the sound module),
- * graphics quality (read by the scene at startup, so changing it reloads), island detail
- * and reduced motion.
+ * graphics quality (read by the scene at startup, so changing it reloads), island detail,
+ * reduced motion and the size of the interface.
  */
 
 function read(key: string): string | null {
@@ -20,6 +20,18 @@ function write(key: string, value: string) {
 	} catch {
 		/* private mode */
 	}
+}
+
+/** How far the interface sizes go each way, as a share of the standard size. */
+export const SIZE_MIN = 0.7;
+export const SIZE_MAX = 1.5;
+
+function readSize(key: string): number {
+	const v = Number(read(key) ?? 1);
+	return Number.isFinite(v) && v >= SIZE_MIN && v <= SIZE_MAX ? v : 1;
+}
+function clampSize(v: number): number {
+	return Math.round(Math.min(SIZE_MAX, Math.max(SIZE_MIN, v)) * 100) / 100;
 }
 
 export const CHANNELS: { id: Channel; label: string }[] = [
@@ -38,6 +50,12 @@ class Settings {
 			? typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
 			: read('reign:reduceMotion') === '1'
 	);
+	/**
+	 * How big the interface is drawn, 1 being the standard size: the HUD over the table in a
+	 * game, and the menus (main menu, lobby, the in-game menu and its settings).
+	 */
+	hudSize = $state(readSize('reign:hudSize'));
+	menuSize = $state(readSize('reign:menuSize'));
 	volumes = $state<Record<Channel, number>>({
 		master: getVolume('master'),
 		sfx: getVolume('sfx'),
@@ -64,6 +82,16 @@ class Settings {
 		write('reign:detail', String(d));
 		// Rebuilding takes a moment; let the button show its new state first.
 		setTimeout(() => sceneRef.current?.setDetail(d), 50);
+	}
+
+	setHudSize(v: number) {
+		this.hudSize = clampSize(v);
+		write('reign:hudSize', String(this.hudSize));
+	}
+
+	setMenuSize(v: number) {
+		this.menuSize = clampSize(v);
+		write('reign:menuSize', String(this.menuSize));
 	}
 
 	setReduceMotion(on: boolean) {
