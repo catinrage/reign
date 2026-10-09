@@ -10,6 +10,7 @@ import {
 	type ResourceCounts
 } from './config';
 import { LOG_LIMIT, applyAction, totalPoints } from './engine';
+import { EVENT_INFO, flip, isEventCard, type EventCard } from './events';
 import type { GameEvent, GameState } from './types';
 
 /**
@@ -28,6 +29,8 @@ export type Cheat =
 	| { type: 'finishSetup' }
 	/** Give a player the victory points they still need and end the game in their favour. */
 	| { type: 'win'; player: number }
+	/** Reign Extended: flip this event card now, as the round's event. */
+	| { type: 'event'; card: EventCard }
 	/** Bots stop pausing between moves (handled by the room, not the game). */
 	| { type: 'fastBots'; on: boolean };
 
@@ -102,6 +105,18 @@ export function applyCheat(state: GameState, by: number, cheat: Cheat): CheatRes
 			s.trade = null;
 			text = self ? 'won on the spot' : `made ${other} win`;
 			break;
+		}
+		case 'event': {
+			if (!s.events) return { ok: false, error: 'This game has no event cards.' };
+			if (!isEventCard(cheat.card)) return { ok: false, error: 'Pick a card.' };
+			if (s.phase !== 'main' || (s.step !== 'roll' && s.step !== 'main')) {
+				return { ok: false, error: 'Flip events at the start of a turn or during it.' };
+			}
+			emit(s, { type: 'cheat', player: by, text: `flipped ${EVENT_INFO[cheat.card].name}` });
+			s.events.choice = null;
+			flip(s, (e) => emit(s, e), cheat.card);
+			s.version++;
+			return { ok: true, state: s };
 		}
 		case 'fastBots':
 			text = cheat.on ? 'made the bots play fast' : 'let the bots take their time';

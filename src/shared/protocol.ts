@@ -2,6 +2,7 @@ import type { AvatarId, FriendsInfo, RoomInvite, Whereabouts } from './accounts'
 import type { MapChoice } from './board/maps';
 import type { ExtraBuilding } from './rules/buildings';
 import type { Cheat } from './rules/cheats';
+import type { EventRules } from './rules/events';
 import type { CharacterId } from './rules/characters';
 import type { PlayerColor } from './rules/config';
 import type { GameMode, GameSettings } from './rules/modes';
@@ -91,6 +92,8 @@ export type ClientMessage =
 	| { t: 'leaveOut'; character: CharacterId; out: boolean }
 	/** Reign Extended: put one of the extra buildings in the game, or take it out. */
 	| { t: 'setBuilding'; building: ExtraBuilding; on: boolean }
+	/** Host: Reign Extended's Events deck (on or off, how often, gentle or wild, cards pulled). */
+	| { t: 'setEvents'; events: EventRules }
 	| { t: 'setReady'; ready: boolean }
 	| { t: 'start' }
 	| { t: 'action'; action: Action }

@@ -7,6 +7,7 @@ import { botAction } from '../src/shared/rules/bot';
 import { WORKSHOP_LIMIT, allBuildings, cleanBuildingRules } from '../src/shared/rules/buildings';
 import { BANK_PER_RESOURCE, COSTS, RESOURCES, TERRAIN_RESOURCE } from '../src/shared/rules/config';
 import { applyAction, createGame } from '../src/shared/rules/engine';
+import { NO_EVENTS } from '../src/shared/rules/events';
 import type { GameSettings } from '../src/shared/rules/modes';
 import { workshopSpots } from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
@@ -14,8 +15,8 @@ import { viewFor } from '../src/shared/rules/view';
 
 const COLORS = ['red', 'blue', 'yellow', 'green'] as const;
 const players = (n: number) => COLORS.slice(0, n).map((color, i) => ({ name: `P${i}`, color, isBot: true, character: null }));
-// Characters off, so games go straight to setup instead of drafting first.
-const extended = (more: Partial<GameSettings> = {}): Partial<GameSettings> => ({ mode: 'extended', map: { preset: 'great' }, characters: false, ...more });
+// Characters off, so games go straight to setup instead of drafting first; no event cards either.
+const extended = (more: Partial<GameSettings> = {}): Partial<GameSettings> => ({ mode: 'extended', map: { preset: 'great' }, characters: false, events: NO_EVENTS, ...more });
 const RICH = { wood: 9, brick: 9, sheep: 9, wheat: 9, ore: 9 };
 
 function act(s: GameState, p: number, a: Action): GameState {

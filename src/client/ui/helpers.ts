@@ -219,6 +219,10 @@ export function promptText(view: GameView): string {
 			return mine ? `Place ${view.roadBuildingLeft} free road${view.roadBuildingLeft > 1 ? 's' : ''}` : `${who} is building roads`;
 		case 'main':
 			return mine ? 'Build, trade, or end your turn' : `${who}'s turn`;
+		case 'eventChoice': {
+			const p = view.events?.choice?.player ?? -1;
+			return p === view.me ? "Royal Decree: pick this round's event" : `${view.players[p]?.name ?? '?'} is picking the event`;
+		}
 	}
 }
 

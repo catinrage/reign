@@ -27,6 +27,7 @@ import {
 } from './config';
 import { WORKSHOP_LIMIT, allBuildings, cleanBuildingRules } from './buildings';
 import type { CharacterId } from './characters';
+import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, startRound, tilePays } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
 	builtKey,
@@ -128,6 +129,8 @@ export function createGame(
 		buildingRules: extended ? cleanBuildingRules(opts.buildings) : allBuildings(false),
 		workshops: b.hexes.map(() => null),
 		stoneRoads: topo.edges.map(() => false),
+		// The deck is shuffled from a seed of its own, so it leaves the island and dice as they were.
+		events: extended ? newEvents(cleanEventRules(opts.events), { rng: (seed ^ 0x2f6b1d) | 0 }) : null,
 		builtTurns: {},
 		bank: { wood: bank, brick: bank, sheep: bank, wheat: bank, ore: bank },
 		devDeck: deck,
@@ -173,9 +176,17 @@ function fail(msg: string): never {
 	throw new RuleError(msg);
 }
 
+/** Fail with a rule's error message (false: the action doesn't fit the moment). */
+function check(result: string | null | false) {
+	if (result === false) fail("You can't do that right now.");
+	if (result) fail(result);
+}
+
 class Ctx {
 	events: GameEvent[] = [];
 	constructor(public s: GameState) {}
+	/** `emit` for code outside the engine (the Events deck). */
+	readonly emitter = (e: DistributiveOmit<GameEvent, 'seq'>) => this.emit(e);
 	emit(e: DistributiveOmit<GameEvent, 'seq'>) {
 		const ev = { ...e, seq: this.s.nextEventSeq++ } as GameEvent;
 		this.events.push(ev);
@@ -239,6 +250,9 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 	if (a.type === 'discard') return discard(ctx, p, a.resources);
 	if (a.type === 'respondTrade') return respondTrade(ctx, p, a.offerId, a.accept);
 	if (a.type === 'takePick') return takePick(ctx, p, a.resource);
+	// Reign Extended events: the player in last place picks a Royal Decree, anyone takes their bounty.
+	if (a.type === 'chooseEvent') return check(s.step === 'eventChoice' && chooseEvent(s, ctx.emitter, p, a.card));
+	if (a.type === 'claimBounty') return check(s.phase === 'main' && claimBounty(s, ctx.emitter, p, a.resource));
 
 	if (p !== s.current) fail("It's not your turn.");
 	if ((s.phase === 'draft') !== (a.type === 'pickCharacter')) {
@@ -362,6 +376,7 @@ function setupRoad(ctx: Ctx, p: number, edge: number) {
 		s.current = 0;
 		s.turn = 1;
 		ctx.emit({ type: 'turnStarted', player: 0, turn: 1 });
+		startRound(s, ctx.emitter);
 		turnBegins(ctx);
 	} else {
 		s.step = 'setupSettlement';
@@ -401,6 +416,9 @@ function roll(ctx: Ctx, p: number) {
 			pl.resources.sheep++;
 			ctx.emit({ type: 'traitGain', player: i, character: 'shepherd', resource: 'sheep' });
 		});
+		// Migrating Herds: pastures pay on a 7 too.
+		if (s.events?.current === 'migratingHerds') produce(ctx, total);
+		if (s.events) s.events.comet = false;
 		s.pendingDiscards = pending;
 		s.alms = [];
 		s.resumeStep = 'main';
@@ -413,6 +431,8 @@ function roll(ctx: Ctx, p: number) {
 		return;
 	}
 	produce(ctx, total);
+	// A Comet pays out one roll twice.
+	if (s.events) s.events.comet = false;
 	s.step = 'main';
 }
 
@@ -422,20 +442,22 @@ function produce(ctx: Ctx, total: number) {
 	const owed: ResourceGain[] = [];
 	const blocked: number[] = [];
 	s.board.hexes.forEach((hex, h) => {
-		if (hex.number !== total) return;
+		if (!tilePays(s, hex, total)) return;
 		const res = TERRAIN_RESOURCE[hex.terrain];
 		if (!res) return;
+		// Reign Extended events can double what a tile pays.
+		const k = eventYield(s, res);
 		if (h === s.robberHex) {
 			if (topo.hexes[h].vertices.some((v) => s.buildings[v])) blocked.push(h);
 			return;
 		}
 		for (const v of topo.hexes[h].vertices) {
 			const b = s.buildings[v];
-			if (b) owed.push({ player: b.owner, hex: h, resource: res, amount: b.kind === 'city' ? 2 : 1 });
+			if (b) owed.push({ player: b.owner, hex: h, resource: res, amount: (b.kind === 'city' ? 2 : 1) * k });
 		}
 		// A workshop adds a card for its owner, who always has a building on the tile.
 		const w = s.workshops[h];
-		if (w !== null) owed.push({ player: w, hex: h, resource: res, amount: 1, workshop: true });
+		if (w !== null) owed.push({ player: w, hex: h, resource: res, amount: k, workshop: true });
 	});
 	// Bank shortage: if the bank can't pay everyone a resource, nobody gets it,
 	// unless only one player is owed it, who then takes what is left.
@@ -869,6 +891,8 @@ function endTurn(ctx: Ctx, p: number) {
 	s.turn++;
 	s.step = 'roll';
 	ctx.emit({ type: 'turnStarted', player: s.current, turn: s.turn });
+	// A new round: Reign Extended flips its next event card.
+	if (s.current === 0) startRound(s, ctx.emitter);
 	turnBegins(ctx);
 	checkWin(ctx);
 }

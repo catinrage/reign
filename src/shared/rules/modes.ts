@@ -2,6 +2,7 @@ import { mapSeats, mapTiles, type MapChoice } from '../board/maps';
 import { CHARACTERS, type CharacterId } from './characters';
 import { DISCARD_THRESHOLD } from './config';
 import { allBuildings, type BuildingRules } from './buildings';
+import { DEFAULT_EVENT_RULES, type EventRules } from './events';
 
 /**
  * Reign has two modes. Classic is the standard game on the standard island, exactly as before.
@@ -73,6 +74,8 @@ export interface GameSettings {
 	leftOut: CharacterId[];
 	/** Reign Extended: which of the extra buildings are in the game. Ignored in Classic. */
 	buildings: BuildingRules;
+	/** Reign Extended: the Events deck, a card flipped each round. Ignored in Classic. */
+	events: EventRules;
 }
 
 /** The characters players can draft with these settings. */
@@ -94,5 +97,6 @@ export const DEFAULT_SETTINGS: GameSettings = {
 	handLimit: DISCARD_THRESHOLD,
 	characters: true,
 	leftOut: [],
-	buildings: allBuildings()
+	buildings: allBuildings(),
+	events: DEFAULT_EVENT_RULES
 };

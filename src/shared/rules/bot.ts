@@ -1,5 +1,6 @@
 import { getTopology } from '../board/topology';
 import type { CharacterId } from './characters';
+import { PLAGUE_LIMIT, busiestTile, type EventCard } from './events';
 import {
 	RESOURCES,
 	TERRAIN_RESOURCE,
@@ -46,6 +47,14 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 	}
 	if (s.trade && s.trade.from !== me && s.trade.responses[me] === undefined) {
 		return { type: 'respondTrade', offerId: s.trade.id, accept: wantsTrade(s, me) };
+	}
+	// Reign Extended events: the Royal Decree's pick, and the Bountiful Year's free card.
+	if (s.step === 'eventChoice' && s.events?.choice?.player === me) {
+		return { type: 'chooseEvent', card: decreePick(s, me, s.events.choice.cards) };
+	}
+	if (s.phase === 'main' && s.events?.bounty.includes(me)) {
+		const r = neededResource(s, me);
+		if (r) return { type: 'claimBounty', resource: r };
 	}
 	if (s.current !== me) return null;
 
@@ -370,4 +379,75 @@ const DRAFT_ORDER: CharacterId[] = [
 function draftPick(s: GameState): CharacterId {
 	const left = draftLeft(s);
 	return DRAFT_ORDER.find((c) => left.includes(c)) ?? left[0];
+}
+
+/** The resource a bot most wants from the bank: what its next city, settlement or card lacks. */
+function neededResource(s: GameState, me: number): Resource | null {
+	const res = s.players[me].resources;
+	const need = [
+		...missingFor(res, costOf(s, me, 'city')),
+		...missingFor(res, costOf(s, me, 'settlement')),
+		...missingFor(res, costOf(s, me, 'devCard'))
+	].filter((r) => s.bank[r] > 0);
+	if (need.length) return need[0];
+	return RESOURCES.filter((r) => s.bank[r] > 0).sort((a, b) => res[a] - res[b])[0] ?? null;
+}
+
+/**
+ * Royal Decree: the bot is in last place and picks the card that does it the most good, roughly
+ * in cards gained (or kept) this round. It reads only what everyone can see, plus its own hand.
+ */
+function decreePick(s: GameState, me: number, cards: EventCard[]): EventCard {
+	const topo = getTopology(s.board);
+	const n = s.players.length;
+	const myCards = totalResources(s.players[me].resources);
+	// Expected cards per roll from tiles of a terrain (or all), counting cities twice; or, `any`,
+	// the cards those tiles would pay if their number came up.
+	const income = (terrain?: string, any = false) => {
+		let k = 0;
+		s.buildings.forEach((b, v) => {
+			if (!b || b.owner !== me) return;
+			for (const h of topo.vertices[v].hexes) {
+				const hex = s.board.hexes[h];
+				if (h === s.robberHex || (terrain && hex.terrain !== terrain)) continue;
+				if (TERRAIN_RESOURCE[hex.terrain]) k += (any ? 1 : pips(hex.number) / 36) * (b.kind === 'city' ? 2 : 1);
+			}
+		});
+		return k;
+	};
+	const bandits = busiestTile(s);
+	const value = (c: EventCard): number => {
+		switch (c) {
+			case 'harvestFestival':
+				return income('fields') * n;
+			case 'migratingHerds':
+				// A 7 comes up about once in six rolls, and the round has one roll per player.
+				return (income('pasture', true) * n) / 6;
+			case 'comet':
+				return income();
+			case 'bountifulYear':
+				return 1;
+			case 'travelingFair':
+				return myCards >= 4 ? 1 : 0.3;
+			case 'royalWedding':
+			case 'royalDecree':
+				return n - 1;
+			case 'tournament': {
+				const most = Math.max(...s.players.map((p) => p.knightsPlayed));
+				const top = s.players.filter((p) => p.knightsPlayed === most).length;
+				return most > 0 && top === 1 && s.players[me].knightsPlayed === most ? n - 1 : -1;
+			}
+			case 'plagueOfRats':
+				return myCards > PLAGUE_LIMIT ? -1 : 0.2;
+			case 'taxCollector':
+				return 0.3 - s.buildings.filter((b) => b?.owner === me && b.kind === 'city').length;
+			case 'banditUprising':
+				return bandits !== null && playersOnHex(s, bandits).includes(me) ? -1.5 : 0.3;
+			case 'stormAtSea':
+				return -0.2;
+			case 'earthquake':
+				return 0;
+		}
+	};
+	return best(cards, value);
 }
