@@ -262,6 +262,22 @@ export const PIXEL = {
 		],
 		{ k: '#2a1a10', s: '#d9dde3', S: '#8d96a3', b: '#c58a4a', B: '#7a4a22' }
 	),
+	/** An arrow up: a city growing into a castle, a guild hall or a fortress. */
+	grow: svg(
+		[
+			'....k....',
+			'...kgk...',
+			'..kgggk..',
+			'.kgggggk.',
+			'kgggggggk',
+			'kkkgggkkk',
+			'..kgggk..',
+			'..kgggk..',
+			'..kGGGk..',
+			'..kkkkk..'
+		],
+		{ k: '#1e2a0e', g: '#a8e070', G: '#5e9a34' }
+	),
 	pause: svg(
 		['kkk..kkk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kkk..kkk'],
 		{ k: '#3a1d04', y: '#fff3b8' }

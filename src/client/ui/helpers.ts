@@ -123,7 +123,7 @@ export function pathAvailable(view: GameView): boolean {
 }
 
 /** Your cities that haven't taken a path yet. */
-function openCities(view: GameView): number {
+export function openCities(view: GameView): number {
 	return view.buildings.filter((b, v) => b?.owner === view.me && b.kind === 'city' && !view.cityPaths?.[v]).length;
 }
 
@@ -172,7 +172,7 @@ export function buildNote(view: GameView, kind: BuildKind): string {
 }
 
 /** Why none of your cities can take a path ('' when one can). */
-function pathsClosed(view: GameView): string {
+export function pathsClosed(view: GameView): string {
 	if (openCities(view)) return '';
 	return view.buildings.some((b) => b?.owner === view.me && b.kind === 'city')
 		? t('Every one of your cities has taken its path.')

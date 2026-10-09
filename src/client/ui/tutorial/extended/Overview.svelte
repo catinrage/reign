@@ -26,7 +26,10 @@
 	const LOWER: Record<ExtraBuilding, string> = {
 		workshop: msg('workshops'),
 		stoneRoad: msg('stone roads'),
-		storehouse: msg('storehouses')
+		storehouse: msg('storehouses'),
+		castle: msg('castles'),
+		guildHall: msg('guild halls'),
+		fortress: msg('fortresses')
 	};
 	/** "A, B and C" in the current language. */
 	const list = (items: string[]) =>

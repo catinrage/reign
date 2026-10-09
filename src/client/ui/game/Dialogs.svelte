@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CHARACTER_INFO } from '../../../shared/rules/characters';
 	import { RESOURCE_LABEL, emptyResources, type Resource } from '../../../shared/rules/config';
-	import { discardLimit, safeCards } from '../../../shared/rules/queries';
+	import { discardLimit, guildGoodsFor, safeCards } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
 	import Modal from '../menu/Modal.svelte';
@@ -9,6 +9,7 @@
 	import ResCard from '../ResCard.svelte';
 	import Portrait from '../extended/Portrait.svelte';
 	import { dialogs } from './dialogs.svelte';
+	import { ui } from './ui.svelte';
 	import { t } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
@@ -38,6 +39,13 @@
 	}
 	function addYop(r: Resource) {
 		if (yop.length < 2 && view.bank[r] > yop.filter((x) => x === r).length) yop = [...yop, r];
+	}
+	/** The city picked for a guild hall becomes one, trading the goods named. */
+	function buildGuildHall(resource: Resource) {
+		const vertex = dialogs.guildHall;
+		dialogs.guildHall = null;
+		ui.paths = false;
+		if (vertex !== null) client.act({ type: 'buildCityPath', vertex, path: 'guildHall', resource });
 	}
 </script>
 
@@ -189,6 +197,25 @@
 					<span class="nm">{t(RESOURCE_LABEL[r])}</span>
 				</div>
 			{/each}
+		</div>
+	</Modal>
+{/if}
+
+{#if dialogs.guildHall !== null}
+	{@const goods = guildGoodsFor(view, me)}
+	<Modal title={t('Guild hall')} width={480} onclose={() => (dialogs.guildHall = null)}>
+		<p>{t('Name the goods your guild hall trades. You will trade them with the bank at 2:1.')}</p>
+		<div class="row">
+			{#each RESOURCES as r (r)}
+				{@const ok = goods.includes(r)}
+				<div class="col">
+					<ResCard res={r} size={58} dim={!ok} onclick={ok ? () => buildGuildHall(r) : undefined} />
+					<span class="nm">{ok ? t(RESOURCE_LABEL[r]) : t('Already 2:1')}</span>
+				</div>
+			{/each}
+		</div>
+		<div class="foot">
+			<button class="btn wood" onclick={() => (dialogs.guildHall = null)}>{t('Cancel')}</button>
 		</div>
 	</Modal>
 {/if}

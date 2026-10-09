@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getTopology } from '../../../shared/board/topology';
+	import { isCityPath } from '../../../shared/rules/buildings';
 	import { RESOURCES, RESOURCE_LABEL, type Resource, type ResourceCounts } from '../../../shared/rules/config';
 	import {
 		roadSpots,
@@ -7,6 +8,7 @@
 		citySpots,
 		ownWorkshops,
 		paveSpots,
+		pathSpots,
 		powerReady,
 		storehouseSpots,
 		tradeHarbor,
@@ -25,6 +27,7 @@
 	import BoardTip from './BoardTip.svelte';
 	import CheatPanel from './CheatPanel.svelte';
 	import Dialogs from './Dialogs.svelte';
+	import { dialogs } from './dialogs.svelte';
 	import PowerDialog from './PowerDialog.svelte';
 	import DiceBadge from './DiceBadge.svelte';
 	import DraftPanel from './DraftPanel.svelte';
@@ -59,7 +62,11 @@
 
 	// Leave build mode when it no longer applies, and a power half-used when the moment for it has passed.
 	$effect(() => {
-		if (!myTurn(view) || view.step !== 'main') ui.build = null;
+		if (!myTurn(view) || view.step !== 'main') {
+			ui.build = null;
+			ui.paths = false;
+			dialogs.guildHall = null;
+		}
 		if (!myTurn(view) || (view.step !== 'main' && view.step !== 'roll') || !powerReady(view, view.me)) ui.power = null;
 	});
 
@@ -131,6 +138,9 @@
 					} else if (ui.build === 'tearDown') {
 						kind = 'tearDown';
 						options = ownWorkshops(view, me);
+					} else if (isCityPath(ui.build)) {
+						kind = ui.build;
+						options = pathSpots(view, me, ui.build);
 					}
 					break;
 			}
@@ -149,7 +159,12 @@
 				else if (k === 'stoneRoad') client.act({ type: 'paveRoad', edge: id });
 				else if (k === 'storehouse') client.act({ type: 'buildStorehouse', vertex: id });
 				else if (k === 'tearDown') client.act({ type: 'tearDownWorkshop', hex: id });
-				else client.act({ type: 'buildCity', vertex: id });
+				// A guild hall asks for the goods it trades first (Dialogs builds it).
+				else if (k === 'guildHall') dialogs.guildHall = id;
+				else if (k === 'castle' || k === 'fortress') {
+					client.act({ type: 'buildCityPath', vertex: id, path: k });
+					ui.paths = false;
+				} else client.act({ type: 'buildCity', vertex: id });
 				if (view.step === 'main') ui.build = null;
 			}
 		});
@@ -391,12 +406,14 @@
 
 	function onKey(e: KeyboardEvent) {
 		if (e.key !== 'Escape') return;
-		// Esc backs out of whatever is open, and opens the menu when nothing is.
+		// Esc backs out of whatever is open, a step at a time, and opens the menu when nothing is.
 		if (ui.menu) ui.menu = false;
+		else if (dialogs.guildHall !== null) dialogs.guildHall = null;
 		else if (ui.build || ui.trade) {
 			ui.build = null;
 			ui.trade = false;
-		} else ui.menu = true;
+		} else if (ui.paths) ui.paths = false;
+		else ui.menu = true;
 	}
 	void getTopology;
 </script>

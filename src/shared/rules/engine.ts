@@ -26,7 +26,7 @@ import {
 	type ResourceCounts,
 	type Terrain
 } from './config';
-import { BUILDING_INFO, WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules, isCityPath } from './buildings';
+import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules, isCityPath, type CityPath } from './buildings';
 import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
 import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
@@ -827,6 +827,13 @@ function buildStorehouse(ctx: Ctx, p: number, vertex: number) {
 	ctx.emit({ type: 'built', player: p, kind: 'storehouse', at: vertex, free: false, paid });
 }
 
+/** What the engine says when the host left a city path out of the game. */
+const PATH_OFF: Record<CityPath, string> = {
+	castle: 'Castles are not part of this game.',
+	guildHall: 'Guild halls are not part of this game.',
+	fortress: 'Fortresses are not part of this game.'
+};
+
 /**
  * Take one of your cities down a path: a castle (worth 3), a guild hall trading the goods you name
  * at 2:1, or a fortress (your knights count double, which can win the Largest Army there and then).
@@ -835,7 +842,7 @@ function buildCityPath(ctx: Ctx, p: number, vertex: number, path: unknown, resou
 	const s = ctx.s;
 	requireMain(s);
 	if (!isCityPath(path)) fail('Pick a castle, a guild hall or a fortress.');
-	if (!s.buildingRules[path]) fail(`${BUILDING_INFO[path].name} are not part of this game.`);
+	if (!s.buildingRules[path]) fail(PATH_OFF[path]);
 	if (!Number.isInteger(vertex) || s.buildings[vertex] === undefined) fail('Pick a spot on the island.');
 	const b = s.buildings[vertex];
 	if (b?.owner !== p || b.kind !== 'city') fail('Pick one of your own cities.');

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { t } from '../../i18n/index.svelte';
 	import { client } from '../../state/client.svelte';
-	import { myTurn, promptText } from '../helpers';
+	import { myTurn, pathsClosed, promptText } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import TurnClock from './TurnClock.svelte';
 	import { powerPick } from './power';
@@ -24,6 +24,12 @@
 				return t('Click a glowing spot to place your settlement');
 			case 'city':
 				return t('Click a glowing spot to place your city');
+			case 'castle':
+				return t('Click one of your cities to make it a castle');
+			case 'guildHall':
+				return t('Click one of your cities to make it a guild hall');
+			case 'fortress':
+				return t('Click one of your cities to make it your fortress');
 		}
 	}
 
@@ -34,7 +40,9 @@
 			? power.prompt
 			: ui.build && view.step === 'main'
 				? buildPrompt(ui.build)
-				: promptText(view)
+				: ui.paths && view.step === 'main'
+					? pathsClosed(view) || t('Pick a path for one of your cities')
+					: promptText(view)
 	);
 	const mine = $derived(myTurn(view));
 	const color = $derived(view.players[view.current]?.color ?? 'white');
