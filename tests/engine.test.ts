@@ -5,12 +5,14 @@ import { botAction } from '../src/shared/rules/bot';
 import { BANK_PER_RESOURCE, RESOURCES, STANDARD_NUMBER_POOL } from '../src/shared/rules/config';
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
 import {
+	citySpots,
 	longestRoad,
+	roadSpots,
 	settlementSpots,
 	tradeHarbor,
 	tradeRatios
 } from '../src/shared/rules/queries';
-import type { Action, GameState } from '../src/shared/rules/types';
+import type { Action, GameEvent, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
 
 const players = (n: number) =>
@@ -155,6 +157,46 @@ describe('rules', () => {
 		};
 		expect(tradeRatios(cartographer, 1).sheep).toBe(2);
 		expect(tradeHarbor(cartographer, 1, 'sheep', 2)).toBe(wool);
+	});
+
+	it('says what each build, development card and discard handed the bank', () => {
+		let s = createGame(players(2), 7);
+		while (s.phase === 'setup') s = act(s, s.current, botAction(s, s.current)!);
+		// The starting pieces are free.
+		for (const e of s.log) if (e.type === 'built') expect(e.paid).toEqual({});
+		const p = s.current;
+		const last = (g: { log: GameEvent[] }, type: string) =>
+			g.log.filter((e) => e.type === type).at(-1);
+		// Only these fields of an event, but each of them exactly: paying a card too many fails.
+		const has = (fields: object) => expect.objectContaining(fields);
+		s = {
+			...s,
+			step: 'main',
+			players: s.players.map((pl, i) =>
+				i === p ? { ...pl, resources: { wood: 1, brick: 1, sheep: 1, wheat: 3, ore: 4 } } : pl
+			)
+		};
+		s = act(s, p, { type: 'placeRoad', edge: roadSpots(s, p)[0] });
+		expect(last(s, 'built')).toEqual(has({ kind: 'road', paid: { wood: 1, brick: 1 } }));
+		s = act(s, p, { type: 'buildCity', vertex: citySpots(s, p)[0] });
+		expect(last(s, 'built')).toEqual(has({ kind: 'city', paid: { wheat: 2, ore: 3 } }));
+		s = act(s, p, { type: 'buyDevCard' });
+		const bought = { type: 'devCardBought', paid: { sheep: 1, wheat: 1, ore: 1 } };
+		expect(last(s, 'devCardBought')).toEqual(has(bought));
+		// What a development card cost is no secret, only the card.
+		expect(last(viewFor(s, 1 - p), 'devCardBought')).toEqual(has({ ...bought, card: null }));
+		// Cards thrown back on a 7, which everyone sees go back to the bank.
+		s = {
+			...s,
+			step: 'discard',
+			pendingDiscards: { [p]: 2 },
+			players: s.players.map((pl, i) =>
+				i === p ? { ...pl, resources: { wood: 2, brick: 0, sheep: 1, wheat: 0, ore: 0 } } : pl
+			)
+		};
+		s = act(s, p, { type: 'discard', resources: { wood: 1, sheep: 1 } });
+		const discarded = { count: 2, resources: { wood: 1, sheep: 1 } };
+		expect(last(viewFor(s, 1 - p), 'discarded')).toEqual(has(discarded));
 	});
 
 	it('hides other hands in the view', () => {
