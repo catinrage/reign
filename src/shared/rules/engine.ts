@@ -28,7 +28,7 @@ import {
 } from './config';
 import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules, isCityPath, type CityPath } from './buildings';
 import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
-import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays } from './events';
+import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays, topUp } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
 	armySize,
@@ -50,6 +50,7 @@ import {
 	roadSpots,
 	safeCards,
 	storehouseOf,
+	tavernOf,
 	tradeRatios,
 	workshopCount
 } from './queries';
@@ -103,6 +104,11 @@ export function createGame(
 	// With repeats allowed, one character in the pool is enough for everyone.
 	const repeats = extended && opts.characters && opts.repeatPicks;
 	const drafting = (repeats ? pool.length > 0 : pool.length >= n) && !players.some((p) => p.character);
+	// The deck is shuffled from a seed of its own, so it leaves the island and dice as they were.
+	const events = extended ? newEvents(cleanEventRules(opts.events), { rng: (seed ^ 0x2f6b1d) | 0 }) : null;
+	const buildingRules = extended ? cleanBuildingRules(opts.buildings) : allBuildings(false);
+	// A tavern's rumors are about the Events deck, so without one there are no taverns.
+	if (!events) buildingRules.tavern = false;
 	const state: GameState = {
 		version: 0,
 		rng: rngHolder.rng,
@@ -137,14 +143,14 @@ export function createGame(
 		robberHex: desert >= 0 ? desert : 0,
 		buildings: topo.vertices.map(() => null),
 		roads: topo.edges.map(() => null),
-		buildingRules: extended ? cleanBuildingRules(opts.buildings) : allBuildings(false),
+		buildingRules,
 		workshops: b.hexes.map(() => null),
 		stoneRoads: topo.edges.map(() => false),
 		storehouses: topo.vertices.map(() => false),
+		taverns: topo.vertices.map(() => false),
 		cityPaths: topo.vertices.map(() => null),
 		guildGoods: topo.vertices.map(() => null),
-		// The deck is shuffled from a seed of its own, so it leaves the island and dice as they were.
-		events: extended ? newEvents(cleanEventRules(opts.events), { rng: (seed ^ 0x2f6b1d) | 0 }) : null,
+		events,
 		builtTurns: {},
 		bank: { wood: bank, brick: bank, sheep: bank, wheat: bank, ore: bank },
 		devDeck: deck,
@@ -298,6 +304,8 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 			return paveRoad(ctx, p, a.edge);
 		case 'buildStorehouse':
 			return buildStorehouse(ctx, p, a.vertex);
+		case 'buildTavern':
+			return buildTavern(ctx, p, a.vertex);
 		case 'buildCityPath':
 			return buildCityPath(ctx, p, a.vertex, a.path, a.resource);
 		case 'tearDownWorkshop':
@@ -825,6 +833,24 @@ function buildStorehouse(ctx: Ctx, p: number, vertex: number) {
 	const paid = pay(s, p, 'storehouse');
 	s.storehouses[vertex] = true;
 	ctx.emit({ type: 'built', player: p, kind: 'storehouse', at: vertex, free: false, paid });
+}
+
+/**
+ * Add a tavern onto one of your settlements or cities: one each, and only in a game with the
+ * Events deck. Its owner hears the rumor of the next event card before it turns over.
+ */
+function buildTavern(ctx: Ctx, p: number, vertex: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (!s.buildingRules.tavern || !s.events) fail('Taverns are not part of this game.');
+	if (!Number.isInteger(vertex) || s.buildings[vertex] === undefined) fail('Pick a spot on the island.');
+	if (s.buildings[vertex]?.owner !== p) fail('Pick one of your own settlements or cities.');
+	if (tavernOf(s, p) !== null) fail('You already have a tavern.');
+	const paid = pay(s, p, 'tavern');
+	s.taverns[vertex] = true;
+	// There's always a next card to hear about from now on.
+	topUp(s);
+	ctx.emit({ type: 'built', player: p, kind: 'tavern', at: vertex, free: false, paid });
 }
 
 /** What the engine says when the host left a city path out of the game. */

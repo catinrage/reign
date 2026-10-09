@@ -1,7 +1,7 @@
 import { getTopology } from '../board/topology';
 import { randomInt, shuffle } from '../rng';
 import { RESOURCES, TERRAIN_RESOURCE, pips, totalResources, type Resource } from './config';
-import { publicPoints, safeCards } from './queries';
+import { publicPoints, safeCards, tavernOf } from './queries';
 import type { BoardHex } from '../board/topology';
 import type { EventMove, GameEvent, GameState } from './types';
 
@@ -111,8 +111,11 @@ export interface EventsState {
 	comet: boolean;
 }
 
-/** What players see of the deck: how many cards are left in it, not their order. */
-export type EventsView = Omit<EventsState, 'deck'> & { deckCount: number };
+/**
+ * What players see of the deck: how many cards are left in it, not their order. A player with a
+ * tavern hears the rumor of the next card to turn over (null for everyone else).
+ */
+export type EventsView = Omit<EventsState, 'deck'> & { deckCount: number; rumor: EventCard | null };
 
 export function isEventCard(id: unknown): id is EventCard {
 	return typeof id === 'string' && (EVENT_CARDS as readonly string[]).includes(id);
@@ -157,6 +160,13 @@ export function flipsIn(round: number, every: 1 | 2): boolean {
 	return (round - 1) % every === 0;
 }
 
+/** The next round after `round` that flips a card. */
+export function nextFlip(round: number, every: 1 | 2): number {
+	let r = round + 1;
+	while (!flipsIn(r, every)) r++;
+	return r;
+}
+
 /** The card a round's rules follow, if any (a Royal Decree still being decided bends nothing). */
 export function activeEvent(s: { events?: Pick<EventsState, 'current'> | null }): EventCard | null {
 	return s.events?.current ?? null;
@@ -193,10 +203,33 @@ export function flip(s: GameState, emit: Emit, card: EventCard, round = roundOf(
 /** The top card of the deck, dealing the pool out again when it's empty. */
 function draw(s: GameState, except: EventCard[] = []): EventCard {
 	const ev = s.events!;
-	for (let i = ev.deck.length - 1; i >= 0; i--) if (!except.includes(ev.deck[i])) return ev.deck.splice(i, 1)[0];
+	let card: EventCard | undefined;
+	for (let i = ev.deck.length - 1; i >= 0 && !card; i--) if (!except.includes(ev.deck[i])) card = ev.deck.splice(i, 1)[0];
+	if (!card) {
+		ev.deck = shuffle(s, ev.pool.filter((c) => !except.includes(c)));
+		card = ev.deck.pop() ?? ev.pool[0];
+	}
+	// A Royal Decree's draws top the deck up once its three cards are out (see `resolve`).
+	if (!except.length) topUp(s);
+	return card;
+}
+
+/**
+ * Taverns hear the rumor of the next card, so while anyone has one the deck is never left empty:
+ * the pool is dealt out again as soon as the last card is drawn, rather than when the next one
+ * is (leaving out `except`, cards on their way back under it). Without a tavern the deck is dealt
+ * when it's needed, as it always was.
+ */
+export function topUp(s: GameState, except: EventCard[] = []) {
+	const ev = s.events;
+	if (!ev || ev.deck.length || !s.taverns?.some(Boolean)) return;
 	ev.deck = shuffle(s, ev.pool.filter((c) => !except.includes(c)));
-	if (!ev.deck.length) return ev.pool[0];
-	return ev.deck.pop()!;
+}
+
+/** The rumor this player hears at their tavern: the next card to turn over (null without one). */
+export function rumorFor(s: Pick<GameState, 'events' | 'taverns' | 'buildings'>, p: number): EventCard | null {
+	if (!s.events || p < 0 || tavernOf(s, p) === null) return null;
+	return s.events.deck.at(-1) ?? null;
 }
 
 /** What a card does the moment it flips. Cards that last the round work through the queries. */
@@ -219,6 +252,8 @@ function resolve(s: GameState, emit: Emit, card: EventCard) {
 				if (c === 'royalDecree' || cards.includes(c)) break;
 				cards.push(c);
 			}
+			// The two cards not picked go back under the deck, so a top-up leaves all three out.
+			topUp(s, cards);
 			if (!cards.length) break;
 			ev.current = null;
 			ev.choice = { player, cards, resume: s.step === 'main' ? 'main' : 'roll' };

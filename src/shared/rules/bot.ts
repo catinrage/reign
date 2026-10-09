@@ -1,6 +1,6 @@
 import { getTopology } from '../board/topology';
 import { POWER_INFO, type CharacterId } from './characters';
-import { PLAGUE_LIMIT, busiestTile, type EventCard } from './events';
+import { PLAGUE_LIMIT, busiestTile, nextFlip, roundOf, rumorFor, type EventCard } from './events';
 import { FORTRESS_KNIGHTS } from './buildings';
 import {
 	LARGEST_ARMY_MIN,
@@ -37,6 +37,7 @@ import {
 	safeCards,
 	settlementSpots,
 	storehouseSpots,
+	tavernSpots,
 	tradeRatios,
 	vertexValue,
 	workshopSpots
@@ -125,8 +126,12 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	if (actions > 40) return { type: 'endTurn' };
 
 	if (!s.devCardPlayedThisTurn) {
-		// With a fortress, knights also go out to take or hold the Largest Army.
-		if (playableCard(s, me, 'knight') && (playersOnHex(s, s.robberHex).includes(me) || fortressKnight(s, me))) {
+		// With a fortress, knights also go out to take or hold the Largest Army, and with a tournament
+		// on its way (heard at its tavern) to win it.
+		if (
+			playableCard(s, me, 'knight') &&
+			(playersOnHex(s, s.robberHex).includes(me) || fortressKnight(s, me) || tournamentKnight(s, me))
+		) {
 			return { type: 'playKnight' };
 		}
 		if (playableCard(s, me, 'monopoly')) {
@@ -181,11 +186,16 @@ function mainTurn(s: GameState, me: number, actions: number): Action {
 	if (store !== null && canPay(s, me, 'storehouse', res)) return { type: 'buildStorehouse', vertex: store };
 	if (canPay(s, me, 'devCard', res) && s.devDeck.length > 0) {
 		const keepForCity = citySpots(s, me).length > 0 && res.ore < 4;
-		if (!keepForCity || totalResources(res) > discardLimit(s, me)) return { type: 'buyDevCard' };
+		// With the rats on their way (heard at its tavern), a card bought now is one they can't eat.
+		const rats = comingEvent(s, me) === 'plagueOfRats' && totalResources(res) - safeCards(s, me) > PLAGUE_LIMIT;
+		if (!keepForCity || rats || totalResources(res) > discardLimit(s, me)) return { type: 'buyDevCard' };
 	}
 
 	const trade = bankTradeTowards(s, me);
 	if (trade) return trade;
+	// Reign Extended: a tavern, with cards to spare that a 7 might take.
+	const tavern = bestTavern(s, me);
+	if (tavern !== null && canPay(s, me, 'tavern', res)) return { type: 'buildTavern', vertex: tavern };
 	// Nothing better to do with the turn: the Scholar takes her free card.
 	if (pl.character === 'scholar' && powerReady(s, me) && s.devDeck.length) return { type: 'usePower' };
 	return { type: 'endTurn' };
@@ -214,6 +224,39 @@ function bestStorehouse(s: GameState, me: number): number | null {
 	const spots = storehouseSpots(s, me);
 	if (!spots.length || totalResources(s.players[me].resources) < discardLimit(s, me) - 1) return null;
 	return best(spots, (v) => vertexValue(s, v) + (s.buildings[v]?.kind === 'city' ? 1 : 0));
+}
+
+/**
+ * Where a bot would add its tavern: onto its busiest building, once it has built, bought and
+ * traded all it can this turn and still holds as many cards as the hand limit, a card or two from
+ * losing half of them to a 7. What it hears there is worth a little (see `comingEvent`), not two
+ * cards it could build with: two bots that keep to this win about 51% of 3,600 games against two
+ * that build none (about 49% if they paid no heed to the rumors), and building one as soon as
+ * they can pay does worse (about 46%).
+ */
+function bestTavern(s: GameState, me: number): number | null {
+	const spots = tavernSpots(s, me);
+	if (!spots.length || totalResources(s.players[me].resources) < discardLimit(s, me)) return null;
+	return best(spots, (v) => vertexValue(s, v));
+}
+
+/**
+ * The event card this bot has heard (at its tavern) turns over when the next round starts, if it
+ * has a tavern and the next round flips one.
+ */
+function comingEvent(s: GameState, me: number): EventCard | null {
+	const rumor = rumorFor(s, me);
+	if (!rumor || !s.events) return null;
+	const round = roundOf(s.turn, s.players.length);
+	return nextFlip(round, s.events.every) === round + 1 ? rumor : null;
+}
+
+/** Whether a bot plays a knight now to be the one Tournament champion when the card turns over. */
+function tournamentKnight(s: GameState, me: number): boolean {
+	if (comingEvent(s, me) !== 'tournament') return false;
+	const mine = s.players[me].knightsPlayed;
+	const rivals = Math.max(...s.players.map((p, i) => (i === me ? 0 : p.knightsPlayed)));
+	return mine <= rivals && mine + 1 > rivals;
 }
 
 /** Points a bot has, its own hidden victory point cards included. */
@@ -459,6 +502,8 @@ function monopolyPick(s: GameState, me: number): Resource | null {
 function bankTradeTowards(s: GameState, me: number): Action | null {
 	const res = s.players[me].resources;
 	const ratios = tradeRatios(s, me);
+	// A Traveling Fair on its way (heard at its tavern): next round every trade is 2:1, so it waits.
+	const fair = comingEvent(s, me) === 'travelingFair';
 	const goals: Partial<ResourceCounts>[] = [];
 	if (citySpots(s, me).length && s.players[me].piecesLeft.city > 0) goals.push(costOf(s, me, 'city'));
 	if (settlementSpots(s, me, false).length && s.players[me].piecesLeft.settlement > 0) goals.push(costOf(s, me, 'settlement'));
@@ -485,7 +530,7 @@ function bankTradeTowards(s: GameState, me: number): Action | null {
 		if (s.bank[target] <= 0) continue;
 		for (const r of RESOURCES) {
 			const spare = res[r] - (goal[r] ?? 0);
-			if (r !== target && spare >= ratios[r]) return { type: 'bankTrade', give: r, get: target };
+			if (r !== target && spare >= ratios[r] && !(fair && ratios[r] > 2)) return { type: 'bankTrade', give: r, get: target };
 		}
 	}
 	return null;

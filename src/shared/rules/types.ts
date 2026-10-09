@@ -96,6 +96,8 @@ export interface GameState {
 	stoneRoads: boolean[];
 	/** Indexed by vertex id: whether the settlement or city there has a storehouse (Reign Extended). */
 	storehouses: boolean[];
+	/** Indexed by vertex id: whether the settlement or city there has a tavern (Reign Extended). */
+	taverns: boolean[];
 	/** Indexed by vertex id: the path the city there took, if any (Reign Extended). */
 	cityPaths: (CityPath | null)[];
 	/** Indexed by vertex id: the goods the guild hall there trades with the bank at 2:1. */
@@ -255,10 +257,10 @@ export interface EventMove {
 }
 
 /**
- * A stone road is built on top of a road (`at` is its edge), a storehouse onto a building and a
- * city path onto a city (their vertex).
+ * A stone road is built on top of a road (`at` is its edge), a storehouse or a tavern onto a
+ * building and a city path onto a city (their vertex).
  */
-export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad' | 'storehouse' | CityPath;
+export type BuiltKind = 'road' | 'settlement' | 'city' | 'workshop' | 'stoneRoad' | 'storehouse' | 'tavern' | CityPath;
 
 export interface ResourceGain {
 	player: number;
@@ -279,6 +281,7 @@ export type Action =
 	| { type: 'buildWorkshop'; hex: number }
 	| { type: 'paveRoad'; edge: number }
 	| { type: 'buildStorehouse'; vertex: number }
+	| { type: 'buildTavern'; vertex: number }
 	/** A guild hall names the goods it trades. */
 	| { type: 'buildCityPath'; vertex: number; path: CityPath; resource?: Resource }
 	| { type: 'tearDownWorkshop'; hex: number }
