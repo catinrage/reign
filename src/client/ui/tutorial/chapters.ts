@@ -13,6 +13,7 @@ import Trading from './classic/Trading.svelte';
 import Turn from './classic/Turn.svelte';
 import Buildings from './extended/Buildings.svelte';
 import Characters from './extended/Characters.svelte';
+import Events from './extended/Events.svelte';
 import MapMaker from './extended/MapMaker.svelte';
 import Maps from './extended/Maps.svelte';
 import Overview from './extended/Overview.svelte';
@@ -137,6 +138,14 @@ export const CHAPTERS: Chapter[] = [
 		lede: 'Workshops, stone roads and more: buildings that do new jobs, if the host plays them.',
 		icon: PIXEL.hammer,
 		page: Buildings
+	},
+	{
+		id: 'events',
+		mode: 'extended',
+		title: 'Events deck',
+		lede: 'A card turns over each round: festivals, storms, bandits and royal favors.',
+		icon: PIXEL.star,
+		page: Events
 	},
 	{
 		id: 'maps',

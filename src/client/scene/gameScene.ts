@@ -228,7 +228,10 @@ export class GameScene {
 		// Workshops need plots laid out on the tiles; the island is otherwise dealt the same.
 		const plots = !!view.buildingRules?.workshop;
 		const board = JSON.stringify(view.board);
-		const key = plots ? `${board}+plots` : board;
+		// Number tokens can trade places mid-game (a Reign Extended earthquake) without the
+		// island being dealt again, so they're left out of what keys it.
+		const land = JSON.stringify({ ...view.board, hexes: view.board.hexes.map((h) => ({ ...h, number: null })) });
+		const key = plots ? `${land}+plots` : land;
 		const first = key !== this.boardKey;
 		if (first) {
 			this.boardKey = key;
@@ -249,12 +252,50 @@ export class GameScene {
 		}
 		const prev = this.view;
 		this.view = view;
+		if (!first) this.syncNumbers(view);
 		this.syncPieces(view, !first);
 		this.syncMarks(view);
 		if (!first && prev && prev.robberHex !== view.robberHex) this.moveRobber(view.robberHex);
 		const fresh = view.log.filter((e) => e.seq > this.lastSeq);
 		if (fresh.length) this.lastSeq = fresh[fresh.length - 1].seq;
 		if (!first) for (const e of fresh) this.playEvent(e);
+	}
+
+	/**
+	 * Number tokens that changed tiles: after an earthquake the two tokens leap across the island
+	 * to their new tiles while the ground shakes.
+	 */
+	private syncNumbers(view: GameView) {
+		const bv = this.boardView!;
+		const changed = view.board.hexes.flatMap((h, i) => (h.number !== bv.board.hexes[i]?.number ? [i] : []));
+		if (!changed.length) return;
+		const [a, b] = changed;
+		const swapped = changed.length === 2 && view.board.hexes[a].number === bv.board.hexes[b].number;
+		if (!swapped) {
+			// Anything else can't be shown as a move: deal the island again as it now is.
+			this.boardKey = '';
+			return this.setView(view);
+		}
+		for (const { tok, to } of bv.swapTokens(view.board, a, b)) {
+			const from = tok.position.clone();
+			this.particles.dust(from.clone(), 22);
+			this.anim.tween(1.1, (t) => {
+				tok.position.lerpVectors(from, to, t);
+				tok.position.y += Math.sin(t * Math.PI) * 30;
+				tok.rotation.y = t * Math.PI * 2;
+			}, ease.inOutCubic).then(() => {
+				this.particles.dust(to.clone(), 22);
+				// Lit up for a while, so everyone can find where the numbers went.
+				tok.userData.highlight = true;
+				this.anim.wait(3.5).then(() => (tok.userData.highlight = false));
+			});
+		}
+		// The island shudders.
+		const g = bv.group;
+		this.anim.tween(1.2, (t) => {
+			const k = (1 - t) * 0.9;
+			g.position.set(Math.sin(t * 70) * k, 0, Math.cos(t * 53) * k);
+		}, ease.linear).then(() => g.position.set(0, 0, 0));
 	}
 
 	/** Light up one player's pieces on the board (while their plaque is hovered), or nobody's. */
