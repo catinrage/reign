@@ -97,7 +97,7 @@ class GameClient {
 	lastRoll = $state.raw<Roll | null>(null);
 	/**
 	 * Cards on their way to a hand (dealt off the tiles by a roll or a second settlement, taken
-	 * with a Monopoly, picked with a Year of Plenty) that haven't reached it yet.
+	 * with a Monopoly, picked with a Year of Plenty, traded) that haven't reached it yet.
 	 */
 	dealt = $state.raw<Dealt[]>([]);
 	/** This player asked for a roll and the server hasn't answered yet. */
@@ -339,7 +339,7 @@ class GameClient {
 			return;
 		}
 		// Cards that fly to a hand: dealt off the tiles, taken with a Monopoly, picked from the bank
-		// with a Year of Plenty.
+		// with a Year of Plenty, bought from the bank or a harbor, traded between players.
 		const gains: Gain[] = [];
 		for (const e of view.log) {
 			if (e.seq <= after) continue;
@@ -349,6 +349,14 @@ class GameClient {
 				if (amount) gains.push({ player: e.player, resource: e.resource, amount });
 			} else if (e.type === 'yearOfPlenty') {
 				for (const resource of e.resources) gains.push({ player: e.player, resource, amount: 1 });
+			} else if (e.type === 'bankTrade') {
+				gains.push({ player: e.player, resource: e.get, amount: 1 });
+			} else if (e.type === 'tradeCompleted') {
+				// Each side's cards go to the other.
+				for (const [resource, amount] of Object.entries(e.give) as [Resource, number][])
+					if (amount) gains.push({ player: e.to, resource, amount });
+				for (const [resource, amount] of Object.entries(e.want) as [Resource, number][])
+					if (amount) gains.push({ player: e.from, resource, amount });
 			}
 		}
 		if (gains.length) this.deal(gains);

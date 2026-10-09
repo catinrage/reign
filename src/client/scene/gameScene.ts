@@ -556,21 +556,57 @@ export class GameScene {
 
 	/** A Year of Plenty: each card rises off the bank's pile of its kind on the table. */
 	private popFromBank(resources: string[], player: number) {
-		const piles: THREE.Object3D[] = [];
-		this.room.props.traverse((o) => {
-			if (o.userData.cards) piles.push(o);
-		});
 		resources.forEach((resource, k) => {
-			const pile = piles.find((o) => o.userData.cards === resource);
-			// Before the room has its piles, from over the middle of the island.
-			const top = pile ? new THREE.Box3().setFromObject(pile) : null;
-			const start = top ? top.getCenter(new THREE.Vector3()).setY(top.max.y + 1) : new THREE.Vector3(0, 30, 0);
+			const start = this.pileTop(resource);
 			start.x += (Math.random() - 0.5) * 2;
 			start.z += (Math.random() - 0.5) * 2;
 			// The piles sit on the table's rim, often near the edge of the screen: a lower rise
 			// keeps the card in sight.
 			this.riseAndFly(start, resource, player, k * 0.25, 9);
 		});
+	}
+
+	/** Just over the bank's pile of `resource` on the table. */
+	private pileTop(resource: string): THREE.Vector3 {
+		const piles: THREE.Object3D[] = [];
+		this.room.props.traverse((o) => {
+			if (o.userData.cards) piles.push(o);
+		});
+		const pile = piles.find((o) => o.userData.cards === resource);
+		// Before the room has its piles, over the middle of the island.
+		if (!pile) return new THREE.Vector3(0, 30, 0);
+		const box = new THREE.Box3().setFromObject(pile);
+		return box.getCenter(new THREE.Vector3()).setY(box.max.y + 1);
+	}
+
+	/**
+	 * Where the cards of a bank trade go in and come out: just over the bank's pile of `resource`,
+	 * or over harbor `harbor` (an index into the board's harbors) when the trade went through one.
+	 */
+	private tradeSpot(resource: string, harbor: number): THREE.Vector3 {
+		const at = harbor >= 0 ? this.boardView?.harborSpot(harbor) : null;
+		return at ? at.setY(at.y + 2) : this.pileTop(resource);
+	}
+
+	/**
+	 * Where on screen the cards paid in a bank trade land: on the bank's pile of `resource`, or on
+	 * the harbor.
+	 */
+	tradeTarget(resource: string, harbor: number) {
+		return this.onScreen(this.tradeSpot(resource, harbor));
+	}
+
+	/** A card paid in a bank trade reached the pile or the harbor. */
+	tradeLanded(resource: string, harbor: number) {
+		this.particles.sparkle(this.tradeSpot(resource, harbor), '#fff1b8', 5);
+	}
+
+	/**
+	 * The card bought in a bank trade rises off the bank's pile of its kind, or off the harbor, and
+	 * flies to `player`.
+	 */
+	tradeOut(resource: string, harbor: number, player: number) {
+		this.riseAndFly(this.tradeSpot(resource, harbor), resource, player, 0, harbor >= 0 ? 12 : 9);
 	}
 
 	/**
@@ -591,13 +627,7 @@ export class GameScene {
 		}, ease.linear, delay).then(() => {
 			this.stage.scene.remove(item);
 			// It flies on from where it is, or from the nearest edge if it rose out of sight.
-			const el = this.stage.canvas;
-			const at = this.project(item.position);
-			const screen = {
-				x: THREE.MathUtils.clamp(at.x, 40, el.clientWidth - 40),
-				y: THREE.MathUtils.clamp(at.y, 40, el.clientHeight - 40)
-			};
-			this.callbacks.onResourcePopped?.(player, resource, screen);
+			this.callbacks.onResourcePopped?.(player, resource, this.onScreen(item.position));
 			this.particles.sparkle(item.position, '#fff1b8', 6);
 		});
 	}
@@ -606,6 +636,21 @@ export class GameScene {
 		const v = p.clone().project(this.stage.camera);
 		const el = this.stage.canvas;
 		return { x: ((v.x + 1) / 2) * el.clientWidth, y: ((1 - v.y) / 2) * el.clientHeight };
+	}
+
+	/**
+	 * Where `p` is on screen, kept clear of the edges so a card flying from or to it stays in
+	 * sight: when `p` is out of view, the nearest point toward it.
+	 */
+	private onScreen(p: THREE.Vector3) {
+		const v = p.clone().project(this.stage.camera);
+		// Behind the camera the projection comes out mirrored: turn it round and push it off screen.
+		if (v.z > 1) v.multiplyScalar(-1e3);
+		const el = this.stage.canvas;
+		return {
+			x: THREE.MathUtils.clamp(((v.x + 1) / 2) * el.clientWidth, 40, el.clientWidth - 40),
+			y: THREE.MathUtils.clamp(((1 - v.y) / 2) * el.clientHeight, 40, el.clientHeight - 40)
+		};
 	}
 
 	// ------------------------------------------------------------ picking
