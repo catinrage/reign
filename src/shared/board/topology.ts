@@ -72,6 +72,17 @@ export function getTopology(board: Board): Topology {
 	return topo;
 }
 
+/**
+ * The same island with some tiles changed (a terrain or a number token, never where a tile is).
+ * It is a new board, so states that shared the old one keep it, and it shares the old one's
+ * topology, which only depends on where the tiles and harbors are.
+ */
+export function retile(board: Board, change: (hex: BoardHex, i: number) => BoardHex): Board {
+	const next: Board = { ...board, hexes: board.hexes.map(change) };
+	cache.set(next, getTopology(board));
+	return next;
+}
+
 function pointKey(x: number, z: number): string {
 	return `${Math.round(x * 1000)},${Math.round(z * 1000)}`;
 }

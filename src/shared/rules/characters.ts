@@ -135,6 +135,80 @@ export const CHARACTER_INFO: Record<CharacterId, CharacterInfo> = {
 	}
 };
 
+/**
+ * When a power can be used on its owner's turn: before the roll, after it, or either. Powers are
+ * worth about one development card each and never scale with the table or the stage of the game.
+ */
+export type PowerTiming = 'roll' | 'main' | 'either';
+
+/** What a power needs picked before it goes off. */
+export type PowerTarget = 'none' | 'player' | 'vertex' | 'hex' | 'twoHexes' | 'number' | 'trade';
+
+export interface PowerInfo {
+	name: string;
+	text: string;
+	when: PowerTiming;
+	target: PowerTarget;
+}
+
+export const POWER_INFO: Record<CharacterId, PowerInfo> = {
+	merchant: { name: 'Market Day', text: 'Trade up to 4 cards with the bank at 1:1.', when: 'main', target: 'trade' },
+	mason: { name: 'Master Builder', text: 'Turn one of your settlements into a city for a single Ore.', when: 'main', target: 'vertex' },
+	scholar: { name: 'Eureka', text: 'Take a free development card. It can be played this same turn.', when: 'either', target: 'none' },
+	veteran: {
+		name: 'Call to Arms',
+		text: 'Play a free Knight: it moves the robber and counts toward Largest Army, on top of any card this turn.',
+		when: 'either',
+		target: 'none'
+	},
+	rogue: { name: 'Pickpocket', text: 'Steal 2 cards from any one player, no robber needed.', when: 'main', target: 'player' },
+	steward: {
+		name: 'Tithe',
+		text: 'Name a number: your tiles with it pay you as if it were rolled, up to 3 cards.',
+		when: 'main',
+		target: 'number'
+	},
+	shepherd: {
+		name: 'Drive Off',
+		text: 'Chase the robber back to the desert and take a card from whoever last moved it.',
+		when: 'either',
+		target: 'none'
+	},
+	explorer: { name: 'Pathfinder', text: 'Build 2 roads for free.', when: 'either', target: 'none' },
+	seer: { name: 'Foresight', text: 'Instead of rolling once, roll three times and keep the roll you like.', when: 'roll', target: 'none' },
+	alchemist: {
+		name: 'Transmute Land',
+		text: 'Turn one tile into a different terrain for the rest of the game (not the desert).',
+		when: 'either',
+		target: 'hex'
+	},
+	bard: { name: 'Encore', text: 'Everyone collects the last roll again.', when: 'main', target: 'none' },
+	witch: { name: 'Hex', text: 'Hex a player: they collect nothing from the next two rolls.', when: 'either', target: 'player' },
+	cartographer: {
+		name: 'Redraw the Map',
+		text: 'Swap the numbers on two tiles beside your settlements or cities.',
+		when: 'either',
+		target: 'twoHexes'
+	},
+	baron: {
+		name: 'Land Grant',
+		text: 'Claim an empty corner: only you can build a settlement there.',
+		when: 'either',
+		target: 'vertex'
+	},
+	abbess: { name: 'Blessing', text: 'Bless a tile: it pays double the next two times it produces.', when: 'either', target: 'hex' },
+	jester: { name: 'Mischief', text: "Pool every player's hand and deal the cards back out evenly.", when: 'main', target: 'none' }
+};
+
+/** Most cards the Merchant's Market Day trades, and the Steward's Tithe pays. */
+export const MARKET_DAY_CARDS = 4;
+export const TITHE_CAP = 3;
+/** Rolls the Witch's Hex lasts, and times the Abbess's Blessing pays double. */
+export const HEX_ROLLS = 2;
+export const BLESSINGS = 2;
+/** Rolls the Seer's Foresight shows her. */
+export const FORESIGHT_ROLLS = 3;
+
 /** Cards the Steward holds on a 7 beyond the table's hand limit. */
 export const STEWARD_EXTRA = 3;
 

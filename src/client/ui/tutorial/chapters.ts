@@ -127,7 +127,7 @@ export const CHAPTERS: Chapter[] = [
 		id: 'characters',
 		mode: 'extended',
 		title: 'Characters',
-		lede: 'Every player plays a character whose trait bends one rule in their favor.',
+		lede: 'Every player plays a character whose trait bends one rule in their favor, with a power to save for the right moment.',
 		icon: TUT_ICON.mask,
 		page: Characters
 	},

@@ -1,6 +1,6 @@
 import { generateBoard, generateStandardBoard } from '../board/generate';
 import { mapName, mapTiles } from '../board/maps';
-import { type Board, getTopology } from '../board/topology';
+import { type Board, getTopology, retile } from '../board/topology';
 import { nextRandom, randomInt, shuffle } from '../rng';
 import {
 	BANK_PER_RESOURCE,
@@ -23,10 +23,11 @@ import {
 	type DevCardType,
 	type PlayerColor,
 	type Resource,
-	type ResourceCounts
+	type ResourceCounts,
+	type Terrain
 } from './config';
 import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules } from './buildings';
-import type { CharacterId } from './characters';
+import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
 import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, startRound, tilePays } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import {
@@ -36,10 +37,12 @@ import {
 	aloneLast,
 	discardLimit,
 	holderOf,
+	isVertexFree,
 	longestRoad,
 	longestRoadMin,
 	paymentFor,
 	playersOnHex,
+	powerReady,
 	publicPoints,
 	roadSpots,
 	tradeRatios,
@@ -111,7 +114,8 @@ export function createGame(
 				devCards: [],
 				knightsPlayed: 0,
 				piecesLeft: extended ? pieceLimits(opts.pointsToWin) : { ...PIECE_LIMITS },
-				longestRoad: 0
+				longestRoad: 0,
+				powerUsed: null
 			})
 		),
 		phase: drafting ? 'draft' : 'setup',
@@ -143,6 +147,14 @@ export function createGame(
 		picks: {},
 		bardTurn: -1,
 		alms: [],
+		powers: extended && opts.powers,
+		powerRecharge: Math.max(0, Math.floor(opts.powerRecharge) || 0),
+		robberHome: desert >= 0 ? desert : 0,
+		robberMover: null,
+		hexed: {},
+		blessed: {},
+		claims: {},
+		rollChoices: null,
 		longestRoadHolder: null,
 		largestArmyHolder: null,
 		winner: null,
@@ -278,6 +290,10 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 			return tearDownWorkshop(ctx, p, a.hex);
 		case 'rollDice':
 			return roll(ctx, p);
+		case 'keepRoll':
+			return keepRoll(ctx, p, a.index);
+		case 'usePower':
+			return usePower(ctx, p, a);
 		case 'moveRobber':
 			return moveRobber(ctx, p, a.hex);
 		case 'steal':
@@ -395,11 +411,36 @@ function setupRoad(ctx: Ctx, p: number, edge: number) {
 function roll(ctx: Ctx, p: number) {
 	const s = ctx.s;
 	if (s.step !== 'roll') fail("You can't roll right now.");
+	rollWith(ctx, p, throwDice(s));
+}
+
+function throwDice(s: GameState): [number, number] {
 	const d1 = 1 + randomInt(s, 6);
 	const d2 = 1 + randomInt(s, 6);
+	return [d1, d2];
+}
+
+/** The Seer keeps one of the rolls her Foresight showed her, and it plays out as if just rolled. */
+function keepRoll(ctx: Ctx, p: number, index: number) {
+	const s = ctx.s;
+	if (s.step !== 'chooseRoll' || !s.rollChoices) fail('There are no rolls to choose from.');
+	const dice = s.rollChoices[index];
+	if (!dice) fail('Pick one of the rolls.');
+	s.rollChoices = null;
+	rollWith(ctx, p, [dice[0], dice[1]]);
+}
+
+function rollWith(ctx: Ctx, p: number, dice: [number, number]) {
+	const s = ctx.s;
+	const [d1, d2] = dice;
 	s.dice = [d1, d2];
 	ctx.emit({ type: 'diceRolled', player: p, dice: [d1, d2] });
 	const total = d1 + d2;
+	// The Witch's Hex wears off one roll at a time, whatever was rolled.
+	const hexedNow = { ...(s.hexed ?? {}) };
+	for (const k of Object.keys(s.hexed ?? {})) {
+		if (--s.hexed[Number(k)] <= 0) delete s.hexed[Number(k)];
+	}
 	// The Seer's second sight: a card of choice on a 2 or a 12, whoever rolled it.
 	if (total === 2 || total === 12) {
 		const seer = holderOf(s, 'seer');
@@ -419,7 +460,7 @@ function roll(ctx: Ctx, p: number) {
 			ctx.emit({ type: 'traitGain', player: i, character: 'shepherd', resource: 'sheep' });
 		});
 		// Migrating Herds: pastures pay on a 7 too.
-		if (s.events?.current === 'migratingHerds') produce(ctx, total);
+		if (s.events?.current === 'migratingHerds') produce(ctx, total, { hexed: hexedNow });
 		if (s.events) s.events.comet = false;
 		s.pendingDiscards = pending;
 		s.alms = [];
@@ -432,17 +473,26 @@ function roll(ctx: Ctx, p: number) {
 		}
 		return;
 	}
-	produce(ctx, total);
+	produce(ctx, total, { hexed: hexedNow });
 	// A Comet pays out one roll twice.
 	if (s.events) s.events.comet = false;
 	s.step = 'main';
 }
 
-function produce(ctx: Ctx, total: number) {
+interface ProduceOptions {
+	/** Players under the Witch's Hex for this roll, who collect nothing. */
+	hexed?: Record<number, number>;
+	/** The Steward's Tithe: only this player collects, at most `cap` cards, and blessings sleep. */
+	only?: number;
+	cap?: number;
+}
+
+function produce(ctx: Ctx, total: number, opts: ProduceOptions = {}) {
 	const s = ctx.s;
 	const topo = getTopology(s.board);
-	const owed: ResourceGain[] = [];
+	let owed: ResourceGain[] = [];
 	const blocked: number[] = [];
+	const tithe = opts.only !== undefined;
 	s.board.hexes.forEach((hex, h) => {
 		if (!tilePays(s, hex, total)) return;
 		const res = TERRAIN_RESOURCE[hex.terrain];
@@ -453,6 +503,7 @@ function produce(ctx: Ctx, total: number) {
 			if (topo.hexes[h].vertices.some((v) => s.buildings[v])) blocked.push(h);
 			return;
 		}
+		const before = owed.length;
 		for (const v of topo.hexes[h].vertices) {
 			const b = s.buildings[v];
 			if (b) owed.push({ player: b.owner, hex: h, resource: res, amount: (b.kind === 'city' ? 2 : 1) * k });
@@ -460,7 +511,23 @@ function produce(ctx: Ctx, total: number) {
 		// A workshop adds a card for its owner, who always has a building on the tile.
 		const w = s.workshops[h];
 		if (w !== null) owed.push({ player: w, hex: h, resource: res, amount: k, workshop: true });
+		// The Abbess's Blessing doubles what the tile pays, and wears off each time it pays.
+		if (!tithe && s.blessed?.[h] && owed.length > before) {
+			for (let i = before; i < owed.length; i++) owed[i] = { ...owed[i], amount: owed[i].amount * 2, blessed: true };
+			if (--s.blessed[h] <= 0) delete s.blessed[h];
+		}
 	});
+	const hexed = [...new Set(owed.filter((g) => opts.hexed?.[g.player]).map((g) => g.player))];
+	owed = owed.filter((g) => !opts.hexed?.[g.player]);
+	if (tithe) {
+		owed = owed.filter((g) => g.player === opts.only);
+		let left = opts.cap ?? Infinity;
+		owed = owed.flatMap((g) => {
+			const amount = Math.min(left, g.amount);
+			left -= amount;
+			return amount > 0 ? [{ ...g, amount }] : [];
+		});
+	}
 	// Bank shortage: if the bank can't pay everyone a resource, nobody gets it,
 	// unless only one player is owed it, who then takes what is left.
 	const shortages: Resource[] = [];
@@ -488,8 +555,9 @@ function produce(ctx: Ctx, total: number) {
 		s.bank[g.resource] -= g.amount;
 		s.players[g.player].resources[g.resource] += g.amount;
 	}
-	if (gains.length || blocked.length) ctx.emit({ type: 'produced', gains, blocked, shortages });
-	else ctx.emit({ type: 'nothingProduced', total });
+	if (gains.length || blocked.length || hexed.length) {
+		ctx.emit({ type: 'produced', gains, blocked, shortages, ...(hexed.length ? { hexed } : {}) });
+	} else ctx.emit({ type: 'nothingProduced', total });
 }
 
 function discard(ctx: Ctx, p: number, res: Partial<ResourceCounts>) {
@@ -562,6 +630,7 @@ function moveRobber(ctx: Ctx, p: number, hex: number) {
 	if (!s.board.hexes[hex]) fail('Pick a tile on the island.');
 	if (hex === s.robberHex) fail('The robber has to move to a different tile.');
 	s.robberHex = hex;
+	s.robberMover = p;
 	ctx.emit({ type: 'robberMoved', player: p, hex });
 	const victims = playersOnHex(s, hex, p).filter(
 		(v) => totalResources(s.players[v].resources) > 0
@@ -588,22 +657,22 @@ function doSteal(ctx: Ctx, p: number, victim: number) {
 	const s = ctx.s;
 	// The Rogue takes a second card if there is one.
 	const times = s.players[p].character === 'rogue' ? 2 : 1;
-	for (let k = 0; k < times; k++) {
-		// The Witch's purse bites back: the thief pays her instead.
-		if (s.players[victim].character === 'witch') {
-			traitToll(ctx, p, victim, 'witch');
-			continue;
-		}
-		const hand: Resource[] = [];
-		for (const r of RESOURCES) for (let i = 0; i < s.players[victim].resources[r]; i++) hand.push(r);
-		if (!hand.length) break;
-		const res = hand[randomInt(s, hand.length)];
-		s.players[victim].resources[res]--;
-		s.players[p].resources[res]++;
-		ctx.emit({ type: 'stole', thief: p, victim, resource: res });
-	}
+	for (let k = 0; k < times; k++) stealOne(ctx, p, victim);
 	s.stealCandidates = [];
 	s.step = s.resumeStep;
+}
+
+/** One random card from the victim to the thief; the Witch's purse bites back and the thief pays her instead. */
+function stealOne(ctx: Ctx, p: number, victim: number) {
+	const s = ctx.s;
+	if (s.players[victim].character === 'witch') return traitToll(ctx, p, victim, 'witch');
+	const hand: Resource[] = [];
+	for (const r of RESOURCES) for (let i = 0; i < s.players[victim].resources[r]; i++) hand.push(r);
+	if (!hand.length) return;
+	const res = hand[randomInt(s, hand.length)];
+	s.players[victim].resources[res]--;
+	s.players[p].resources[res]++;
+	ctx.emit({ type: 'stole', thief: p, victim, resource: res });
 }
 
 // ---------------------------------------------------------------- building
@@ -827,6 +896,210 @@ function playDevCard(
 		}
 	}
 	checkWin(ctx);
+}
+
+// ---------------------------------------------------------------- character powers
+
+type PowerAction = Extract<Action, { type: 'usePower' }>;
+
+/**
+ * A character's power, on its owner's turn: before the roll, after it, or either, as the power
+ * says. It goes off once per game, or again after the rounds the host set.
+ */
+function usePower(ctx: Ctx, p: number, a: PowerAction) {
+	const s = ctx.s;
+	const pl = s.players[p];
+	const ch = pl.character;
+	if (!s.powers) fail('Powers are not part of this game.');
+	if (!ch) fail('You have no character.');
+	if (!powerReady(s, p)) fail(s.powerRecharge ? 'Your power is still recharging.' : 'You have already used your power.');
+	const info = POWER_INFO[ch];
+	if (s.step !== 'roll' && s.step !== 'main') fail("You can't use your power right now.");
+	if (info.when === 'roll' && s.step !== 'roll') fail(`${info.name} is used instead of rolling.`);
+	if (info.when === 'main' && s.step !== 'main') fail('Roll the dice first.');
+	pl.powerUsed = s.turn;
+	const step = s.step as 'roll' | 'main';
+	const used = (extra: Omit<Extract<GameEvent, { type: 'powerUsed' }>, 'seq' | 'type' | 'player' | 'character'> = {}) =>
+		ctx.emit({ type: 'powerUsed', player: p, character: ch, ...extra });
+
+	switch (ch) {
+		case 'merchant': {
+			const give = sanitize(a.give ?? {});
+			const get = sanitize(a.get ?? {});
+			const n = totalResources(give);
+			if (n === 0 || n !== totalResources(get)) fail('Give and take the same number of cards.');
+			if (n > MARKET_DAY_CARDS) fail(`Trade at most ${MARKET_DAY_CARDS} cards.`);
+			if (RESOURCES.some((r) => (give[r] ?? 0) > 0 && (get[r] ?? 0) > 0)) fail("You can't give and take the same resource.");
+			if (!hasResources(pl.resources, give)) fail("You don't have those cards.");
+			if (!hasResources(s.bank, get)) fail("The bank doesn't have those cards.");
+			used({ give, get });
+			transfer(pl.resources, s.bank, give);
+			transfer(s.bank, pl.resources, get);
+			break;
+		}
+		case 'mason': {
+			const v = a.vertex ?? -1;
+			const b = s.buildings[v];
+			if (!b || b.owner !== p || b.kind !== 'settlement') fail('Pick one of your settlements.');
+			if (pl.piecesLeft.city <= 0) fail('You have no cities left.');
+			if (pl.resources.ore < 1) fail('You need an Ore.');
+			used({ vertex: v });
+			pl.resources.ore--;
+			s.bank.ore++;
+			s.buildings[v] = { owner: p, kind: 'city' };
+			pl.piecesLeft.city--;
+			pl.piecesLeft.settlement++;
+			ctx.emit({ type: 'built', player: p, kind: 'city', at: v, free: false });
+			break;
+		}
+		case 'scholar': {
+			if (s.devDeck.length === 0) fail('The development deck is empty.');
+			used();
+			const card = s.devDeck.pop()!;
+			// Dated the turn before, so it can be played straight away.
+			pl.devCards.push({ type: card, boughtTurn: s.turn - 1 });
+			ctx.emit({ type: 'devCardBought', player: p, card });
+			break;
+		}
+		case 'veteran':
+			used();
+			pl.knightsPlayed++;
+			updateLargestArmy(ctx);
+			s.resumeStep = step;
+			s.step = 'moveRobber';
+			break;
+		case 'rogue': {
+			const t = target(s, p, a.target);
+			if (totalResources(s.players[t].resources) === 0) fail('They have no cards to steal.');
+			used({ target: t });
+			stealOne(ctx, p, t);
+			stealOne(ctx, p, t);
+			break;
+		}
+		case 'steward': {
+			const n = a.number ?? 0;
+			if (!Number.isInteger(n) || n < 2 || n > 12 || n === 7) fail('Name a number from 2 to 12, other than 7.');
+			used({ number: n });
+			produce(ctx, n, { only: p, cap: TITHE_CAP });
+			break;
+		}
+		case 'shepherd': {
+			if (s.robberHex === s.robberHome) fail('The robber is already home.');
+			used({ hex: s.robberHome });
+			s.robberHex = s.robberHome;
+			ctx.emit({ type: 'robberMoved', player: p, hex: s.robberHome });
+			const mover = s.robberMover;
+			s.robberMover = p;
+			if (mover !== null && mover !== p) stealOne(ctx, p, mover);
+			break;
+		}
+		case 'explorer':
+			if (pl.piecesLeft.road <= 0 || roadSpots(s, p).length === 0) fail('You have nowhere to build a road.');
+			used();
+			s.resumeStep = step;
+			s.roadBuildingLeft = 2;
+			s.step = 'roadBuilding';
+			break;
+		case 'seer': {
+			used();
+			const rolls: [number, number][] = [];
+			for (let i = 0; i < FORESIGHT_ROLLS; i++) rolls.push(throwDice(s));
+			s.rollChoices = rolls;
+			s.step = 'chooseRoll';
+			ctx.emit({ type: 'rollChoices', player: p, rolls: rolls.map((r) => [r[0], r[1]]) });
+			break;
+		}
+		case 'alchemist': {
+			const h = tile(s, a.hex);
+			const terrain = a.terrain as Terrain;
+			if (!TERRAIN_RESOURCE[s.board.hexes[h].terrain]) fail('Pick a tile that produces something.');
+			if (!terrain || !TERRAIN_RESOURCE[terrain]) fail('Pick a terrain that produces something.');
+			if (terrain === s.board.hexes[h].terrain) fail('Pick a different terrain.');
+			used({ hex: h, terrain });
+			s.board = retile(s.board, (hex, i) => (i === h ? { ...hex, terrain } : hex));
+			break;
+		}
+		case 'bard': {
+			const total = s.dice ? s.dice[0] + s.dice[1] : 0;
+			if (!total || total === 7) fail('Encore needs a roll that paid out.');
+			used({ number: total });
+			produce(ctx, total, { hexed: s.hexed });
+			break;
+		}
+		case 'witch': {
+			const t = target(s, p, a.target);
+			used({ target: t });
+			(s.hexed ??= {})[t] = HEX_ROLLS;
+			break;
+		}
+		case 'cartographer': {
+			const h1 = tile(s, a.hex);
+			const h2 = tile(s, a.hex2);
+			const mine = (h: number) => getTopology(s.board).hexes[h].vertices.some((v) => s.buildings[v]?.owner === p);
+			if (h1 === h2) fail('Pick two different tiles.');
+			const n1 = s.board.hexes[h1].number;
+			const n2 = s.board.hexes[h2].number;
+			if (n1 === null || n2 === null) fail('Both tiles need a number.');
+			if (n1 === n2) fail('Those tiles have the same number.');
+			if (!mine(h1) || !mine(h2)) fail('Both tiles have to be beside your settlements or cities.');
+			used({ hex: h1, hex2: h2 });
+			s.board = retile(s.board, (hex, i) => (i === h1 ? { ...hex, number: n2 } : i === h2 ? { ...hex, number: n1 } : hex));
+			break;
+		}
+		case 'baron': {
+			const v = a.vertex ?? -1;
+			if (!isVertexFree(s, v)) fail('Pick an empty corner with room for a settlement.');
+			if ((s.claims ??= {})[v] !== undefined) fail('That corner is already claimed.');
+			used({ vertex: v });
+			s.claims[v] = p;
+			break;
+		}
+		case 'abbess': {
+			const h = tile(s, a.hex);
+			if (!TERRAIN_RESOURCE[s.board.hexes[h].terrain] || s.board.hexes[h].number === null) {
+				fail('Pick a tile that produces something.');
+			}
+			used({ hex: h });
+			(s.blessed ??= {})[h] = BLESSINGS;
+			break;
+		}
+		case 'jester': {
+			used();
+			const before = s.players.map((o) => totalResources(o.resources));
+			const pool: Resource[] = [];
+			for (const o of s.players) {
+				for (const r of RESOURCES) for (let i = 0; i < o.resources[r]; i++) pool.push(r);
+				o.resources = emptyResources();
+			}
+			shuffle(s, pool);
+			// Even shares; the cards left over go to players picked at random, one each.
+			const n = s.players.length;
+			const share = Math.floor(pool.length / n);
+			const extra = new Set(shuffle(s, [...Array(n).keys()]).slice(0, pool.length - share * n));
+			let k = 0;
+			s.players.forEach((o, i) => {
+				const count = share + (extra.has(i) ? 1 : 0);
+				for (let j = 0; j < count; j++) o.resources[pool[k++]]++;
+			});
+			// Hands changed under any open offer.
+			s.trade = null;
+			ctx.emit({ type: 'mischief', player: p, before, after: s.players.map((o) => totalResources(o.resources)) });
+			break;
+		}
+	}
+	checkWin(ctx);
+}
+
+/** Another player picked by a power. */
+function target(s: GameState, p: number, t: number | undefined): number {
+	if (t === undefined || !Number.isInteger(t) || !s.players[t] || t === p) fail('Pick another player.');
+	return t;
+}
+
+/** A tile picked by a power. */
+function tile(s: GameState, h: number | undefined): number {
+	if (h === undefined || !Number.isInteger(h) || !s.board.hexes[h]) fail('Pick a tile on the island.');
+	return h;
 }
 
 // ---------------------------------------------------------------- trading

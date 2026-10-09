@@ -102,12 +102,14 @@ export class RobberAim {
 	}
 
 	/** Light up `hex` (null: none) in `color` (0xrrggbb). */
-	set(board: BoardView | null, hex: number | null, color: number) {
+	set(board: BoardView | null, hex: number | null, color: number, ghost = true) {
 		if (hex === null || !board) {
 			this.on = false;
 			return;
 		}
 		this.on = true;
+		// A power that picks a tile lights it the same way, with no robber floating over it.
+		this.ghost.visible = ghost;
 		this.color.set(color);
 		this.hue.copy(this.color).multiplyScalar(1 / Math.max(this.color.r, this.color.g, this.color.b, 1e-3));
 		sharedUniforms.uAimColor.value.copy(this.color);

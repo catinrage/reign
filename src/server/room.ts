@@ -20,6 +20,7 @@ import { cleanEventRules } from '../shared/rules/events';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
 import {
 	DEFAULT_SETTINGS,
+	POWER_RECHARGES,
 	GAME_MODES,
 	characterPool,
 	maxPointsFor,
@@ -369,6 +370,16 @@ export class Room {
 				if (!isHost || this.lockedSettings) return;
 				if (this.settings.characters !== !!msg.on) this.unready();
 				this.settings.characters = !!msg.on;
+				return this.broadcastLobby();
+			case 'setPowers':
+				if (!isHost || this.lockedSettings) return;
+				if (this.settings.powers !== !!msg.on) this.unready();
+				this.settings.powers = !!msg.on;
+				return this.broadcastLobby();
+			case 'setRecharge':
+				if (!isHost || this.lockedSettings || !POWER_RECHARGES.includes(msg.rounds)) return;
+				if (this.settings.powerRecharge !== msg.rounds) this.unready();
+				this.settings.powerRecharge = msg.rounds;
 				return this.broadcastLobby();
 			case 'leaveOut': {
 				if (!isHost || this.lockedSettings || !isCharacter(msg.character)) return;
