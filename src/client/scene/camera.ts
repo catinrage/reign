@@ -1,8 +1,42 @@
 import * as THREE from 'three';
 
+/** A box around the origin the camera has to stay in (world units): the room, less a margin. */
+export interface CameraBounds {
+	/** Half the box's width, on x and on z. */
+	half: number;
+	/** The highest the camera goes. */
+	top: number;
+}
+
+export interface CameraPose {
+	target: THREE.Vector3;
+	azimuth: number;
+	polar: number;
+	radius: number;
+}
+
+/** Unit vector from the target towards the camera. */
+export function orbitDirection(azimuth: number, polar: number, out = new THREE.Vector3()) {
+	const s = Math.sin(polar);
+	return out.set(s * Math.sin(azimuth), Math.cos(polar), s * Math.cos(azimuth));
+}
+
+/** How far the camera can back away from `target` along `dir` before it leaves the box. */
+export function roomToBack(target: THREE.Vector3, dir: THREE.Vector3, box: CameraBounds) {
+	let r = Infinity;
+	if (dir.x > 1e-6) r = Math.min(r, (box.half - target.x) / dir.x);
+	if (dir.x < -1e-6) r = Math.min(r, (-box.half - target.x) / dir.x);
+	if (dir.z > 1e-6) r = Math.min(r, (box.half - target.z) / dir.z);
+	if (dir.z < -1e-6) r = Math.min(r, (-box.half - target.z) / dir.z);
+	if (dir.y > 1e-6) r = Math.min(r, (box.top - target.y) / dir.y);
+	return Math.max(0, r);
+}
+
 /**
  * Orbit-style camera with damping, tuned for a tabletop: drag to turn, right-drag or
  * two fingers to pan, wheel or pinch to zoom. `flyTo` animates to a new framing.
+ * With `bounds` set the camera never leaves the room: where the orbit would take it
+ * through a wall or the ceiling, it comes in closer along its line of sight instead.
  */
 export class CameraRig {
 	target = new THREE.Vector3(0, 0, 8);
@@ -11,11 +45,14 @@ export class CameraRig {
 	radius = 330;
 
 	private goal = { target: new THREE.Vector3(0, 0, 8), azimuth: -0.62, polar: 0.86, radius: 330 };
-	limits = { minPolar: 0.25, maxPolar: 1.18, minRadius: 70, maxRadius: 480, pan: 150 };
+	limits = { minPolar: 0.25, maxPolar: 1.18, minRadius: 46, maxRadius: 480, pan: 150 };
+	/** The room the camera stays inside, if any. */
+	bounds: CameraBounds | null = null;
 	autoRotate = 0;
 	enabled = true;
 	/** True if the last pointer gesture moved enough to count as a drag, not a click. */
 	dragged = false;
+	private dir = new THREE.Vector3();
 
 	private pointers = new Map<number, { x: number; y: number }>();
 	private downAt = { x: 0, y: 0 };
@@ -104,16 +141,35 @@ export class CameraRig {
 	}
 
 	private zoom(f: number) {
-		this.goal.radius = THREE.MathUtils.clamp(this.goal.radius * f, this.limits.minRadius, this.limits.maxRadius);
+		// Zooming out stops at the wall, and zooming in starts from where the camera really is.
+		const room = this.roomFor(this.goal);
+		const max = Math.max(this.limits.minRadius, Math.min(this.limits.maxRadius, room));
+		const radius = Math.min(this.goal.radius, room) * f;
+		this.goal.radius = THREE.MathUtils.clamp(radius, this.limits.minRadius, max);
+	}
+
+	/** How far the camera can be from the target in this pose without leaving the room. */
+	private roomFor(p: CameraPose) {
+		if (!this.bounds) return Infinity;
+		return roomToBack(p.target, orbitDirection(p.azimuth, p.polar, this.dir), this.bounds);
+	}
+
+	/** Where the camera ends up for a pose: as asked, or closer in if the room is in the way. */
+	positionFor(p: CameraPose, out = new THREE.Vector3()) {
+		const r = Math.min(p.radius, this.roomFor(p));
+		return out.copy(p.target).addScaledVector(orbitDirection(p.azimuth, p.polar, this.dir), r);
 	}
 
 	private pan(dx: number, dy: number, h: number) {
-		const scale = (this.radius / h) * 0.9;
+		// About one and a half times the pointer's speed over the table, whatever the lens.
+		const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+		const scale = ((this.radius * tan) / h) * 3.1;
 		const right = new THREE.Vector3(Math.cos(this.azimuth), 0, -Math.sin(this.azimuth));
 		const fwd = new THREE.Vector3(Math.sin(this.azimuth), 0, Math.cos(this.azimuth));
 		this.goal.target.addScaledVector(right, -dx * scale).addScaledVector(fwd, -dy * scale);
+		const max = this.bounds ? Math.min(this.limits.pan, this.bounds.half - 30) : this.limits.pan;
 		const len = Math.hypot(this.goal.target.x, this.goal.target.z);
-		if (len > this.limits.pan) this.goal.target.multiplyScalar(this.limits.pan / len);
+		if (len > max) this.goal.target.multiplyScalar(max / len);
 	}
 
 	update(dt: number) {
@@ -127,12 +183,9 @@ export class CameraRig {
 	}
 
 	private apply() {
-		const s = Math.sin(this.polar);
-		this.camera.position.set(
-			this.target.x + this.radius * s * Math.sin(this.azimuth),
-			this.target.y + this.radius * Math.cos(this.polar),
-			this.target.z + this.radius * s * Math.cos(this.azimuth)
-		);
+		// Pressed against a wall the camera comes in, and eases back out once there is room.
+		this.radius = Math.min(this.radius, this.roomFor(this));
+		this.positionFor(this, this.camera.position);
 		this.camera.lookAt(this.target);
 	}
 

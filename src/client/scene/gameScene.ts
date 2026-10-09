@@ -174,7 +174,7 @@ export class GameScene {
 		this.boardView!.setRobber(this.boardView!.board.hexes.findIndex((h) => h.terrain === 'desert'), true);
 		this.clearPieces();
 		this.stage.rig.autoRotate = 0.05;
-		this.stage.rig.set({ radius: 360, polar: 0.92 });
+		this.stage.rig.set({ radius: this.menuRadius(103, 0.92), polar: 0.92 });
 	}
 
 	/**
@@ -189,7 +189,7 @@ export class GameScene {
 		const seed = (Math.random() * 1e9) | 0;
 		this.setBoard(tiles ? generateBoard(tiles, { rng: seed }) : generateStandardBoard({ rng: seed }), seed);
 		this.boardView!.setRobber(this.boardView!.board.hexes.findIndex((h) => h.terrain === 'desert'), true);
-		this.stage.rig.set({ radius: Math.min(470, (360 * this.reach) / 54) });
+		this.stage.rig.set({ radius: this.menuRadius(Math.min(135, (103 * this.reach) / 54), 0.92) });
 	}
 
 	private setBoard(board: Board, seed: number, plots = false) {
@@ -241,7 +241,8 @@ export class GameScene {
 				this.stage.rig.autoRotate = 0;
 				// Each player looks at the table from their own side.
 				const seat = Math.max(0, view.me);
-				const goal = { ...this.framing(), azimuth: -0.62 + seat * (Math.PI / 2), target: new THREE.Vector3(0, 0, 0) };
+				const azimuth = -0.62 + seat * (Math.PI / 2);
+				const goal = { ...this.framing(azimuth), azimuth, target: new THREE.Vector3(0, 0, 0) };
 				this.stage.rig.set(goal);
 				if (this.room.ready) this.dice.place(this.diceSpots(this.cameraAt(goal)).ends);
 			}
@@ -261,15 +262,46 @@ export class GameScene {
 		this.highlighted = seat;
 	}
 
-	/** Distance and tilt that fit the island on screen, including tall phone screens. */
-	private framing() {
+	/**
+	 * Distance and tilt that fit the island on screen seen from `azimuth`, including tall phone
+	 * screens: all of it across the screen, the near edge of its land 72% of the way down from the
+	 * middle (just above the hand) and the far edge at most 80% of the way up. Where the room is
+	 * too small for that, the camera stops at a wall or the ceiling.
+	 */
+	private framing(azimuth: number) {
 		const cam = this.stage.camera;
 		const aspect = cam.aspect;
-		const vHalf = THREE.MathUtils.degToRad(cam.fov / 2);
-		const hHalf = Math.atan(Math.tan(vHalf) * aspect);
-		const fit = (80 * Math.max(1, this.reach / 54)) / Math.tan(hHalf);
-		const radius = THREE.MathUtils.clamp(Math.max(218, fit * 0.95), 180, 480);
-		return { radius, polar: aspect < 0.8 ? 0.62 : 0.82 };
+		const polar = aspect < 0.8 ? 0.62 : 0.82;
+		const tan = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+		// How far the land reaches towards the camera, away from it and to either side: a long
+		// island seen from the side needs less room than seen end on.
+		const [x, z] = [Math.sin(azimuth), Math.cos(azimuth)];
+		let near = 0;
+		let far = 0;
+		let side = 0;
+		for (const t of getTopology(this.boardView!.board).hexes) {
+			near = Math.max(near, t.x * x + t.z * z);
+			far = Math.max(far, -t.x * x - t.z * z);
+			side = Math.max(side, Math.abs(t.x * z - t.z * x));
+		}
+		const land = (d: number) => d * HEX_R + HEX_R;
+		const across = ((80 * Math.max(1, land(side) / 54)) / (tan * aspect)) * 0.95;
+		const [s, c] = [Math.sin(polar), Math.cos(polar)];
+		// Never closer than for the classic island.
+		const shore = Math.max(54, land(near)) * (s + c / (0.72 * tan));
+		const top = land(far) * (c / (0.8 * tan) - s);
+		return { radius: Math.max(across, shore, top), polar };
+	}
+
+	/**
+	 * Distance for the menus' slow turn round the table: far enough back for the view to reach
+	 * `h` world units above and below the target, and close enough that the camera never has to
+	 * come in at a wall as it turns.
+	 */
+	private menuRadius(h: number, polar: number) {
+		const r = h / Math.tan(THREE.MathUtils.degToRad(this.stage.camera.fov / 2));
+		const room = this.stage.rig.bounds;
+		return room ? Math.min(r, (room.half - 8) / Math.sin(polar), room.top / Math.cos(polar)) : r;
 	}
 
 	private clearPieces() {
@@ -507,11 +539,10 @@ export class GameScene {
 		return boxes;
 	}
 
-	/** A copy of the camera placed where a rig framing would put it. */
+	/** A copy of the camera placed where a rig framing would put it (inside the room). */
 	private cameraAt(f: { radius: number; polar: number; azimuth: number; target: THREE.Vector3 }) {
 		const cam = this.stage.camera.clone();
-		const s = Math.sin(f.polar);
-		cam.position.set(f.target.x + f.radius * s * Math.sin(f.azimuth), f.target.y + f.radius * Math.cos(f.polar), f.target.z + f.radius * s * Math.cos(f.azimuth));
+		this.stage.rig.positionFor(f, cam.position);
 		cam.lookAt(f.target);
 		cam.updateMatrixWorld();
 		return cam;

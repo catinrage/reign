@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Stage } from '../stage';
 import { hex } from '../voxel/grid';
-import { FIRE_LIGHT, buildFireplace } from './fireplace';
+import { FIRE_LIGHT, buildChimney, buildFireplace } from './fireplace';
 import {
 	buildArmchair,
 	buildCandles,
@@ -16,10 +16,10 @@ import {
 	buildTray,
 	buildWindow
 } from './props';
-import { type Side, buildFloor, buildWall, wallFrame } from './shell';
+import { type Side, buildCeiling, buildFloor, buildWalls, wallFrame } from './shell';
 import { SHELF_S, buildBookcase } from './shelves';
 import { buildTable, placeChairs } from './table';
-import { FLOOR_Y, ROOM_HALF, ROOM_SCALE, place } from './util';
+import { FLOOR_Y, ROOM_HALF, ROOM_SCALE, WALL_H, place } from './util';
 
 /** The cozy room around the board: table, furniture, fireplace, decorations. */
 export interface Room {
@@ -32,7 +32,9 @@ export interface Room {
 	readonly tableHalf: number;
 	/**
 	 * Grow the table for a bigger island (1 is the standard table): the top is rebuilt wider and
-	 * the chairs and everything standing on the rim move out with its edge.
+	 * the chairs and everything standing on the rim move out with its edge. The room grows too:
+	 * the walls move out, with all that stands against them, and the ceiling goes up, so the
+	 * camera still has room to stand back.
 	 */
 	fitTable(scale: number): void;
 	update(dt: number, t: number): void;
@@ -42,7 +44,17 @@ const N = <T extends THREE.Object3D>(o: T, name: string) => ((o.name = name), o)
 /** Table-top layout in room units: everything sits on the rim outside the board's sea. */
 const MUG = { x: -104, z: -126 };
 const LANTERN = { x: -128, z: -100 };
-const OUTWARD: Record<Side, [number, number]> = { nx: [-1, 0], px: [1, 0], nz: [0, -1], pz: [0, 1] };
+const SIDES: Side[] = ['nx', 'px', 'nz', 'pz'];
+/**
+ * The camera keeps this far (room units) from the walls, clear of the bookcases and the mantel,
+ * and this far under the ceiling beams.
+ */
+const CAMERA_WALL = 50;
+const CAMERA_BEAMS = 16;
+/** The beams hang this far under the ceiling boards. */
+const BEAM_DEPTH = 24;
+
+const dispose = (o: THREE.Object3D) => o.traverse((c) => (c as THREE.Mesh).geometry?.dispose());
 
 export function buildRoom(stage: Stage): Room {
 	const t0 = performance.now();
@@ -59,14 +71,21 @@ export function buildRoom(stage: Stage): Room {
 	// ---------------------------------------------------------------- table, chairs, floor
 	let tableScale = 1;
 	let tableHalfVox = 37;
+	/** Half the room's width and its height in room units: the room grows for a bigger table. */
+	let roomHalf = ROOM_HALF;
+	let roomH = WALL_H;
 	let table = N(buildTable(), 'table');
 	group.add(table);
 	let chairs = placeChairs(group);
 	for (const c of chairs) c.name = 'chair';
-	const floor = buildFloor();
-	floor.position.y = FLOOR_Y;
-	floor.name = 'floor';
-	group.add(floor);
+	/** The floor reaches the walls, and the rug stays under the chairs. */
+	const makeFloor = () => {
+		const f = N(buildFloor(roomHalf, Math.round(37 * tableScale)), 'floor');
+		f.position.y = FLOOR_Y;
+		group.add(f);
+		return f;
+	};
+	let floor = makeFloor();
 
 	// Everything but the table, chairs and floor is built in small slices right after
 	// buildRoom returns (see `pump` below), so the first frame is quick.
@@ -75,32 +94,83 @@ export function buildRoom(stage: Stage): Room {
 	const soon = (fn: () => void) => queue.unshift(fn);
 
 	// ---------------------------------------------------------------- walls and what stands against them
+	// The room is closed all round (floor, walls and a beamed ceiling) and the camera never
+	// leaves it, so whichever way it looks there is more room, never the dark outside.
 	const sides: Record<Side, THREE.Group> = { nx: new THREE.Group(), px: new THREE.Group(), nz: new THREE.Group(), pz: new THREE.Group() };
-	for (const s of Object.keys(sides) as Side[]) {
+	let walls: Record<Side, THREE.Object3D> | undefined;
+	let ceiling: THREE.Object3D | undefined;
+	/** Swap a piece of the shell for one built at the room's current size. */
+	const rebuild = (
+		old: THREE.Object3D | undefined,
+		next: THREE.Object3D,
+		parent: THREE.Object3D
+	) => {
+		if (old) {
+			parent.remove(old);
+			dispose(old);
+		}
+		parent.add(next);
+		return next;
+	};
+	const buildSides = () => {
+		const next = buildWalls(roomHalf, roomH);
+		for (const s of SIDES) rebuild(walls?.[s], N(next[s], 'wall'), sides[s]);
+		walls = next;
+	};
+	const buildTop = () => {
+		ceiling = rebuild(ceiling, N(buildCeiling(roomHalf, roomH), 'ceiling'), group);
+	};
+	for (const s of SIDES) {
 		sides[s].name = `side-${s}`;
 		group.add(sides[s]);
-		later(() => sides[s].add(N(buildWall(s), 'wall')));
 	}
+	later(buildSides);
+	later(buildTop);
+
+	/** The camera stays in the room. */
+	const keepCameraIn = () => {
+		const top = FLOOR_Y + roomH - BEAM_DEPTH - CAMERA_BEAMS;
+		stage.rig.bounds = { half: (roomHalf - CAMERA_WALL) * K, top: top * K };
+	};
+	keepCameraIn();
 
 	const shelfW = 30;
 	const shelves: THREE.Group[] = [];
 	const shelfSeeds = [3, 8, 15];
 	let shelfN = 0;
-	/** Put an object against a wall: `along` is the left edge (or centre) along the wall. */
+	/**
+	 * Put an object against a wall: `along` is the left edge (or centre) along the wall, as it is
+	 * in the standard room; in a bigger room things spread out along the longer walls.
+	 */
 	const against = (side: Side, obj: THREE.Object3D, along: number, out: number, y = FLOOR_Y, turn = 0) => {
-		const f = wallFrame(side)(along, out);
-		const p = place(obj, f.x, y, f.z, f.rot + turn);
+		const p = place(obj, 0, y, 0);
 		p.name = obj.name || 'item';
+		p.userData.wall = { side, along, out, turn };
 		sides[side].add(p);
+		return putAgainst(p);
+	};
+	/** Stand a piece in its place against its wall, at the room's current size. */
+	const putAgainst = (p: THREE.Object3D) => {
+		const w: { side: Side; along: number; out: number; turn: number } = p.userData.wall;
+		const f = wallFrame(w.side, roomHalf)((w.along * roomHalf) / ROOM_HALF, w.out);
+		p.position.x = f.x;
+		p.position.z = f.z;
+		p.rotation.y = f.rot + w.turn;
 		return p;
 	};
+	/** Set something on a piece against a wall (x along it, z out from it), to move with it. */
+	const onto = (base: THREE.Object3D, obj: THREE.Object3D, x: number, y: number, z: number) =>
+		base.add(place(obj, x, y, z));
 	const bookcase = (side: Side, left: number, plant?: { seed: number; at: number; hang: number }) =>
 		later(() => {
 			const i = shelfN++ % shelfSeeds.length;
 			if (!shelves[i]) shelves[i] = N(buildBookcase({ width: shelfW, height: 50, seed: shelfSeeds[i] }), 'bookcase');
 			const b = shelfN <= shelfSeeds.length ? shelves[i] : shelves[i].clone(true);
-			against(side, b, left, 0);
-			if (plant && hq) against(side, N(buildPlant('hanging', plant.seed, 2, plant.hang, 8), 'vine'), left + plant.at, 22, FLOOR_Y + 51 * SHELF_S);
+			const p = against(side, b, left, 0);
+			if (plant && hq) {
+				const vine = N(buildPlant('hanging', plant.seed, 2, plant.hang, 8), 'vine');
+				onto(p, vine, plant.at, 51 * SHELF_S, 22);
+			}
 		});
 	const item = (side: Side, make: () => THREE.Object3D, name: string, along: number, out: number, y = FLOOR_Y, turn = 0, onlyHq = false) => {
 		if (!onlyHq || hq) later(() => against(side, N(make(), name), along, out, y, turn));
@@ -109,15 +179,21 @@ export function buildRoom(stage: Stage): Room {
 	// Right wall (+x): the fireplace, seen back-right from the default view, with the cat's
 	// armchair beside it.
 	const fireLeft = -160;
-	const fireAt = wallFrame('px')(fireLeft + FIRE_LIGHT.x, FIRE_LIGHT.z);
-	flame(fireAt.x, FLOOR_Y + FIRE_LIGHT.y, fireAt.z, '#ff6a1e', 950, 1100);
+	const fireLight = flame(0, FLOOR_Y + FIRE_LIGHT.y, 0, '#ff6a1e', 950, 1100);
+	let hearth: THREE.Object3D | undefined;
+	let chimney: THREE.Object3D | undefined;
+	/** The chimney breast goes on up to the ceiling, however high the room is. */
+	const buildFlue = () => {
+		if (hearth) chimney = rebuild(chimney, N(buildChimney(roomH), 'chimney'), hearth);
+	};
 	soon(() => {
 		const fire = buildFireplace();
-		against('px', N(fire.group, 'fireplace'), fireLeft, 0);
+		hearth = against('px', N(fire.group, 'fireplace'), fireLeft, 0);
+		buildFlue();
 		updaters.push(fire.update);
-		against('px', N(buildLantern(), 'lantern'), fireLeft + 20, 24, FLOOR_Y + fire.mantelY);
-		against('px', N(buildCandles(), 'candles'), fireLeft + 112, 26, FLOOR_Y + fire.mantelY);
-		against('px', N(buildPlant('hanging', 31, 1.4, 16, 13), 'plant'), fireLeft + 40, 30, FLOOR_Y + fire.mantelY);
+		onto(hearth, N(buildLantern(), 'lantern'), 20, fire.mantelY, 24);
+		onto(hearth, N(buildCandles(), 'candles'), 112, fire.mantelY, 26);
+		onto(hearth, N(buildPlant('hanging', 31, 1.4, 16, 13), 'plant'), 40, fire.mantelY, 30);
 	});
 	later(() => {
 		const chair = buildArmchair();
@@ -126,7 +202,7 @@ export function buildRoom(stage: Stage): Room {
 		cat.group.position.set(-2, 36, 6);
 		cat.group.rotation.y = 0.3;
 		chair.add(cat.group);
-		sides.px.add(N(place(chair, 226, FLOOR_Y, -226, -0.7), 'armchair'));
+		against('px', N(chair, 'armchair'), -226, 74, FLOOR_Y, Math.PI / 2 - 0.7);
 		updaters.push((_dt, t) => cat.update(t));
 	});
 	item('px', buildLogBasket, 'logbasket', fireLeft + 176, 40, FLOOR_Y, 0.25);
@@ -139,10 +215,16 @@ export function buildRoom(stage: Stage): Room {
 	bookcase('nz', -168);
 	item('nz', buildChest, 'chest', -8, 24);
 	item('nz', buildLantern, 'lantern', -16, 26, FLOOR_Y + 38, 0.4);
-	{
-		const at = wallFrame('nz')(-16, 40);
-		flame(at.x, FLOOR_Y + 52, at.z, '#ff9a3a', 140, 360);
-	}
+	const chestLight = flame(0, FLOOR_Y + 52, 0, '#ff9a3a', 140, 360);
+	/** The fire's light and the chest lantern's move out with their walls. */
+	const placeLights = () => {
+		const k = roomHalf / ROOM_HALF;
+		const fire = wallFrame('px', roomHalf)(fireLeft * k + FIRE_LIGHT.x, FIRE_LIGHT.z);
+		fireLight.position.set(fire.x * K, fireLight.position.y, fire.z * K);
+		const lamp = wallFrame('nz', roomHalf)(-16 * k, 40);
+		chestLight.position.set(lamp.x * K, chestLight.position.y, lamp.z * K);
+	};
+	placeLights();
 	bookcase('nz', 62, { seed: 12, at: 60, hang: 30 });
 	item('nz', () => buildPlant('tall', 21, 2.2), 'plant', 222, 36);
 	item('nz', () => buildPlant('bush', 19, 2.4), 'plant', 272, 30, FLOOR_Y, 0, true);
@@ -231,17 +313,6 @@ export function buildRoom(stage: Stage): Room {
 	// ---------------------------------------------------------------- lights
 	const tableLight = flame(LANTERN.x, 12, LANTERN.z, '#ffb04a', 80, 320);
 
-	// ---------------------------------------------------------------- cutaway walls
-	// The camera can orbit outside the room; a wall (and what stands against it) between
-	// the camera and the table is hidden.
-	const cam = stage.camera.position;
-	updaters.push(() => {
-		for (const s of Object.keys(sides) as Side[]) {
-			const [nx, nz] = OUTWARD[s];
-			sides[s].visible = (cam.x * nx + cam.z * nz) / K < ROOM_HALF - 80;
-		}
-	});
-
 	group.scale.setScalar(K);
 	stage.scene.add(group);
 	group.userData.roomBuildMs = performance.now() - t0;
@@ -268,7 +339,7 @@ export function buildRoom(stage: Stage): Room {
 			if (half === tableHalfVox) return;
 			const f = half / 37;
 			group.remove(table);
-			table.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+			dispose(table);
 			table = N(buildTable(half), 'table');
 			group.add(table);
 			for (const c of chairs) group.remove(c);
@@ -278,6 +349,18 @@ export function buildRoom(stage: Stage): Room {
 			tableScale = f;
 			tableHalfVox = half;
 			layoutTable();
+			// The room grows in proportion with the table, the ceiling too (in whole 8-unit voxels).
+			roomHalf = ROOM_HALF + Math.round((ROOM_HALF * (f - 1)) / 8) * 8;
+			roomH = Math.round((WALL_H * roomHalf) / ROOM_HALF / 8) * 8;
+			group.remove(floor);
+			dispose(floor);
+			floor = makeFloor();
+			if (walls) buildSides();
+			for (const s of SIDES) for (const p of sides[s].children) if (p.userData.wall) putAgainst(p);
+			if (ceiling) buildTop();
+			buildFlue();
+			placeLights();
+			keepCameraIn();
 		},
 		update(dt, t) {
 			for (const u of updaters) u(dt, t);

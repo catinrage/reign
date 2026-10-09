@@ -13,6 +13,8 @@ export const ROOM_SCALE = 0.7;
 export const FLOOR_Y = -111;
 /** Half the room's width in room units: walls stand at x, z = ±ROOM_HALF. */
 export const ROOM_HALF = 300;
+/** Floor to ceiling in room units. A bigger table gets a wider and higher room. */
+export const WALL_H = 400;
 
 /**
  * Shared material options. Sway must match the board's options: the voxel shader bakes
