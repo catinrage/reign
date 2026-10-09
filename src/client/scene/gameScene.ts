@@ -299,7 +299,7 @@ export class GameScene {
 				const spot = this.diceSpots();
 				const total = e.dice[0] + e.dice[1];
 				// As the dice land, the numbers rolled light up and the interface shows the roll.
-				this.diceLanded = this.dice.roll(e.dice, spot.from, spot.ends).then(() => {
+				this.diceLanded = this.dice.roll(e.dice, spot.from, spot.ends, spot.yaw).then(() => {
 					this.flashTokens(total);
 					this.callbacks.onDiceSettled?.(e.dice, e.seq);
 				});
@@ -376,7 +376,9 @@ export class GameScene {
 		const c = best ?? toCam.clone().multiplyScalar(lim);
 		const jitter = () => new THREE.Vector3((Math.random() - 0.5) * 1.6, 0, (Math.random() - 0.5) * 1.6);
 		const ends: [THREE.Vector3, THREE.Vector3] = [c.clone().addScaledVector(right, -gap).add(jitter()), c.clone().addScaledVector(right, gap).add(jitter())];
-		return { ends, from: c.clone().addScaledVector(toCam, 24).setY(26) };
+		// The turn that lines a die's faces up with the screen: its x axis along the view's right.
+		const yaw = Math.atan2(-fwd.x, -fwd.z);
+		return { ends, from: c.clone().addScaledVector(toCam, 24).setY(26), yaw };
 	}
 
 	/** Screen areas (in NDC) behind the HUD's panels: plaques, log, hand, buttons. */

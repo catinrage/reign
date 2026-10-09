@@ -47,9 +47,15 @@ export class Dice {
 
 	/**
 	 * Toss from `from` (the thrower's side) so the dice land at `ends`, showing `values`. They come
-	 * to rest about a second after the roll, when the interface shows the result.
+	 * to rest about a second after the roll, when the interface shows the result. `yaw` is the turn
+	 * about the vertical that squares a die's faces with the view (see `GameScene.diceSpots`).
 	 */
-	async roll(values: [number, number], from: THREE.Vector3, ends: [THREE.Vector3, THREE.Vector3]) {
+	async roll(
+		values: [number, number],
+		from: THREE.Vector3,
+		ends: [THREE.Vector3, THREE.Vector3],
+		yaw = Math.random() * Math.PI * 2
+	) {
 		this.rolling = true;
 		const duration = 0.95;
 		const mid = ends[0].clone().add(ends[1]).multiplyScalar(0.5);
@@ -59,7 +65,10 @@ export class Dice {
 				const end = ends[i].clone().setY(HALF);
 				// Side by side all the way, so the two paths never cross.
 				const start = from.clone().add(ends[i].clone().sub(mid).setY(0));
-				const qEnd = this.faceUp(values[i], Math.random() * Math.PI * 2);
+				// They come to rest square to the view, give or take a few degrees, so the spots on
+				// top read at a glance.
+				const turn = (Math.floor(Math.random() * 4) * Math.PI) / 2 + (Math.random() - 0.5) * 0.14;
+				const qEnd = this.faceUp(values[i], yaw + turn);
 				const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
 				// Fewer turns for the shorter toss, so they spin as fast as before.
 				const spins = (2.2 + Math.random() * 1.4) * Math.PI * 2;

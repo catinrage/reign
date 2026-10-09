@@ -127,6 +127,10 @@
 	function react(e: GameEvent) {
 		const me = view.me;
 		switch (e.type) {
+			case 'diceRolled':
+				// A 7 lands with a sting of its own: the robber is coming.
+				if (e.dice[0] + e.dice[1] === 7) sfx.seven();
+				break;
 			case 'turnStarted':
 				if (e.player === me && e.turn > 0) {
 					sfx.turn();
