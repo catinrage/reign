@@ -129,6 +129,11 @@ class GameClient {
 		else if (msg.t !== 'ping') this.queue.push(msg);
 	}
 
+	/** Pause the game for everyone at the table, or resume it. */
+	pauseGame(paused: boolean) {
+		this.send({ t: 'pauseGame', paused });
+	}
+
 	setName(name: string) {
 		this.name = name;
 		storage('reign:name', name);

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../src/shared/protocol';
 import { Room } from '../src/server/room';
+import { settlementSpots } from '../src/shared/rules/queries';
 import type { Action, GameEvent } from '../src/shared/rules/types';
 
 /** A stand-in socket that records what the room sends. */
@@ -72,6 +73,68 @@ describe('game menu pause', () => {
 		const again = fakeSocket();
 		room.join(again.ws, 'Komeil', seat.token);
 		expect(room.lobbyInfo().paused).toBe(false);
+		room.dispose();
+	});
+});
+
+describe('pause for everyone', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('lets any player pause the game and anyone resume it', () => {
+		const { room, host, guest, a, b } = twoPlayers(30);
+		const first = room.game!.current;
+		const seat = room.seats[first];
+		const socket = seat === host ? a : b;
+		const place = () =>
+			room.handle(
+				seat,
+				{
+					t: 'action',
+					action: { type: 'placeSettlement', vertex: settlementSpots(room.game!, first, true)[0] }
+				},
+				socket.ws
+			);
+		vi.advanceTimersByTime(10_000);
+		room.handle(guest, { t: 'pauseGame', paused: true }, b.ws);
+		expect(last(a.sent, 'lobby').lobby).toMatchObject({
+			paused: true,
+			pausedBy: guest.id,
+			clock: { left: 20_000, running: false }
+		});
+		// Nobody can play while it is paused, and the turn doesn't run out.
+		place();
+		expect(last(socket.sent, 'error').message).toBe('The game is paused.');
+		vi.advanceTimersByTime(5 * 60_000);
+		expect(room.game!.current).toBe(first);
+		expect(room.game!.buildings.some(Boolean)).toBe(false);
+
+		room.handle(host, { t: 'pauseGame', paused: false }, a.ws);
+		expect(last(b.sent, 'lobby').lobby).toMatchObject({
+			paused: false,
+			pausedBy: null,
+			clock: { left: 20_000, running: true }
+		});
+		place();
+		expect(room.game!.buildings.some(Boolean)).toBe(true);
+		room.dispose();
+	});
+
+	it('stops the bots in a game against bots until someone resumes', () => {
+		const { room, seat, me } = soloTable();
+		room.handle(seat, { t: 'pauseGame', paused: true }, me.ws);
+		const log = room.game!.log.length;
+		vi.advanceTimersByTime(60_000);
+		expect(room.game!.log.length).toBe(log);
+		// Closing the game menu doesn't resume a paused game.
+		room.handle(seat, { t: 'pause', paused: true }, me.ws);
+		room.handle(seat, { t: 'pause', paused: false }, me.ws);
+		expect(room.lobbyInfo()).toMatchObject({ paused: true, pausedBy: seat.id });
+
+		room.handle(seat, { t: 'pauseGame', paused: false }, me.ws);
+		expect(room.lobbyInfo()).toMatchObject({ paused: false, pausedBy: null });
+		vi.advanceTimersByTime(60_000);
+		const myIndex = room.seats.indexOf(seat);
+		expect(room.game!.log.length > log || room.game!.current === myIndex).toBe(true);
 		room.dispose();
 	});
 });

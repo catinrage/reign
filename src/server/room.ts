@@ -52,6 +52,8 @@ export class Room {
 	private botTurnKey = '';
 	/** Seats that have the game menu open. */
 	private pausedBy = new Set<string>();
+	/** The seat that paused the game for everyone, or null. Anyone at the table can resume it. */
+	private heldBy: string | null = null;
 	/**
 	 * The turn clock: the turn it is timing ('' when off), the ms left while it is stopped, and
 	 * while it runs, when it runs out (Date.now() time) and the timer for that moment.
@@ -68,9 +70,13 @@ export class Room {
 		return this.game !== null;
 	}
 
-	/** The table pauses only when every connected player has the menu open (a solo game vs bots). */
+	/**
+	 * The table stops when a player pauses the game for everyone, or when every connected player
+	 * has the menu open (a solo game vs bots).
+	 */
 	get paused() {
 		if (!this.game || this.game.phase === 'ended') return false;
+		if (this.heldBy) return true;
 		const humans = this.seats.filter((s) => !s.isBot && s.sockets.size > 0);
 		return humans.length > 0 && humans.every((s) => this.pausedBy.has(s.id));
 	}
@@ -81,6 +87,7 @@ export class Room {
 			started: this.started,
 			maxPlayers: MAX_PLAYERS,
 			paused: this.paused,
+			pausedBy: this.paused ? this.heldBy : null,
 			turnTime: this.turnTime,
 			settings: this.settings,
 			clock: this.clockInfo(),
@@ -244,6 +251,7 @@ export class Room {
 				}
 				for (const s of this.seats) if (!s.isBot) s.ready = false;
 				this.pausedBy.clear();
+				this.heldBy = null;
 				// Random seating order makes the first player fair.
 				this.seats.sort(() => Math.random() - 0.5);
 				this.game = createGame(
@@ -257,6 +265,7 @@ export class Room {
 				return this.scheduleBots();
 			case 'action': {
 				if (!this.game) return;
+				if (this.heldBy) return send(ws, { t: 'error', message: 'The game is paused.' });
 				const res = applyAction(this.game, this.seatIndex(seat), msg.action);
 				if (!res.ok) return send(ws, { t: 'error', message: res.error });
 				this.game = res.state;
@@ -274,12 +283,14 @@ export class Room {
 				if (msg.paused) this.pausedBy.add(seat.id);
 				else this.pausedBy.delete(seat.id);
 				if (this.paused === was) return;
-				if (this.paused && this.botTimer) {
-					clearTimeout(this.botTimer);
-					this.botTimer = null;
-				}
-				this.broadcastLobby();
-				return this.scheduleBots();
+				return this.pauseChanged();
+			}
+			case 'pauseGame': {
+				if (!this.game || this.game.phase === 'ended') return;
+				const held = msg.paused ? (this.heldBy ?? seat.id) : null;
+				if (held === this.heldBy) return;
+				this.heldBy = held;
+				return this.pauseChanged();
 			}
 			case 'cheat': {
 				if (!this.cheats) return send(ws, { t: 'error', message: 'Cheats only work on the dev server.' });
@@ -300,6 +311,16 @@ export class Room {
 				seat.sockets.delete(ws);
 				return this.disconnect(ws);
 		}
+	}
+
+	/** Stop the bots when the table pauses, let them go on when it resumes, and tell everyone. */
+	private pauseChanged() {
+		if (this.paused && this.botTimer) {
+			clearTimeout(this.botTimer);
+			this.botTimer = null;
+		}
+		this.broadcastLobby();
+		this.scheduleBots();
 	}
 
 	isEmpty() {
