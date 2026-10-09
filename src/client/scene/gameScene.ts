@@ -20,7 +20,8 @@ import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { sharedUniforms } from './voxel/materials';
 
-export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop' | 'stoneRoad';
+/** `stoneRoad` picks one of your roads to pave, `tearDown` one of your own workshops to tear down. */
+export type PickKind = 'settlement' | 'road' | 'city' | 'robber' | 'workshop' | 'stoneRoad' | 'tearDown';
 
 export interface PickRequest {
 	kind: PickKind;
@@ -395,7 +396,8 @@ export class GameScene {
 		for (const [key, p] of this.pieces) {
 			if (want.has(key)) continue;
 			this.pieces.delete(key);
-			if (animate) {
+			if (animate && key.startsWith('w')) this.tearDown(p.obj);
+			else if (animate) {
 				const o = p.obj;
 				this.anim.tween(0.25, (t) => o.scale.setScalar((1 - t) * o.scale.x + 0.0001), ease.linear).then(() => this.stage.scene.remove(o));
 			} else this.stage.scene.remove(p.obj);
@@ -491,6 +493,14 @@ export class GameScene {
 			case 'setupResources':
 				for (const g of e.gains) this.popResource(g.hex, g.resource, g.player, g.amount);
 				break;
+			case 'tornDown': {
+				// What the bank gives back rises from the rubble as the workshop slumps.
+				const at = bv.plotSpot(e.hex)?.pos;
+				this.anim.wait(0.5).then(() => {
+					for (const [res, n] of Object.entries(e.refund)) if (n) this.popResource(e.hex, res, e.player, n, at);
+				});
+				break;
+			}
 			case 'yearOfPlenty':
 				// After any dice still in the air, as the interface counts the cards only then.
 				this.diceLanded.then(() => this.popFromBank(e.resources, e.player));
@@ -600,6 +610,33 @@ export class GameScene {
 			this.particles.sparkle(tok.position.clone().setY(tok.position.y + 3), '#ffe39a', 10);
 			this.anim.wait(2.2).then(() => (tok.userData.highlight = false));
 		});
+	}
+
+	/** A workshop torn down: it shudders, then slumps into the ground in a cloud of dust and splinters. */
+	private tearDown(obj: THREE.Object3D) {
+		const base = obj.position.clone();
+		const s = obj.scale.x;
+		const yaw = obj.rotation.y;
+		const shudder = 0.35;
+		this.anim.tween(shudder, (t) => {
+			obj.rotation.set(Math.sin(t * 60) * 0.05, yaw, Math.cos(t * 47) * 0.05);
+		}, ease.linear).then(() => {
+			const at = base.clone().setY(base.y + 1);
+			this.particles.emit({ at, count: 40, colors: ['#c9b89b', '#b3a07f', '#ddd0b6', '#9c8a6e'], speed: 7, up: 2.2, spread: 4, life: 1.5, size: 1.5, gravity: 1.2, drag: 2.4 });
+			this.particles.emit({ at: at.clone().setY(base.y + 4), count: 18, colors: ['#6b4a2f', '#8a6239', '#7d7770', '#a39c92'], speed: 5, up: 9, spread: 2.5, life: 1.1, size: 0.55, gravity: 26, drag: 0.6 });
+			return this.anim.tween(0.7, (t) => {
+				const k = t * t * t;
+				obj.position.set(base.x, base.y - k * 9 * s, base.z);
+				obj.rotation.set(Math.sin(t * 34) * 0.06 * (1 - t), yaw, k * 0.18);
+				obj.scale.set(s * (1 + k * 0.12), s * (1 - k * 0.5), s * (1 + k * 0.12));
+			}, ease.linear);
+		}).then(() => this.stage.scene.remove(obj));
+	}
+
+	/** The workshop standing on a tile, if there is one. */
+	private workshopPiece(hex: number): THREE.Object3D | null {
+		for (const p of this.pieces.values()) if (p.key.startsWith(`w${hex}:`)) return p.obj;
+		return null;
 	}
 
 	/** A workshop that just paid gives a little hop and a sparkle. */
@@ -730,6 +767,7 @@ export class GameScene {
 	// ------------------------------------------------------------ picking
 
 	setPick(req: PickRequest | null) {
+		if (this.pick?.kind === 'tearDown') for (const p of this.pieces.values()) if (p.key.startsWith('w')) p.obj.rotation.z = 0;
 		this.pick = req;
 		this.ghosts.clear();
 		this.ghostHits = [];
@@ -737,8 +775,10 @@ export class GameScene {
 		if (!req || !this.boardView) return;
 		const bv = this.boardView;
 		const color = PLAYER_RGB[req.color] ?? 0xffffff;
-		const mat = ghostMaterial(color);
-		const markerMat = markerMaterial(color);
+		// Tearing down is marked in red, whoever's workshop it is.
+		const tint = req.kind === 'tearDown' ? TEAR_DOWN_RGB : color;
+		const mat = ghostMaterial(tint);
+		const markerMat = markerMaterial(tint);
 		for (const id of req.options) {
 			let model: THREE.Object3D | null = null;
 			let pos = new THREE.Vector3();
@@ -754,7 +794,7 @@ export class GameScene {
 				const ep = bv.edgePos(id);
 				pos = ep.pos;
 				rot = ep.angle;
-			} else if (req.kind === 'workshop') {
+			} else if (req.kind === 'workshop' || req.kind === 'tearDown') {
 				const res = TERRAIN_RESOURCE[bv.board.hexes[id].terrain];
 				const spot = bv.plotSpot(id);
 				if (!res || !spot) continue;
@@ -781,7 +821,8 @@ export class GameScene {
 				m.material = mat;
 			});
 			const edge = req.kind === 'road' || req.kind === 'stoneRoad';
-			ghost.scale.setScalar(edge ? 0.7 : req.kind === 'workshop' ? WORKSHOP_SCALE : PIECE_SCALE);
+			const shop = req.kind === 'workshop' || req.kind === 'tearDown';
+			ghost.scale.setScalar(edge ? 0.7 : shop ? WORKSHOP_SCALE : PIECE_SCALE);
 			ghost.userData.base = ghost.scale.x;
 			ghost.name = 'ghost';
 			ghost.visible = false;
@@ -797,7 +838,7 @@ export class GameScene {
 				gem.position.y = markerHeight(req.kind);
 				gem.name = 'marker';
 				slot.add(gem);
-				const ring = new THREE.Mesh(MARKER_RING, ringMaterial(color));
+				const ring = new THREE.Mesh(MARKER_RING, ringMaterial(tint));
 				ring.rotation.x = -Math.PI / 2;
 				ring.position.y = 0.3;
 				ring.name = 'ring';
@@ -1099,7 +1140,12 @@ export class GameScene {
 			const marker = slot.getObjectByName('marker');
 			const ring = slot.getObjectByName('ring');
 			ghost.visible = hovered;
-			if (hovered) {
+			if (this.pick?.kind === 'tearDown') {
+				// The workshop itself trembles inside a red shell.
+				ghost.scale.setScalar(ghost.userData.base * 1.06);
+				const shop = this.workshopPiece(slot.userData.id);
+				if (shop) shop.rotation.z = hovered ? Math.sin(t * 40) * 0.03 : 0;
+			} else if (hovered) {
 				const s = THREE.MathUtils.lerp(ghost.scale.x, ghost.userData.base * 1.12, 0.3);
 				ghost.scale.setScalar(s);
 				ghost.position.y = 1.5 + Math.sin(t * 5) * 0.4;
@@ -1136,8 +1182,11 @@ export class GameScene {
 
 /** How high a pick's glowing gem floats above its spot, clear of the piece that would go there. */
 function markerHeight(kind: PickKind) {
-	return kind === 'city' ? 11 : kind === 'workshop' ? 9.5 : 4.5;
+	return kind === 'city' ? 11 : kind === 'workshop' || kind === 'tearDown' ? 9.5 : 4.5;
 }
+
+/** Picking a workshop to tear down glows in this red. */
+const TEAR_DOWN_RGB = 0xff5a3c;
 
 const MARKER_GEM = new THREE.OctahedronGeometry(1.5, 0).scale(1, 1.45, 1);
 const MARKER_BAR = new THREE.BoxGeometry(6.5, 0.9, 0.9);

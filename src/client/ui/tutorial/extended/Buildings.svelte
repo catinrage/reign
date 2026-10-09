@@ -64,6 +64,12 @@
 			nobody gets it, workshop or not.</span
 		>
 	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.trade} alt="" /><span
+			>Found a better tile? Once you have rolled, pick <b>Tear down</b> and click one of your
+			workshops: it's gone, the bank gives you back a Lumber, and you can build it somewhere else.</span
+		>
+	</li>
 </ul>
 
 <div class="kinds">

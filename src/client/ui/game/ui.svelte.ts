@@ -3,7 +3,8 @@ import type { BoardSpot } from '../../scene/gameScene';
 
 /** Local interface state that isn't part of the game (open panels, build mode). */
 class UiState {
-	build = $state<Exclude<BuildKind, 'devCard'> | null>(null);
+	/** What a click on the board builds; 'tearDown' picks one of your workshops to tear down. */
+	build = $state<Exclude<BuildKind, 'devCard'> | 'tearDown' | null>(null);
 	trade = $state(false);
 	flash = $state(false);
 	logOpen = $state(typeof window === 'undefined' || window.innerWidth > 900);

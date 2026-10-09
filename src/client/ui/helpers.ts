@@ -245,6 +245,11 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return [P(e.player), T(' ran out of time')];
 		case 'built':
 			return [P(e.player), T(` built ${builtName(view, e.kind, e.at)}`)];
+		case 'tornDown': {
+			const parts = [P(e.player), T(` tore down ${e.player === view.me ? 'your' : 'their'} ${workshopName(view, e.hex)}`)];
+			const back = countsList(e.refund);
+			return back.length ? [...parts, T(' and got '), ...back.map((c) => R(c.res, c.n)), T(' back')] : parts;
+		}
 		case 'diceRolled':
 			return [P(e.player), T(` rolled ${e.dice[0] + e.dice[1]}`)];
 		case 'produced': {

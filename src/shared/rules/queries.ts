@@ -144,6 +144,16 @@ export function workshopCount(s: Shared, player: number): number {
 	return s.workshops.filter((o) => o === player).length;
 }
 
+/** Tiles with one of this player's workshops, any of which they can tear down. */
+export function ownWorkshops(s: Shared, player: number): number[] {
+	if (!s.buildingRules.workshop) return [];
+	const out: number[] = [];
+	s.workshops.forEach((o, h) => {
+		if (o === player) out.push(h);
+	});
+	return out;
+}
+
 /**
  * Tiles a player can build a workshop on: ones that produce, beside one of their settlements or
  * cities, with no workshop yet, while they have workshops left to build.
