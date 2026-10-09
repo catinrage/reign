@@ -1,10 +1,5 @@
 <script lang="ts">
-	import {
-		MAP_MAX_TILES,
-		MAP_MIN_TILES,
-		MAP_RADIUS,
-		parseAscii
-	} from '../../../../shared/board/maps';
+	import { MAP_MIN_TILES, parseAscii } from '../../../../shared/board/maps';
 	import { TERRAINS } from '../../../../shared/rules/config';
 	import { TERRAIN_CSS, TERRAIN_NAME } from '../../extended/terrainColors';
 	import MapPreview from '../../extended/MapPreview.svelte';
@@ -58,8 +53,8 @@
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.check} alt="" /><span
-			>Between {MAP_MIN_TILES} and {MAP_MAX_TILES} land tiles, no more than {MAP_RADIUS} hexes from the
-			center.</span
+			>At least {MAP_MIN_TILES} land tiles. There is no upper limit: the grid grows as you paint, and
+			every five tiles seat one more player, up to eight.</span
 		>
 	</li>
 	<li>

@@ -51,10 +51,22 @@
 	</li>
 </ul>
 
+<h3>Random islands</h3>
+<p>
+	The host can also grow a random island: pick a size, a shape (round, long, ragged, or several
+	islands joined by land bridges) and whether it has lakes, then press Generate until it looks
+	right. Everyone in the lobby sees each new island, and Reroll grows another of the same kind.
+</p>
+
 <h3>Table size</h3>
 <p>
-	Islands of {seatsAt(5)} tiles or more seat five players, and {seatsAt(6)} or more seat six. With five
-	or six players the bank and the development deck grow to match.
+	Every five tiles seat one more player: {seatsAt(5)} tiles seat five, {seatsAt(6)} six, {seatsAt(7)} seven
+	and {seatsAt(8)} eight. With five or more players the bank and the development deck grow to match.
+</p>
+<p>
+	The island and the table also limit the points to win, so a game can always end: at most two
+	points per tile each player shares, plus two. Goals above 10 give everyone extra settlements,
+	cities and roads to build them with.
 </p>
 
 <style>
