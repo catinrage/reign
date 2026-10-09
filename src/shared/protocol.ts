@@ -37,8 +37,13 @@ export interface LobbyInfo {
 	seats: LobbySeat[];
 	started: boolean;
 	maxPlayers: number;
-	/** Every player at the table has the game menu open, so bots wait too. */
+	/**
+	 * The table is stopped: a player paused the game, or every player at the table has the game
+	 * menu open (a game vs bots). Bots and the turn clock wait.
+	 */
 	paused: boolean;
+	/** The seat of the player who paused the game for everyone, or null. Anyone can resume. */
+	pausedBy: string | null;
 	/** Seconds each turn may last (0 = no limit), picked by the host before the game starts. */
 	turnTime: number;
 	/** Mode, map and points to win, picked by the host before the game starts. */
@@ -63,7 +68,10 @@ export type ClientMessage =
 	| { t: 'start' }
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }
+	/** The game menu opened or closed. */
 	| { t: 'pause'; paused: boolean }
+	/** Pause the game for everyone, or resume it. */
+	| { t: 'pauseGame'; paused: boolean }
 	| { t: 'cheat'; cheat: Cheat }
 	| { t: 'leave' }
 	| { t: 'ping' };

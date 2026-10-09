@@ -235,6 +235,10 @@ export const PIXEL = {
 		],
 		{ k: '#2a1a10', s: '#d9dde3', S: '#8d96a3', b: '#c58a4a', B: '#7a4a22' }
 	),
+	pause: svg(
+		['kkk..kkk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kyk..kyk', 'kkk..kkk'],
+		{ k: '#3a1d04', y: '#fff3b8' }
+	),
 	book: svg(
 		[
 			'.kkkk..kkkk.',
