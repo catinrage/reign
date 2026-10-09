@@ -4,6 +4,7 @@ import type { MapTile } from '../../shared/board/maps';
 import { type Board, getTopology } from '../../shared/board/topology';
 import { worldToHex, hexKey } from '../../shared/board/hex';
 import { RESOURCES, TERRAIN_RESOURCE } from '../../shared/rules/config';
+import { isCityPath } from '../../shared/rules/buildings';
 import type { EventCard } from '../../shared/rules/events';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
@@ -11,6 +12,7 @@ import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
 import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
+import { PATH_LOOK, animatePath, pathObject } from './board/cityPaths';
 import { animateStorehouse, storehouseObject, storehouseSpot, storehouseYard } from './board/storehouse';
 import { WORKSHOP_SCALE, animateWorkshop, workshopChimney, workshopObject } from './board/workshops';
 import { DIE_HALF, Dice } from './dice';
@@ -24,8 +26,9 @@ import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
 
 /**
  * `stoneRoad` picks one of your roads to pave, `storehouse` one of your buildings to add a
- * storehouse onto, `tearDown` one of your own workshops to tear down, `tile` any tile, lit up like
- * the robber's target but with no robber (a character's power).
+ * storehouse onto, `castle`, `guildHall` and `fortress` one of your cities to take down that path,
+ * `tearDown` one of your own workshops to tear down, `tile` any tile, lit up like the robber's
+ * target but with no robber (a character's power).
  */
 export type PickKind =
 	| 'settlement'
@@ -35,6 +38,9 @@ export type PickKind =
 	| 'workshop'
 	| 'stoneRoad'
 	| 'storehouse'
+	| 'castle'
+	| 'guildHall'
+	| 'fortress'
 	| 'tearDown'
 	| 'tile';
 
@@ -410,24 +416,29 @@ export class GameScene {
 		view.buildings.forEach((b, v) => {
 			if (!b) return;
 			const color = PLAYER_RGB[view.players[b.owner].color];
-			want.set(`v${v}:${b.kind}:${b.owner}`, () => {
-				const obj = cloneModel(b.kind === 'city' ? cityModel(color) : settlementModel(color));
+			// A city that took a path becomes a castle, a guild hall (showing its goods) or a fortress.
+			const path = b.kind === 'city' ? (view.cityPaths?.[v] ?? null) : null;
+			const goods = path === 'guildHall' ? (view.guildGoods?.[v] ?? null) : null;
+			want.set(`v${v}:${path ?? b.kind}${goods ? `-${goods}` : ''}:${b.owner}`, () => {
+				const obj = path ? pathObject(path, color, goods) : cloneModel(b.kind === 'city' ? cityModel(color) : settlementModel(color));
+				obj.userData.path = path;
 				obj.scale.setScalar(PIECE_SCALE);
 				obj.position.copy(bv.vertexPos(v));
 				obj.rotation.y = buildingYaw(v);
 				return obj;
 			});
 		});
-		// A storehouse leans on its building, so it moves to the city's wall when the settlement
-		// grows into one.
+		// A storehouse leans on its building, so it moves to the new wall when the settlement grows
+		// into a city, and again when the city takes a path.
 		view.storehouses?.forEach((on, v) => {
 			const b = view.buildings[v];
 			if (!on || !b) return;
 			const color = PLAYER_RGB[view.players[b.owner].color];
-			want.set(`s${v}:${b.kind}:${b.owner}`, () => {
+			const look = (b.kind === 'city' ? view.cityPaths?.[v] : null) ?? b.kind;
+			want.set(`s${v}:${look}:${b.owner}`, () => {
 				const obj = storehouseObject(color);
 				obj.scale.setScalar(PIECE_SCALE);
-				const spot = storehouseSpot(bv, v, b.kind, buildingYaw(v), PIECE_SCALE);
+				const spot = storehouseSpot(bv, v, look, buildingYaw(v), PIECE_SCALE);
 				obj.position.copy(spot.pos);
 				obj.rotation.y = spot.yaw;
 				return obj;
@@ -1074,7 +1085,13 @@ export class GameScene {
 				model = storehouseObject(color);
 				pos = bv.vertexPos(id);
 				// The marker goes over the building; the ghost stands against the wall it would lean on.
-				lean = storehouseSpot(bv, id, b.kind, buildingYaw(id), PIECE_SCALE);
+				const look = (b.kind === 'city' ? this.view?.cityPaths?.[id] : null) ?? b.kind;
+				lean = storehouseSpot(bv, id, look, buildingYaw(id), PIECE_SCALE);
+			} else if (isCityPath(req.kind)) {
+				// The city as it would be, turned the way it stands.
+				model = pathObject(req.kind, color);
+				pos = bv.vertexPos(id);
+				rot = buildingYaw(id);
 			}
 			if (!model) continue;
 			// A slot is a small glowing marker; the full ghost piece appears on hover.
@@ -1258,8 +1275,13 @@ export class GameScene {
 		const homes = [...this.pieces.values()].filter((p) => p.key.startsWith('v'));
 		if (!homes.length) return;
 		const p = homes[Math.floor(Math.random() * homes.length)];
-		const city = p.key.includes(':city:');
-		const local = city ? new THREE.Vector3(-2.5, 12, -3) : new THREE.Vector3(1.5, 7.5, -1);
+		const look = lookOf(p.key);
+		const local = isCityPath(look)
+			? PATH_LOOK[look].chimney
+			: look === 'city'
+				? new THREE.Vector3(-2.5, 12, -3)
+				: new THREE.Vector3(1.5, 7.5, -1);
+		if (!local) return;
 		const at = p.obj.localToWorld(local.clone());
 		this.particles.emit({ at, count: 1, colors: ['#d9d4cc', '#c4beb5', '#eeeae4'], speed: 0.6, up: 3.2, spread: 0.3, life: 3.2, size: 0.9, gravity: -0.4, drag: 0.4 });
 	}
@@ -1318,6 +1340,8 @@ export class GameScene {
 		const road = p.key.startsWith('e');
 		const workshop = p.key.startsWith('w');
 		const store = p.key.startsWith('s');
+		const look = lookOf(p.key);
+		const path = isCityPath(look) ? look : null;
 		const unit = pieceScale(p.key);
 		const glow = new THREE.Group();
 		glow.name = 'glow';
@@ -1334,9 +1358,10 @@ export class GameScene {
 			}
 		};
 		copy(p.obj, glow);
-		if (workshop || store) {
+		if (workshop || store || path) {
 			// A workshop's body is a model of its own, and its moving parts carry their own light,
-			// so it turns with the sails and rolls with the cart (and a storehouse's sack rides its rope).
+			// so it turns with the sails and rolls with the cart (and a storehouse's sack rides its
+			// rope, a castle's flag flies and a fortress's quintain spins).
 			glow.userData.parts = [];
 			for (const part of p.obj.children) {
 				if (!part.name) {
@@ -1358,8 +1383,8 @@ export class GameScene {
 		if (!road && !store) {
 			// Sizes are in the piece's own units: its voxels. The ring hugs the building, on the
 			// paths where the tiles meet, clear of the trees and wheat round about.
-			const city = p.key.includes(':city:');
-			const radius = (workshop ? 4.2 : city ? 5.9 : 4.8) / unit;
+			const city = look === 'city';
+			const radius = path ? PATH_LOOK[path].ring : (workshop ? 4.2 : city ? 5.9 : 4.8) / unit;
 			const ground = new THREE.Group();
 			ground.name = 'ground';
 			const ring = new THREE.Mesh(HALO, kit.ring);
@@ -1372,7 +1397,7 @@ export class GameScene {
 			const beam = new THREE.Mesh(BEAM, kit.beam);
 			beam.name = 'beam';
 			beam.scale.set(2.6 / unit, 0, 2.6 / unit);
-			beam.position.y = workshop ? 13 : city ? 12 : 7;
+			beam.position.y = workshop ? 13 : path ? PATH_LOOK[path].beam : city ? 12 : 7;
 			glow.add(ground, beam);
 		}
 		p.obj.add(glow);
@@ -1386,6 +1411,7 @@ export class GameScene {
 		if (puff) this.kilnClock = 0;
 		for (const p of this.pieces.values()) {
 			if (p.key.startsWith('s')) animateStorehouse(p.obj, t);
+			if (p.obj.userData.path) animatePath(p.obj, t);
 			if (!p.key.startsWith('w')) continue;
 			animateWorkshop(p.obj, t, dt);
 			const at = puff ? workshopChimney(p.obj) : null;
@@ -1485,6 +1511,7 @@ function claimFlag(color: number): THREE.Group {
 
 /** How high a pick's glowing gem floats above its spot, clear of the piece that would go there. */
 function markerHeight(kind: PickKind) {
+	if (isCityPath(kind)) return 12.5;
 	return kind === 'city' || kind === 'storehouse' ? 11 : kind === 'workshop' || kind === 'tearDown' ? 9.5 : 4.5;
 }
 
@@ -1709,6 +1736,11 @@ function hashString(s: string) {
 }
 
 /** Which way the settlement or city on vertex v is turned: each corner turns its own way. */
+/** What a building on a corner looks like, from its piece key: 'settlement', 'city' or a city's path. */
+function lookOf(key: string): string {
+	return key.split(':')[1]?.split('-')[0] ?? '';
+}
+
 function buildingYaw(v: number) {
 	return (hashString(`r${v}`) % 4) * (Math.PI / 2) + Math.PI / 4;
 }

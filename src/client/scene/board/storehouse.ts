@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { getTopology } from '../../../shared/board/topology';
+import type { CityPath } from '../../../shared/rules/buildings';
 import type { Terrain } from '../../../shared/rules/config';
 import { hash3, hex, pick, shade } from '../voxel/grid';
 import type { BoardView } from './boardView';
@@ -166,7 +167,7 @@ interface Wall {
 	cost?: number;
 }
 
-const WALLS: Record<'settlement' | 'city', Wall[]> = {
+const WALLS: Record<'settlement' | 'city' | CityPath, Wall[]> = {
 	settlement: [
 		{ x: 2.5, z: 0, nx: 1, nz: 0 },
 		{ x: -2.5, z: 0, nx: -1, nz: 0 },
@@ -180,6 +181,25 @@ const WALLS: Record<'settlement' | 'city', Wall[]> = {
 		{ x: -2, z: 3, nx: 0, nz: 1 },
 		{ x: 4, z: 0.5, nx: 1, nz: 0 },
 		{ x: -4, z: -0.5, nx: -1, nz: 0 }
+	],
+	// A city's path (see cityPaths.ts): behind the keep, or against a side wall.
+	castle: [
+		{ x: 0, z: -4, nx: 0, nz: -1 },
+		{ x: -5, z: -1.75, nx: -1, nz: 0 },
+		{ x: 5, z: -1.75, nx: 1, nz: 0 }
+	],
+	// Behind the hall, or along a side (on the left, clear of the sign).
+	guildHall: [
+		{ x: 0.25, z: -3, nx: 0, nz: -1 },
+		{ x: 5, z: -1, nx: 1, nz: 0 },
+		{ x: -4, z: -2, nx: -1, nz: 0, cost: 0.3 }
+	],
+	// Behind the tower or the barracks, or against the tower's side or the yard's wall.
+	fortress: [
+		{ x: -3.25, z: -4, nx: 0, nz: -1 },
+		{ x: 2, z: -4, nx: 0, nz: -1 },
+		{ x: -5, z: -2.25, nx: -1, nz: 0 },
+		{ x: 5, z: -0.5, nx: 1, nz: 0 }
 	]
 };
 
@@ -204,11 +224,11 @@ const FACING: Record<Terrain | 'sea', number> = {
 
 /**
  * Where the storehouse of the building on vertex `v` stands, and which way it faces. The building
- * (a settlement or city turned by `yaw`, its voxels `scale` world units) has four walls; of those
- * that look out over a tile rather than along a road, the storehouse takes the one with the
- * clearest ground in front of it.
+ * (a settlement, a city or a city's path, turned by `yaw`, its voxels `scale` world units) has a
+ * few walls; of those that look out over a tile rather than along a road, the storehouse takes the
+ * one with the clearest ground in front of it.
  */
-export function storehouseSpot(bv: BoardView, v: number, kind: 'settlement' | 'city', yaw: number, scale: number) {
+export function storehouseSpot(bv: BoardView, v: number, kind: keyof typeof WALLS, yaw: number, scale: number) {
 	const topo = getTopology(bv.board);
 	const vert = topo.vertices[v];
 	const dir = (p: { x: number; z: number }) => Math.atan2(p.z - vert.z, p.x - vert.x);
