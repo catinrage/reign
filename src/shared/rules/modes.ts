@@ -1,4 +1,4 @@
-import type { MapChoice } from '../board/maps';
+import { mapSeats, mapTiles, type MapChoice } from '../board/maps';
 
 /**
  * Reign has two modes. Classic is the standard game on the standard island, exactly as before.
@@ -21,6 +21,12 @@ export interface GameSettings {
 	/** Ignored in Classic, which always deals the standard island. */
 	map: MapChoice;
 	pointsToWin: number;
+}
+
+/** How many players a game with these settings seats. Classic always seats four. */
+export function seatsFor(settings: GameSettings): number {
+	if (settings.mode !== 'extended') return 4;
+	return mapSeats(mapTiles(settings.map)?.length ?? 0);
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {

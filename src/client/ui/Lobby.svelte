@@ -3,7 +3,7 @@
 	import { CHARACTER_INFO } from '../../shared/rules/characters';
 	import { PLAYER_COLORS } from '../../shared/rules/config';
 	import { GAME_MODES, MODE_INFO, POINT_GOALS } from '../../shared/rules/modes';
-	import { MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
+	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
 	import { client } from '../state/client.svelte';
 	import CharacterPicker from './extended/CharacterPicker.svelte';
 	import MapPicker from './extended/MapPicker.svelte';
@@ -82,23 +82,6 @@
 						</button>
 					</div>
 
-					<div class="modes" role="radiogroup" aria-label="Game mode">
-						{#each GAME_MODES as m (m)}
-							<button
-								class="mode plaque"
-								class:on={settings.mode === m}
-								role="radio"
-								aria-checked={settings.mode === m}
-								disabled={!client.isHost}
-								onclick={() => client.send({ t: 'setMode', mode: m })}
-							>
-								<span class="mode-name title">
-									{#if m === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}{MODE_INFO[m].name}
-								</span>
-								<span class="mode-text">{MODE_INFO[m].text}</span>
-							</button>
-						{/each}
-					</div>
 
 					<div class="divider">
 						<i></i><span>Settlers {lobby.seats.length}/{lobby.maxPlayers}</span><i></i>
@@ -167,6 +150,25 @@
 
 				</div>
 				<div class="col">
+					<div class="modes" role="radiogroup" aria-label="Game mode">
+						{#each GAME_MODES as m (m)}
+							<button
+								class="mode plaque"
+								class:on={settings.mode === m}
+								role="radio"
+								aria-checked={settings.mode === m}
+								disabled={!client.isHost || (m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS)}
+								title={m === 'classic' && lobby.seats.length > CLASSIC_PLAYERS ? 'Classic seats 4 players' : undefined}
+								onclick={() => client.send({ t: 'setMode', mode: m })}
+							>
+								<span class="mode-name title">
+									{#if m === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}{MODE_INFO[m].name}
+								</span>
+								<span class="mode-text">{MODE_INFO[m].text}</span>
+							</button>
+						{/each}
+					</div>
+
 					{#if mySeat}
 						<div class="colors">
 							<span class="label">Your banner</span>
@@ -701,11 +703,20 @@
 	.goal .seg .btn {
 		min-width: 44px;
 	}
-	.cols,
-	.col {
+	.cols {
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
+	}
+	/* One column reads top to bottom: invite, mode, seats, then your picks. */
+	.col {
+		display: contents;
+	}
+	.invite {
+		order: -2;
+	}
+	.modes {
+		order: -1;
 	}
 	/* Reign Extended has more to set up, so it spreads sideways instead of growing tall. */
 	@media (min-width: 820px) {
@@ -715,10 +726,15 @@
 		.wide .cols {
 			display: grid;
 			grid-template-columns: 1fr 1fr;
+			align-items: start;
 			gap: 18px;
 		}
-		.card.wide,
 		.wide .col {
+			display: flex;
+			flex-direction: column;
+			gap: 11px;
+		}
+		.card.wide {
 			gap: 11px;
 		}
 		.wide .invite {

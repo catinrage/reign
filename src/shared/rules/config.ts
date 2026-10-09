@@ -42,6 +42,8 @@ export const COSTS: Record<BuildKind, Partial<ResourceCounts>> = {
 export const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 } as const;
 
 export const BANK_PER_RESOURCE = 19;
+/** A table of five or six (Reign Extended on a bigger island) gets a bigger bank and deck. */
+export const BANK_PER_RESOURCE_LARGE = 24;
 
 export const DEV_CARDS = [
 	'knight',
@@ -57,6 +59,15 @@ export const DEV_DECK: Record<DevCardType, number> = {
 	roadBuilding: 2,
 	yearOfPlenty: 2,
 	monopoly: 2,
+	victoryPoint: 5
+};
+
+/** The deck for a table of five or six. */
+export const DEV_DECK_LARGE: Record<DevCardType, number> = {
+	knight: 20,
+	roadBuilding: 3,
+	yearOfPlenty: 3,
+	monopoly: 3,
 	victoryPoint: 5
 };
 

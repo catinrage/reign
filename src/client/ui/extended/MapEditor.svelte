@@ -3,6 +3,7 @@
 	import { hexKey, hexToWorld, hexesInRadius } from '../../../shared/board/hex';
 	import {
 		MAP_MAX_TILES,
+		mapSeats,
 		MAP_PRESETS,
 		MAP_RADIUS,
 		centerTiles,
@@ -182,7 +183,7 @@
 			</div>
 
 			<p class="status" class:bad={!!problem}>
-				{problem ?? `${tiles.length} tiles · random tiles get a classic mix, numbers and harbors are dealt each game.`}
+				{problem ?? `${tiles.length} tiles, seats ${mapSeats(tiles.length)} · random tiles get a classic mix, numbers and harbors are dealt each game.`}
 			</p>
 
 			<div class="actions">

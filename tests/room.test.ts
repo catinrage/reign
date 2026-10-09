@@ -517,3 +517,33 @@ describe('ready check', () => {
 		room.dispose();
 	});
 });
+
+describe('table size', () => {
+	it('seats six on a big island and four in Classic', () => {
+		const room = new Room('SIXES');
+		const a = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error('join failed');
+		expect(room.lobbyInfo().maxPlayers).toBe(4);
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		// The default Extended island is the 30-tile Great Isle.
+		expect(room.lobbyInfo().maxPlayers).toBe(6);
+		for (let i = 0; i < 6; i++) room.handle(host, { t: 'addBot' }, a.ws);
+		expect(room.seats).toHaveLength(6);
+		expect(last(a.sent, 'error').message).toBe('The table is full.');
+		expect(typeof room.join(fakeSocket().ws, 'Late')).toBe('string');
+
+		// A smaller island, or Classic, can't be picked while six are seated.
+		room.handle(host, { t: 'setMode', mode: 'classic' }, a.ws);
+		expect(room.lobbyInfo().settings.mode).toBe('extended');
+		expect(last(a.sent, 'error').message).toBe('Classic seats up to 4 players, and 6 are at the table.');
+		room.handle(host, { t: 'setMap', map: { preset: 'twin' } }, a.ws);
+		expect(room.lobbyInfo().settings.map).toEqual({ preset: 'great' });
+		room.handle(host, { t: 'setMap', map: { preset: 'realm' } }, a.ws);
+		expect(room.lobbyInfo().settings.map).toEqual({ preset: 'realm' });
+
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game!.players).toHaveLength(6);
+		room.dispose();
+	});
+});

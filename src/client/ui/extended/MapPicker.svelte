@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { MAP_PRESETS, decodeMap, validateCustomMap, type CustomMap, type MapChoice } from '../../../shared/board/maps';
+	import { MAP_PRESETS, decodeMap, mapSeats, validateCustomMap, type CustomMap, type MapChoice } from '../../../shared/board/maps';
 	import { client } from '../../state/client.svelte';
 	import Modal from '../menu/Modal.svelte';
 	import { PIXEL } from '../pixel';
@@ -27,6 +27,11 @@
 		client.toast(`Added "${map.name}" to your maps.`, 'good');
 	}
 
+	// An island too small for everyone already at the table can't be picked.
+	const seated = $derived(client.lobby!.seats.length);
+	const tooSmall = (n: number) => mapSeats(n) < seated;
+	const seatsLabel = (n: number) => `${n} tiles · ${mapSeats(n)} players`;
+
 	const isCurrent = (m: CustomMap) => 'custom' in current && JSON.stringify(current.custom.tiles) === JSON.stringify(m.tiles);
 </script>
 
@@ -44,11 +49,17 @@
 			<div class="divider"><i></i><span>Islands</span><i></i></div>
 			<div class="grid">
 				{#each MAP_PRESETS as p (p.id)}
-					<button class="map plaque" class:on={'preset' in current && current.preset === p.id} onclick={() => choose({ preset: p.id })}>
+					<button
+						class="map plaque"
+						class:on={'preset' in current && current.preset === p.id}
+						disabled={tooSmall(p.tiles.length)}
+						title={tooSmall(p.tiles.length) ? `Seats ${mapSeats(p.tiles.length)}: too small for this table` : undefined}
+						onclick={() => choose({ preset: p.id })}
+					>
 						<MapPreview tiles={p.tiles} width={150} height={104} />
 						<span class="name title">{p.name}</span>
 						<span class="blurb">{p.blurb}</span>
-						<span class="count">{p.tiles.length} tiles</span>
+						<span class="count">{seatsLabel(p.tiles.length)}</span>
 					</button>
 				{/each}
 			</div>
@@ -60,10 +71,15 @@
 				<div class="grid">
 					{#each savedMaps.list as m, i (i)}
 						<div class="map plaque" class:on={isCurrent(m)}>
-							<button class="pick" onclick={() => choose({ custom: m })} title="Play {m.name}">
+							<button
+								class="pick"
+								disabled={tooSmall(m.tiles.length)}
+								onclick={() => choose({ custom: m })}
+								title={tooSmall(m.tiles.length) ? 'Too small for this table' : `Play ${m.name}`}
+							>
 								<MapPreview tiles={m.tiles} width={150} height={104} />
 								<span class="name title">{m.name}</span>
-								<span class="count">{m.tiles.length} tiles</span>
+								<span class="count">{seatsLabel(m.tiles.length)}</span>
 							</button>
 							<span class="tools">
 								<button class="btn small wood" onclick={() => (editing = { map: m, index: i })}>Edit</button>
@@ -111,8 +127,13 @@
 		cursor: pointer;
 		transition: transform 0.12s;
 	}
-	.map:hover {
+	.map:hover:not(:disabled) {
 		transform: translateY(-3px);
+	}
+	.map:disabled,
+	.map:has(.pick:disabled) {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 	.map.on {
 		filter: drop-shadow(0 0 0 #ffd45a) drop-shadow(0 0 4px #ffd45a);

@@ -1,7 +1,7 @@
 // Dev helper: screenshot the Reign Extended lobby, its pickers, the map maker and a game on a big map.
-// Usage: node scripts/dev/extended.mjs <outDir> [width] [height] [base] [map]
+// Usage: node scripts/dev/extended.mjs <outDir> [width] [height] [base] [map] [bots]
 import { chromium } from 'playwright';
-const [dir, w = '1600', h = '900', base = 'http://localhost:5173', map = 'realm'] = process.argv.slice(2);
+const [dir, w = '1600', h = '900', base = 'http://localhost:5173', map = 'realm', bots = '3'] = process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium',
 	args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
@@ -22,14 +22,15 @@ await page.waitForTimeout(2500);
 await page.fill('.name-row .input', 'Komeil');
 await page.click('.sign .btn.green', { force: true });
 await until(() => !!window.__client.lobby);
-await page.evaluate((map) => {
-	const c = window.__client;
-	c.send({ t: 'addBot' });
-	c.send({ t: 'addBot' });
-	c.send({ t: 'addBot' });
-	c.send({ t: 'setMode', mode: 'extended' });
-	c.send({ t: 'setMap', map: { preset: map } });
-}, map);
+await page.evaluate(
+	([map, bots]) => {
+		const c = window.__client;
+		c.send({ t: 'setMode', mode: 'extended' });
+		c.send({ t: 'setMap', map: { preset: map } });
+		for (let i = 0; i < bots; i++) c.send({ t: 'addBot' });
+	},
+	[map, Number(bots)]
+);
 await shot('ext-lobby', 3000);
 await page.click('.pick >> nth=0', { force: true });
 await shot('ext-characters', 2000);

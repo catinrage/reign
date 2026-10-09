@@ -8,12 +8,12 @@ import type {
 	TurnClock
 } from '../shared/protocol';
 import { MAX_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../shared/protocol';
-import { type MapChoice, presetById, validateCustomMap } from '../shared/board/maps';
+import { type MapChoice, mapName, presetById, validateCustomMap } from '../shared/board/maps';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
 import { applyCheat } from '../shared/rules/cheats';
 import { CHARACTERS, type CharacterId, isCharacter } from '../shared/rules/characters';
-import { DEFAULT_SETTINGS, GAME_MODES, POINT_GOALS, type GameSettings } from '../shared/rules/modes';
+import { DEFAULT_SETTINGS, GAME_MODES, POINT_GOALS, seatsFor, type GameSettings } from '../shared/rules/modes';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
 import type { Action, GameState } from '../shared/rules/types';
@@ -87,7 +87,7 @@ export class Room {
 		return {
 			code: this.code,
 			started: this.started,
-			maxPlayers: MAX_PLAYERS,
+			maxPlayers: this.maxPlayers,
 			paused: this.paused,
 			pausedBy: this.paused ? this.heldBy : null,
 			turnTime: this.turnTime,
@@ -113,7 +113,7 @@ export class Room {
 		let seat = token ? this.seats.find((s) => s.token === token && !s.isBot) : undefined;
 		if (!seat) {
 			if (this.started) return 'That game has already started.';
-			if (this.seats.length >= MAX_PLAYERS) return 'That table is full.';
+			if (this.seats.length >= this.maxPlayers) return 'That table is full.';
 			seat = {
 				id: randomBytes(6).toString('hex'),
 				token: randomBytes(16).toString('hex'),
@@ -186,7 +186,7 @@ export class Room {
 				return this.broadcastLobby();
 			case 'addBot': {
 				if (!isHost || this.started) return;
-				if (this.seats.length >= MAX_PLAYERS) return send(ws, { t: 'error', message: 'The table is full.' });
+				if (this.seats.length >= this.maxPlayers) return send(ws, { t: 'error', message: 'The table is full.' });
 				const used = new Set(this.seats.map((s) => s.name));
 				this.seats.push({
 					id: randomBytes(6).toString('hex'),
@@ -212,6 +212,10 @@ export class Room {
 				return this.broadcastLobby();
 			case 'setMode':
 				if (!isHost || this.lockedSettings || !GAME_MODES.includes(msg.mode)) return;
+				{
+					const full = this.tooMany({ ...this.settings, mode: msg.mode });
+					if (full) return send(ws, { t: 'error', message: full });
+				}
 				if (this.settings.mode !== msg.mode) this.unready();
 				this.settings.mode = msg.mode;
 				return this.broadcastLobby();
@@ -219,6 +223,8 @@ export class Room {
 				if (!isHost || this.lockedSettings) return;
 				const map = cleanMap(msg.map);
 				if (typeof map === 'string') return send(ws, { t: 'error', message: map });
+				const full = this.tooMany({ ...this.settings, map });
+				if (full) return send(ws, { t: 'error', message: full });
 				if (JSON.stringify(map) !== JSON.stringify(this.settings.map)) this.unready();
 				this.settings.map = map;
 				return this.broadcastLobby();
@@ -345,6 +351,19 @@ export class Room {
 	/** Lobby settings can change before the first game and between games, never during one. */
 	private get lockedSettings() {
 		return !!this.game && this.game.phase !== 'ended';
+	}
+
+	/** How many players the chosen mode and island seat. */
+	get maxPlayers() {
+		return Math.min(MAX_PLAYERS, seatsFor(this.settings));
+	}
+
+	/** Why these settings can't seat everyone already at the table, or null if they can. */
+	private tooMany(settings: GameSettings): string | null {
+		const seats = Math.min(MAX_PLAYERS, seatsFor(settings));
+		if (this.seats.length <= seats) return null;
+		const what = settings.mode === 'extended' ? mapName(settings.map) : 'Classic';
+		return `${what} seats up to ${seats} players, and ${this.seats.length} are at the table.`;
 	}
 
 	/**
