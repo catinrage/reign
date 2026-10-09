@@ -13,7 +13,10 @@ const errors = [];
 const open = async (name) => {
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 	page.on('pageerror', (e) => errors.push(e.message));
-	page.on('console', (m) => m.type() === 'error' && !m.text().includes('WebSocket') && errors.push(m.text()));
+	page.on(
+		'console',
+		(m) => m.type() === 'error' && !m.text().includes('WebSocket') && errors.push(m.text())
+	);
 	await page.goto(base);
 	await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000 });
 	await page.evaluate((n) => window.__client.setName(n), name);
@@ -40,6 +43,8 @@ guest.on('message', (data) => {
 await new Promise((r) => guest.on('open', r));
 guest.send(JSON.stringify({ t: 'join', code, name: 'Bram' }));
 await until(host, () => window.__client.lobby?.seats.length === 2);
+guest.send(JSON.stringify({ t: 'setReady', ready: true }));
+await until(host, () => window.__client.lobby?.seats.every((s) => s.ready));
 await host.evaluate(() => window.__client.send({ t: 'start' }));
 await until(host, () => !!window.__client.view);
 await host.waitForTimeout(3000);
@@ -56,7 +61,10 @@ await host.setViewportSize({ width: 1280, height: 800 });
 await host.click('.curtain .btn.big', { force: true });
 await until(host, () => !window.__client.lobby?.paused);
 const last = lobbies[lobbies.length - 1];
-console.log('guest sees after resume:', JSON.stringify({ paused: last.paused, pausedBy: last.pausedBy }));
+console.log(
+	'guest sees after resume:',
+	JSON.stringify({ paused: last.paused, pausedBy: last.pausedBy })
+);
 await shot(host, 'mp-resumed');
 guest.close();
 await host.close();
@@ -75,5 +83,7 @@ await solo.keyboard.press('p');
 await until(solo, () => !window.__client.lobby?.paused);
 await solo.waitForTimeout(8000);
 const later = await solo.evaluate(() => window.__client.view.log.length);
-console.log(JSON.stringify({ code, botLog: { before, after, later }, errors: errors.slice(0, 10) }));
+console.log(
+	JSON.stringify({ code, botLog: { before, after, later }, errors: errors.slice(0, 10) })
+);
 await browser.close();
