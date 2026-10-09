@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RESOURCES } from '../../shared/rules/config';
 import { cityModel, resourceItemModel, roadModel, settlementModel } from './board/models';
 import { PLAYER_RGB } from './layout';
+import { sharedUniforms } from './voxel/materials';
 
 /**
  * Renders the voxel resource items (and pieces) to small images once, so the 2D interface
@@ -32,6 +33,10 @@ export function getIcons(): IconSet {
 	const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
 
 	const out: IconSet = { canvases: {}, urls: {} };
+	// Piece outlines are sized in screen pixels against the shared viewport: size them for this
+	// small canvas while shooting, or they swell into a dark square round the piece.
+	const viewport = sharedUniforms.uViewport.value.clone();
+	sharedUniforms.uViewport.value.set(size, size);
 	const shoot = (key: string, model: THREE.Object3D, yaw = -0.6) => {
 		const holder = new THREE.Group();
 		holder.add(model);
@@ -63,6 +68,7 @@ export function getIcons(): IconSet {
 		shoot(`city:${color}`, cityModel(rgbVal).clone());
 		shoot(`road:${color}`, roadModel(rgbVal).clone(), -0.9);
 	}
+	sharedUniforms.uViewport.value.copy(viewport);
 	renderer.dispose();
 	renderer.forceContextLoss();
 	icons = out;

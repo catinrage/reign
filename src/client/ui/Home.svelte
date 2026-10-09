@@ -4,12 +4,12 @@
 	import { client } from '../state/client.svelte';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
-	import HowToPlay from './menu/HowToPlay.svelte';
 	import Modal from './menu/Modal.svelte';
 	import Settings from './menu/Settings.svelte';
 	import { sideLayout } from './menu/sideLayout';
 	import { PIXEL } from './pixel';
 	import { isMuted, setMuted, sfx } from './sound';
+	import Tutorial from './tutorial/Tutorial.svelte';
 
 	const NAMES = [
 		'Aldric',
@@ -37,7 +37,8 @@
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let name = $state(client.name);
 	let muted = $state(isMuted());
-	let sheet = $state<'help' | 'settings' | null>(null);
+	let sheet = $state<'settings' | null>(null);
+	let reading = $state(false);
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let logoOk = $state(true);
 	const busy = $derived(client.pendingJoin || client.status !== 'online');
@@ -87,7 +88,7 @@
 		commitName();
 		client.join(client.resumable.code);
 	}
-	function openSheet(s: 'help' | 'settings') {
+	function openSheet(s: 'settings') {
 		sfx.open();
 		sheet = s;
 	}
@@ -95,15 +96,37 @@
 		sfx.close();
 		sheet = null;
 	}
+	function openTutorial() {
+		sfx.open();
+		reading = true;
+	}
+	function closeTutorial() {
+		sfx.close();
+		reading = false;
+	}
 	function toggleSound() {
 		muted = !muted;
 		setMuted(muted);
 	}
 </script>
 
+<svelte:window onkeydown={(e) => reading && e.key === 'Escape' && closeTutorial()} />
+
 <div class="home">
 	<Embers />
-	<div class="column">
+	{#if reading}
+		<div class="book">
+			<div class="board panel">
+				<div class="ribbon">Tutorial</div>
+				<button class="icon-btn close" onclick={closeTutorial} aria-label="Back to the menu" title="Back to the menu"
+					><img src={PIXEL.close} alt="" /></button
+				>
+				<Tutorial />
+			</div>
+		</div>
+	{/if}
+	<!-- Hidden rather than removed while the tutorial is open, so the 3D title keeps its canvas. -->
+	<div class="column" class:away={reading}>
 		<header class="crest">
 			<div class="logo">
 				<canvas bind:this={canvas} aria-label="Reign"></canvas>
@@ -167,9 +190,9 @@
 		</div>
 
 		<nav class="extras">
-			<button class="medal" onclick={() => openSheet('help')}>
+			<button class="medal" onclick={openTutorial}>
 				<span class="icon-btn"><img src={PIXEL.book} alt="" /></span>
-				<span class="cap">How to play</span>
+				<span class="cap">Tutorial</span>
 			</button>
 			<button class="medal" onclick={() => openSheet('settings')}>
 				<span class="icon-btn"><img src={PIXEL.gear} alt="" /></span>
@@ -183,9 +206,7 @@
 	</div>
 </div>
 
-{#if sheet === 'help'}
-	<Modal title="How to play" frame="parch" width={760} onclose={closeSheet}><HowToPlay /></Modal>
-{:else if sheet === 'settings'}
+{#if sheet === 'settings'}
 	<Modal title="Settings" width={460} onclose={closeSheet}><Settings /></Modal>
 {/if}
 
@@ -216,6 +237,53 @@
 		justify-content: center;
 		gap: 14px;
 		padding: 10px 16px 44px;
+	}
+	.away {
+		display: none;
+	}
+	.book {
+		position: relative;
+		box-sizing: border-box;
+		height: 100%;
+		min-height: 520px;
+		display: flex;
+		justify-content: center;
+		padding: 46px 16px 18px;
+	}
+	.book .board {
+		position: relative;
+		width: min(1180px, 100%);
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		padding: calc(var(--s) * 9) 14px 14px;
+		animation: pop-in 0.32s cubic-bezier(0.2, 1.3, 0.4, 1);
+	}
+	.book .ribbon {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		transform: translate(-50%, -62%);
+		z-index: 2;
+		font-size: 24px;
+		padding-left: calc(var(--s) * 6);
+		padding-right: calc(var(--s) * 6);
+	}
+	.book .close {
+		position: absolute;
+		top: calc(var(--s) * -4);
+		right: calc(var(--s) * -4);
+		z-index: 3;
+		width: calc(var(--s) * 13);
+		height: calc(var(--s) * 13);
+		border-image-source: var(--art-btn-red);
+	}
+	.book .close img {
+		width: calc(var(--s) * 6);
+		height: calc(var(--s) * 6);
+	}
+	.book .close:active {
+		border-image-source: var(--art-btn-red-down);
 	}
 	.crest {
 		display: flex;
@@ -371,6 +439,13 @@
 		}
 	}
 	@media (max-width: 700px) {
+		.book {
+			padding: 36px 6px 8px;
+			min-height: 0;
+		}
+		.book .board {
+			padding: calc(var(--s) * 9) 6px 8px;
+		}
 		.column {
 			justify-content: flex-start;
 			padding-top: 18px;
