@@ -2,6 +2,7 @@
 // One browser page; the other player is a bare socket, which keeps it light.
 // Usage: node scripts/dev/leave.mjs <outDir> [width] [height] [base] [server]
 import { chromium } from 'playwright';
+import { signIn, signUp } from './signin.mjs';
 import WebSocket from 'ws';
 const [
 	dir,
@@ -16,8 +17,8 @@ const browser = await chromium.launch({
 });
 
 /** A player with no screen: sends one message, resolves with its welcome once seated. */
-function socket(first) {
-	const ws = new WebSocket(server);
+async function socket(first) {
+	const ws = new WebSocket(server, { headers: { cookie: await signUp(base, first.name) } });
 	const welcome = new Promise((res) =>
 		ws.on('message', (d) => {
 			const m = JSON.parse(String(d));
@@ -31,13 +32,13 @@ async function open(name) {
 	const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 	page.on('pageerror', (e) => console.log(`[${name}]`, e.message));
 	await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+	await signIn(page, base);
 	await page.goto(`${base}/`);
 	await page.waitForFunction(() => window.__ready === true, null, {
 		timeout: 300000,
 		polling: 500
 	});
 	await page.waitForTimeout(2000);
-	await page.fill('.name-row .input', name);
 	return page;
 }
 const playing = (page) =>
@@ -61,7 +62,7 @@ const menuLeave = async (page) => {
 	await page.waitForFunction(() => !!window.__client.lobby, null, { timeout: 60000 });
 	await page.evaluate(() => window.__client.send({ t: 'addBot' }));
 	const code = await page.evaluate(() => window.__client.lobby.code);
-	let guest = socket({ t: 'join', code, name: 'Bram' });
+	let guest = await socket({ t: 'join', code, name: 'Bram' });
 	const { token } = await guest.welcome;
 	guest.send({ t: 'setReady', ready: true });
 	await page.waitForTimeout(500);
@@ -72,7 +73,7 @@ const menuLeave = async (page) => {
 	guest.send({ t: 'leave' });
 	await shot(page, 'guest-left', 800);
 	guest.ws.close();
-	guest = socket({ t: 'join', code, name: 'Bram', token });
+	guest = await socket({ t: 'join', code, name: 'Bram', token });
 	await guest.welcome;
 	await shot(page, 'guest-back', 800);
 

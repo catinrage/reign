@@ -3,6 +3,7 @@
 // few development cards, with the build panel showing.
 // Usage: node scripts/dev/hand.mjs <outDir> [base]
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [dir = '/tmp/hand', base = 'http://localhost:8787'] = process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: '/opt/pw-browsers/chromium',
@@ -14,6 +15,7 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+await signIn(page, base);
 await page.goto(base);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000 });
 await page.evaluate(() => window.__client.setName('Komeil'));

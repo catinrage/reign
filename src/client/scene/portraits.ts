@@ -25,7 +25,7 @@ const STEEL_DARK = hex('#6d747f');
 /** Small per-voxel variation so flat colors read like painted wood. */
 const grain = (c: number, k = 0.06) => (x: number, y: number, z: number) => shade(c, 1 - k / 2 + hash3(x, y, z, 5) * k);
 
-class Bust {
+export class Bust {
 	g = new VoxelGrid(32, 40, 26, -16, 0, -13);
 
 	box(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, c: Paint) {
@@ -335,8 +335,13 @@ const BUILDERS: Record<CharacterId, (b: Bust) => void> = {
 
 /** The voxel bust of a character, centered for portraits. */
 export function buildBust(id: CharacterId): THREE.Group {
+	return bustGroup(BUILDERS[id]);
+}
+
+/** Any bust drawn by `build`, as a mesh group centered for portraits. */
+export function bustGroup(build: (b: Bust) => void): THREE.Group {
 	const b = new Bust();
-	BUILDERS[id](b);
+	build(b);
 	const group = new THREE.Group();
 	const center: [number, number, number] = [0, 13, 0];
 	group.add(meshesFor(meshGrid(b.g, { jitter: 0.015 }), 1, { [Mat.Solid]: { bevel: 0.28, roughness: 0.62 } }, center));
@@ -346,7 +351,7 @@ export function buildBust(id: CharacterId): THREE.Group {
 // ---------------------------------------------------------------- rendering to images
 
 const SIZE = 256;
-const cache = new Map<CharacterId, string>();
+const cache = new Map<string, string>();
 let renderer: THREE.WebGLRenderer | null = null;
 let failed = false;
 
@@ -355,12 +360,17 @@ let failed = false;
  * Rendering happens once per character and is cached.
  */
 export function portraitUrl(id: CharacterId): string | null {
-	const hit = cache.get(id);
+	return bustImage(`character:${id}`, BUILDERS[id]);
+}
+
+/** A bust drawn by `build` rendered as an image URL, cached under `key`; null without WebGL. */
+export function bustImage(key: string, build: (b: Bust) => void): string | null {
+	const hit = cache.get(key);
 	if (hit || failed) return hit ?? null;
 	try {
 		renderer ??= makeRenderer();
-		const url = render(renderer, id);
-		cache.set(id, url);
+		const url = render(renderer, bustGroup(build));
+		cache.set(key, url);
 		return url;
 	} catch (e) {
 		console.warn('Portraits unavailable', e);
@@ -381,7 +391,7 @@ function makeRenderer() {
 	return r;
 }
 
-function render(r: THREE.WebGLRenderer, id: CharacterId): string {
+function render(r: THREE.WebGLRenderer, bust: THREE.Group): string {
 	const scene = new THREE.Scene();
 	const pmrem = new THREE.PMREMGenerator(r);
 	scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -395,7 +405,6 @@ function render(r: THREE.WebGLRenderer, id: CharacterId): string {
 	rim.position.set(60, 20, -40);
 	scene.add(rim);
 
-	const bust = buildBust(id);
 	bust.rotation.y = -0.42;
 	bust.rotation.x = 0.06;
 	scene.add(bust);

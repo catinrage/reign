@@ -2,6 +2,7 @@
 // One browser page; the other side is a bare socket, which keeps it light.
 // Usage: node scripts/dev/spectate.mjs <outDir> [width] [height] [base] [server]
 import { chromium } from 'playwright';
+import { signIn, signUp } from './signin.mjs';
 import WebSocket from 'ws';
 const [
 	dir,
@@ -16,8 +17,8 @@ const browser = await chromium.launch({
 });
 
 /** A connection with no screen: sends one message, resolves with the room code once in. */
-function socket(first) {
-	const ws = new WebSocket(server);
+async function socket(first) {
+	const ws = new WebSocket(server, { headers: { cookie: await signUp(base, first.name) } });
 	const ready = new Promise((res) =>
 		ws.on('message', (d) => {
 			const m = JSON.parse(String(d));
@@ -31,6 +32,7 @@ async function open(path, width = Number(w), height = Number(h)) {
 	const page = await browser.newPage({ viewport: { width, height } });
 	page.on('pageerror', (e) => console.log('[page]', e.message));
 	await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+	await signIn(page, base);
 	await page.goto(`${base}/${path}`);
 	await page.waitForFunction(() => window.__ready === true, null, {
 		timeout: 300000,
@@ -49,7 +51,7 @@ const watching = (page) =>
 	});
 
 // A game between a player and two bots, already under way; the page opens its invite link.
-const host = socket({ t: 'create', name: 'Komeil' });
+const host = await socket({ t: 'create', name: 'Komeil' });
 const code = await host.ready;
 host.send({ t: 'addBot' });
 host.send({ t: 'addBot' });
@@ -82,8 +84,8 @@ host.ws.close();
 	await page.waitForFunction(() => !!window.__client.view, null, { timeout: 120000 });
 	const code = await page.evaluate(() => window.__client.code);
 	const fans = [
-		socket({ t: 'join', code, name: 'Fan' }),
-		socket({ t: 'join', code, name: 'Fan 2' })
+		await socket({ t: 'join', code, name: 'Fan' }),
+		await socket({ t: 'join', code, name: 'Fan 2' })
 	];
 	await Promise.all(fans.map((f) => f.ready));
 	await shot(page, 'player-watched', 3000);

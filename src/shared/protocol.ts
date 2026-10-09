@@ -1,3 +1,4 @@
+import type { AvatarId, FriendsInfo, RoomInvite, Whereabouts } from './accounts';
 import type { MapChoice } from './board/maps';
 import type { Cheat } from './rules/cheats';
 import type { CharacterId } from './rules/characters';
@@ -21,6 +22,9 @@ export interface LobbySeat {
 	 * bots always count as ready. Cleared when a game starts and when the host changes a setting.
 	 */
 	ready: boolean;
+	/** The account of the player in this seat (null for bots). */
+	userId: string | null;
+	avatar: AvatarId | null;
 }
 
 /**
@@ -97,6 +101,9 @@ export type ClientMessage =
 	| { t: 'leave' }
 	/** Is the game at `code` still open, and does `token` still hold a seat there? */
 	| { t: 'peek'; code: string; token?: string }
+	/** Invite a friend (by account id) to this table. */
+	| { t: 'invite'; user: string }
+	| { t: 'declineInvite'; id: string }
 	| { t: 'ping' };
 
 export type ServerMessage =
@@ -118,6 +125,16 @@ export type ServerMessage =
 	 * with the names of the players still at the table.
 	 */
 	| { t: 'peek'; code: string; open: boolean; players: string[] }
+	/** Something to tell the player that isn't an error. */
+	| { t: 'notice'; message: string }
+	/** The connection has no valid sign-in: show the sign-in screen. */
+	| { t: 'unauthorized' }
+	/** Friends and friend requests, sent on connecting and whenever they change. */
+	| { t: 'friends'; friends: FriendsInfo }
+	/** A friend came online, sat down at a table, started a game or left. */
+	| { t: 'presence'; user: string; where: Whereabouts }
+	/** A friend invites this player to their table. */
+	| { t: 'invited'; invite: RoomInvite }
 	| { t: 'pong' };
 
 /** The most any table seats; how many a game actually takes depends on the mode and island. */

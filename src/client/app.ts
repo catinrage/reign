@@ -2,6 +2,7 @@ import { mount } from 'svelte';
 import './styles/ui.css';
 import { GameScene } from './scene/gameScene';
 import { getIcons } from './scene/icons';
+import { account } from './state/account.svelte';
 import { client } from './state/client.svelte';
 import App from './ui/App.svelte';
 import { installArt } from './ui/art';
@@ -27,7 +28,10 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	(window as any).__scene = sceneRef.current;
 	mount(App, { target: el });
 	armAudio();
-	client.connect();
+	// The game connection opens once signed in, and closes on signing out.
+	account.onChange = (signedIn) => (signedIn ? client.connect() : client.disconnect());
+	void account.boot();
+	(window as any).__account = account;
 	(window as any).__client = client;
 	if (new URLSearchParams(location.search).has('autoplay')) {
 		import('./autoplay').then((m) => m.startAutoplay());

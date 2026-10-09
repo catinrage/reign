@@ -10,3 +10,4 @@ docs
 Dockerfile
 compose.yaml
 .dockerignore
+data

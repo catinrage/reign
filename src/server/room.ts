@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
+import type { AvatarId } from '../shared/accounts';
 import type {
 	ClientMessage,
 	LobbyInfo,
@@ -36,6 +37,23 @@ interface Seat {
 	lastPigeon?: number;
 	/** Pressed Leave during a game (rather than losing the connection). Cleared when they rejoin. */
 	left: boolean;
+	/** The account sitting here (null for bots and for tables without accounts, as in tests). */
+	userId: string | null;
+	avatar: AvatarId | null;
+}
+
+/** The signed-in player taking a seat. */
+export interface SeatUser {
+	id: string;
+	nickname: string;
+	avatar: AvatarId;
+}
+
+/** Told when a game at the table starts, ends, or the table closes; the match history listens. */
+export interface RoomListener {
+	gameStarted?(room: Room): void;
+	gameEnded?(room: Room): void;
+	disposed?(room: Room): void;
 }
 
 /** Seconds a disconnected player can stall the table before a bot covers for them. */
@@ -93,6 +111,9 @@ export class Room {
 	private emptySince = 0;
 	/** The last player in the lobby pressed Leave (a lobby drops seats, so it can't ask them). */
 	private lobbyLeft = false;
+	listener: RoomListener | null = null;
+	/** The listener has heard that the current game ended. */
+	private endTold = false;
 
 	/** `cheats` lets players use dev cheats; only the local dev server turns it on. */
 	constructor(
@@ -138,15 +159,17 @@ export class Room {
 					left: s.left,
 					isHost: s.id === this.hostId,
 					character: s.character,
-					ready: this.isReady(s)
+					ready: this.isReady(s),
+					userId: s.userId,
+					avatar: s.avatar
 				})
 			)
 		};
 	}
 
-	/** Whether `token` reclaims a player's seat here. */
-	hasSeat(token?: string) {
-		return !!token && this.seats.some((s) => s.token === token && !s.isBot);
+	/** Whether `token` (or, for a signed-in player, their account) reclaims a player's seat here. */
+	hasSeat(token?: string, userId?: string) {
+		return this.seats.some((s) => !s.isBot && (userId && s.userId ? s.userId === userId : !!token && s.token === token));
 	}
 
 	/**
@@ -162,9 +185,14 @@ export class Room {
 		if (this.aim) send(ws, { t: 'aim', player: this.aim.player, hex: this.aim.hex });
 	}
 
-	/** Join with a saved token to reclaim a seat, or take a new one while in the lobby. */
-	join(ws: WebSocket, name: string, token?: string): Seat | string {
+	/**
+	 * Join with a saved token to reclaim a seat, or take a new one while in the lobby. A signed-in
+	 * player gets their own seat back wherever they join from, and sits under their nickname.
+	 */
+	join(ws: WebSocket, name: string, token?: string, user?: SeatUser): Seat | string {
 		let seat = token ? this.seats.find((s) => s.token === token && !s.isBot) : undefined;
+		if (seat && user && seat.userId && seat.userId !== user.id) seat = undefined;
+		if (!seat && user) seat = this.seats.find((s) => s.userId === user.id);
 		if (!seat) {
 			if (this.started) return 'That game has already started.';
 			if (this.seats.length >= this.maxPlayers) return 'That table is full.';
@@ -178,8 +206,11 @@ export class Room {
 				ready: false,
 				sockets: new Set(),
 				lastSeen: Date.now(),
-				left: false
+				left: false,
+				userId: user?.id ?? null,
+				avatar: user?.avatar ?? null
 			};
+			if (user) seat.name = cleanName(user.nickname) || seat.name;
 			this.seats.push(seat);
 		}
 		seat.sockets.add(ws);
@@ -240,7 +271,8 @@ export class Room {
 		const isHost = seat.id === this.hostId;
 		switch (msg.t) {
 			case 'setName':
-				if (this.started && this.game!.phase !== 'ended') return;
+				// Signed-in players go by their nickname, changed on their profile.
+				if (seat.userId || (this.started && this.game!.phase !== 'ended')) return;
 				seat.name = cleanName(msg.name) || seat.name;
 				return this.broadcastLobby();
 			case 'setColor':
@@ -264,7 +296,9 @@ export class Room {
 					ready: true,
 					sockets: new Set(),
 					lastSeen: Date.now(),
-					left: false
+					left: false,
+					userId: null,
+					avatar: null
 				});
 				return this.broadcastLobby();
 			}
@@ -341,6 +375,8 @@ export class Room {
 					undefined,
 					this.settings
 				);
+				this.endTold = false;
+				this.listener?.gameStarted?.(this);
 				this.broadcastLobby();
 				this.broadcastGame();
 				return this.scheduleBots();
@@ -452,8 +488,10 @@ export class Room {
 	}
 
 	/** Whether `token` holds a seat in this game, and who is still at the table. */
-	peek(token?: string): { open: boolean; players: string[] } {
-		const mine = !!token && this.started && this.seats.some((s) => s.token === token && !s.isBot);
+	peek(token?: string, userId?: string): { open: boolean; players: string[] } {
+		// A signed-in player's seat is theirs by account, whichever browser holds its token.
+		const holds = (s: Seat) => (userId && s.userId ? s.userId === userId : !!token && s.token === token);
+		const mine = this.started && this.seats.some((s) => !s.isBot && holds(s));
 		const players = this.seats.filter((s) => !s.isBot && s.sockets.size > 0).map((s) => s.name);
 		return { open: mine && players.length > 0, players };
 	}
@@ -475,6 +513,16 @@ export class Room {
 		this.spectators.clear();
 		if (this.botTimer) clearTimeout(this.botTimer);
 		this.stopClock();
+		this.listener?.disposed?.(this);
+	}
+
+	/** A player at this table changed their profile. Names stay put while a game runs. */
+	updateUser(userId: string, nickname: string, avatar: AvatarId) {
+		const seat = this.seats.find((s) => s.userId === userId);
+		if (!seat) return;
+		seat.avatar = avatar;
+		if (!this.lockedSettings) seat.name = cleanName(nickname) || seat.name;
+		this.broadcastLobby();
 	}
 
 	private seatIndex(seat: Seat) {
@@ -569,6 +617,10 @@ export class Room {
 		// Once the robber has moved (or the turn moved on), nobody is aiming it.
 		const g = this.game;
 		if (this.aim && (g.step !== 'moveRobber' || g.current !== this.aim.player)) this.aim = null;
+		if (this.game.phase === 'ended' && !this.endTold) {
+			this.endTold = true;
+			this.listener?.gameEnded?.(this);
+		}
 		this.syncClock();
 		const clock = this.clockInfo();
 		this.seats.forEach((s, i) => {
