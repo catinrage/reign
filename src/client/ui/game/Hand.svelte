@@ -99,12 +99,12 @@
 {/if}
 
 <style>
-	/* Resources, then development cards, centered in the space between the chronicle and the
+	/* Resources, then development cards, centered in the room left between the chronicle and the
 	   build panel. When both trays do not fit side by side, the development cards go on top. */
 	.hand {
 		position: absolute;
 		bottom: 10px;
-		left: 330px;
+		left: 326px;
 		right: 450px;
 		display: flex;
 		flex-wrap: wrap-reverse;
@@ -165,7 +165,28 @@
 	.total.warn {
 		color: #ffb09a;
 	}
-	@media (max-width: 1180px) {
+	/* With room to spare, they center on the screen. */
+	@media (min-width: 1700px) {
+		.hand {
+			left: 450px;
+		}
+	}
+	/* Laptop widths: smaller cards and slimmer trays, so both still fit side by side. */
+	@media (min-width: 901px) and (max-width: 1440px) {
+		.tray {
+			--s: 2.6px;
+			padding: 13px 8px 3px;
+		}
+		.cards {
+			gap: 5px;
+		}
+		.cards :global(.card) {
+			--w: 50px !important;
+			--cp: 2px !important;
+		}
+	}
+	/* Too narrow to keep clear of the build panel: center on the screen as before. */
+	@media (max-width: 1240px) {
 		.hand {
 			left: 12px;
 			right: 12px;
