@@ -179,6 +179,49 @@ describe('match history', () => {
 	});
 });
 
+describe('saved maps', () => {
+	/** Every hex within two steps of the center: 19 joined tiles, all random. */
+	function island(name: string, terrain: string | null = null) {
+		const tiles = [];
+		for (let q = -2; q <= 2; q++)
+			for (let r = Math.max(-2, -q - 2); r <= Math.min(2, -q + 2); r++) tiles.push({ q, r, terrain });
+		return { name, tiles };
+	}
+
+	it('saves, renames and deletes a map, only for its owner', async () => {
+		const a = (await player()).user;
+		const b = (await player()).user;
+		const saved = await accounts.saveMap(a.id, island('Twin Bays'));
+		expect(saved.map.tiles).toHaveLength(19);
+		expect(await accounts.maps(a.id)).toEqual([saved]);
+		expect(await accounts.maps(b.id)).toEqual([]);
+
+		await accounts.saveMap(a.id, island('Twin Coves'), saved.id);
+		expect((await accounts.maps(a.id)).map((m) => m.map.name)).toEqual(['Twin Coves']);
+		await expect(accounts.saveMap(b.id, island('Stolen'), saved.id)).rejects.toThrow(AccountError);
+		await accounts.deleteMap(b.id, saved.id);
+		expect(await accounts.maps(a.id)).toHaveLength(1);
+		await accounts.deleteMap(a.id, saved.id);
+		expect(await accounts.maps(a.id)).toEqual([]);
+	});
+
+	it('turns away maps the map maker would not allow', async () => {
+		const a = (await player()).user;
+		await expect(accounts.saveMap(a.id, { name: 'Tiny', tiles: [{ q: 0, r: 0, terrain: null }] })).rejects.toThrow('at least');
+		await expect(accounts.saveMap(a.id, island('All sand', 'desert'))).rejects.toThrow('produce');
+		await expect(accounts.saveMap(a.id, null)).rejects.toThrow(AccountError);
+		expect(await accounts.maps(a.id)).toEqual([]);
+	});
+
+	it('brings browser maps onto the account once, skipping copies and broken maps', async () => {
+		const a = (await player()).user;
+		await accounts.saveMap(a.id, island('Old Isle'));
+		const maps = await accounts.importMaps(a.id, [island('Old Isle'), island('New Isle'), island('New Isle'), { name: 'Broken' }, 'nope']);
+		expect(maps.map((m) => m.map.name)).toEqual(['Old Isle', 'New Isle']);
+		expect(await accounts.importMaps(a.id, 'not a list')).toHaveLength(2);
+	});
+});
+
 describe('signed-in players at a table', () => {
 	function fakeSocket() {
 		const sent: ServerMessage[] = [];

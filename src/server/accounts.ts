@@ -8,12 +8,15 @@ import {
 	type MatchPlayer,
 	type Me,
 	type PublicUser,
+	type SavedMap,
+	MAX_SAVED_MAPS,
 	cleanNickname,
 	cleanUsername,
 	isAvatar,
 	passwordProblem,
 	usernameProblem
 } from '../shared/accounts';
+import { type CustomMap, validateCustomMap } from '../shared/board/maps';
 import type { CharacterId } from '../shared/rules/characters';
 import type { PlayerColor } from '../shared/rules/config';
 import type { Db } from './db';
@@ -83,6 +86,28 @@ export interface SeatRecord {
 	color: PlayerColor;
 	isBot: boolean;
 	character: CharacterId | null;
+}
+
+/** A map from a player, checked the way the map maker checks it; throws when it can't be kept. */
+function cleanMap(input: unknown): CustomMap {
+	const m = input as Partial<CustomMap> | null;
+	if (!m || typeof m !== 'object' || !Array.isArray(m.tiles)) throw new AccountError('That map is empty.');
+	const map: CustomMap = {
+		name: cleanNickname(m.name) || 'Custom map',
+		tiles: m.tiles.slice(0, 1000).map((t) => ({ q: Number(t?.q), r: Number(t?.r), terrain: t?.terrain ?? null }))
+	};
+	const problem = validateCustomMap(map);
+	if (problem) throw new AccountError(problem);
+	return map;
+}
+
+function parseTiles(tiles: unknown): CustomMap['tiles'] {
+	const list = typeof tiles === 'string' ? JSON.parse(tiles) : tiles;
+	return Array.isArray(list) ? list : [];
+}
+
+function mapKey(m: CustomMap) {
+	return JSON.stringify([m.name, m.tiles.map((t) => [t.q, t.r, t.terrain])]);
 }
 
 export class Accounts {
@@ -282,6 +307,65 @@ export class Accounts {
 			'delete from friendships where (asker = $1 and askee = $2) or (asker = $2 and askee = $1)',
 			[id, other]
 		);
+	}
+
+	// ------------------------------------------------------------ maps
+
+	/** The maps a player made, oldest first (the order the map list shows them in). */
+	async maps(userId: string): Promise<SavedMap[]> {
+		const rows = await this.db.query<{ id: string; name: string; tiles: unknown }>(
+			'select id::text as id, name, tiles from maps where user_id = $1 order by created_at, id',
+			[userId]
+		);
+		return rows.map((r) => ({ id: r.id, map: { name: r.name, tiles: parseTiles(r.tiles) } }));
+	}
+
+	/** Keep a new map, or replace one of the player's maps when `id` is given. */
+	async saveMap(userId: string, input: unknown, id?: string): Promise<SavedMap> {
+		const map = cleanMap(input);
+		if (id) {
+			const rows = await this.db.query<{ id: string }>(
+				`update maps set name = $3, tiles = $4::jsonb, updated_at = now() where id = $1 and user_id = $2 returning id::text as id`,
+				[id, userId, map.name, JSON.stringify(map.tiles)]
+			);
+			if (!rows.length) throw new AccountError('That map is gone.');
+			return { id: rows[0].id, map };
+		}
+		const [{ count }] = await this.db.query<{ count: string }>('select count(*) as count from maps where user_id = $1', [userId]);
+		if (Number(count) >= MAX_SAVED_MAPS) throw new AccountError(`You can keep up to ${MAX_SAVED_MAPS} maps. Delete one first.`);
+		const [row] = await this.db.query<{ id: string }>(
+			'insert into maps (user_id, name, tiles) values ($1, $2, $3::jsonb) returning id::text as id',
+			[userId, map.name, JSON.stringify(map.tiles)]
+		);
+		return { id: row.id, map };
+	}
+
+	async deleteMap(userId: string, id: string) {
+		await this.db.query('delete from maps where id = $1 and user_id = $2', [id, userId]);
+	}
+
+	/**
+	 * Bring maps saved in a browser before accounts onto the account. Maps it already has (same
+	 * name and tiles) and maps that aren't valid are skipped. Returns every map the player has.
+	 */
+	async importMaps(userId: string, input: unknown): Promise<SavedMap[]> {
+		const have = new Set((await this.maps(userId)).map((m) => mapKey(m.map)));
+		for (const raw of Array.isArray(input) ? input.slice(0, MAX_SAVED_MAPS) : []) {
+			let map: CustomMap;
+			try {
+				map = cleanMap(raw);
+			} catch {
+				continue;
+			}
+			if (have.has(mapKey(map))) continue;
+			try {
+				await this.saveMap(userId, map);
+			} catch {
+				break;
+			}
+			have.add(mapKey(map));
+		}
+		return this.maps(userId);
 	}
 
 	// ------------------------------------------------------------ match history

@@ -8,7 +8,7 @@ import type { AvatarId, Friend, FriendRequest, FriendsInfo, MatchHistory, Me, Ro
 
 export class ApiError extends Error {}
 
-async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
 	let res: Response;
 	try {
 		res = await fetch(`/api/${path}`, {
@@ -34,8 +34,14 @@ class Account {
 	requests = $state<FriendRequest[]>([]);
 	/** Invitations to friends' tables still waiting for an answer. */
 	invites = $state<RoomInvite[]>([]);
-	/** Called when signing in or out, so the game connection can open or close. */
-	onChange: ((signedIn: boolean) => void) | null = null;
+	/** Told when signing in or out: the game connection opens or closes, saved maps load. */
+	private watchers: ((signedIn: boolean) => void)[] = [];
+
+	/** Call `fn` on every sign-in and sign-out (and at once if already signed in). */
+	watch(fn: (signedIn: boolean) => void) {
+		this.watchers.push(fn);
+		if (this.status === 'in') fn(true);
+	}
 
 	get incoming() {
 		return this.requests.filter((r) => r.incoming);
@@ -79,7 +85,7 @@ class Account {
 		const was = this.status;
 		this.me = user;
 		this.status = 'in';
-		if (was !== 'in') this.onChange?.(true);
+		if (was !== 'in') for (const fn of this.watchers) fn(true);
 	}
 
 	signedOut() {
@@ -89,7 +95,7 @@ class Account {
 		this.friends = [];
 		this.requests = [];
 		this.invites = [];
-		if (was === 'in') this.onChange?.(false);
+		if (was === 'in') for (const fn of this.watchers) fn(false);
 	}
 
 	// ------------------------------------------------------------ friends
