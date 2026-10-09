@@ -4,6 +4,7 @@ import { Room } from '../src/server/room';
 import { getTopology } from '../src/shared/board/topology';
 import type { ServerMessage } from '../src/shared/protocol';
 import { botAction } from '../src/shared/rules/bot';
+import { allBuildings } from '../src/shared/rules/buildings';
 import { applyCheat } from '../src/shared/rules/cheats';
 import { BANK_PER_RESOURCE, RESOURCES, TERRAIN_RESOURCE, totalResources } from '../src/shared/rules/config';
 import { applyAction, createGame } from '../src/shared/rules/engine';
@@ -30,7 +31,7 @@ const extended = (events: Partial<EventRules> = {}, more: Partial<GameSettings> 
 	mode: 'extended',
 	map: { preset: 'great' },
 	characters: false,
-	buildings: { workshop: false },
+	buildings: allBuildings(false),
 	events: { ...DEFAULT_EVENT_RULES, ...events },
 	...more
 });
