@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import type { AvatarId } from '../shared/accounts';
 import type {
@@ -211,8 +210,8 @@ export class Room {
 			if (this.started) return 'That game has already started.';
 			if (this.seats.length >= this.maxPlayers) return 'That table is full.';
 			seat = {
-				id: randomBytes(6).toString('hex'),
-				token: randomBytes(16).toString('hex'),
+				id: randomHex(6),
+				token: randomHex(16),
 				name: cleanName(name) || `Player ${this.seats.length + 1}`,
 				color: this.freeColor(),
 				isBot: false,
@@ -300,8 +299,8 @@ export class Room {
 				if (this.seats.length >= this.maxPlayers) return send(ws, { t: 'error', message: 'The table is full.' });
 				const used = new Set(this.seats.map((s) => s.name));
 				this.seats.push({
-					id: randomBytes(6).toString('hex'),
-					token: randomBytes(16).toString('hex'),
+					id: randomHex(6),
+					token: randomHex(16),
 					name: BOT_NAMES.find((n) => !used.has(n)) ?? 'Bot',
 					color: this.freeColor(),
 					isBot: true,
@@ -863,6 +862,11 @@ export class Room {
 		}
 		return null;
 	}
+}
+
+/** `bytes` random bytes as hex. Web Crypto, so the offline build can run rooms in the browser too. */
+function randomHex(bytes: number): string {
+	return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 export function send(ws: WebSocket, msg: ServerMessage) {

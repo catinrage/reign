@@ -170,6 +170,9 @@ class GameClient {
 	/** Stay connected (reconnect when the line drops). Off while signed out. */
 	private wanted = false;
 
+	/** Opens the line to the game server. The offline build swaps in a server inside the page. */
+	openSocket = (url: string): WebSocket => new WebSocket(url);
+
 	constructor() {
 		const code = invitedRoom();
 		if (code) this.joining = { code, error: null };
@@ -179,7 +182,7 @@ class GameClient {
 		this.wanted = true;
 		if (this.ws) return;
 		const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-		const ws = new WebSocket(`${proto}://${location.host}/ws`);
+		const ws = this.openSocket(`${proto}://${location.host}/ws`);
 		this.ws = ws;
 		this.status = 'connecting';
 		ws.onopen = () => {

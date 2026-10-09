@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { type AvatarId, NICKNAME_MAX, USERNAME_MAX, cleanUsername, passwordProblem, usernameProblem } from '../../../shared/accounts';
+	import { OFFLINE } from '../../offline/flag';
 	import { account } from '../../state/account.svelte';
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
@@ -71,25 +72,27 @@
 				<input class="input" bind:value={nickname} maxlength={NICKNAME_MAX} />
 				<span class="hint">What the table calls you.</span>
 			</label>
-			<label class="field">
-				<span class="label">Username</span>
-				<input class="input" bind:value={username} maxlength={USERNAME_MAX} autocapitalize="off" spellcheck="false" autocomplete="username" />
-				<span class="hint">Friends add you by it.</span>
-			</label>
-			{#if changingPassword}
+			{#if !OFFLINE}
 				<label class="field">
-					<span class="label">Current password</span>
-					<input class="input" type="password" bind:value={current} autocomplete="current-password" />
+					<span class="label">Username</span>
+					<input class="input" bind:value={username} maxlength={USERNAME_MAX} autocapitalize="off" spellcheck="false" autocomplete="username" />
+					<span class="hint">Friends add you by it.</span>
 				</label>
-				<label class="field">
-					<span class="label">New password</span>
-					<input class="input" type="password" bind:value={password} autocomplete="new-password" />
-					<span class="hint">Signs you out everywhere else.</span>
-				</label>
-			{:else}
-				<button type="button" class="btn small wood" onclick={() => (changingPassword = true)}
-					><img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />Change password</button
-				>
+				{#if changingPassword}
+					<label class="field">
+						<span class="label">Current password</span>
+						<input class="input" type="password" bind:value={current} autocomplete="current-password" />
+					</label>
+					<label class="field">
+						<span class="label">New password</span>
+						<input class="input" type="password" bind:value={password} autocomplete="new-password" />
+						<span class="hint">Signs you out everywhere else.</span>
+					</label>
+				{:else}
+					<button type="button" class="btn small wood" onclick={() => (changingPassword = true)}
+						><img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />Change password</button
+					>
+				{/if}
 			{/if}
 		</div>
 		<div class="col">
@@ -101,9 +104,11 @@
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 
 	<div class="foot">
-		<button type="button" class="btn small red" onclick={signOut}
-			><img class="icon-px" src={PIXEL.door} alt="" />Sign out</button
-		>
+		{#if OFFLINE}<span></span>{:else}
+			<button type="button" class="btn small red" onclick={signOut}
+				><img class="icon-px" src={PIXEL.door} alt="" />Sign out</button
+			>
+		{/if}
 		<button type="submit" class="btn green" disabled={!dirty || busy}
 			><img class="icon-px" src={PIXEL.check} alt="" />Save</button
 		>

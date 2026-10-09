@@ -8,6 +8,8 @@
 		"dev:server": "tsx watch src/server/index.ts --dev",
 		"dev:client": "vite",
 		"build": "vite build",
+		"build:offline": "vite build --mode offline",
+		"dev:offline": "vite --mode offline",
 		"start": "tsx src/server/index.ts",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run",

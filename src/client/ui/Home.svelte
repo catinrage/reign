@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { LogoView } from '../scene/logo';
 	import { account } from '../state/account.svelte';
+	import { OFFLINE } from '../offline/flag';
 	import { client } from '../state/client.svelte';
 	import Avatar from './account/Avatar.svelte';
 	import Friends from './account/Friends.svelte';
@@ -117,7 +118,7 @@
 				<span class="me-name">
 					<span class="label">Playing as</span>
 					<b class="title">{me.nickname}</b>
-					<small>@{me.username}</small>
+					{#if !OFFLINE}<small>@{me.username}</small>{/if}
 				</span>
 				<button class="icon-btn edit" onclick={() => openSheet('profile')} title="Edit your profile" aria-label="Edit your profile">
 					<img src={ACCOUNT_ICONS.quill} alt="" />
@@ -144,31 +145,37 @@
 			</button>
 			<button class="btn green block" onclick={create} disabled={busy}>
 				<img src={PIXEL.house} alt="" />
-				<span class="stack">Create a room<span class="sub">Invite friends with a code</span></span>
+				<span class="stack"
+					>Create a room<span class="sub">{OFFLINE ? 'Pick the mode, map and bots' : 'Invite friends with a code'}</span></span
+				>
 			</button>
 
-			<div class="divider"><i></i><span>or join a friend</span><i></i></div>
+			{#if !OFFLINE}
+				<div class="divider"><i></i><span>or join a friend</span><i></i></div>
 
-			<div class="join">
-				<CodeTiles bind:value={code} editable onenter={join} />
-				<button class="btn wood" onclick={join} disabled={code.length !== 5 || busy}>Join</button>
-			</div>
+				<div class="join">
+					<CodeTiles bind:value={code} editable onenter={join} />
+					<button class="btn wood" onclick={join} disabled={code.length !== 5 || busy}>Join</button>
+				</div>
+			{/if}
 		</div>
 
 		<nav class="extras">
-			<button class="medal" onclick={() => openSheet('friends')}>
-				<span class="icon-btn"><img src={ACCOUNT_ICONS.friends} alt="" /></span>
-				<span class="cap">Friends</span>
-				{#if account.incoming.length}
-					<span class="count alert" title="Friend requests">{account.incoming.length}</span>
-				{:else if account.onlineFriends.length}
-					<span class="count" title="Friends online">{account.onlineFriends.length}</span>
-				{/if}
-			</button>
-			<button class="medal" onclick={() => openSheet('history')}>
-				<span class="icon-btn"><img src={ACCOUNT_ICONS.scroll} alt="" /></span>
-				<span class="cap">History</span>
-			</button>
+			{#if !OFFLINE}
+				<button class="medal" onclick={() => openSheet('friends')}>
+					<span class="icon-btn"><img src={ACCOUNT_ICONS.friends} alt="" /></span>
+					<span class="cap">Friends</span>
+					{#if account.incoming.length}
+						<span class="count alert" title="Friend requests">{account.incoming.length}</span>
+					{:else if account.onlineFriends.length}
+						<span class="count" title="Friends online">{account.onlineFriends.length}</span>
+					{/if}
+				</button>
+				<button class="medal" onclick={() => openSheet('history')}>
+					<span class="icon-btn"><img src={ACCOUNT_ICONS.scroll} alt="" /></span>
+					<span class="cap">History</span>
+				</button>
+			{/if}
 			<button class="medal" onclick={openTutorial}>
 				<span class="icon-btn"><img src={PIXEL.book} alt="" /></span>
 				<span class="cap">Tutorial</span>

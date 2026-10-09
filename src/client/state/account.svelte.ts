@@ -1,4 +1,5 @@
 import type { AvatarId, Friend, FriendRequest, FriendsInfo, MatchHistory, Me, RoomInvite, Whereabouts } from '../../shared/accounts';
+import { OFFLINE } from '../offline/flag';
 
 /**
  * The signed-in player: their profile, friends, friend requests and invitations to tables.
@@ -9,6 +10,12 @@ import type { AvatarId, Friend, FriendRequest, FriendsInfo, MatchHistory, Me, Ro
 export class ApiError extends Error {}
 
 export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+	if (OFFLINE) {
+		const { offlineApi } = await import('../offline/api');
+		return offlineApi<T>(path, method, body).catch((e) => {
+			throw new ApiError((e as Error).message);
+		});
+	}
 	let res: Response;
 	try {
 		res = await fetch(`/api/${path}`, {
