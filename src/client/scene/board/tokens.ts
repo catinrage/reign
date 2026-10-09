@@ -32,22 +32,48 @@ const rings = new Map<number, THREE.Group>();
 
 /**
  * A band in a player's color round a token, flush with its top. On number tokens it marks
- * the tiles your buildings touch; on harbor discs, the player who holds the harbor.
+ * the tiles your buildings touch; on harbor discs, the player who holds the harbor. A dark
+ * edge keeps it apart from a tile of the same color (green on a forest, yellow on wheat).
  */
 export function tokenRing(color: number): THREE.Group {
 	let ring = rings.get(color);
 	if (!ring) {
-		const N = 14;
+		const N = 16;
 		const g = new VoxelGrid(N, 2, N);
 		const c = (N - 1) / 2;
+		const edge = hex('#2b1a10');
 		for (let z = 0; z < N; z++)
 			for (let x = 0; x < N; x++) {
 				const d = Math.hypot(x - c, z - c);
-				if (d <= 4.9 || d > 6.4) continue;
-				g.set(x, 0, z, shade(color, 0.78));
-				g.set(x, 1, z, shade(color, 0.97 + hash3(x, 1, z) * 0.08));
+				if (d <= 4.7 || d > 6.9) continue;
+				const band = d <= 5.9;
+				g.set(x, 0, z, band ? shade(color, 0.78) : edge);
+				g.set(x, 1, z, band ? shade(color, 0.97 + hash3(x, 1, z) * 0.08) : edge);
 			}
 		ring = meshesFor(meshGrid(g, { jitter: 0.03 }), 1, { [Mat.Solid]: { lift: 0.3 } }, [N / 2, 0, N / 2]);
+		// Drawn faintly where trees or peaks stand in front of it, like the number.
+		const see = (inner: number, outer: number, tint: THREE.ColorRepresentation, order: number) => {
+			const m = new THREE.Mesh(
+				new THREE.RingGeometry(inner, outer, 48),
+				new THREE.MeshBasicMaterial({
+					color: tint,
+					transparent: true,
+					opacity: 0.7,
+					depthWrite: false,
+					depthFunc: THREE.GreaterDepth,
+					polygonOffset: true,
+					polygonOffsetFactor: -2,
+					polygonOffsetUnits: -2
+				})
+			);
+			m.rotation.x = -Math.PI / 2;
+			m.position.y = 2.02;
+			m.renderOrder = order;
+			m.name = 'ring-ghost';
+			ring!.add(m);
+		};
+		see(4.8, 6.3, color, 2);
+		see(6.3, 7.3, edge, 2);
 		rings.set(color, ring);
 	}
 	const r = ring.clone(true);
