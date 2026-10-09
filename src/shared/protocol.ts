@@ -92,6 +92,8 @@ export type ClientMessage =
 	| { t: 'setPowers'; on: boolean }
 	/** Host: rounds before a used power is ready again (0: once per game); one of POWER_RECHARGES. */
 	| { t: 'setRecharge'; rounds: number }
+	/** Host: a character someone drafted stays on offer to later pickers, or not. */
+	| { t: 'setRepeatPicks'; on: boolean }
 	/** Host: leave a character out of the draft, or put it back. */
 	| { t: 'leaveOut'; character: CharacterId; out: boolean }
 	/** Reign Extended: put one of the extra buildings in the game, or take it out. */

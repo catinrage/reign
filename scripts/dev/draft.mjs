@@ -24,17 +24,19 @@ await until(() => window.__ready === true);
 await page.waitForTimeout(2000);
 await page.click('.sign .btn.green', { force: true });
 await until(() => !!window.__client.lobby);
-// LEAVE=a,b picks who to leave out (default the Rogue and the Steward); HAND=n sets the hand limit.
+// LEAVE=a,b picks who to leave out (default the Rogue and the Steward); HAND=n sets the hand limit;
+// REPEAT=1 lets characters be picked more than once.
 const leave = (process.env.LEAVE ?? 'rogue,steward').split(',').filter(Boolean);
 await page.evaluate(
-	([bots, leave, hand]) => {
+	([bots, leave, hand, repeat]) => {
 		const c = window.__client;
 		c.send({ t: 'setMode', mode: 'extended' });
 		for (let i = 0; i < bots; i++) c.send({ t: 'addBot' });
 		for (const character of leave) c.send({ t: 'leaveOut', character, out: true });
 		if (hand) c.send({ t: 'setHandLimit', cards: hand });
+		if (repeat) c.send({ t: 'setRepeatPicks', on: true });
 	},
-	[Number(bots), leave, Number(process.env.HAND ?? 0)]
+	[Number(bots), leave, Number(process.env.HAND ?? 0), !!process.env.REPEAT]
 );
 await page.waitForSelector('.extended .pick', { timeout: 120000 });
 await shot('lobby', 2500);
@@ -53,7 +55,8 @@ await page.waitForTimeout(600);
 const cards = page.locator('.pool .card:not(.taken)');
 await cards.nth(1).click({ force: true });
 const steward = page.locator('.pool .card:not(.taken)', { hasText: 'Aldous' });
-await ((await steward.count()) ? steward : cards.nth(2)).hover({ force: true });
+const picked = page.locator('.pool .card:has(.by)');
+await (process.env.REPEAT && (await picked.count()) ? picked.first() : (await steward.count()) ? steward : cards.nth(2)).hover({ force: true });
 await shot('draft-mine', 1200);
 await page.click('.foot .btn.green', { force: true });
 await until(() => window.__client.view?.phase !== 'draft');

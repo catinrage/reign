@@ -334,14 +334,17 @@ export function aloneLast(s: Shared, player: number): boolean {
 	return s.players.every((_, i) => i === player || publicPoints(s, i) > mine);
 }
 
-/** The player with this character at the table, or -1. */
-export function holderOf(s: { players: { character: CharacterId | null }[] }, c: CharacterId): number {
-	return s.players.findIndex((p) => p.character === c);
+/** The players with this character at the table (more than one when the host lets picks repeat). */
+export function holdersOf(s: { players: { character: CharacterId | null }[] }, c: CharacterId): number[] {
+	const out: number[] = [];
+	s.players.forEach((p, i) => p.character === c && out.push(i));
+	return out;
 }
 
-/** Characters still free in the character draft. */
+/** Characters still free in the character draft: the whole pool when picks can repeat. */
 export function draftLeft(s: Pick<GameState | GameView, 'draft' | 'players'>): CharacterId[] {
 	if (!s.draft) return [];
+	if (s.draft.repeats) return s.draft.pool;
 	return s.draft.pool.filter((c) => !s.players.some((p) => p.character === c));
 }
 

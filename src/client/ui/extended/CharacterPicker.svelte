@@ -23,7 +23,8 @@
 	const host = $derived(client.isHost);
 	const pool = $derived(characterPool({ ...settings, characters: true }));
 	const players = $derived(lobby.seats.length);
-	const short = $derived(settings.characters && pool.length < players);
+	// With repeat picks one character is enough for the whole table.
+	const short = $derived(settings.characters && !settings.repeatPicks && pool.length < players);
 
 	const powers = $derived(settings.characters && settings.powers);
 
@@ -58,8 +59,31 @@
 		{/if}
 	</div>
 	<div class="sub">
+		{#if settings.characters}
+			<div class="opt">
+				<span class="label">Picks</span>
+				{#if host}
+					<div class="seg">
+						<button
+							class="btn small"
+							class:on={!settings.repeatPicks}
+							title="Once someone drafts a character, nobody else can pick it."
+							onclick={() => client.send({ t: 'setRepeatPicks', on: false })}>Unique</button
+						>
+						<button
+							class="btn small"
+							class:on={settings.repeatPicks}
+							title="A character someone drafted can still be picked by the players after them."
+							onclick={() => client.send({ t: 'setRepeatPicks', on: true })}>Can repeat</button
+						>
+					</div>
+				{:else}
+					<span>{settings.repeatPicks ? 'Can repeat' : 'Unique'}</span>
+				{/if}
+			</div>
+		{/if}
 		{#if powers}
-			<div class="recharge">
+			<div class="opt">
 				<span class="label">Powers</span>
 				{#if host}
 					<div class="seg">
@@ -136,18 +160,20 @@
 	.sub {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
+		column-gap: 22px;
 		flex-wrap: wrap;
 	}
-	.recharge {
+	.sub .count {
+		margin-left: auto !important;
+	}
+	.opt {
 		display: flex;
 		align-items: center;
 		gap: 10px;
 		margin-top: 8px;
 		font-size: 14px;
 	}
-	.recharge .label {
+	.opt .label {
 		font-family: var(--px);
 		font-weight: 700;
 		font-size: 12px;
@@ -155,7 +181,7 @@
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 	}
-	.recharge .seg {
+	.opt .seg {
 		display: flex;
 		gap: 4px;
 	}

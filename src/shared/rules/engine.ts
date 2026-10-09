@@ -36,7 +36,7 @@ import {
 	canPlaceSettlement,
 	aloneLast,
 	discardLimit,
-	holderOf,
+	holdersOf,
 	isVertexFree,
 	longestRoad,
 	longestRoadMin,
@@ -95,7 +95,9 @@ export function createGame(
 	shuffle(rngHolder, deck);
 	const desert = b.hexes.findIndex((h) => h.terrain === 'desert');
 	const pool = extended ? characterPool(opts) : [];
-	const drafting = pool.length >= n && !players.some((p) => p.character);
+	// With repeats allowed, one character in the pool is enough for everyone.
+	const repeats = extended && opts.characters && opts.repeatPicks;
+	const drafting = (repeats ? pool.length > 0 : pool.length >= n) && !players.some((p) => p.character);
 	const state: GameState = {
 		version: 0,
 		rng: rngHolder.rng,
@@ -123,7 +125,7 @@ export function createGame(
 		// The draft runs backwards from the first player, who places first and so picks last.
 		current: drafting ? n - 1 : 0,
 		turn: 0,
-		draft: drafting ? { pool, order: players.map((_, i) => n - 1 - i), picked: 0 } : null,
+		draft: drafting ? { pool, order: players.map((_, i) => n - 1 - i), picked: 0, repeats } : null,
 		setupIndex: 0,
 		setupLastSettlement: null,
 		dice: null,
@@ -326,7 +328,7 @@ function pickCharacter(ctx: Ctx, p: number, character: CharacterId) {
 	const s = ctx.s;
 	const d = s.draft!;
 	if (!d.pool.includes(character)) fail("That character isn't in this game.");
-	if (s.players.some((pl) => pl.character === character)) fail('Someone already picked that character.');
+	if (!d.repeats && s.players.some((pl) => pl.character === character)) fail('Someone already picked that character.');
 	s.players[p].character = character;
 	characterArrives(s.players[p]);
 	ctx.emit({ type: 'characterPicked', player: p, character });
@@ -443,8 +445,7 @@ function rollWith(ctx: Ctx, p: number, dice: [number, number]) {
 	}
 	// The Seer's second sight: a card of choice on a 2 or a 12, whoever rolled it.
 	if (total === 2 || total === 12) {
-		const seer = holderOf(s, 'seer');
-		if (seer >= 0) owePick(ctx, seer, 'seer');
+		for (const seer of holdersOf(s, 'seer')) owePick(ctx, seer, 'seer');
 	}
 	if (total === 7) {
 		const pending: Record<number, number> = {};
@@ -577,17 +578,24 @@ function discard(ctx: Ctx, p: number, res: Partial<ResourceCounts>) {
 	}
 }
 
-/** The Abbess's alms: one of the cards the others just discarded, at random, back from the bank. */
+/**
+ * The Abbess's alms: one of the cards the others just discarded, at random, back from the bank.
+ * Each Abbess at the table takes her own, while discarded cards last.
+ */
 function giveAlms(ctx: Ctx) {
 	const s = ctx.s;
-	const abbess = holderOf(s, 'abbess');
-	const alms = (s.alms ?? []).filter((r) => s.bank[r] > 0);
+	const alms = s.alms ?? [];
 	s.alms = [];
-	if (abbess < 0 || !alms.length) return;
-	const res = alms[randomInt(s, alms.length)];
-	s.bank[res]--;
-	s.players[abbess].resources[res]++;
-	ctx.emit({ type: 'traitGain', player: abbess, character: 'abbess', resource: res });
+	for (const abbess of holdersOf(s, 'abbess')) {
+		const left = alms.filter((r) => s.bank[r] > 0);
+		if (!left.length) return;
+		const i = randomInt(s, left.length);
+		const res = left[i];
+		alms.splice(alms.indexOf(res), 1);
+		s.bank[res]--;
+		s.players[abbess].resources[res]++;
+		ctx.emit({ type: 'traitGain', player: abbess, character: 'abbess', resource: res });
+	}
 }
 
 /** A trait owes this player a resource of their choice, taken whenever they like. */
@@ -690,15 +698,16 @@ function pay(s: GameState, p: number, kind: BuildKind): Partial<ResourceCounts> 
 	return cards;
 }
 
-/** The Baron's toll on a road that touches one of his. */
+/** The Baron's toll on a road that touches one of his (each Baron's, when there are several). */
 function roadToll(ctx: Ctx, p: number, edge: number) {
 	const s = ctx.s;
-	const baron = holderOf(s, 'baron');
-	if (baron < 0 || baron === p) return;
 	const topo = getTopology(s.board);
 	const e = topo.edges[edge];
-	const touches = [e.a, e.b].some((v) => topo.vertices[v].edges.some((o) => o !== edge && s.roads[o] === baron));
-	if (touches) traitToll(ctx, p, baron, 'baron');
+	for (const baron of holdersOf(s, 'baron')) {
+		if (baron === p) continue;
+		const touches = [e.a, e.b].some((v) => topo.vertices[v].edges.some((o) => o !== edge && s.roads[o] === baron));
+		if (touches) traitToll(ctx, p, baron, 'baron');
+	}
 }
 
 function buildRoad(ctx: Ctx, p: number, edge: number) {
@@ -1159,11 +1168,12 @@ function confirmTrade(ctx: Ctx, p: number, offerId: number, other: number) {
 	transfer(s.players[other].resources, s.players[p].resources, t.want);
 	s.trade = null;
 	ctx.emit({ type: 'tradeCompleted', from: p, to: other, give: t.give, want: t.want });
-	// The Bard's good company: his trading partner takes a bonus card, once per turn.
-	const bard = holderOf(s, 'bard');
-	if ((bard === p || bard === other) && s.bardTurn !== s.turn) {
+	// The Bard's good company: his trading partner takes a bonus card, once per turn. Two Bards
+	// trading with each other both take one.
+	const bards = holdersOf(s, 'bard').filter((b) => b === p || b === other);
+	if (bards.length && s.bardTurn !== s.turn) {
 		s.bardTurn = s.turn;
-		owePick(ctx, bard === p ? other : p, 'bard');
+		for (const b of bards) owePick(ctx, b === p ? other : p, 'bard');
 	}
 }
 

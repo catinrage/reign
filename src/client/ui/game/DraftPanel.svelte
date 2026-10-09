@@ -17,7 +17,15 @@
 	const left = $derived(draftLeft(view));
 	// A big pool (more than eight) gets smaller cards so all of it fits at once.
 	const many = $derived(draft.pool.length > 8);
-	const pickedBy = (c: CharacterId) => view.players.findIndex((p) => p.character === c);
+	/** Everyone who has this character (more than one when picks can repeat). */
+	const pickedBy = (c: CharacterId) => view.players.flatMap((p, i) => (p.character === c ? [i] : []));
+	const nameOf = (p: number) => (p === view.me ? 'You' : view.players[p].name);
+	/** Who has it, for the detail panel: "you", "Ann", "Ann and you". */
+	const names = (ps: number[]) =>
+		ps
+			.map((p) => (p === view.me ? 'you' : view.players[p].name))
+			.join(', ')
+			.replace(/, ([^,]*)$/, ' and $1');
 
 	let chosen = $state<CharacterId | null>(null);
 	let hovered = $state<CharacterId | null>(null);
@@ -50,7 +58,12 @@
 
 <Modal title="Character draft" width={980}>
 	<p class="lead">
-		One character each. The first to place a settlement picks last, so the last to place picks first.
+		{#if draft.repeats}
+			One character each, and a character already picked is still yours to take. The first to place a
+			settlement picks last.
+		{:else}
+			One character each. The first to place a settlement picks last, so the last to place picks first.
+		{/if}
 	</p>
 
 	<ol class="order">
@@ -76,13 +89,13 @@
 			{#each draft.pool as c (c)}
 				{@const by = pickedBy(c)}
 				{@const ch = CHARACTER_INFO[c]}
+				{@const taken = by.length > 0 && !draft.repeats}
 				<button
 					class="card plaque"
 					class:on={chosen === c}
-					class:taken={by >= 0}
+					class:taken
 					aria-pressed={chosen === c}
-					aria-disabled={by >= 0}
-					style={by >= 0 ? `--c: var(--art-shield-${view.players[by].color})` : undefined}
+					aria-disabled={taken}
 					onpointerenter={() => point(c)}
 					onfocus={() => point(c)}
 					onclick={() => choose(c)}
@@ -90,11 +103,10 @@
 					<Portrait id={c} size={many ? 54 : 84} tip={false} />
 					<span class="name title">{ch.name}</span>
 					<span class="epithet">{ch.title}</span>
-					{#if by >= 0}
-						<span class="by"
-							><span class="shield mini" style="--shield: var(--art-shield-{view.players[by].color})"></span>{by === view.me
-								? 'You'
-								: view.players[by].name}</span
+					{#if by.length}
+						<span class="by" class:open={!taken}
+							>{#each by as p (p)}<span class="shield mini" style="--shield: var(--art-shield-{view.players[p].color})"
+								></span>{/each}{by.length > 1 ? `×${by.length}` : nameOf(by[0])}</span
 						>
 					{/if}
 				</button>
@@ -112,8 +124,10 @@
 				<span class="trait power">{POWER_INFO[shown].name}</span>
 				<span class="text">{POWER_INFO[shown].text}</span>
 			{/if}
-			{#if shownBy >= 0}
-				<span class="note">Picked by {shownBy === view.me ? 'you' : view.players[shownBy].name}.</span>
+			{#if shownBy.length}
+				<span class="note"
+					>Picked by {names(shownBy)}.{draft.repeats && mine ? ' You can pick it too.' : ''}</span
+				>
 			{/if}
 		</aside>
 	</div>
@@ -279,6 +293,13 @@
 		background: rgba(20, 8, 2, 0.88);
 		box-shadow: 0 0 0 2px #1a0c05;
 		white-space: nowrap;
+	}
+	/* Picks can repeat: the card stays live, so the badge sits on its corner, clear of the face. */
+	.by.open {
+		top: -8px;
+		left: auto;
+		right: -6px;
+		transform: none;
 	}
 	.detail {
 		display: flex;

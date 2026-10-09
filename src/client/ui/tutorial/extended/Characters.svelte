@@ -25,8 +25,9 @@
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.lock} alt="" /><span
-			>No two players can play the same character. Bots draft too, and a pick that runs out of time
-			is made for you.</span
+			>No two players can play the same character, unless the host sets picks to Can repeat: then a
+			character someone drafted is still there for the players after them, and two Barons both
+			take tolls. Bots draft too, and a pick that runs out of time is made for you.</span
 		>
 	</li>
 	<li>

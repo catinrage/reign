@@ -17,6 +17,7 @@ import {
 	costOf,
 	discardLimit,
 	draftLeft,
+	holdersOf,
 	longestRoad,
 	longestRoadMin,
 	paveSpots,
@@ -252,12 +253,12 @@ function spotScore(s: GameState, me: number, v: number): number {
 function roadScore(s: GameState, me: number, e: number): number {
 	const topo = getTopology(s.board);
 	const edge = topo.edges[e];
-	// Roads beside the Baron's pay his toll, so other routes come first.
-	const baron = s.players.findIndex((p) => p.character === 'baron');
+	// Roads beside a Baron's pay his toll, so other routes come first.
 	const toll =
-		baron >= 0 && baron !== me && [edge.a, edge.b].some((v) => topo.vertices[v].edges.some((o) => o !== e && s.roads[o] === baron))
-			? 1.5
-			: 0;
+		1.5 *
+		holdersOf(s, 'baron').filter(
+			(b) => b !== me && [edge.a, edge.b].some((v) => topo.vertices[v].edges.some((o) => o !== e && s.roads[o] === b))
+		).length;
 	let score = 0;
 	for (const v of [edge.a, edge.b]) {
 		if (s.buildings[v]) continue;
@@ -391,7 +392,11 @@ const DRAFT_ORDER: CharacterId[] = [
 
 function draftPick(s: GameState): CharacterId {
 	const left = draftLeft(s);
-	return DRAFT_ORDER.find((c) => left.includes(c)) ?? left[0];
+	// When picks can repeat, a character nobody has yet still comes first, so a table of bots
+	// isn't a table of Merchants; once the pool runs out they double up on the strongest.
+	const fresh = left.filter((c) => !s.players.some((p) => p.character === c));
+	const pick = (from: CharacterId[]) => DRAFT_ORDER.find((c) => from.includes(c)) ?? from[0];
+	return fresh.length ? pick(fresh) : pick(left);
 }
 
 /** The resource a bot most wants from the bank: what its next city, settlement or card lacks. */

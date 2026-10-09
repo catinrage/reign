@@ -75,9 +75,10 @@ export interface GameState {
 	/**
 	 * Reign Extended's character draft: the characters on offer, who picks in what order (the
 	 * reverse of the first round of setup, so whoever places the first settlement picks last),
-	 * and how many have picked. Null when there is no draft.
+	 * and how many have picked. With `repeats`, a picked character stays on offer to later
+	 * pickers. Null when there is no draft.
 	 */
-	draft: { pool: CharacterId[]; order: number[]; picked: number } | null;
+	draft: { pool: CharacterId[]; order: number[]; picked: number; repeats?: boolean } | null;
 	/** Setup: index into the snake order 0..n-1, n-1..0. */
 	setupIndex: number;
 	setupLastSettlement: number | null;

@@ -531,6 +531,36 @@ describe('Reign Extended lobby', () => {
 		off.dispose();
 	});
 
+	it('lets only the host allow repeat character picks, which lifts the short-pool block', () => {
+		const room = new Room('REPEAT');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bo');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		room.handle(host, { t: 'addBot' }, a.ws);
+		expect(room.lobbyInfo().settings.repeatPicks).toBe(false);
+		room.handle(guest, { t: 'setRepeatPicks', on: true }, b.ws);
+		expect(room.lobbyInfo().settings.repeatPicks).toBe(false);
+		// One character for three players: only with repeat picks.
+		for (const c of ['merchant', 'mason', 'scholar', 'veteran', 'rogue', 'steward', 'shepherd', 'explorer', 'seer', 'alchemist', 'bard', 'witch', 'cartographer', 'baron', 'abbess'] as const) {
+			room.handle(host, { t: 'leaveOut', character: c, out: true }, a.ws);
+		}
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'setRepeatPicks', on: true }, a.ws);
+		expect(room.lobbyInfo().settings.repeatPicks).toBe(true);
+		// Changing it clears the guest's ready.
+		expect(room.lobbyInfo().seats.find((s) => s.name === 'Bo')!.ready).toBe(false);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		const g = room.game!;
+		expect(g.phase).toBe('draft');
+		expect(g.draft!.pool).toEqual(['jester']);
+		expect(g.draft!.repeats).toBe(true);
+		room.dispose();
+	});
+
 	it('plays without characters when the host turns them off', () => {
 		const room = new Room('NOCHR');
 		const a = fakeSocket();
