@@ -15,8 +15,8 @@ export const sharedUniforms = {
 	/** 0 = day, 1 = night. Phase two's day/night cycle drives this. */
 	uNight: { value: 0 },
 	/**
-	 * Board tiles drained of color, for the robber: each is (center x, center z, amount, 0)
-	 * in world units. Two slots, so one tile can fade back while the next one grays.
+	 * Board tiles drained to a dark gray, for the robber: each is (center x, center z, amount,
+	 * 0) in world units. Two slots, so one tile can fade back while the next one grays.
 	 */
 	uGray: { value: [new THREE.Vector4(), new THREE.Vector4()] },
 	/** World size of one board voxel, to find which tile a fragment's voxel belongs to. */
@@ -126,8 +126,10 @@ const FRAG_GRAY = /* glsl */ `
 		if (g.z <= 0.0) continue;
 		vec2 a = abs(cell - g.xy);
 		float edge = 10.3923 - max(a.x, 0.5 * a.x + 0.8660254 * a.y);
+		// Drained to a dark gray, so a field reads as shut down rather than snowed on. The range is
+		// squeezed so a forest, dark already, stays light enough for the robber to show on it.
 		float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-		diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l * 0.95), g.z * step(0.63, edge));
+		diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.035 + l * 0.42), g.z * step(0.63, edge));
 	}
 }
 `;
