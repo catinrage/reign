@@ -396,7 +396,7 @@ describe('Reign Extended lobby', () => {
 		room.handle(host, { t: 'setMap', map: { preset: 'realm' } }, a.ws);
 		room.handle(host, { t: 'setPointsToWin', points: 12 }, a.ws);
 		room.handle(host, { t: 'setPointsToWin', points: 99 }, a.ws);
-		expect(room.lobbyInfo().settings).toEqual({ mode: 'extended', map: { preset: 'realm' }, pointsToWin: 12 });
+		expect(room.lobbyInfo().settings).toMatchObject({ mode: 'extended', map: { preset: 'realm' }, pointsToWin: 12 });
 		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
 		room.handle(host, { t: 'start' }, a.ws);
 		expect(room.game!.board.hexes).toHaveLength(37);
@@ -407,22 +407,88 @@ describe('Reign Extended lobby', () => {
 		room.dispose();
 	});
 
-	it('deals every seat a different character and refuses a taken one', () => {
+	it('lets the host turn characters off or leave some out, and drafts them in the game', () => {
+		vi.useFakeTimers();
 		const room = new Room('CHARS');
 		const a = fakeSocket();
 		const b = fakeSocket();
 		const host = room.join(a.ws, 'Ada');
 		const guest = room.join(b.ws, 'Bram');
 		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
 		room.handle(host, { t: 'addBot' }, a.ws);
-		const chars = room.lobbyInfo().seats.map((s) => s.character);
-		expect(new Set(chars).size).toBe(3);
-		room.handle(guest, { t: 'setCharacter', character: host.character! }, b.ws);
-		expect(guest.character).not.toBe(host.character);
-		expect(b.sent.some((m) => m.t === 'error')).toBe(true);
-		const free = (['merchant', 'mason', 'scholar', 'veteran'] as const).find((c) => !chars.includes(c))!;
-		room.handle(guest, { t: 'setCharacter', character: free }, b.ws);
-		expect(guest.character).toBe(free);
+		room.handle(guest, { t: 'leaveOut', character: 'rogue', out: true }, b.ws);
+		expect(room.lobbyInfo().settings.leftOut).toEqual([]);
+		for (const c of ['shepherd', 'rogue', 'merchant'] as const) room.handle(host, { t: 'leaveOut', character: c, out: true }, a.ws);
+		expect(room.lobbyInfo().settings.leftOut).toEqual(['merchant', 'rogue', 'shepherd']);
+		room.handle(host, { t: 'leaveOut', character: 'rogue', out: false }, a.ws);
+		expect(room.lobbyInfo().settings.leftOut).toEqual(['merchant', 'shepherd']);
+
+		// Too few characters for the table: the host can't start.
+		for (const c of ['mason', 'scholar', 'veteran', 'steward', 'explorer'] as const) {
+			room.handle(host, { t: 'leaveOut', character: c, out: true }, a.ws);
+		}
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game).toBeNull();
+		expect(a.sent.some((m) => m.t === 'error' && m.message.includes('3 players need at least 3 characters'))).toBe(true);
+		for (const c of ['mason', 'scholar'] as const) room.handle(host, { t: 'leaveOut', character: c, out: false }, a.ws);
+
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		const g = room.game!;
+		expect(g.phase).toBe('draft');
+		expect(g.draft!.pool).toEqual(['mason', 'scholar', 'rogue']);
+		// Whoever places the first settlement (seat 0) picks last.
+		expect(g.draft!.order).toEqual([2, 1, 0]);
+		expect(g.current).toBe(2);
+		// People pick for themselves; the bot picks when its go comes.
+		const order = g.draft!.order.map((i) => room.seats[i]);
+		for (const seat of order) {
+			if (seat.isBot) vi.advanceTimersByTime(3000);
+			else {
+				const left = room.game!.draft!.pool.filter((c) => !room.game!.players.some((p) => p.character === c));
+				const ws = seat === host ? a.ws : b.ws;
+				room.handle(seat, { t: 'action', action: { type: 'pickCharacter', character: left[left.length - 1] } }, ws);
+			}
+		}
+		expect(room.game!.phase).toBe('setup');
+		expect(new Set(room.game!.players.map((p) => p.character)).size).toBe(3);
+		room.dispose();
+	});
+
+	it('picks for a player whose draft pick runs out of time', () => {
+		vi.useFakeTimers();
+		const room = new Room('SLOWP');
+		const a = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		room.handle(host, { t: 'setTurnTime', seconds: 30 }, a.ws);
+		room.handle(host, { t: 'addBot' }, a.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		const me = room.seats.indexOf(host);
+		// Let the bot pick if it goes first, then run the human's clock out.
+		vi.advanceTimersByTime(3000);
+		expect(room.game!.current).toBe(me);
+		expect(room.game!.phase).toBe('draft');
+		vi.advanceTimersByTime(31_000);
+		expect(room.game!.players[me].character).not.toBeNull();
+		expect(room.game!.phase).toBe('setup');
+		room.dispose();
+	});
+
+	it('plays without characters when the host turns them off', () => {
+		const room = new Room('NOCHR');
+		const a = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'setMode', mode: 'extended' }, a.ws);
+		room.handle(host, { t: 'setCharacters', on: false }, a.ws);
+		room.handle(host, { t: 'addBot' }, a.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.game!.phase).toBe('setup');
+		expect(room.game!.players.every((p) => p.character === null)).toBe(true);
 		room.dispose();
 	});
 

@@ -15,8 +15,6 @@ export interface LobbySeat {
 	/** Pressed Leave during the game; a bot plays the seat until they rejoin. */
 	left: boolean;
 	isHost: boolean;
-	/** The character this seat plays in Reign Extended (each one at most once per table). */
-	character: CharacterId | null;
 	/**
 	 * Ready to start. The host can only start once every other player is ready; the host and
 	 * bots always count as ready. Cleared when a game starts and when the host changes a setting.
@@ -84,7 +82,10 @@ export type ClientMessage =
 	| { t: 'setMode'; mode: GameMode }
 	| { t: 'setMap'; map: MapChoice }
 	| { t: 'setPointsToWin'; points: number }
-	| { t: 'setCharacter'; character: CharacterId }
+	/** Host: Reign Extended players draft characters when the game starts, or play without. */
+	| { t: 'setCharacters'; on: boolean }
+	/** Host: leave a character out of the draft, or put it back. */
+	| { t: 'leaveOut'; character: CharacterId; out: boolean }
 	| { t: 'setReady'; ready: boolean }
 	| { t: 'start' }
 	| { t: 'action'; action: Action }

@@ -5,14 +5,15 @@
 	let {
 		id,
 		size = 64,
-		framed = true
-	}: { id: CharacterId | null; size?: number; framed?: boolean } = $props();
+		framed = true,
+		tip = true
+	}: { id: CharacterId | null; size?: number; framed?: boolean; tip?: boolean } = $props();
 
 	const url = $derived(id ? portraitUrl(id) : null);
 	const info = $derived(id ? CHARACTER_INFO[id] : null);
 </script>
 
-<span class="portrait" class:framed style="--size:{size}px" title={info ? `${info.name} ${info.title}` : undefined}>
+<span class="portrait" class:framed style="--size:{size}px" title={info && tip ? `${info.name} ${info.title}` : undefined}>
 	{#if url}
 		<img src={url} alt={info?.name ?? ''} draggable="false" />
 	{:else}

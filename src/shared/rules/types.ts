@@ -13,7 +13,7 @@ export interface PlayerState {
 	name: string;
 	color: PlayerColor;
 	isBot: boolean;
-	/** Reign Extended: the character this player picked, whose trait bends a rule for them. */
+	/** Reign Extended: the character this player drafted, whose trait bends a rule for them. */
 	character: CharacterId | null;
 	resources: ResourceCounts;
 	devCards: DevCard[];
@@ -28,6 +28,7 @@ export interface Building {
 }
 
 export type TurnStep =
+	| 'pickCharacter'
 	| 'setupSettlement'
 	| 'setupRoad'
 	| 'roll'
@@ -56,10 +57,17 @@ export interface GameState {
 	mapName: string;
 	board: Board;
 	players: PlayerState[];
-	phase: 'setup' | 'main' | 'ended';
+	/** Reign Extended starts with the character draft, then setup as usual. */
+	phase: 'draft' | 'setup' | 'main' | 'ended';
 	step: TurnStep;
 	current: number;
 	turn: number;
+	/**
+	 * Reign Extended's character draft: the characters on offer, who picks in what order (the
+	 * reverse of the first round of setup, so whoever places the first settlement picks last),
+	 * and how many have picked. Null when there is no draft.
+	 */
+	draft: { pool: CharacterId[]; order: number[]; picked: number } | null;
 	/** Setup: index into the snake order 0..n-1, n-1..0. */
 	setupIndex: number;
 	setupLastSettlement: number | null;
@@ -104,6 +112,9 @@ export type GameEvent =
 	| Ev<'stole', { thief: number; victim: number; resource: Resource | null }>
 	/** A character's trait handed a player something from the bank. */
 	| Ev<'traitGain', { player: number; character: CharacterId; resource: Resource }>
+	/** The character draft opened; `order` is who picks first to last. */
+	| Ev<'draftStarted', { order: number[] }>
+	| Ev<'characterPicked', { player: number; character: CharacterId }>
 	| Ev<'nothingToSteal', { player: number }>
 	| Ev<'devCardBought', { player: number; card: DevCardType | null }>
 	| Ev<'devCardPlayed', { player: number; card: DevCardType }>
@@ -133,6 +144,7 @@ export interface ResourceGain {
 }
 
 export type Action =
+	| { type: 'pickCharacter'; character: CharacterId }
 	| { type: 'placeSettlement'; vertex: number }
 	| { type: 'placeRoad'; edge: number }
 	| { type: 'buildCity'; vertex: number }

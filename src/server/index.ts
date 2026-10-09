@@ -88,6 +88,8 @@ function openRoom(): Room {
 	const room = new Room(newCode(), CHEATS);
 	let match: Promise<string | null> | null = null;
 	const points = () => room.game!.players.map((_, i) => totalPoints(room.game!, i));
+	// Reign Extended drafts characters after the game starts, so they're written down at the end.
+	const characters = () => room.game!.players.map((p) => p.character);
 	const failed = (e: unknown) => {
 		console.error(`[room ${room.code}] match history:`, e);
 		return null;
@@ -102,12 +104,12 @@ function openRoom(): Room {
 							mode: g.mode,
 							mapName: g.mapName,
 							pointsToWin: g.pointsToWin,
-							seats: r.seats.map((s) => ({
+							seats: r.seats.map((s, i) => ({
 								userId: s.userId,
 								name: s.name,
 								color: s.color,
 								isBot: s.isBot,
-								character: g.mode === 'extended' ? s.character : null
+								character: g.players[i]?.character ?? null
 							}))
 						})
 						.catch(failed)
@@ -117,7 +119,7 @@ function openRoom(): Room {
 		gameEnded(r) {
 			const g = r.game!;
 			const scores = points();
-			match?.then((id) => (id ? accounts.matchFinished(id, g.turn, g.winner ?? g.current, scores) : undefined)).catch(failed);
+			match?.then((id) => (id ? accounts.matchFinished(id, g.turn, g.winner ?? g.current, scores, characters()) : undefined)).catch(failed);
 			match = null;
 			void hub.roomChanged(r);
 		},
@@ -125,7 +127,7 @@ function openRoom(): Room {
 			const g = r.game;
 			if (g && g.phase !== 'ended') {
 				const scores = points();
-				match?.then((id) => (id ? accounts.matchAbandoned(id, g.turn, scores) : undefined)).catch(failed);
+				match?.then((id) => (id ? accounts.matchAbandoned(id, g.turn, scores, characters()) : undefined)).catch(failed);
 			}
 			match = null;
 		}

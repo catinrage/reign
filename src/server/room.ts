@@ -15,8 +15,16 @@ import { cleanRandomOptions } from '../shared/board/random';
 import { randomSeed } from '../shared/rng';
 import { botAction } from '../shared/rules/bot';
 import { applyCheat } from '../shared/rules/cheats';
-import { CHARACTERS, type CharacterId, isCharacter } from '../shared/rules/characters';
-import { DEFAULT_SETTINGS, GAME_MODES, maxPointsFor, seatsFor, validPointGoal, type GameSettings } from '../shared/rules/modes';
+import { CHARACTERS, isCharacter } from '../shared/rules/characters';
+import {
+	DEFAULT_SETTINGS,
+	GAME_MODES,
+	characterPool,
+	maxPointsFor,
+	seatsFor,
+	validPointGoal,
+	type GameSettings
+} from '../shared/rules/modes';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
 import type { Action, GameState } from '../shared/rules/types';
@@ -28,7 +36,6 @@ interface Seat {
 	name: string;
 	color: PlayerColor;
 	isBot: boolean;
-	character: CharacterId | null;
 	/** Said they are ready to start (only asked of players who aren't the host). */
 	ready: boolean;
 	sockets: Set<WebSocket>;
@@ -158,7 +165,6 @@ export class Room {
 					connected: s.isBot || s.sockets.size > 0,
 					left: s.left,
 					isHost: s.id === this.hostId,
-					character: s.character,
 					ready: this.isReady(s),
 					userId: s.userId,
 					avatar: s.avatar
@@ -202,7 +208,6 @@ export class Room {
 				name: cleanName(name) || `Player ${this.seats.length + 1}`,
 				color: this.freeColor(),
 				isBot: false,
-				character: this.freeCharacter(),
 				ready: false,
 				sockets: new Set(),
 				lastSeen: Date.now(),
@@ -292,7 +297,6 @@ export class Room {
 					name: BOT_NAMES.find((n) => !used.has(n)) ?? 'Bot',
 					color: this.freeColor(),
 					isBot: true,
-					character: this.freeCharacter(),
 					ready: true,
 					sockets: new Set(),
 					lastSeen: Date.now(),
@@ -341,13 +345,25 @@ export class Room {
 				if (this.settings.pointsToWin !== msg.points) this.unready();
 				this.settings.pointsToWin = msg.points;
 				return this.broadcastLobby();
-			case 'setCharacter':
-				if (this.lockedSettings || !isCharacter(msg.character)) return;
-				if (this.seats.some((s) => s !== seat && s.character === msg.character)) {
-					return send(ws, { t: 'error', message: 'Someone already plays that character.' });
-				}
-				seat.character = msg.character;
+			case 'setCharacters':
+				if (!isHost || this.lockedSettings) return;
+				if (this.settings.characters !== !!msg.on) this.unready();
+				this.settings.characters = !!msg.on;
 				return this.broadcastLobby();
+			case 'leaveOut': {
+				if (!isHost || this.lockedSettings || !isCharacter(msg.character)) return;
+				const left = new Set(this.settings.leftOut);
+				if (msg.out) left.add(msg.character);
+				else left.delete(msg.character);
+				// Keep the roster's order so the lobby reads the same for everyone.
+				const leftOut = CHARACTERS.filter((c) => left.has(c));
+				if (leftOut.length === CHARACTERS.length) {
+					return send(ws, { t: 'error', message: 'Keep at least one character, or turn characters off.' });
+				}
+				if (leftOut.join() !== this.settings.leftOut.join()) this.unready();
+				this.settings.leftOut = leftOut;
+				return this.broadcastLobby();
+			}
 			case 'setReady':
 				if (this.lockedSettings || seat.isBot) return;
 				seat.ready = !!msg.ready;
@@ -364,13 +380,17 @@ export class Room {
 						return send(ws, { t: 'error', message: `Waiting for ${names} to be ready.` });
 					}
 				}
+				{
+					const short = this.draftShort();
+					if (short) return send(ws, { t: 'error', message: short });
+				}
 				for (const s of this.seats) if (!s.isBot) s.ready = false;
 				this.pausedBy.clear();
 				this.heldBy = null;
 				// Random seating order makes the first player fair.
 				this.seats.sort(() => Math.random() - 0.5);
 				this.game = createGame(
-					this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot, character: s.character })),
+					this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot })),
 					randomSeed(),
 					undefined,
 					this.settings
@@ -566,10 +586,12 @@ export class Room {
 		if (next) this.hostId = next.id;
 	}
 
-	/** A character nobody at the table plays yet, picked at random. */
-	private freeCharacter(): CharacterId | null {
-		const free = CHARACTERS.filter((c) => !this.seats.some((s) => s.character === c));
-		return free.length ? free[Math.floor(Math.random() * free.length)] : null;
+	/** Why the character draft can't seat everyone: fewer characters than players. */
+	private draftShort(): string | null {
+		if (this.settings.mode !== 'extended' || !this.settings.characters) return null;
+		const pool = characterPool(this.settings).length;
+		if (pool >= this.seats.length) return null;
+		return `${this.seats.length} players need at least ${this.seats.length} characters in the draft, and ${pool} are in.`;
 	}
 
 	private freeColor(): PlayerColor {
@@ -796,8 +818,9 @@ export function send(ws: WebSocket, msg: ServerMessage) {
 	if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
 }
 
-/** What the turn clock times: each setup placement (the snake's double one too), then each turn. */
+/** What the turn clock times: each pick in the character draft, each setup placement (the snake's double one too), then each turn. */
 function clockTurn(g: GameState): string {
+	if (g.phase === 'draft') return `draft ${g.draft!.picked}`;
 	return g.phase === 'setup' ? `setup ${g.setupIndex}` : `${g.turn}:${g.current}`;
 }
 

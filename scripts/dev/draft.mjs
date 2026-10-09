@@ -1,0 +1,54 @@
+// Dev helper: the Reign Extended character draft. The host's lobby with the Characters card,
+// the host leaving two out, then the draft itself: waiting on a bot, your own pick with a
+// character pointed at and chosen, and the table once everyone has picked.
+// Usage: node scripts/dev/draft.mjs <outDir> [bots] [width] [height] [base]
+import { chromium } from 'playwright';
+const [dir, bots = '3', w = '1600', h = '900', base = 'http://localhost:5173'] = process.argv.slice(2);
+const browser = await chromium.launch({
+	executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium',
+	args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
+});
+const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
+page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+const shot = async (name, wait = 1500) => {
+	await page.waitForTimeout(wait);
+	await page.screenshot({ path: `${dir}/${name}.png`, timeout: 180000, animations: 'disabled' });
+	console.log('shot', name);
+};
+const until = (fn, timeout = 300000) => page.waitForFunction(fn, null, { timeout, polling: 300 });
+
+await page.goto(`${base}/`);
+await until(() => window.__ready === true);
+await page.waitForTimeout(2000);
+await page.fill('.name-row .input', 'Komeil');
+await page.click('.sign .btn.green', { force: true });
+await until(() => !!window.__client.lobby);
+await page.evaluate((bots) => {
+	const c = window.__client;
+	c.send({ t: 'setMode', mode: 'extended' });
+	for (let i = 0; i < bots; i++) c.send({ t: 'addBot' });
+	c.send({ t: 'leaveOut', character: 'rogue', out: true });
+	c.send({ t: 'leaveOut', character: 'steward', out: true });
+}, Number(bots));
+await page.waitForSelector('.extended .pick', { timeout: 120000 });
+await shot('lobby', 2500);
+await page.click('.extended .pick >> nth=0', { force: true });
+await shot('characters', 1200);
+await page.keyboard.press('Escape');
+if (await page.locator('.modal').count()) await page.click('.modal .close', { force: true });
+await page.waitForTimeout(500);
+await page.click('.btn.start', { force: true });
+await until(() => window.__client.view?.phase === 'draft');
+await page.waitForTimeout(300);
+// Someone else's pick first, when the draft doesn't open on ours.
+if (await page.evaluate(() => window.__client.view.current !== window.__client.view.me)) await shot('draft-waiting', 1500);
+await until(() => window.__client.view?.current === window.__client.view?.me || window.__client.view?.phase !== 'draft');
+await page.waitForTimeout(600);
+const cards = page.locator('.pool .card:not(.taken)');
+await cards.nth(1).click({ force: true });
+await cards.nth(2).hover({ force: true });
+await shot('draft-mine', 1200);
+await page.click('.foot .btn.green', { force: true });
+await until(() => window.__client.view?.phase !== 'draft');
+await shot('after', 3000);
+await browser.close();

@@ -12,13 +12,19 @@
 <ul class="rows">
 	<li>
 		<img class="icon-px" src={PIXEL.house} alt="" /><span
-			>Pick yours in the lobby, next to <b>Your character</b>. You can change your mind until the
-			game starts.</span
+			>The host decides in the lobby whether there are characters, and can leave any of them out.</span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.crown} alt="" /><span
+			>When the game starts, everyone drafts one in turn, in the reverse of the settlement order: whoever
+			places the first settlement picks last. Point at a character to read its trait.</span
 		>
 	</li>
 	<li>
 		<img class="icon-px" src={PIXEL.lock} alt="" /><span
-			>No two players can play the same character. Bots are given one at random.</span
+			>No two players can play the same character. Bots draft too, and a pick that runs out of time
+			is made for you.</span
 		>
 	</li>
 	<li>

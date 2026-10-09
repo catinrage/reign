@@ -1,4 +1,5 @@
 import { getTopology } from '../board/topology';
+import type { CharacterId } from './characters';
 import {
 	RESOURCES,
 	TERRAIN_RESOURCE,
@@ -11,6 +12,7 @@ import {
 import {
 	citySpots,
 	costOf,
+	draftLeft,
 	playersOnHex,
 	publicPoints,
 	roadSpots,
@@ -37,6 +39,8 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 	if (s.current !== me) return null;
 
 	switch (s.step) {
+		case 'pickCharacter':
+			return { type: 'pickCharacter', character: draftPick(s) };
 		case 'setupSettlement': {
 			const spots = settlementSpots(s, me, true);
 			return { type: 'placeSettlement', vertex: best(spots, (v) => spotScore(s, me, v)) };
@@ -245,4 +249,15 @@ function wantsTrade(s: GameState, me: number): boolean {
 	if (gets < gives) return false;
 	// Only give away things it has plenty of.
 	return RESOURCES.every((r) => (t.want[r] ?? 0) === 0 || res[r] - (t.want[r] ?? 0) >= 1);
+}
+
+/**
+ * The character a bot drafts: the strongest trait still free, judged plainly (steady income and
+ * cheaper building first, situational traits last). Bots read the same table everyone sees.
+ */
+const DRAFT_ORDER: CharacterId[] = ['merchant', 'shepherd', 'mason', 'scholar', 'veteran', 'explorer', 'rogue', 'steward'];
+
+function draftPick(s: GameState): CharacterId {
+	const left = draftLeft(s);
+	return DRAFT_ORDER.find((c) => left.includes(c)) ?? left[0];
 }
