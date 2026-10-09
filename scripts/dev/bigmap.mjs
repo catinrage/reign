@@ -3,6 +3,7 @@
 // the frame rate once it has.
 // Usage: node scripts/dev/bigmap.mjs <outDir> [radius] [bots] [width] [height] [base]
 import { chromium } from 'playwright';
+import { signIn } from './signin.mjs';
 const [dir, radius = '7', bots = '7', w = '1600', h = '900', base = 'http://localhost:5173'] = process.argv.slice(2);
 const browser = await chromium.launch({
 	executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium',
@@ -27,6 +28,7 @@ const fps = () =>
 			})
 	);
 
+await signIn(page, base);
 await page.goto(`${base}/?autoplay`, { timeout: 180000 });
 await until(() => window.__ready === true);
 await page.waitForTimeout(2000);

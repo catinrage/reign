@@ -4,6 +4,7 @@
 // Usage: pnpm tsx scripts/dev/random-map.mjs <outDir> [width] [height] [base] [server]
 import { chromium } from 'playwright';
 import WebSocket from 'ws';
+import { signIn, signUp } from './signin.mjs';
 import { randomMap } from '../../src/shared/board/random.ts';
 const [dir, w = '1600', h = '900', base = 'http://localhost:5173', server = 'ws://localhost:8787/ws'] = process.argv.slice(2);
 const browser = await chromium.launch({
@@ -13,6 +14,7 @@ const browser = await chromium.launch({
 async function open(name) {
 	const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 	page.on('pageerror', (e) => console.log(`[${name}]`, e.message));
+	await signIn(page, base);
 	await page.goto(`${base}/`);
 	await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000, polling: 500 });
 	await page.waitForTimeout(2000);
@@ -57,7 +59,7 @@ await shot(host, 'lobby-too-many', 800);
 await host.close();
 
 // A guest's lobby. One browser page at a time keeps it quick; the host here is a bare socket.
-const ws = new WebSocket(server);
+const ws = new WebSocket(server, { headers: { cookie: await signUp(base, 'Host') } });
 const send = (m) => ws.send(JSON.stringify(m));
 const code = await new Promise((res) => {
 	ws.on('message', (d) => {
