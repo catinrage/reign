@@ -96,6 +96,20 @@
 		});
 	});
 
+	// The tile another player is about to move the robber to lights up here too, once the dice
+	// that called for the robber have landed.
+	$effect(() => {
+		const live = client.latest;
+		const aim = client.aim;
+		let hex: number | null = null;
+		let color = '';
+		if (aim && live && !client.tossing && live.step === 'moveRobber' && live.current === aim.player && aim.player !== live.me) {
+			hex = aim.hex;
+			color = live.players[aim.player].color;
+		}
+		sceneRef.current?.setTheirAim(hex, color);
+	});
+
 	/** Events new since the last call: none at first, nor when a new game starts the log over. */
 	function newEvents() {
 		let last = -1;
@@ -175,6 +189,11 @@
 		scene?.setCallbacks({
 			// The dice came to rest: the interface catches up with the roll.
 			onDiceSettled: (_dice, seq) => client.landed(seq),
+			// The robber's tile under this player's pointer: everyone else sees it light up.
+			onAim: (hex) => {
+				client.aimAt(hex);
+				if (hex !== null) sfx.hover();
+			},
 			// A resource rose from its tile: yours flies into your hand and counts as it gets
 			// there; another player's counts on their plaque right away.
 			onResourcePopped: (player, resource, screen) => {

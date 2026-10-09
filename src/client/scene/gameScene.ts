@@ -6,6 +6,7 @@ import { worldToHex, hexKey } from '../../shared/board/hex';
 import type { GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
+import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
 import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel } from './board/models';
 import { DIE_HALF, Dice } from './dice';
@@ -31,6 +32,8 @@ export interface SceneCallbacks {
 	/** The dice of the roll event `seq` came to rest on the table. */
 	onDiceSettled?: (dice: [number, number], seq: number) => void;
 	onHover?: (label: string | null) => void;
+	/** The tile under the pointer changed while this player picks where the robber goes (null: none). */
+	onAim?: (hex: number | null) => void;
 }
 
 interface PieceObj {
@@ -61,7 +64,12 @@ export class GameScene {
 	private ghosts = new THREE.Group();
 	private ghostHits: { mesh: THREE.Object3D; id: number }[] = [];
 	private hovered: { id: number; obj: THREE.Object3D } | null = null;
-	private hexRing: THREE.LineLoop;
+	/** Lights up the tile the robber is about to move to. */
+	private aim: RobberAim;
+	/** The tile this player's pointer is on while they pick the robber's tile, as last reported. */
+	private myAim: number | null = null;
+	/** The tile another player is about to move the robber to, and their color. */
+	private theirAim: { hex: number; color: string } | null = null;
 	private raycaster = new THREE.Raycaster();
 	private pointer = new THREE.Vector2(-9, -9);
 	private mode: 'menu' | 'game' = 'menu';
@@ -85,17 +93,8 @@ export class GameScene {
 		this.particles = new Particles(this.stage.scene);
 		this.room = buildRoom(this.stage);
 		this.dice = new Dice(this.stage.scene, this.anim, this.particles);
+		this.aim = new RobberAim(this.stage.scene, this.particles);
 		this.stage.scene.add(this.ghosts);
-
-		const ringGeo = new THREE.BufferGeometry().setFromPoints(
-			Array.from({ length: 6 }, (_, i) => {
-				const a = (Math.PI / 180) * (60 * i - 90);
-				return new THREE.Vector3(Math.cos(a) * (HEX_R - 0.6), 0, Math.sin(a) * (HEX_R - 0.6));
-			})
-		);
-		this.hexRing = new THREE.LineLoop(ringGeo, new THREE.LineBasicMaterial({ color: '#fff2b0', transparent: true, opacity: 0.9 }));
-		this.hexRing.visible = false;
-		this.stage.scene.add(this.hexRing);
 
 		this.stage.onFrame((dt, t) => this.frame(dt, t));
 		canvas.addEventListener('pointermove', this.onPointerMove);
@@ -145,6 +144,7 @@ export class GameScene {
 	}
 
 	private setBoard(board: Board, seed: number) {
+		this.aim.clear(this.boardView);
 		if (this.boardView) {
 			this.stage.scene.remove(this.boardView.group);
 			this.boardView.dispose();
@@ -479,7 +479,6 @@ export class GameScene {
 		this.ghosts.clear();
 		this.ghostHits = [];
 		this.hovered = null;
-		this.hexRing.visible = false;
 		if (!req || !this.boardView) return;
 		const bv = this.boardView;
 		const color = PLAYER_RGB[req.color] ?? 0xffffff;
@@ -547,6 +546,14 @@ export class GameScene {
 			this.ghosts.add(hit);
 			this.ghostHits.push({ mesh: hit, id });
 		}
+	}
+
+	/**
+	 * Light up the tile another player is about to move the robber to, in their color (null:
+	 * they point at none). While this player picks the robber's tile, their own pointer wins.
+	 */
+	setTheirAim(hex: number | null, color: string) {
+		this.theirAim = hex === null ? null : { hex, color };
 	}
 
 	/** Screen positions of the current pick options (used by browser tests). */
@@ -647,14 +654,15 @@ export class GameScene {
 			}
 			if (ring) ring.scale.setScalar(1 + Math.sin(t * 3 + slot.userData.phase) * 0.12);
 		}
-		if (this.pick?.kind === 'robber' && bv) {
-			if (id !== null) {
-				const c = bv.hexCenter(id);
-				this.hexRing.position.set(c.x, bv.groundAt(c.x, c.z, 0) + 0.3, c.z);
-				this.hexRing.visible = true;
-				(this.hexRing.material as THREE.LineBasicMaterial).opacity = 0.6 + Math.sin(t * 6) * 0.3;
-			} else this.hexRing.visible = false;
+		// The robber's target: the tile under this player's pointer, or the one another player aims at.
+		const mine = this.pick?.kind === 'robber' ? id : null;
+		if (mine !== this.myAim) {
+			this.myAim = mine;
+			this.callbacks.onAim?.(mine);
 		}
+		const aim = this.pick?.kind === 'robber' ? { hex: mine, color: this.pick.color } : this.theirAim;
+		this.aim.set(bv, aim?.hex ?? null, PLAYER_RGB[aim?.color ?? ''] ?? 0xffffff);
+		this.aim.update(dt, t, bv, this.stage.rig.azimuth);
 		const pulse = 0.5 + Math.sin(t * 4) * 0.5;
 		for (const m of ghostCache.values()) m.emissiveIntensity = 0.4 + pulse * 0.3;
 		for (const m of markerCache.values()) m.emissiveIntensity = 0.9 + pulse * 0.9;
