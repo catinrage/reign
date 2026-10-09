@@ -23,6 +23,7 @@
 {#snippet host()}<b>{t('host')}</b>{/snippet}
 {#snippet ready()}<b>{t('I am ready')}</b>{/snippet}
 {#snippet pause()}<b>{t('Pause for everyone')}</b>{/snippet}
+{#snippet autoRoll()}<b>{t('Auto roll')}</b>{/snippet}
 {#snippet rejoin()}<b>{t('Rejoin game')}</b>{/snippet}
 {#snippet kbdP()}<kbd>P</kbd>{/snippet}
 {#snippet kbdEsc()}<kbd>Esc</kbd>{/snippet}
@@ -78,6 +79,16 @@
 			><Rich
 				text={t('{pause} with the pause button or {key}. Anyone at the table can resume.')}
 				slots={{ pause, key: kbdP }}
+			/></span
+		>
+	</li>
+	<li>
+		<img class="icon-px" src={PIXEL.die} alt="" /><span
+			><Rich
+				text={t(
+					"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first."
+				)}
+				slots={{ autoRoll }}
 			/></span
 		>
 	</li>

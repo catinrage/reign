@@ -13,6 +13,7 @@
 	import { ui } from './ui.svelte';
 	import { t } from '../../i18n/index.svelte';
 	import Rich from '../../i18n/Rich.svelte';
+	import { autoRoll } from './autoRoll.svelte';
 
 	let page = $state<'main' | 'help' | 'settings'>('main');
 	let confirmLeave = $state(false);
@@ -102,6 +103,23 @@
 			onclick={() => client.pauseGame(true)}
 			aria-label={t('Pause')}
 			title={t('Pause the game for everyone (P)')}><img src={PIXEL.pause} alt="" /></button
+		>
+	{/if}
+	{#if playing}
+		<button
+			class="icon-btn auto-roll"
+			class:on={autoRoll.on}
+			onclick={() => {
+				sfx.click();
+				autoRoll.set(!autoRoll.on);
+			}}
+			aria-label={t('Auto roll')}
+			aria-pressed={autoRoll.on}
+			title={autoRoll.on
+				? t('On: your dice roll by themselves a moment after your turn starts.')
+				: t('Off: press Roll dice yourself. Turn it on to roll by itself when your turn starts.')}
+			data-tip-head={t('Auto roll')}
+			><img src={PIXEL.die} alt="" /><span class="tag">{autoRoll.on ? t('On') : t('Off')}</span></button
 		>
 	{/if}
 	<div class="turn-row"><TurnCounter /><span class="events"><EventChip /><RumorChip /></span></div>
@@ -261,6 +279,35 @@
 		font-family: var(--px);
 		font-size: 20px;
 		color: var(--text);
+	}
+	.auto-roll {
+		position: relative;
+	}
+	.auto-roll img {
+		opacity: 0.6;
+	}
+	.auto-roll.on img {
+		opacity: 1;
+	}
+	.auto-roll .tag {
+		position: absolute;
+		bottom: calc(var(--s) * -4);
+		left: 50%;
+		transform: translateX(-50%);
+		padding: 1px 4px;
+		border-radius: 3px;
+		background: #5a3a24;
+		box-shadow: 0 0 0 2px #2a1a10;
+		color: #d9c39a;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 10px;
+		line-height: 1.1;
+		text-transform: uppercase;
+	}
+	.auto-roll.on .tag {
+		background: #3f8f3a;
+		color: #fff;
 	}
 	.gear img {
 		transition: transform 0.4s ease;

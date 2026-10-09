@@ -1457,5 +1457,10 @@ export default {
 	"Taverns are only in games with the Events deck.": "Таверны есть только в играх с колодой событий.",
 	"Knowing the next card lets you get ready for it: spend your cards before a Plague of Rats, play a knight before a Tournament, or save your trades for a Traveling Fair.": "Зная следующую карту, можно к ней подготовиться: потратить карты перед нашествием крыс, сыграть рыцаря перед турниром или отложить обмены до бродячей ярмарки.",
 	"A player with a tavern hears the rumors: they see the next card before it turns over, beside the round's card in the corner.": "С таверной вы слышите слухи: следующая карта видна вам ещё до того, как откроется, в углу рядом с картой раунда.",
-	"taverns": "таверны"
+	"taverns": "таверны",
+	"Auto roll is on: the dice roll by themselves in a moment.": "Авто-бросок включён: кубики сейчас бросятся сами.",
+	"Auto roll": "Авто-бросок",
+	"On: your dice roll by themselves a moment after your turn starts.": "Вкл.: ваши кубики бросаются сами вскоре после начала вашего хода.",
+	"Off: press Roll dice yourself. Turn it on to roll by itself when your turn starts.": "Выкл.: нажимайте «Бросить кубики» сами. Включите, чтобы кубики бросались сами в начале вашего хода.",
+	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}, кнопка с кубиком в углу, бросает кубики за вас вскоре после начала вашего хода. Вы ещё успеете сыграть Рыцаря или применить способность."
 } satisfies Messages;
