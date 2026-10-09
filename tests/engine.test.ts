@@ -125,6 +125,66 @@ describe('rules', () => {
 		expect((v as any).devDeck).toBeUndefined();
 		expect((v as any).rng).toBeUndefined();
 	});
+
+	it('keeps victory point cards secret until the game ends', () => {
+		let s = createGame(players(3), 9);
+		while (s.phase === 'setup') s = act(s, s.current, botAction(s, s.current)!);
+		const players0 = s.players.map((p, i) =>
+			i === 0 ? { ...p, devCards: [{ type: 'victoryPoint' as const, boughtTurn: 0 }] } : p
+		);
+		s = { ...s, players: players0 };
+		const theirs = viewFor(s, 1).players[0];
+		expect(theirs.devCardCount).toBe(1);
+		expect(theirs.devCards).toBeUndefined();
+		expect(theirs.totalPoints).toBeUndefined();
+		expect(theirs.publicPoints).toBe(totalPoints(s, 0) - 1);
+		const mine = viewFor(s, 0).players[0];
+		expect(mine.totalPoints).toBe(totalPoints(s, 0));
+		expect(viewFor({ ...s, phase: 'ended' }, 1).players[0].devCards).toHaveLength(1);
+	});
+
+	it('lets bots see only what players can see', () => {
+		// Secret victory point cards in the other hands must not change any bot's move.
+		const random = Math.random;
+		const seeded = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+		const vp = { type: 'victoryPoint' as const, boughtTurn: 0 };
+		// Three secret points for the next player only, so they would stand out if a bot saw them.
+		const secret = (s: GameState, me: number): GameState => ({
+			...s,
+			players: s.players.map((p, i) =>
+				i === (me + 1) % s.players.length ? { ...p, devCards: [...p.devCards, vp, vp, vp] } : p
+			)
+		});
+		const decide = (s: GameState, me: number, perTurn: number, seed: number) => {
+			Math.random = seeded(seed);
+			const a = botAction(s, me, perTurn);
+			Math.random = seeded(seed);
+			expect(botAction(secret(s, me), me, perTurn)).toEqual(a);
+			return a;
+		};
+		try {
+			for (const seed of [11, 12, 13]) {
+				let s = createGame(players(3), seed);
+				let perTurn = 0;
+				let lastTurn = -1;
+				for (let step = 1; step < 3000 && s.phase !== 'ended'; step++) {
+					if (s.turn !== lastTurn) {
+						lastTurn = s.turn;
+						perTurn = 0;
+					}
+					const others = [0, 1, 2].filter((p) => p !== s.current);
+					const responder = others.find((p) => decide(s, p, 0, step) !== null);
+					if (responder !== undefined) {
+						s = act(s, responder, decide(s, responder, 0, step)!);
+						continue;
+					}
+					s = act(s, s.current, decide(s, s.current, perTurn++, step)!);
+				}
+			}
+		} finally {
+			Math.random = random;
+		}
+	});
 });
 
 describe('full bot games', () => {
