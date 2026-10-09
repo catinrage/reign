@@ -27,6 +27,13 @@ export const sharedUniforms = {
 	 */
 	uAim: { value: new THREE.Vector4() },
 	uAimColor: { value: new THREE.Color() },
+	/**
+	 * How the aim light moves: (x, z) heading of the sparks round the border, pulse 0..1, phase
+	 * 0..1 of the rings. Worked out on the CPU, so the shader needs no sin, cos or pow of the
+	 * clock: some graphics cards turn those into NaN, and bloom spreads one NaN pixel over the
+	 * whole screen.
+	 */
+	uAimWave: { value: new THREE.Vector4(1, 0, 0, 0) },
 	/** Canvas size in CSS pixels, so outlines can be a fixed number of pixels wide. */
 	uViewport: { value: new THREE.Vector2(1, 1) }
 };
@@ -147,6 +154,8 @@ const FRAG_GRAY = /* glsl */ `
  * The robber's target tile: it lights up from the middle out, with rings of light rippling
  * outward, and the beige line round it burns bright with two sparks chasing round. Each voxel
  * takes one value, so the light keeps to the blocks. `aimLight` is added as emitted light.
+ * Everything here stays finite on any card: no pow, no trig, and the motion comes in through
+ * `uAimWave`.
  */
 const FRAG_AIM = /* glsl */ `
 vec3 aimLight = vec3(0.0);
@@ -160,15 +169,20 @@ if (uAim.z > 0.0) {
 	if (edge > -0.7 && k > 0.0) {
 		// The player's color at full brightness, so dark blue glows as well as yellow does.
 		vec3 hue = uAimColor / max(max(uAimColor.r, uAimColor.g), max(uAimColor.b, 1e-3));
-		float pulse = 0.5 + 0.5 * sin(uTime * 5.0);
+		float pulse = uAimWave.z;
 		if (edge < 0.63) {
-			float ang = atan(p.y, p.x) - uTime * 2.6;
-			float spark = pow(0.5 + 0.5 * cos(ang), 14.0) + pow(0.5 - 0.5 * cos(ang), 14.0);
+			// One spark where the border faces the sparks' heading and one opposite: the 14th power
+			// of how squarely it faces each, multiplied out on a base held to 0..1.
+			float s1 = clamp(0.5 + 0.5 * dot(p, uAimWave.xy) / max(length(p), 1.0), 0.0, 1.0);
+			float s2 = 1.0 - s1;
+			float q1 = s1 * s1 * s1 * s1;
+			float q2 = s2 * s2 * s2 * s2;
+			float spark = q1 * q1 * q1 * s1 * s1 + q2 * q2 * q2 * s2 * s2;
 			vec3 c = mix(hue, vec3(1.0), spark * 0.7);
 			diffuseColor.rgb = mix(diffuseColor.rgb, c, 0.9 * k);
 			aimLight = c * (0.75 + 0.35 * pulse + spark * 1.8) * k;
 		} else {
-			float ring = fract(d / 3.6 - uTime * 0.9);
+			float ring = fract(d / 3.6 - uAimWave.w);
 			ring = smoothstep(0.62, 0.86, ring) * (1.0 - smoothstep(0.86, 1.0, ring));
 			float rim = 1.0 - smoothstep(0.63, 3.2, edge);
 			float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
@@ -213,6 +227,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 			shader.uniforms.uGrayVoxel = sharedUniforms.uGrayVoxel;
 			shader.uniforms.uAim = sharedUniforms.uAim;
 			shader.uniforms.uAimColor = sharedUniforms.uAimColor;
+			shader.uniforms.uAimWave = sharedUniforms.uAimWave;
 		}
 
 		let vs = shader.vertexShader.replace('#include <common>', `#include <common>\n${VERT_HEAD}`);
@@ -238,7 +253,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		if (opts.tileGray) {
 			fs = fs.replace(
 				'#include <common>',
-				'#include <common>\nuniform vec4 uGray[2];\nuniform float uGrayVoxel;\nuniform vec4 uAim;\nuniform vec3 uAimColor;'
+				'#include <common>\nuniform vec4 uGray[2];\nuniform float uGrayVoxel;\nuniform vec4 uAim;\nuniform vec3 uAimColor;\nuniform vec4 uAimWave;'
 			);
 			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_GRAY}\n${FRAG_AIM}`);
 			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += aimLight;');
