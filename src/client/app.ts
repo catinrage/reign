@@ -8,6 +8,7 @@ import { installArt } from './ui/art';
 import { applySettings } from './ui/settings.svelte';
 import { sceneRef } from './ui/sceneRef';
 import { armAudio } from './ui/sound';
+import { installTooltips } from './ui/tooltip';
 
 export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	let quality: 'high' | 'low' = 'high';
@@ -19,6 +20,7 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 		/* ignore */
 	}
 	installArt();
+	installTooltips();
 	applySettings();
 	getIcons();
 	sceneRef.current = new GameScene(canvas, quality, detail);

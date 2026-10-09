@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DEV_CARDS, type DevCardType } from '../../../shared/rules/config';
-	import { discardLimit } from '../../../shared/rules/queries';
+	import { discardLimit, roadSpots } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import DevCard from '../DevCard.svelte';
 	import { RESOURCES, myTurn } from '../helpers';
@@ -28,16 +28,41 @@
 			type,
 			total: dev.filter((c) => c.type === type).length,
 			ready: dev.filter((c) => c.type === type && c.boughtTurn < view.turn).length
-		})).filter((g) => g.total > 0)
+		}))
+			.filter((g) => g.total > 0)
+			.map((g) => ({ ...g, blocked: blocked(g.type, g.ready) }))
 	);
 	// On phones the build bar sits under the hand, so the hand moves up while it shows.
 	const raised = $derived(myTurn(view) && view.step === 'main' && !ui.trade);
-	const canPlay = $derived(
-		myTurn(view) &&
-			!client.tossing &&
-			(view.step === 'roll' || view.step === 'main') &&
-			!view.devCardPlayedThisTurn
-	);
+	// Why a card can't be played right now, or null when it can. The same checks the rules make,
+	// in the order a player would want to hear them.
+	const STEP_WAIT: Partial<Record<string, string>> = {
+		setupSettlement: 'Place your starting pieces first.',
+		setupRoad: 'Place your starting pieces first.',
+		discard: 'Wait until everyone has discarded.',
+		moveRobber: 'Move the robber first.',
+		steal: 'Pick someone to rob first.',
+		roadBuilding: 'Place your free roads first.'
+	};
+	function blocked(type: DevCardType, ready: number): string | null {
+		if (type === 'victoryPoint') return null;
+		if (view.phase === 'ended') return 'The game is over.';
+		if (!myTurn(view)) return 'Wait for your turn to play it.';
+		if (client.lobby?.pausedBy) return 'The game is paused.';
+		if (client.tossing) return 'Wait for the dice to land.';
+		if (ready === 0) return 'Bought this turn: play it from your next turn.';
+		if (view.devCardPlayedThisTurn)
+			return 'You already played a development card this turn. Only one per turn.';
+		if (view.step !== 'roll' && view.step !== 'main')
+			return STEP_WAIT[view.step] ?? "You can't play a card right now.";
+		if (type === 'roadBuilding') {
+			if (me.piecesLeft.road <= 0) return 'You have no roads left to place.';
+			if (roadSpots(view, view.me).length === 0) return 'There is nowhere left to build a road.';
+		}
+		if (type === 'yearOfPlenty' && RESOURCES.reduce((n, r) => n + view.bank[r], 0) < 2)
+			return 'The bank is out of resources.';
+		return null;
+	}
 
 	function play(type: DevCardType) {
 		if (type === 'knight') client.act({ type: 'playKnight' });
@@ -81,7 +106,8 @@
 									type={g.type}
 									count={g.total}
 									waiting={g.total - g.ready}
-									playable={canPlay && g.type !== 'victoryPoint' && g.ready > 0}
+									playable={g.type !== 'victoryPoint' && !g.blocked}
+									reason={g.blocked ?? undefined}
 									onclick={() => play(g.type)}
 								/>
 							</div>
