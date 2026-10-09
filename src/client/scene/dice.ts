@@ -7,6 +7,9 @@ const UP = new THREE.Vector3(0, 1, 0);
 const DIE_SCALE = 0.78;
 const HALF = 4.5 * DIE_SCALE;
 
+/** Half the width of a die, in world units: the dice need this much clear table round them. */
+export const DIE_HALF = HALF;
+
 /** Two voxel dice that get tossed onto the table and tumble to the rolled faces. */
 export class Dice {
 	readonly dice: THREE.Group[] = [];
@@ -15,17 +18,26 @@ export class Dice {
 	constructor(
 		readonly scene: THREE.Scene,
 		readonly anim: Animator,
-		readonly particles: Particles,
-		public rest: THREE.Vector3
+		readonly particles: Particles
 	) {
 		for (let i = 0; i < 2; i++) {
 			const d = cloneModel(dieModel());
 			d.scale.setScalar(DIE_SCALE);
-			d.position.copy(rest).add(new THREE.Vector3(i * 12 - 6, HALF, i * 3));
 			d.quaternion.copy(this.faceUp(i === 0 ? 5 : 2, i * 1.3));
+			// Out of sight until the table is ready and they are put down (see `place`).
+			d.visible = false;
 			scene.add(d);
 			this.dice.push(d);
 		}
+	}
+
+	/** Put the dice down at rest, without a toss. */
+	place(ends: [THREE.Vector3, THREE.Vector3]) {
+		if (this.rolling) return;
+		this.dice.forEach((d, i) => {
+			d.position.copy(ends[i]).setY(HALF);
+			d.visible = true;
+		});
 	}
 
 	private faceUp(value: number, yaw: number) {
@@ -33,15 +45,17 @@ export class Dice {
 		return new THREE.Quaternion().setFromAxisAngle(UP, yaw).multiply(q);
 	}
 
-	/** Toss from `from` (usually toward the camera) and land on `values`. */
-	async roll(values: [number, number], from: THREE.Vector3, rest?: THREE.Vector3) {
-		if (rest) this.rest = rest;
+	/** Toss from `from` (the thrower's side) so the dice land at `ends`, showing `values`. */
+	async roll(values: [number, number], from: THREE.Vector3, ends: [THREE.Vector3, THREE.Vector3]) {
 		this.rolling = true;
 		const duration = 1.35;
+		const mid = ends[0].clone().add(ends[1]).multiplyScalar(0.5);
 		await Promise.all(
 			this.dice.map((d, i) => {
-				const end = this.rest.clone().add(new THREE.Vector3(i * 12 - 6 + (Math.random() - 0.5) * 4, HALF, i * 4 + (Math.random() - 0.5) * 4));
-				const start = from.clone().add(new THREE.Vector3(i * 6 - 3, 0, i * 3));
+				d.visible = true;
+				const end = ends[i].clone().setY(HALF);
+				// Side by side all the way, so the two paths never cross.
+				const start = from.clone().add(ends[i].clone().sub(mid).setY(0));
 				const qEnd = this.faceUp(values[i], Math.random() * Math.PI * 2);
 				const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
 				const spins = (3 + Math.random() * 2) * Math.PI * 2;

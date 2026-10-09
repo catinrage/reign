@@ -60,7 +60,7 @@ function faceTexture(draw: (ctx: CanvasRenderingContext2D, s: number) => void): 
 	return tex;
 }
 
-function withFace(tex: THREE.Texture): THREE.Group {
+function withFace(tex: THREE.Texture, seeThrough = false): THREE.Group {
 	const g = new THREE.Group();
 	g.add(disc());
 	const face = new THREE.Mesh(
@@ -72,6 +72,28 @@ function withFace(tex: THREE.Texture): THREE.Group {
 	face.receiveShadow = true;
 	face.name = 'face';
 	g.add(face);
+	if (seeThrough) {
+		// Drawn only where something stands in front of the face (a peak or a tree from a low
+		// camera, the robber), faintly, so the number can always be read.
+		const ghost = new THREE.Mesh(
+			face.geometry,
+			new THREE.MeshBasicMaterial({
+				map: tex,
+				transparent: true,
+				opacity: 0.6,
+				depthWrite: false,
+				depthFunc: THREE.GreaterDepth,
+				polygonOffset: true,
+				polygonOffsetFactor: -2,
+				polygonOffsetUnits: -2
+			})
+		);
+		ghost.rotation.x = -Math.PI / 2;
+		ghost.position.y = 2.02;
+		ghost.renderOrder = 2;
+		ghost.name = 'ghost';
+		g.add(ghost);
+	}
 	return g;
 }
 
@@ -93,7 +115,7 @@ export function numberToken(n: number): THREE.Group {
 			ctx.fill();
 		}
 	});
-	const g = withFace(tex);
+	const g = withFace(tex, true);
 	g.userData.number = n;
 	return g;
 }

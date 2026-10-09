@@ -4,7 +4,7 @@ import { type Board, getTopology } from '../../../shared/board/topology';
 import type { Terrain } from '../../../shared/rules/config';
 import { HEX_R, SEA_Y, VOXEL } from '../layout';
 import { Mat, VoxelGrid, fbm, hash3, hex, mix, noise2, pick, shade } from '../voxel/grid';
-import { meshesFor } from '../voxel/materials';
+import { meshesFor, sharedUniforms } from '../voxel/materials';
 import { meshGrid } from '../voxel/mesher';
 
 /**
@@ -21,6 +21,8 @@ import { meshGrid } from '../voxel/mesher';
 const RV = HEX_R / VOXEL;
 /** Land surface: columns fill y = 0..G-1, so the top face is at y = G. */
 const G = 8;
+/** World y of the flat land surface: roads and buildings stand at least this high. */
+export const LAND_TOP = G * VOXEL;
 const BORDER_TOP = G - 1;
 /** Water columns fill y = 0..SEA_TOP-1, a step below the wet sand. */
 const SEA_TOP = Math.round(SEA_Y / VOXEL);
@@ -316,9 +318,11 @@ export function buildBoard(board: Board, seed: number): BoardBuild {
 
 	const geos = meshGrid(grid, { jitter: 0.06 });
 	const group = meshesFor(geos, VOXEL, {
-		[Mat.Sway]: { swayBase: G, roughness: 0.7 },
+		[Mat.Solid]: { tileGray: true },
+		[Mat.Sway]: { swayBase: G, roughness: 0.7, tileGray: true },
 		[Mat.Water]: { roughness: 0.22, bevel: 0.35 }
 	});
+	sharedUniforms.uGrayVoxel.value = VOXEL;
 	group.name = 'board';
 
 	const surfaceY = (x: number, z: number) => {
@@ -376,6 +380,13 @@ function distanceField(land: Uint8Array, W: number, D: number) {
 
 // ---------------------------------------------------------------- terrain columns
 
+/** Peak heights and radii (voxels) for the three summits round a mountain tile. */
+const MOUNTAIN_PEAKS = [
+	{ h: 19, r: 8 },
+	{ h: 16, r: 7 },
+	{ h: 13, r: 6 }
+];
+
 /** Fills one column and returns the y of its top voxel. */
 function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, col: Col, hs: number, r: number): number {
 	const fill = (topY: number, topColor: number, mat: Mat = Mat.Solid) => {
@@ -385,6 +396,8 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 	};
 	const center = Math.hypot(col.lx, col.lz);
 	const edgeFade = Math.min(1, Math.max(0, (col.edge - 1.1) / 4));
+	/** Tall ground fades out near the corners, so settlements and cities stand on the flat. */
+	const cornerFade = Math.min(1, Math.max(0, (col.corner - 4) / 3));
 	const g = G - 1;
 	switch (terrain) {
 		case 'forest': {
@@ -397,7 +410,7 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 			const bump = n > 0.62 && edgeFade > 0.6 ? 1 : 0;
 			const c = mix(pick(C.grass, r), C.grassHi[0], Math.max(0, n - 0.45) * 0.9);
 			const top = fill(g + bump, c);
-			if (center > 5.5 && col.edge > 2) {
+			if (center > 5.5 && col.edge > 2 && col.corner > 4.5) {
 				if (r > 0.982) {
 					grid.set(x, top + 1, z, pick(C.flower, hash3(x, 5, z, hs)));
 					return top + 1;
@@ -431,7 +444,7 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 		case 'hills': {
 			const n = fbm(x * 0.075, z * 0.075, hs, 3);
 			const m = fbm(x * 0.2, z * 0.2, hs + 9, 2);
-			let h = Math.max(0, Math.round(((n - 0.36) * 13 + (m - 0.5) * 2) * edgeFade));
+			let h = Math.max(0, Math.round(((n - 0.36) * 13 + (m - 0.5) * 2) * edgeFade * cornerFade));
 			if (center < 4.8) h = Math.min(h, 1);
 			const top = g + h;
 			grid.box(x, 0, z, x, top, z, (_, y) => {
@@ -442,29 +455,31 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 			return top;
 		}
 		case 'mountains': {
-			// One stepped peak set back from the center, plus a smaller shoulder.
-			const peaks = [
-				{ x: 0.5, z: -6.5, h: 24, r: 15.5 },
-				{ x: 8, z: 2.5, h: 12, r: 8.5 }
-			];
-			let h = 0;
-			for (const p of peaks) {
-				const d = Math.hypot(col.lx - p.x, col.lz - p.z);
-				h = Math.max(h, p.h * Math.pow(Math.max(0, 1 - d / p.r), 1.05));
+			// A rocky massif with a flat ledge in the middle for the number token and a ring of
+			// stepped peaks around it. The peaks stand back far enough, and low enough, that the
+			// token stays in sight from every side down to a fairly low camera.
+			const ledge = 8;
+			const spin = hash3(hs, 7, 7) * Math.PI * 2;
+			let h = ledge * Math.min(1, Math.max(0, 1 - (center - 5) / 9));
+			for (let k = 0; k < 3; k++) {
+				const a = spin + (k * Math.PI * 2) / 3 + (hash3(hs, k, 11) - 0.5) * 0.6;
+				const d = 11.5 + hash3(hs, k, 12);
+				const peak = MOUNTAIN_PEAKS[(k + Math.floor(hash3(hs, 13, 13) * 3)) % 3];
+				const dist = Math.hypot(col.lx - Math.cos(a) * d, col.lz - Math.sin(a) * d);
+				h = Math.max(h, peak.h * Math.pow(Math.max(0, 1 - dist / peak.r), 1.05));
 			}
-			h += (fbm(x * 0.22, z * 0.22, hs) - 0.5) * 3.2;
-			h *= Math.min(1, Math.max(0, (col.edge - 1) / 3));
-			// A flat ledge at the center holds the number token.
-			if (center < 4.5) h = Math.min(h, 7);
+			h += (fbm(x * 0.22, z * 0.22, hs) - 0.5) * 2;
+			h *= Math.min(1, Math.max(0, (col.edge - 1) / 3)) * cornerFade;
+			if (center < 5) h = ledge;
 			h = Math.max(0, Math.floor(h));
-			// Terraces: snap the slopes to two-voxel steps away from the summit.
-			if (h > 3 && h < 18) h = h - (h % 2);
+			// Terraces: snap the slopes to two-voxel steps away from the summits.
+			if (h > 3 && h < 14) h = h - (h % 2);
 			const top = g + h;
 			grid.box(x, 0, z, x, top, z, (_, y) => {
 				const rh = hash3(x, y, z, hs);
 				const rel = y - g;
-				if (rel >= 17 + (rh > 0.5 ? 1 : 0)) return pick(C.snow, rh);
-				if (y === top && rel >= 14 && rh > 0.35) return pick(C.snow, rh);
+				if (rel >= 15 + (rh > 0.5 ? 1 : 0)) return pick(C.snow, rh);
+				if (y === top && rel >= 12 && rh > 0.35) return pick(C.snow, rh);
 				if (rh > 0.975 && rel > 1) return pick(C.ore, rh);
 				if (y === top) return rel > 1 ? pick(C.rockHi.concat(C.rock), rh) : pick(C.rock, rh);
 				if (rh > 0.78) return pick(C.rockDark, rh);

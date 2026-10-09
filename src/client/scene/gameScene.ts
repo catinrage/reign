@@ -6,10 +6,12 @@ import type { GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
 import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel } from './board/models';
-import { Dice } from './dice';
+import { DIE_HALF, Dice } from './dice';
 import { Particles } from './effects';
 import { HEX_R, PLAYER_RGB } from './layout';
 import { type Room, buildRoom } from './room/room';
+import { TABLE_HALF } from './room/table';
+import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 
 export type PickKind = 'settlement' | 'road' | 'city' | 'robber';
@@ -61,12 +63,13 @@ export class GameScene {
 	private mode: 'menu' | 'game' = 'menu';
 	private callbacks: SceneCallbacks = {};
 	private smokeClock = 0;
+	private diceDown = false;
 
 	constructor(canvas: HTMLCanvasElement, quality: Quality) {
 		this.stage = new Stage(canvas, quality);
 		this.particles = new Particles(this.stage.scene);
 		this.room = buildRoom(this.stage);
-		this.dice = new Dice(this.stage.scene, this.anim, this.particles, new THREE.Vector3(70, 0, -96));
+		this.dice = new Dice(this.stage.scene, this.anim, this.particles);
 		this.stage.scene.add(this.ghosts);
 
 		const ringGeo = new THREE.BufferGeometry().setFromPoints(
@@ -135,7 +138,9 @@ export class GameScene {
 				this.stage.rig.autoRotate = 0;
 				// Each player looks at the table from their own side.
 				const seat = Math.max(0, view.me);
-				this.stage.rig.set({ ...this.framing(), azimuth: -0.62 + seat * (Math.PI / 2), target: new THREE.Vector3(0, 0, 0) });
+				const goal = { ...this.framing(), azimuth: -0.62 + seat * (Math.PI / 2), target: new THREE.Vector3(0, 0, 0) };
+				this.stage.rig.set(goal);
+				if (this.room.ready) this.dice.place(this.diceSpots(this.cameraAt(goal)).ends);
 			}
 		}
 		const prev = this.view;
@@ -241,12 +246,8 @@ export class GameScene {
 		if (!bv || !this.view) return;
 		switch (e.type) {
 			case 'diceRolled': {
-				const cam = this.stage.camera.position.clone();
-				const dir = new THREE.Vector3(cam.x, 0, cam.z).normalize();
-				const side = new THREE.Vector3(-dir.z, 0, dir.x);
-				const rest = dir.clone().multiplyScalar(84).addScaledVector(side, 62);
-				const from = dir.clone().multiplyScalar(170).addScaledVector(side, 40).setY(40);
-				this.dice.roll(e.dice, from, rest).then(() => this.callbacks.onDiceSettled?.(e.dice));
+				const spot = this.diceSpots();
+				this.dice.roll(e.dice, spot.from, spot.ends).then(() => this.callbacks.onDiceSettled?.(e.dice));
 				// Highlight producing tokens once the dice land.
 				const total = e.dice[0] + e.dice[1];
 				this.anim.wait(1.4).then(() => this.flashTokens(total));
@@ -267,6 +268,92 @@ export class GameScene {
 				break;
 			}
 		}
+	}
+
+	/**
+	 * Where the dice land: two spots side by side (as this camera sees them) on clear table,
+	 * off the board and its sea and away from the props, as near as possible to the right of
+	 * the screen below the player plaques. They are tossed in from the viewer's side.
+	 */
+	private diceSpots(cam: THREE.PerspectiveCamera = this.stage.camera) {
+		const fwd = cam.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
+		const toCam = fwd.clone().negate();
+		const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+		const want = new THREE.Vector2(0.55, -0.3);
+		const ndc = new THREE.Vector3();
+		const blockers = this.hudBoxes();
+		/** Distance from the wanted screen spot; spots off screen or under the HUD lose. */
+		const score = (x: number, z: number) => {
+			ndc.set(x, 0, z).project(cam);
+			const off = Math.max(0, Math.abs(ndc.x) - 0.84) + Math.max(0, ndc.y - 0.78) + Math.max(0, -0.74 - ndc.y);
+			let d = Math.hypot(ndc.x - want.x, ndc.y - want.y) + off * 20;
+			for (const b of blockers) if (ndc.x > b.min.x && ndc.x < b.max.x && ndc.y > b.min.y && ndc.y < b.max.y) d += 4;
+			return d;
+		};
+		// A die's corners reach about 1.42 half-widths from its center.
+		const reach = DIE_HALF * 1.42 + 0.8;
+		const boxes = this.room.props.children.map((c) => new THREE.Box3().setFromObject(c).expandByScalar(reach));
+		const lim = TABLE_HALF * ROOM_SCALE - reach - 1;
+		const build = this.boardView?.build;
+		const free = (x: number, z: number, r: number) => {
+			if (Math.abs(x) > lim || Math.abs(z) > lim) return false;
+			for (const b of boxes) if (x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z) return false;
+			if (!build) return true;
+			if (build.surfaceY(x, z) > 0) return false;
+			for (let k = 0; k < 8; k++) {
+				const a = (k * Math.PI) / 4;
+				if (build.surfaceY(x + Math.cos(a) * r, z + Math.sin(a) * r) > 0) return false;
+			}
+			return true;
+		};
+		const gap = DIE_HALF * 1.5;
+		let best: THREE.Vector3 | null = null;
+		let bestD = Infinity;
+		for (let z = -lim; z <= lim; z += 2.5)
+			for (let x = -lim; x <= lim; x += 2.5) {
+				const d = score(x, z);
+				if (d >= bestD) continue;
+				// Both dice, and where they first touch down on the way in.
+				if (!free(x + right.x * gap, z + right.z * gap, reach)) continue;
+				if (!free(x - right.x * gap, z - right.z * gap, reach)) continue;
+				if (!free(x + toCam.x * 7, z + toCam.z * 7, DIE_HALF)) continue;
+				bestD = d;
+				best = new THREE.Vector3(x, 0, z);
+			}
+		const c = best ?? toCam.clone().multiplyScalar(lim);
+		const jitter = () => new THREE.Vector3((Math.random() - 0.5) * 1.6, 0, (Math.random() - 0.5) * 1.6);
+		const ends: [THREE.Vector3, THREE.Vector3] = [c.clone().addScaledVector(right, -gap).add(jitter()), c.clone().addScaledVector(right, gap).add(jitter())];
+		return { ends, from: c.clone().addScaledVector(toCam, 24).setY(26) };
+	}
+
+	/** Screen areas (in NDC) behind the HUD's panels: plaques, log, hand, buttons. */
+	private hudBoxes(): THREE.Box2[] {
+		const r = this.stage.canvas.getBoundingClientRect();
+		if (!r.width || !r.height) return [];
+		const pad = 24;
+		const boxes: THREE.Box2[] = [];
+		// Panels, and what sits inside wrappers that have no size of their own (the buttons).
+		for (const node of document.querySelectorAll('.hud > *, .hud > * > *')) {
+			const b = node.getBoundingClientRect();
+			if (!b.width || !b.height || b.width * b.height > r.width * r.height * 0.5) continue;
+			boxes.push(
+				new THREE.Box2(
+					new THREE.Vector2(((b.left - pad - r.left) / r.width) * 2 - 1, 1 - ((b.bottom + pad - r.top) / r.height) * 2),
+					new THREE.Vector2(((b.right + pad - r.left) / r.width) * 2 - 1, 1 - ((b.top - pad - r.top) / r.height) * 2)
+				)
+			);
+		}
+		return boxes;
+	}
+
+	/** A copy of the camera placed where a rig framing would put it. */
+	private cameraAt(f: { radius: number; polar: number; azimuth: number; target: THREE.Vector3 }) {
+		const cam = this.stage.camera.clone();
+		const s = Math.sin(f.polar);
+		cam.position.set(f.target.x + f.radius * s * Math.sin(f.azimuth), f.target.y + f.radius * Math.cos(f.polar), f.target.z + f.radius * s * Math.cos(f.azimuth));
+		cam.lookAt(f.target);
+		cam.updateMatrixWorld();
+		return cam;
 	}
 
 	private flashTokens(total: number) {
@@ -450,6 +537,10 @@ export class GameScene {
 		this.anim.update(dt);
 		this.particles.update(dt);
 		this.room.update(dt, t);
+		if (!this.diceDown && this.room.ready && this.boardView) {
+			this.diceDown = true;
+			this.dice.place(this.diceSpots().ends);
+		}
 		this.smoke(dt);
 		const bv = this.boardView;
 		if (bv) {

@@ -24,6 +24,10 @@ import { FLOOR_Y, ROOM_HALF, ROOM_SCALE, place } from './util';
 /** The cozy room around the board: table, furniture, fireplace, decorations. */
 export interface Room {
 	group: THREE.Group;
+	/** Things standing on the table top (trays, cards, mug...), which the dice keep clear of. */
+	props: THREE.Group;
+	/** Everything has been built (some of it is built in slices after `buildRoom` returns). */
+	readonly ready: boolean;
 	update(dt: number, t: number): void;
 }
 
@@ -231,6 +235,10 @@ export function buildRoom(stage: Stage): Room {
 	setTimeout(pump, 0);
 	return {
 		group,
+		props: onTable,
+		get ready() {
+			return queue.length === 0;
+		},
 		update(dt, t) {
 			for (const u of updaters) u(dt, t);
 		}
