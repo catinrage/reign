@@ -30,7 +30,8 @@ const SAMPLES = [
 	'flutter',
 	'coo',
 	'horn',
-	'trade'
+	'trade',
+	'tearDown'
 ] as const;
 type SampleName = (typeof SAMPLES)[number];
 
@@ -55,7 +56,8 @@ const VOLUME: Record<SampleName, number> = {
 	flutter: 0.5,
 	coo: 0.55,
 	horn: 0.7,
-	trade: 0.5
+	trade: 0.5,
+	tearDown: 0.7
 };
 /** Random pitch spread (playbackRate +/- this) for sounds that repeat a lot. */
 const VARY: Partial<Record<SampleName, number>> = {
@@ -581,6 +583,13 @@ const synth: Record<SampleName, () => void> = {
 		tone(2350, 0.3, 'sine', 0.02);
 		tone(1568, 0.6, 'sine', 0.08, 0.14);
 		tone(2350, 0.35, 'sine', 0.02, 0.14);
+	},
+	tearDown() {
+		// Timber cracking, then the heap slumping in a thump and a hiss of dust.
+		[0, 0.05, 0.12].forEach((d, i) => click(d, 0.3 - i * 0.05, 0.6 + i * 0.1));
+		tone(120, 0.4, 'sine', 0.32, 0.35, 0.45);
+		click(0.36, 0.28, 0.4);
+		swish(0.36, 0.9, 0.1, 1100, 220, 0.05);
 	}
 };
 
@@ -634,6 +643,8 @@ export const sfx = {
 	horn: () => play('horn'),
 	/** A merchant's little bell: another player put a trade on the table. */
 	trade: () => play('trade'),
+	/** A workshop torn down: timber cracks and the heap slumps into dust. */
+	tearDown: () => play('tearDown'),
 	/** Wings beating as a carrier pigeon takes off. */
 	flutter: () => play('flutter'),
 	/** A soft coo as a carrier pigeon lands with a note. */

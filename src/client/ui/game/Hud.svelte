@@ -5,6 +5,7 @@
 		roadSpots,
 		settlementSpots,
 		citySpots,
+		ownWorkshops,
 		paveSpots,
 		tradeHarbor,
 		workshopSpots
@@ -95,6 +96,9 @@
 					} else if (ui.build === 'stoneRoad') {
 						kind = 'stoneRoad';
 						options = paveSpots(view, me);
+					} else if (ui.build === 'tearDown') {
+						kind = 'tearDown';
+						options = ownWorkshops(view, me);
 					}
 					break;
 			}
@@ -111,6 +115,7 @@
 				else if (k === 'settlement') client.act({ type: 'placeSettlement', vertex: id });
 				else if (k === 'workshop') client.act({ type: 'buildWorkshop', hex: id });
 				else if (k === 'stoneRoad') client.act({ type: 'paveRoad', edge: id });
+				else if (k === 'tearDown') client.act({ type: 'tearDownWorkshop', hex: id });
 				else client.act({ type: 'buildCity', vertex: id });
 				if (view.step === 'main') ui.build = null;
 			}
@@ -151,6 +156,7 @@
 		for (const e of liveEvents(live.log)) {
 			if (e.type === 'diceRolled') sfx.dice();
 			else if (e.type === 'built') sfx.build();
+			else if (e.type === 'tornDown') sfx.tearDown();
 			else if (e.type === 'robberMoved') sfx.robber();
 		}
 	});

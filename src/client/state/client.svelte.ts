@@ -339,7 +339,8 @@ class GameClient {
 			return;
 		}
 		// Cards that fly to a hand: dealt off the tiles, taken with a Monopoly, picked from the bank
-		// with a Year of Plenty, bought from the bank or a harbor, traded between players.
+		// with a Year of Plenty, bought from the bank or a harbor, traded between players, given back
+		// for a workshop torn down.
 		const gains: Gain[] = [];
 		for (const e of view.log) {
 			if (e.seq <= after) continue;
@@ -357,6 +358,10 @@ class GameClient {
 					if (amount) gains.push({ player: e.to, resource, amount });
 				for (const [resource, amount] of Object.entries(e.want) as [Resource, number][])
 					if (amount) gains.push({ player: e.from, resource, amount });
+			} else if (e.type === 'tornDown') {
+				for (const [resource, amount] of Object.entries(e.refund)) {
+					if (amount) gains.push({ player: e.player, resource: resource as Resource, amount });
+				}
 			}
 		}
 		if (gains.length) this.deal(gains);

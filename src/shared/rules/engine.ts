@@ -25,7 +25,7 @@ import {
 	type Resource,
 	type ResourceCounts
 } from './config';
-import { WORKSHOP_LIMIT, allBuildings, cleanBuildingRules } from './buildings';
+import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules } from './buildings';
 import type { CharacterId } from './characters';
 import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, startRound, tilePays } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
@@ -274,6 +274,8 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 			return buildWorkshop(ctx, p, a.hex);
 		case 'paveRoad':
 			return paveRoad(ctx, p, a.edge);
+		case 'tearDownWorkshop':
+			return tearDownWorkshop(ctx, p, a.hex);
 		case 'rollDice':
 			return roll(ctx, p);
 		case 'moveRobber':
@@ -717,6 +719,24 @@ function paveRoad(ctx: Ctx, p: number, edge: number) {
 	ctx.emit({ type: 'built', player: p, kind: 'stoneRoad', at: edge, free: false });
 	updateLongestRoad(ctx);
 	checkWin(ctx);
+}
+
+/** Tear down one of your workshops (to build it somewhere better): the bank gives back a Lumber. */
+function tearDownWorkshop(ctx: Ctx, p: number, hex: number) {
+	const s = ctx.s;
+	requireMain(s);
+	if (!s.buildingRules.workshop) fail('Workshops are not part of this game.');
+	if (!Number.isInteger(hex) || !s.board.hexes[hex]) fail('Pick a tile on the island.');
+	if (s.workshops[hex] !== p) fail('Pick one of your own workshops.');
+	s.workshops[hex] = null;
+	delete s.builtTurns[builtKey('workshop', hex)];
+	const refund: Partial<ResourceCounts> = {};
+	for (const r of RESOURCES) {
+		const n = Math.min(WORKSHOP_REFUND[r] ?? 0, s.bank[r]);
+		if (n > 0) refund[r] = n;
+	}
+	transfer(s.bank, s.players[p].resources, refund);
+	ctx.emit({ type: 'tornDown', player: p, hex, refund });
 }
 
 // ---------------------------------------------------------------- development cards

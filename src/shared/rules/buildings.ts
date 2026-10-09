@@ -1,4 +1,4 @@
-import type { Resource } from './config';
+import type { Resource, ResourceCounts } from './config';
 
 /**
  * Reign Extended buildings beyond the settlement and the city. The host switches each one on or
@@ -22,7 +22,7 @@ export const BUILDING_INFO: Record<ExtraBuilding, BuildingInfo> = {
 	workshop: {
 		name: 'Workshops',
 		label: 'Workshop',
-		text: 'Built on a tile beside your settlement or city: one per tile, three each. Whenever the tile pays you, its workshop adds one more card.'
+		text: 'Built on a tile beside your settlement or city: one per tile, three each. Whenever the tile pays you, its workshop adds one more card. Tear one down for a Lumber back to build it somewhere better.'
 	},
 	stoneRoad: {
 		name: 'Stone roads',
@@ -33,6 +33,9 @@ export const BUILDING_INFO: Record<ExtraBuilding, BuildingInfo> = {
 
 /** Each player builds at most this many workshops. */
 export const WORKSHOP_LIMIT = 3;
+
+/** What tearing down one of your workshops gives back, so you can build it somewhere better. */
+export const WORKSHOP_REFUND: Partial<ResourceCounts> = { wood: 1 };
 
 /** A workshop is named after the work of its tile. */
 export const WORKSHOP_NAME: Record<Resource, string> = {

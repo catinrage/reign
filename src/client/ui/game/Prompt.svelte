@@ -5,14 +5,17 @@
 	import TurnClock from './TurnClock.svelte';
 	import { ui } from './ui.svelte';
 
+	/** What to click to build these (anything else goes on a glowing spot). */
+	const BUILD_PROMPT: Partial<Record<NonNullable<typeof ui.build>, string>> = {
+		workshop: 'Click a glowing tile to build your workshop',
+		stoneRoad: 'Click one of your roads to pave it with stone',
+		tearDown: 'Click one of your workshops to tear it down'
+	};
+
 	const view = $derived(client.view!);
 	const text = $derived(
 		ui.build && view.step === 'main'
-			? ui.build === 'workshop'
-				? 'Click a glowing tile to build your workshop'
-				: ui.build === 'stoneRoad'
-					? 'Click one of your roads to pave it with stone'
-					: `Click a glowing spot to place your ${ui.build}`
+			? (BUILD_PROMPT[ui.build] ?? `Click a glowing spot to place your ${ui.build}`)
 			: promptText(view)
 	);
 	const mine = $derived(myTurn(view));

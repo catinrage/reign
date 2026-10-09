@@ -4,14 +4,15 @@ import { Room } from '../src/server/room';
 import { getTopology } from '../src/shared/board/topology';
 import type { ServerMessage } from '../src/shared/protocol';
 import { botAction } from '../src/shared/rules/bot';
-import { WORKSHOP_LIMIT, allBuildings, cleanBuildingRules } from '../src/shared/rules/buildings';
+import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules } from '../src/shared/rules/buildings';
 import { BANK_PER_RESOURCE, COSTS, RESOURCES, TERRAIN_RESOURCE } from '../src/shared/rules/config';
 import { applyAction, createGame } from '../src/shared/rules/engine';
 import { NO_EVENTS } from '../src/shared/rules/events';
 import type { GameSettings } from '../src/shared/rules/modes';
-import { workshopSpots } from '../src/shared/rules/queries';
+import { builtKey, ownWorkshops, workshopSpots } from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
+import { pieceTip } from '../src/client/ui/helpers';
 
 const COLORS = ['red', 'blue', 'yellow', 'green'] as const;
 const players = (n: number) => COLORS.slice(0, n).map((color, i) => ({ name: `P${i}`, color, isBot: true, character: null }));
@@ -191,6 +192,86 @@ describe('workshops', () => {
 		const view = viewFor(s, 1);
 		expect(view.buildingRules).toEqual(allBuildings());
 		expect(view.workshops).toEqual(s.workshops);
+	});
+});
+
+describe('tearing down workshops', () => {
+	/** A game where the current player has all their workshops built. */
+	function allBuilt() {
+		let s = midGame(extended());
+		const p = s.current;
+		for (const h of workshopSpots(s, p).slice(0, WORKSHOP_LIMIT)) s = act(s, p, { type: 'buildWorkshop', hex: h });
+		expect(ownWorkshops(s, p)).toHaveLength(WORKSHOP_LIMIT);
+		return s;
+	}
+
+	it('frees the tile and the workshop to build again, and the bank gives back a Lumber', () => {
+		const s = allBuilt();
+		const p = s.current;
+		expect(WORKSHOP_REFUND).toEqual({ wood: 1 });
+		expect(workshopSpots(s, p)).toEqual([]);
+		const h = ownWorkshops(s, p)[0];
+		const after = act(s, p, { type: 'tearDownWorkshop', hex: h });
+		expect(after.workshops[h]).toBe(null);
+		expect(ownWorkshops(after, p)).toHaveLength(WORKSHOP_LIMIT - 1);
+		expect(after.players[p].resources).toEqual({ ...s.players[p].resources, wood: s.players[p].resources.wood + 1 });
+		expect(after.bank.wood).toBe(s.bank.wood - 1);
+		expect(after.log.at(-1)).toMatchObject({ type: 'tornDown', player: p, hex: h, refund: { wood: 1 } });
+		// Its date goes with it, and a new one gets its own.
+		expect(s.builtTurns[builtKey('workshop', h)]).toBe(s.turn);
+		expect(after.builtTurns[builtKey('workshop', h)]).toBeUndefined();
+		// Its tile is free again, for this player or anyone beside it.
+		expect(workshopSpots(after, p)).toContain(h);
+		const rebuilt = act(after, p, { type: 'buildWorkshop', hex: h });
+		expect(rebuilt.workshops[h]).toBe(p);
+		expect(rebuilt.builtTurns[builtKey('workshop', h)]).toBe(s.turn);
+	});
+
+	it("gives nothing back when the bank is out of Lumber", () => {
+		const s = structuredClone(allBuilt());
+		const p = s.current;
+		s.players[p].resources.wood += s.bank.wood;
+		s.bank.wood = 0;
+		const h = ownWorkshops(s, p)[0];
+		const after = act(s, p, { type: 'tearDownWorkshop', hex: h });
+		expect(after.workshops[h]).toBe(null);
+		expect(after.players[p].resources.wood).toBe(s.players[p].resources.wood);
+		expect(after.log.at(-1)).toMatchObject({ type: 'tornDown', player: p, hex: h, refund: {} });
+	});
+
+	it("only takes down your own workshop, on your turn, after the roll", () => {
+		const s = allBuilt();
+		const p = s.current;
+		const other = (p + 1) % s.players.length;
+		const mine = ownWorkshops(s, p)[0];
+		const empty = s.workshops.findIndex((o, h) => o === null && TERRAIN_RESOURCE[s.board.hexes[h].terrain]);
+		const theirs = structuredClone(s);
+		theirs.workshops[empty] = other;
+		expect(error(theirs, p, { type: 'tearDownWorkshop', hex: empty })).toBe('Pick one of your own workshops.');
+		expect(error(s, p, { type: 'tearDownWorkshop', hex: empty })).toBe('Pick one of your own workshops.');
+		expect(error(s, p, { type: 'tearDownWorkshop', hex: 999 })).toBe('Pick a tile on the island.');
+		expect(error(s, p, { type: 'tearDownWorkshop', hex: 0.5 })).toBe('Pick a tile on the island.');
+		expect(error(s, other, { type: 'tearDownWorkshop', hex: mine })).toBe("It's not your turn.");
+		const early = structuredClone(s);
+		early.step = 'roll';
+		expect(error(early, p, { type: 'tearDownWorkshop', hex: mine })).toBe('Roll the dice first.');
+		const off = structuredClone(s);
+		off.buildingRules = { ...off.buildingRules, workshop: false };
+		expect(error(off, p, { type: 'tearDownWorkshop', hex: mine })).toBe('Workshops are not part of this game.');
+		expect(ownWorkshops(off, p)).toEqual([]);
+	});
+
+	it('shows up in every player view', () => {
+		const s = allBuilt();
+		const h = ownWorkshops(s, s.current)[0];
+		const after = act(s, s.current, { type: 'tearDownWorkshop', hex: h });
+		for (let i = -1; i < after.players.length; i++) {
+			const view = viewFor(after, i);
+			expect(view.workshops[h]).toBe(null);
+			expect(view.log.at(-1)).toMatchObject({ type: 'tornDown', hex: h });
+			// Nothing left there for the board's tooltip.
+			expect(pieceTip(view, { place: 'hex', at: h })).toBeNull();
+		}
 	});
 });
 

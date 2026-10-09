@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { BUILDING_INFO, EXTRA_BUILDINGS, isExtraBuilding } from '../../../shared/rules/buildings';
+	import { BUILDING_INFO, EXTRA_BUILDINGS, WORKSHOP_REFUND, isExtraBuilding } from '../../../shared/rules/buildings';
 	import type { BuildKind } from '../../../shared/rules/config';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
-	import { costOf } from '../../../shared/rules/queries';
+	import { costOf, ownWorkshops } from '../../../shared/rules/queries';
 	import { buildAvailable, buildNote, countsList, extraStock, myTurn } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
@@ -25,9 +25,11 @@
 	const reign = $derived<Build[]>(
 		EXTRA_BUILDINGS.filter((b) => view.buildingRules?.[b]).map((b) => ({ kind: b, label: BUILDING_INFO[b].label }))
 	);
+	/** Your workshops, any of which you can tear down to build it somewhere better. */
+	const owned = $derived(ownWorkshops(view, view.me));
 	/** Phones fit five plaques to a row; past that they take two rows. */
 	const cols = $derived.by(() => {
-		const n = builds.length + reign.length;
+		const n = builds.length + reign.length + (owned.length ? 1 : 0);
 		return n <= 5 ? n : Math.ceil(n / 2);
 	});
 
@@ -73,6 +75,24 @@
 	</button>
 {/snippet}
 
+{#snippet tearDown()}
+	<button
+		class="build plaque"
+		class:active={ui.build === 'tearDown'}
+		title="Tear down one of your workshops to build it somewhere better. The bank gives you back a Lumber."
+		data-tip-head="Tear down"
+		onclick={() => (ui.build = ui.build === 'tearDown' ? null : 'tearDown')}
+	>
+		<span class="piece torn"><img src={icons[`workshop:${color}`]} alt="" /><img class="icon-px hammer" src={PIXEL.hammer} alt="" /></span>
+		<span class="bname title">Tear down<small title="Your workshops">{owned.length}</small></span>
+		<span class="cost back"
+			><b>+</b>{#each countsList(WORKSHOP_REFUND) as c (c.res)}
+				{#each Array(c.n) as _, k (k)}<img class="res" src={icons[c.res]} alt={c.res} />{/each}
+			{/each}</span
+		>
+	</button>
+{/snippet}
+
 {#if view.me >= 0 && view.phase !== 'ended'}
 	<div class="actions">
 		{#if mine && view.step === 'roll' && !client.rollAsked && !client.tossing}
@@ -87,6 +107,7 @@
 					{#if reign.length}
 						<div class="sep"><i></i><span>Reign</span><i></i></div>
 						{#each reign as b (b.kind)}{@render plaque(b)}{/each}
+						{#if owned.length}{@render tearDown()}{/if}
 					{/if}
 				</div>
 			{/if}
@@ -212,6 +233,36 @@
 		display: flex;
 		gap: 1px;
 	}
+	/* Tear down: your workshop, faded, with a hammer over it; and what you get back. */
+	.torn {
+		position: relative;
+		display: block;
+	}
+	.torn img:first-child {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		filter: saturate(0.55) brightness(0.8);
+	}
+	.torn .hammer {
+		position: absolute;
+		right: -2px;
+		bottom: -1px;
+		width: 22px;
+		height: 22px;
+		filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.85));
+	}
+	.cost.back {
+		align-items: center;
+	}
+	.cost.back b {
+		font-family: var(--px);
+		font-size: 14px;
+		line-height: 1;
+		color: #a8e070;
+		margin-right: 1px;
+		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.75);
+	}
 	.cost .res {
 		width: 19px;
 		height: 19px;
@@ -260,6 +311,13 @@
 			grid-row: auto;
 			width: 30px;
 			height: 30px;
+		}
+		.torn .hammer {
+			width: 15px;
+			height: 15px;
+		}
+		.cost.back b {
+			font-size: 10px;
 		}
 		.bname {
 			font-size: 11px;

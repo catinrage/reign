@@ -131,6 +131,8 @@ export type GameEvent =
 	| Ev<'turnTimedOut', { player: number }>
 	/** `at` is a vertex, an edge, or for a workshop the hex it stands on. */
 	| Ev<'built', { player: number; kind: BuiltKind; at: number; free: boolean }>
+	/** A player tore down their workshop on `hex`; `refund` is what the bank gave back (nothing if it ran out). */
+	| Ev<'tornDown', { player: number; hex: number; refund: Partial<ResourceCounts> }>
 	| Ev<'setupResources', { player: number; gains: ResourceGain[] }>
 	| Ev<'diceRolled', { player: number; dice: [number, number] }>
 	| Ev<'produced', { gains: ResourceGain[]; blocked: number[]; shortages: Resource[] }>
@@ -208,6 +210,7 @@ export type Action =
 	| { type: 'buildCity'; vertex: number }
 	| { type: 'buildWorkshop'; hex: number }
 	| { type: 'paveRoad'; edge: number }
+	| { type: 'tearDownWorkshop'; hex: number }
 	| { type: 'rollDice' }
 	| { type: 'discard'; resources: Partial<ResourceCounts> }
 	| { type: 'moveRobber'; hex: number }
