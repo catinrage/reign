@@ -110,6 +110,8 @@ class GameClient {
 	pigeons = $state.raw<PigeonNote[]>([]);
 	/** The newest pigeon to fly while we were here (sent or received), for the flight to play. */
 	freshPigeon = $state.raw<PigeonNote | null>(null);
+	/** The tile another player moving the robber points at, as the server last said. */
+	aim = $state.raw<{ player: number; hex: number } | null>(null);
 
 	private ws: WebSocket | null = null;
 	private retry = 0;
@@ -193,6 +195,9 @@ class GameClient {
 				this.pigeons = [...this.pigeons, msg.note];
 				this.freshPigeon = msg.note;
 				break;
+			case 'aim':
+				this.aim = msg.hex === null ? null : { player: msg.player, hex: msg.hex };
+				break;
 			case 'error':
 				this.pendingJoin = false;
 				this.rollAsked = false;
@@ -219,6 +224,8 @@ class GameClient {
 		const prev = this.latest;
 		this.latest = view;
 		if (view.step !== 'roll' || view.current !== view.me) this.rollAsked = false;
+		// The robber moved (or the turn went on): nobody is aiming it any more.
+		if (this.aim && (view.step !== 'moveRobber' || view.current !== this.aim.player)) this.aim = null;
 		// Only a roll made since the last state is tossed (a new game starts its log over).
 		const after = prev ? newestSeq(prev.log) : Infinity;
 		const roll = after <= newestSeq(view.log) ? newestRoll(view.log, after) : null;
@@ -308,7 +315,13 @@ class GameClient {
 
 	send(msg: ClientMessage) {
 		if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
-		else if (msg.t !== 'ping') this.queue.push(msg);
+		// Where the pointer was is no use once the connection is back.
+		else if (msg.t !== 'ping' && msg.t !== 'aim') this.queue.push(msg);
+	}
+
+	/** Show the other players the tile this player is about to move the robber to (null: none). */
+	aimAt(hex: number | null) {
+		this.send({ t: 'aim', hex });
 	}
 
 	/** Pause the game for everyone at the table, or resume it. */
@@ -370,6 +383,7 @@ class GameClient {
 		this.rollAsked = false;
 		this.pigeons = [];
 		this.freshPigeon = null;
+		this.aim = null;
 		this.seat = null;
 		this.code = null;
 		this.joining = null;

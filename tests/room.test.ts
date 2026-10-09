@@ -623,3 +623,92 @@ describe('pigeon post', () => {
 		room.dispose();
 	});
 });
+
+describe('robber aim', () => {
+	afterEach(() => vi.useRealTimers());
+
+	type Aim = Extract<ServerMessage, { t: 'aim' }>;
+	const aims = (sent: ServerMessage[]) => sent.filter((m): m is Aim => m.t === 'aim');
+
+	/** Two people, and the one whose turn it is has to move the robber. */
+	function robberStep() {
+		const t = twoPlayers(0);
+		const g = t.room.game!;
+		t.room.game = { ...g, phase: 'main', step: 'moveRobber', resumeStep: 'main' };
+		const p = g.current;
+		const moverIsHost = t.room.seats[p] === t.host;
+		const mover = { seat: moverIsHost ? t.host : t.guest, ...(moverIsHost ? t.a : t.b) };
+		const watcher = { seat: moverIsHost ? t.guest : t.host, ...(moverIsHost ? t.b : t.a) };
+		const target = g.board.hexes.findIndex((_, h) => h !== g.robberHex);
+		return { ...t, g, p, mover, watcher, target };
+	}
+
+	it('shows the other players the tile the robber is aimed at', () => {
+		const { room, g, p, mover, watcher, target } = robberStep();
+		room.handle(mover.seat, { t: 'aim', hex: target }, mover.ws);
+		expect(aims(watcher.sent)).toEqual([{ t: 'aim', player: p, hex: target }]);
+		// The player aiming isn't told, and the same tile again isn't news.
+		room.handle(mover.seat, { t: 'aim', hex: target }, mover.ws);
+		expect(aims(mover.sent)).toEqual([]);
+		expect(aims(watcher.sent)).toHaveLength(1);
+
+		// Only the player moving the robber aims it, and only at a tile it can go to.
+		room.handle(watcher.seat, { t: 'aim', hex: target + 1 }, watcher.ws);
+		for (const hex of [g.robberHex, 999, 1.5, -1]) room.handle(mover.seat, { t: 'aim', hex }, mover.ws);
+		expect(aims(watcher.sent)).toHaveLength(1);
+		expect(aims(mover.sent)).toEqual([]);
+
+		// Someone who joins the table now sees it too, after the board.
+		const again = fakeSocket();
+		room.join(again.ws, 'Bram', watcher.seat.token);
+		expect(again.sent.at(-1)).toEqual({ t: 'aim', player: p, hex: target });
+		expect(again.sent.findIndex((m) => m.t === 'game')).toBeLessThan(again.sent.length - 1);
+
+		room.handle(mover.seat, { t: 'aim', hex: null }, mover.ws);
+		expect(aims(watcher.sent).at(-1)).toEqual({ t: 'aim', player: p, hex: null });
+		room.dispose();
+	});
+
+	it('forgets the aim once the robber has moved', () => {
+		const { room, mover, watcher, target } = robberStep();
+		room.handle(mover.seat, { t: 'aim', hex: target }, mover.ws);
+		room.handle(mover.seat, { t: 'action', action: { type: 'moveRobber', hex: target } }, mover.ws);
+		expect(room.game!.robberHex).toBe(target);
+		// Aiming now does nothing, and nobody joining later is told of the old aim.
+		room.handle(mover.seat, { t: 'aim', hex: target + 1 }, mover.ws);
+		expect(aims(watcher.sent)).toHaveLength(1);
+		const again = fakeSocket();
+		room.join(again.ws, 'Bram', watcher.seat.token);
+		expect(aims(again.sent)).toEqual([]);
+		room.dispose();
+	});
+
+	it('lets a bot point at the tile before it moves the robber there', () => {
+		vi.useFakeTimers();
+		const room = new Room('UVWXY');
+		const me = fakeSocket();
+		const seat = room.join(me.ws, 'Komeil');
+		if (typeof seat === 'string') throw new Error(seat);
+		room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		// Hold the table while the bot is handed the robber.
+		room.handle(seat, { t: 'pauseGame', paused: true }, me.ws);
+		const bot = room.seats.findIndex((s) => s.isBot);
+		const g = room.game!;
+		room.game = { ...g, phase: 'main', step: 'moveRobber', resumeStep: 'main', current: bot };
+		room.handle(seat, { t: 'pauseGame', paused: false }, me.ws);
+
+		let aim: Aim | undefined;
+		for (let ms = 0; ms < 5000 && !aim; ms += 50) {
+			vi.advanceTimersByTime(50);
+			aim = aims(me.sent)[0];
+		}
+		expect(aim).toMatchObject({ player: bot });
+		expect(aim!.hex).not.toBe(g.robberHex);
+		// It points first, and the robber jumps there a moment later.
+		expect(room.game!.robberHex).toBe(g.robberHex);
+		vi.advanceTimersByTime(1000);
+		expect(room.game!.robberHex).toBe(aim!.hex);
+		room.dispose();
+	});
+});

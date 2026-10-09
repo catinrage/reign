@@ -88,6 +88,8 @@ export type ClientMessage =
 	| { t: 'cheat'; cheat: Cheat }
 	/** Send a private note by pigeon to the player in seat `to`. */
 	| { t: 'pigeon'; to: string; text: string }
+	/** The tile under the pointer of the player moving the robber (null when it's on none). */
+	| { t: 'aim'; hex: number | null }
 	| { t: 'leave' }
 	| { t: 'ping' };
 
@@ -101,6 +103,8 @@ export type ServerMessage =
 	| { t: 'pigeons'; notes: PigeonNote[] }
 	/** A pigeon this player sent, or one that is flying in to them. */
 	| { t: 'pigeon'; note: PigeonNote }
+	/** The tile `player` is about to move the robber to, as they point at it (null: none now). */
+	| { t: 'aim'; player: number; hex: number | null }
 	| { t: 'pong' };
 
 /** The most any table seats; how many a game actually takes depends on the mode and island. */
