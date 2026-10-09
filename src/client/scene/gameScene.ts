@@ -16,6 +16,7 @@ import { type Room, buildRoom } from './room/room';
 import { TABLE_HALF } from './room/table';
 import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
+import { sharedUniforms } from './voxel/materials';
 
 export type PickKind = 'settlement' | 'road' | 'city' | 'robber';
 
@@ -39,6 +40,14 @@ export interface SceneCallbacks {
 interface PieceObj {
 	key: string;
 	obj: THREE.Object3D;
+	/** Seat of the player it belongs to. */
+	owner: number;
+	/** Height it stands at. */
+	ground: number;
+	/** How far it floats above the ground while its player is highlighted (see `lightUp`). */
+	lift: number;
+	/** What lights it up while its player is highlighted, or null. */
+	glow: THREE.Group | null;
 }
 
 const ROAD_LEN = 8;
@@ -82,6 +91,10 @@ export class GameScene {
 	private menuMap = '';
 	/** Settles when the dice of the latest roll come to rest. */
 	private diceLanded: Promise<void> = Promise.resolve();
+	/** The player whose pieces light up (their plaque is hovered), or null. */
+	private highlighted: number | null = null;
+	/** How lit up each player's pieces are, from 0 to 1, as they fade in and out. */
+	private lit: number[] = [];
 
 	constructor(
 		canvas: HTMLCanvasElement,
@@ -119,6 +132,8 @@ export class GameScene {
 		this.boardKey = '';
 		this.view = null;
 		this.setPick(null);
+		this.highlighted = null;
+		this.lit = [];
 		const seed = (Math.random() * 1e9) | 0;
 		this.menuMap = '';
 		this.setBoard(generateStandardBoard({ rng: seed }), seed);
@@ -203,6 +218,11 @@ export class GameScene {
 		if (!first) for (const e of fresh) this.playEvent(e);
 	}
 
+	/** Light up one player's pieces on the board (while their plaque is hovered), or nobody's. */
+	highlightPlayer(seat: number | null) {
+		this.highlighted = seat;
+	}
+
 	/** Distance and tilt that fit the island on screen, including tall phone screens. */
 	private framing() {
 		const cam = this.stage.camera;
@@ -257,7 +277,9 @@ export class GameScene {
 			if (this.pieces.has(key)) continue;
 			const obj = make();
 			this.stage.scene.add(obj);
-			this.pieces.set(key, { key, obj });
+			// Keys end with the owner's seat.
+			const owner = Number(key.slice(key.lastIndexOf(':') + 1));
+			this.pieces.set(key, { key, obj, owner, ground: obj.position.y, lift: 0, glow: null });
 			if (animate) this.dropIn(obj, key.startsWith('e'));
 		}
 	}
@@ -285,9 +307,12 @@ export class GameScene {
 		const ground = obj.position.y;
 		const s = obj.scale.x;
 		obj.position.y = ground + 28;
+		// A highlighted building waits until it is down before it floats (see `lightUp`).
+		obj.userData.landing = true;
 		this.anim.tween(0.55, (t) => {
 			obj.position.y = ground + (1 - t) * 28;
 		}, ease.outBounce).then(() => {
+			obj.userData.landing = false;
 			this.particles.dust(obj.position.clone().setY(ground + 0.5), isRoad ? 10 : 22);
 			this.anim.tween(0.25, (t) => {
 				const sq = Math.sin(t * Math.PI) * 0.18;
@@ -614,6 +639,88 @@ export class GameScene {
 		this.particles.emit({ at, count: 1, colors: ['#d9d4cc', '#c4beb5', '#eeeae4'], speed: 0.6, up: 3.2, spread: 0.3, life: 3.2, size: 0.9, gravity: -0.4, drag: 0.4 });
 	}
 
+	/**
+	 * The highlighted player's pieces light up: buildings glow with a bright rim, float and bob,
+	 * with a ring spreading out on the ground and a beam of light above; roads glow more quietly.
+	 * Each player fades in and out on their own, so the next plaque lights up as the last fades.
+	 */
+	private lightUp(dt: number, t: number) {
+		const view = this.view;
+		if (!view) return;
+		const pulse = 0.5 + Math.sin(t * 4) * 0.5;
+		// The ripple spreads from every building at once, every 1.4 seconds.
+		const wave = (t / 1.4) % 1;
+		view.players.forEach((pl, i) => {
+			const was = this.lit[i] ?? 0;
+			const level = i === this.highlighted ? Math.min(1, was + dt * 5) : Math.max(0, was - dt * 3);
+			this.lit[i] = level;
+			if (level || was) setGlow(glowKit(PLAYER_RGB[pl.color]), level, pulse, wave);
+		});
+		for (const p of this.pieces.values()) {
+			const level = this.lit[p.owner] ?? 0;
+			if (!level) {
+				if (p.glow) p.obj.remove(p.glow);
+				p.glow = null;
+				if (p.lift && !p.obj.userData.landing) p.obj.position.y = p.ground;
+				p.lift = 0;
+				continue;
+			}
+			p.glow ??= this.addGlow(p);
+			if (p.key.startsWith('e')) continue;
+			if (!p.obj.userData.landing) {
+				p.lift += (level * (1.3 + Math.sin(t * 3) * 0.5) - p.lift) * Math.min(1, dt * 10);
+				p.obj.position.y = p.ground + p.lift;
+			}
+			// The rings stay down on the ground as the building floats; the beam shoots up as it lights.
+			const ground = p.glow.getObjectByName('ground')!;
+			ground.position.y = -p.lift / PIECE_SCALE;
+			const ripple = ground.getObjectByName('ripple')!;
+			ripple.scale.setScalar(ripple.userData.radius * (1 + wave));
+			const beam = p.glow.getObjectByName('beam')!;
+			beam.scale.y = (BEAM_HEIGHT / PIECE_SCALE) * ease.outCubic(level);
+		}
+	}
+
+	/** The lights for one piece while its player is highlighted (see `lightUp`). */
+	private addGlow(p: PieceObj) {
+		const kit = glowKit(PLAYER_RGB[this.view!.players[p.owner].color]);
+		const road = p.key.startsWith('e');
+		const glow = new THREE.Group();
+		glow.name = 'glow';
+		// The piece drawn again as light on top of itself, and a rim round its dark outline.
+		for (const c of p.obj.children) {
+			const m = c as THREE.Mesh;
+			if (!m.isMesh) continue;
+			const rim = m.name === 'outline';
+			const copy = new THREE.Mesh(m.geometry, rim ? (road ? kit.rimRoad : kit.rim) : road ? kit.litRoad : kit.lit);
+			copy.position.copy(m.position);
+			copy.scale.copy(m.scale);
+			glow.add(copy);
+		}
+		if (!road) {
+			// Sizes are in the piece's own units: its voxels. The ring hugs the building, on the
+			// paths where the tiles meet, clear of the trees and wheat round about.
+			const city = p.key.includes(':city:');
+			const radius = (city ? 5.9 : 4.8) / PIECE_SCALE;
+			const ground = new THREE.Group();
+			ground.name = 'ground';
+			const ring = new THREE.Mesh(HALO, kit.ring);
+			ring.scale.setScalar(radius);
+			const ripple = new THREE.Mesh(HALO, kit.ripple);
+			ripple.name = 'ripple';
+			ripple.userData.radius = radius;
+			ring.position.y = ripple.position.y = 0.4 / PIECE_SCALE;
+			ground.add(ring, ripple);
+			const beam = new THREE.Mesh(BEAM, kit.beam);
+			beam.name = 'beam';
+			beam.scale.set(2.6 / PIECE_SCALE, 0, 2.6 / PIECE_SCALE);
+			beam.position.y = city ? 12 : 7;
+			glow.add(ground, beam);
+		}
+		p.obj.add(glow);
+		return glow;
+	}
+
 	// ------------------------------------------------------------ frame
 
 	private frame(dt: number, t: number) {
@@ -625,6 +732,7 @@ export class GameScene {
 			this.dice.place(this.diceSpots().ends);
 		}
 		this.smoke(dt);
+		this.lightUp(dt, t);
 		const bv = this.boardView;
 		if (bv) {
 			bv.update(dt, t, this.stage.rig.azimuth);
@@ -713,6 +821,166 @@ function ghostMaterial(color: number) {
 		ghostCache.set(color, m);
 	}
 	return m;
+}
+
+// ---------------------------------------------------------------- highlighted pieces
+
+/** A flat square two units across, for the soft rings under highlighted buildings. */
+const HALO = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+/** An open tube one unit high, standing on its base, for the beams above them. */
+const BEAM = new THREE.CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0);
+/** How high the beams reach above the roofs, in world units. */
+const BEAM_HEIGHT = 26;
+
+let haloTexture: THREE.CanvasTexture | null = null;
+/** A soft white ring on clear, tinted per player. */
+function haloMap() {
+	if (!haloTexture) {
+		const s = 128;
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = s;
+		const ctx = canvas.getContext('2d')!;
+		const grad = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+		grad.addColorStop(0.62, 'rgba(255,255,255,0)');
+		grad.addColorStop(0.76, 'rgba(255,255,255,1)');
+		grad.addColorStop(0.88, 'rgba(255,255,255,1)');
+		grad.addColorStop(1, 'rgba(255,255,255,0)');
+		ctx.fillStyle = grad;
+		ctx.fillRect(0, 0, s, s);
+		haloTexture = new THREE.CanvasTexture(canvas);
+	}
+	return haloTexture;
+}
+
+/** The materials that light up one player's pieces. All their pieces share them. */
+interface GlowKit {
+	/** The piece's own colors again, added as light. */
+	lit: THREE.MeshBasicMaterial;
+	litRoad: THREE.MeshBasicMaterial;
+	/** A bright band just outside the dark outline. */
+	rim: THREE.ShaderMaterial;
+	rimRoad: THREE.ShaderMaterial;
+	ring: THREE.MeshBasicMaterial;
+	ripple: THREE.MeshBasicMaterial;
+	beam: THREE.ShaderMaterial;
+}
+
+const glowKits = new Map<number, GlowKit>();
+function glowKit(color: number): GlowKit {
+	let kit = glowKits.get(color);
+	if (!kit) {
+		const base = new THREE.Color(color);
+		const white = new THREE.Color('#ffffff');
+		// Rims and rings are pale, so they show on a tile of the same color; the beam is bright.
+		const pale = base.clone().lerp(white, 0.45).multiplyScalar(1.5);
+		const bright = base.clone().lerp(white, 0.15).multiplyScalar(1.6);
+		const core = base.clone().lerp(white, 0.5).multiplyScalar(2.4);
+		// Dark colors get more light, so every player's pieces brighten about as much.
+		const boost = THREE.MathUtils.clamp(0.8 / (0.2126 * base.r + 0.7152 * base.g + 0.0722 * base.b), 1.2, 4);
+		const lit = (gain: number) =>
+			new THREE.MeshBasicMaterial({ color: white.clone().multiplyScalar(gain), vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+		const ring = () =>
+			new THREE.MeshBasicMaterial({ map: haloMap(), color: pale, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+		kit = {
+			lit: lit(boost),
+			litRoad: lit(boost * 0.7),
+			rim: rimMaterial(pale, 4.5),
+			rimRoad: rimMaterial(pale, 2.5),
+			ring: ring(),
+			ripple: ring(),
+			beam: beamMaterial(bright, core)
+		};
+		glowKits.set(color, kit);
+	}
+	return kit;
+}
+
+/** Fade a player's lights to `level` (0 to 1), pulsing, with the ripple `wave` of the way out. */
+function setGlow(kit: GlowKit, level: number, pulse: number, wave: number) {
+	kit.lit.opacity = level * (0.5 + pulse * 0.5);
+	kit.litRoad.opacity = level * (0.25 + pulse * 0.25);
+	kit.rim.uniforms.uOpacity.value = level * (0.7 + pulse * 0.3);
+	kit.rimRoad.uniforms.uOpacity.value = level * (0.35 + pulse * 0.2);
+	kit.ring.opacity = level * (0.7 + pulse * 0.3);
+	kit.ripple.opacity = level * (1 - wave) * (1 - wave);
+	kit.beam.uniforms.uOpacity.value = level * (0.7 + pulse * 0.3);
+}
+
+/**
+ * Like the dark outline (see `addOutline`), the model's hull drawn as back faces pushed out a
+ * fixed number of pixels, here wider and in a bright color. It sits a little farther from the
+ * eye than the outline, so the dark line stays on top and the color shows just outside it.
+ */
+function rimMaterial(color: THREE.Color, width: number) {
+	return new THREE.ShaderMaterial({
+		uniforms: {
+			uViewport: sharedUniforms.uViewport,
+			uWidth: { value: width },
+			uColor: { value: color },
+			uOpacity: { value: 0 }
+		},
+		vertexShader: /* glsl */ `
+			uniform vec2 uViewport;
+			uniform float uWidth;
+			void main() {
+				vec4 view = modelViewMatrix * vec4(position, 1.0);
+				view.xyz += normalize(view.xyz) * 0.6;
+				vec4 clip = projectionMatrix * view;
+				vec2 dir = (normalMatrix * normal).xy;
+				float len = length(dir);
+				if (len > 1e-4) clip.xy += dir / len * (2.0 * uWidth / uViewport) * clip.w;
+				gl_Position = clip;
+			}`,
+		fragmentShader: /* glsl */ `
+			uniform vec3 uColor;
+			uniform float uOpacity;
+			void main() {
+				gl_FragColor = vec4(uColor, uOpacity);
+			}`,
+		side: THREE.BackSide,
+		transparent: true,
+		depthWrite: false
+	});
+}
+
+/**
+ * Light rising from a roof: a soft glow in the player's color round a bright core, so it reads
+ * over the pale tiles as well as the dark table. It gathers just above the roof, so the house
+ * stays clear under it, and fades out upward.
+ */
+function beamMaterial(color: THREE.Color, core: THREE.Color) {
+	return new THREE.ShaderMaterial({
+		uniforms: { uColor: { value: color }, uCore: { value: core }, uOpacity: { value: 0 } },
+		vertexShader: /* glsl */ `
+			varying float vUp;
+			varying vec3 vWorld;
+			varying vec2 vSide;
+			void main() {
+				vUp = uv.y;
+				vec4 world = modelMatrix * vec4(position, 1.0);
+				vWorld = world.xyz;
+				vSide = (mat3(modelMatrix) * normal).xz;
+				gl_Position = projectionMatrix * viewMatrix * world;
+			}`,
+		fragmentShader: /* glsl */ `
+			uniform vec3 uColor;
+			uniform vec3 uCore;
+			uniform float uOpacity;
+			varying float vUp;
+			varying vec3 vWorld;
+			varying vec2 vSide;
+			void main() {
+				// 1 down the middle of the tube as the camera sees it, 0 at its edges.
+				float across = abs(dot(normalize(vSide), normalize(cameraPosition.xz - vWorld.xz)));
+				float along = smoothstep(0.0, 0.16, vUp) * pow(1.0 - vUp, 1.5);
+				vec3 light = uColor * across * across + uCore * pow(across, 24.0);
+				gl_FragColor = vec4(light, along * uOpacity);
+			}`,
+		side: THREE.DoubleSide,
+		transparent: true,
+		depthWrite: false,
+		blending: THREE.AdditiveBlending
+	});
 }
 
 function hashString(s: string) {

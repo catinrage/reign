@@ -5,6 +5,7 @@
 	import Portrait from '../extended/Portrait.svelte';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
+	import { sceneRef } from '../sceneRef';
 	import TurnTab from './TurnTab.svelte';
 
 	const view = $derived(client.view!);
@@ -15,6 +16,10 @@
 	/** Resource cards in a hand. Cards dealt on the board count once they get there. */
 	function cardsIn(i: number) {
 		return Math.max(0, view.players[i].resourceCount - client.onTheWay(i));
+	}
+	/** While the mouse is on a plaque, that player's pieces light up on the board. */
+	function highlight(seat: number | null) {
+		sceneRef.current?.highlightPlayer(seat);
 	}
 </script>
 
@@ -35,8 +40,11 @@
 			class:me={i === view.me}
 			class:offline
 			style="--c:{PLAYER_CSS[p.color]}; --frame: var(--art-plaque-{p.color})"
+			role="presentation"
 			aria-current={current ? 'true' : undefined}
 			data-plaque={i}
+			onpointerenter={() => highlight(i)}
+			onpointerleave={() => highlight(null)}
 		>
 			{#if current}<TurnTab color={p.color} />{/if}
 			{#if ch}
