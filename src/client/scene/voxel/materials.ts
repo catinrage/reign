@@ -21,6 +21,12 @@ export const sharedUniforms = {
 	uGray: { value: [new THREE.Vector4(), new THREE.Vector4()] },
 	/** World size of one board voxel, to find which tile a fragment's voxel belongs to. */
 	uGrayVoxel: { value: 1 },
+	/**
+	 * The tile the robber is being aimed at, lit up in the color of the player aiming it:
+	 * (center x, center z, strength 0..1, seconds since it was aimed at) in world units.
+	 */
+	uAim: { value: new THREE.Vector4() },
+	uAimColor: { value: new THREE.Color() },
 	/** Canvas size in CSS pixels, so outlines can be a fixed number of pixels wide. */
 	uViewport: { value: new THREE.Vector2(1, 1) }
 };
@@ -38,7 +44,10 @@ export interface VoxelMaterialOptions {
 	swayBase?: number;
 	/** Voxels per sway unit: finer grids pass 2 so their foliage sways just as far. */
 	swayScale?: number;
-	/** Board tiles: can be grayed out per tile (see `sharedUniforms.uGray`). */
+	/**
+	 * Board tiles: can be grayed out per tile (see `sharedUniforms.uGray`) and lit up as the
+	 * robber's target (`sharedUniforms.uAim`).
+	 */
 	tileGray?: boolean;
 	/**
 	 * Fade each block's bevel and rim out as blocks shrink to a pixel or two on screen, where
@@ -134,6 +143,43 @@ const FRAG_GRAY = /* glsl */ `
 }
 `;
 
+/**
+ * The robber's target tile: it lights up from the middle out, with rings of light rippling
+ * outward, and the beige line round it burns bright with two sparks chasing round. Each voxel
+ * takes one value, so the light keeps to the blocks. `aimLight` is added as emitted light.
+ */
+const FRAG_AIM = /* glsl */ `
+vec3 aimLight = vec3(0.0);
+if (uAim.z > 0.0) {
+	vec2 p = (floor(vVox - vVoxN * 0.5).xz + 0.5) * uGrayVoxel - uAim.xy;
+	vec2 a = abs(p);
+	// 0 in the middle of the tile, 10.39 on the line between it and the next one.
+	float d = max(a.x, 0.5 * a.x + 0.8660254 * a.y);
+	float edge = 10.3923 - d;
+	float k = uAim.z * smoothstep(d - 2.0, d, uAim.w * 45.0);
+	if (edge > -0.7 && k > 0.0) {
+		// The player's color at full brightness, so dark blue glows as well as yellow does.
+		vec3 hue = uAimColor / max(max(uAimColor.r, uAimColor.g), max(uAimColor.b, 1e-3));
+		float pulse = 0.5 + 0.5 * sin(uTime * 5.0);
+		if (edge < 0.63) {
+			float ang = atan(p.y, p.x) - uTime * 2.6;
+			float spark = pow(0.5 + 0.5 * cos(ang), 14.0) + pow(0.5 - 0.5 * cos(ang), 14.0);
+			vec3 c = mix(hue, vec3(1.0), spark * 0.7);
+			diffuseColor.rgb = mix(diffuseColor.rgb, c, 0.9 * k);
+			aimLight = c * (0.75 + 0.35 * pulse + spark * 1.8) * k;
+		} else {
+			float ring = fract(d / 3.6 - uTime * 0.9);
+			ring = smoothstep(0.62, 0.86, ring) * (1.0 - smoothstep(0.86, 1.0, ring));
+			float rim = 1.0 - smoothstep(0.63, 3.2, edge);
+			float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+			vec3 tinted = mix(diffuseColor.rgb, hue * l * 1.7, 0.3) * 1.12;
+			diffuseColor.rgb = mix(diffuseColor.rgb, tinted, k);
+			aimLight = hue * (0.05 + 0.05 * pulse + rim * 0.5 + ring * 0.32) * k;
+		}
+	}
+}
+`;
+
 const FRAG_RIM = /* glsl */ `
 {
 	vec2 uv = voxUV();
@@ -165,6 +211,8 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		if (opts.tileGray) {
 			shader.uniforms.uGray = sharedUniforms.uGray;
 			shader.uniforms.uGrayVoxel = sharedUniforms.uGrayVoxel;
+			shader.uniforms.uAim = sharedUniforms.uAim;
+			shader.uniforms.uAimColor = sharedUniforms.uAimColor;
 		}
 
 		let vs = shader.vertexShader.replace('#include <common>', `#include <common>\n${VERT_HEAD}`);
@@ -188,8 +236,12 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		let fs = shader.fragmentShader.replace('#include <common>', `#include <common>\n${opts.antialias ? '#define VOXEL_AA\n' : ''}${FRAG_HEAD}`);
 		fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_RIM}`);
 		if (opts.tileGray) {
-			fs = fs.replace('#include <common>', '#include <common>\nuniform vec4 uGray[2];\nuniform float uGrayVoxel;');
-			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_GRAY}`);
+			fs = fs.replace(
+				'#include <common>',
+				'#include <common>\nuniform vec4 uGray[2];\nuniform float uGrayVoxel;\nuniform vec4 uAim;\nuniform vec3 uAimColor;'
+			);
+			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_GRAY}\n${FRAG_AIM}`);
+			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += aimLight;');
 		}
 		if (kind === Mat.Water) {
 			fs = fs.replace(

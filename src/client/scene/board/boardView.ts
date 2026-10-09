@@ -191,6 +191,11 @@ export class BoardView {
 		});
 	}
 
+	/** The robber is being aimed at tile `h` (-1: at none): its number token lifts and bobs. */
+	setAimed(h: number) {
+		this.tokens.forEach((t, i) => (t.userData.aim = i === h));
+	}
+
 	setRobber(h: number, instant: boolean) {
 		this.robberHex = h;
 		if (instant) {
@@ -232,7 +237,8 @@ export class BoardView {
 				const ghost = tok.getObjectByName('ghost') as THREE.Mesh | undefined;
 				if (ghost) (ghost.material as THREE.MeshBasicMaterial).color.copy(m.color);
 			}
-			if (tok.userData.highlight) tok.position.y = tok.userData.baseY + 1 + Math.sin(t * 4) * 0.5;
+			if (tok.userData.aim) tok.position.y = tok.userData.baseY + 2.2 + Math.sin(t * 5) * 0.7;
+			else if (tok.userData.highlight) tok.position.y = tok.userData.baseY + 1 + Math.sin(t * 4) * 0.5;
 			else if (tok.userData.baseY !== undefined) tok.position.y = tok.userData.baseY;
 		}
 		for (const s of this.ships) {
