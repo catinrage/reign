@@ -129,6 +129,9 @@ const spots = await page.evaluate(({ mine, injected }) => {
 	};
 	s.setView(view);
 	s.anim.update(60);
+	// Hold the camera still so every run (and every build) frames the same shots.
+	s.stage.rig.autoRotate = 0;
+	s.stage.rig.set({ azimuth: -0.62 }, true);
 	return { placed, harbors, board };
 }, { mine: 3, injected });
 writeFileSync(`${out}-board.json`, JSON.stringify(spots.board));
@@ -144,7 +147,7 @@ const look = async (name, at, radius = 95, polar = 0.82) => {
 			const s = window.__scene;
 			const V3 = s.stage.camera.position.constructor;
 			const t = new V3(at.x, at.y ?? 4, at.z);
-			s.stage.rig.set({ radius, polar, azimuth: s.stage.rig.azimuth, target: t }, true);
+			s.stage.rig.set({ radius, polar, azimuth: -0.62, target: t }, true);
 		},
 		{ at, radius, polar }
 	);
