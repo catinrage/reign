@@ -3,6 +3,9 @@
 # http://localhost:5173 and the game server with dev cheats on, both from your working copy.
 # Add -V after changing dependencies so the container gets fresh node_modules.
 # Accounts, friends and match history live in the `db` Postgres service, kept in the `db` volume.
+# On a server with a domain, `docker compose --profile https up -d --build` also starts Caddy on
+# ports 80 and 443 with a free Let's Encrypt certificate for DOMAIN. Settings go in .env (see
+# .env.example).
 
 x-database: &database
   DATABASE_URL: postgres://reign:${POSTGRES_PASSWORD:-reign}@db:5432/reign
@@ -12,7 +15,7 @@ services:
     build: .
     image: reign
     ports:
-      - '${PORT:-8787}:8787'
+      - '${BIND:-0.0.0.0}:${PORT:-8787}:8787'
     environment: *database
     depends_on:
       db:
@@ -51,5 +54,24 @@ services:
       - .:/app
       - /app/node_modules
 
+  caddy:
+    profiles: [https]
+    image: caddy:2-alpine
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - reign
+    restart: unless-stopped
+
 volumes:
   db:
+  caddy_data:
+  caddy_config:

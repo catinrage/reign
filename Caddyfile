@@ -1,0 +1,7 @@
+# Caddy in front of the game for `docker compose --profile https up -d`: HTTPS for DOMAIN
+# (localhost when unset) with a certificate it gets and renews by itself, passing the page, /api
+# and the WebSocket on to the game server.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy reign:8787
+}
