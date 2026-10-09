@@ -133,6 +133,22 @@ export function tradeRatios(s: Shared, player: number): Record<Resource, number>
 	return ratios;
 }
 
+/**
+ * The harbor a bank trade of `give` at `ratio` went through, as an index into `board.ports`, or
+ * -1 when it was at the bank's own rate (4, or 3 for the Merchant).
+ */
+export function tradeHarbor(s: Shared, player: number, give: Resource, ratio: number): number {
+	const base = s.players[player]?.character === 'merchant' ? 3 : 4;
+	if (ratio >= base) return -1;
+	const kind = ratio === 2 ? give : 'any';
+	const topo = getTopology(s.board);
+	return topo.portEdges.findIndex((p) => {
+		const e = topo.edges[p.edge];
+		const held = s.buildings[e.a]?.owner === player || s.buildings[e.b]?.owner === player;
+		return p.kind === kind && held;
+	});
+}
+
 export function buildingPoints(s: Shared, player: number): number {
 	let p = 0;
 	for (const b of s.buildings) if (b && b.owner === player) p += b.kind === 'city' ? 2 : 1;

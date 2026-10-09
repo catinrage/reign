@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { getTopology } from '../../../shared/board/topology';
-	import type { Resource } from '../../../shared/rules/config';
-	import { roadSpots, settlementSpots, citySpots, workshopSpots } from '../../../shared/rules/queries';
+	import { RESOURCES, type Resource, type ResourceCounts } from '../../../shared/rules/config';
+	import {
+		roadSpots,
+		settlementSpots,
+		citySpots,
+		tradeHarbor,
+		workshopSpots
+	} from '../../../shared/rules/queries';
 	import type { GameEvent } from '../../../shared/rules/types';
 	import type { PickKind } from '../../scene/gameScene';
 	import { client } from '../../state/client.svelte';
@@ -14,7 +20,7 @@
 	import Dialogs from './Dialogs.svelte';
 	import DiceBadge from './DiceBadge.svelte';
 	import DraftPanel from './DraftPanel.svelte';
-	import Flyers, { flyers } from './Flyers.svelte';
+	import Flyers, { FLIGHT_MS, flyers } from './Flyers.svelte';
 	import Hand from './Hand.svelte';
 	import Log from './Log.svelte';
 	import GameMenu from './GameMenu.svelte';
@@ -185,9 +191,14 @@
 			case 'largestArmy':
 				if (e.player === me) client.toast('You command the Largest Army! +2', 'good');
 				break;
+			case 'bankTrade':
+				if (e.player === me) sfx.card();
+				flyBankTrade(e.player, e.give, e.giveCount, e.get);
+				break;
 			case 'tradeCompleted':
 				sfx.card();
 				if (e.to === me) client.toast(`Trade with ${view.players[e.from].name} done`, 'good');
+				flyTraded(e.from, e.to, e.give, e.want);
 				break;
 			case 'gameOver':
 				sfx.win();
@@ -215,6 +226,53 @@
 				flyers.pass(resource, giver, taker, me, () => client.arrived(taker, resource));
 			}, k * gap * 1000)
 		);
+	}
+
+	/** Time between cards that fly off one after another in a trade, in ms. */
+	const CARD_GAP_MS = 120;
+
+	/**
+	 * A trade with the bank: the cards paid fly one after another from the trader to the bank's
+	 * pile of their kind on the table, or to the harbor whose rate they got. As the last one lands,
+	 * the card bought rises off its own pile (or the harbor) and flies back, counting as it lands.
+	 */
+	function flyBankTrade(player: number, give: Resource, count: number, get: Resource) {
+		const scene = sceneRef.current;
+		if (!scene) return client.arrived(player, get);
+		const harbor = tradeHarbor(view, player, give, count);
+		const to = scene.tradeTarget(give, harbor);
+		for (let k = 0; k < count; k++)
+			setTimeout(() => {
+				const me = client.view?.me;
+				if (me !== undefined)
+					flyers.away(give, player, me, to, () => scene.tradeLanded(give, harbor));
+			}, k * CARD_GAP_MS);
+		setTimeout(() => scene.tradeOut(get, harbor, player), (count - 1) * CARD_GAP_MS + FLIGHT_MS);
+	}
+
+	/**
+	 * A trade between players: each side's cards fly one after another to the other (the answer a
+	 * moment after the offer), and count as they land.
+	 */
+	function flyTraded(
+		from: number,
+		to: number,
+		give: Partial<ResourceCounts>,
+		want: Partial<ResourceCounts>
+	) {
+		const send = (cards: Partial<ResourceCounts>, giver: number, taker: number, after: number) =>
+			RESOURCES.flatMap((r) => Array<Resource>(cards[r] ?? 0).fill(r)).forEach((resource, k) =>
+				setTimeout(
+					() => {
+						const me = client.view?.me;
+						if (me === undefined) return client.arrived(taker, resource);
+						flyers.pass(resource, giver, taker, me, () => client.arrived(taker, resource));
+					},
+					after + k * CARD_GAP_MS
+				)
+			);
+		send(give, from, to, 0);
+		send(want, to, from, 300);
 	}
 
 	$effect(() => {

@@ -183,6 +183,11 @@ export class BoardView {
 		});
 	}
 
+	/** Where harbor `i` (in `build.ports` order) is: on its disc, in world space. */
+	harborSpot(i: number): THREE.Vector3 | null {
+		return this.harbors[i]?.getWorldPosition(new THREE.Vector3()) ?? null;
+	}
+
 	/**
 	 * Show who holds each harbor (colors in `build.ports` order, null while free): the disc
 	 * gets a ring and the ship beside it hoists sails in the owner's color.

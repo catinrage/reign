@@ -4,7 +4,12 @@ import { buildTopology, getTopology } from '../src/shared/board/topology';
 import { botAction } from '../src/shared/rules/bot';
 import { BANK_PER_RESOURCE, RESOURCES, STANDARD_NUMBER_POOL } from '../src/shared/rules/config';
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
-import { longestRoad, settlementSpots } from '../src/shared/rules/queries';
+import {
+	longestRoad,
+	settlementSpots,
+	tradeHarbor,
+	tradeRatios
+} from '../src/shared/rules/queries';
 import type { Action, GameState } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
 
@@ -114,6 +119,29 @@ describe('rules', () => {
 		buildings[shared] = { owner: 1, kind: 'settlement' };
 		s = { ...s, buildings };
 		expect(longestRoad(s, 0)).toBe(3);
+	});
+
+	it('tells which harbor a bank trade went through', () => {
+		const s = createGame(players(3), 4);
+		const topo = getTopology(s.board);
+		const wool = topo.portEdges.findIndex((p) => p.kind === 'sheep');
+		const any = topo.portEdges.findIndex((p) => p.kind === 'any');
+		const buildings = [...s.buildings];
+		for (const i of [wool, any])
+			buildings[topo.edges[topo.portEdges[i].edge].a] = { owner: 0, kind: 'settlement' };
+		const t = { ...s, buildings };
+		expect(tradeRatios(t, 0).sheep).toBe(2);
+		expect(tradeHarbor(t, 0, 'sheep', 2)).toBe(wool);
+		expect(tradeHarbor(t, 0, 'ore', 3)).toBe(any);
+		// At the bank's own rate it's the bank, and for the Merchant that rate is already 3.
+		expect(tradeHarbor(t, 0, 'ore', 4)).toBe(-1);
+		expect(tradeHarbor(t, 1, 'ore', 4)).toBe(-1);
+		const merchant = {
+			...t,
+			players: t.players.map((p, i) => (i === 0 ? { ...p, character: 'merchant' as const } : p))
+		};
+		expect(tradeHarbor(merchant, 0, 'ore', 3)).toBe(-1);
+		expect(tradeHarbor(merchant, 0, 'sheep', 2)).toBe(wool);
 	});
 
 	it('hides other hands in the view', () => {

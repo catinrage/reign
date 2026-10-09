@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { client } from '../src/client/state/client.svelte';
 import { botAction } from '../src/shared/rules/bot';
 import { applyAction, createGame } from '../src/shared/rules/engine';
-import type { GameEvent, GameState, ResourceGain } from '../src/shared/rules/types';
+import type { Action, GameEvent, GameState, ResourceGain } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
 
 /**
@@ -212,6 +212,56 @@ describe('client: rolls and dealt cards', () => {
 		if (!plenty.ok) throw new Error(plenty.error);
 		receive(plenty.state);
 		expect(client.onTheWay(0, 'ore')).toBe(2);
+		// Whatever hasn't arrived by then counts anyway.
+		vi.advanceTimersByTime(5000);
+		expect(client.dealt).toEqual([]);
+	});
+
+	it('counts the cards a trade brings as they land', () => {
+		const g = botGame(17);
+		while (g.state.phase === 'setup') receive(g.step());
+		vi.advanceTimersByTime(6000);
+		const s0 = g.state;
+		const s: GameState = {
+			...s0,
+			current: 0,
+			step: 'main',
+			players: s0.players.map((pl) => ({
+				...pl,
+				resources: { wood: 4, brick: 1, sheep: 1, wheat: 0, ore: 1 }
+			}))
+		};
+		receive(s);
+		expect(client.dealt).toEqual([]);
+
+		const play = (state: GameState, p: number, a: Action) => {
+			const r = applyAction(state, p, a);
+			if (!r.ok) throw new Error(r.error);
+			return r.state;
+		};
+		// The card bought from the bank flies over and counts as it lands; the wood paid just goes.
+		const bank = play(s, 0, { type: 'bankTrade', give: 'wood', get: 'wheat' });
+		receive(bank);
+		expect(client.onTheWay(0)).toBe(1);
+		client.arrived(0, 'wheat');
+		expect(client.dealt).toEqual([]);
+
+		// Between players, each side's cards are on their way to the other.
+		const offered = play(bank, 0, {
+			type: 'offerTrade',
+			give: { brick: 1 },
+			want: { ore: 1, sheep: 1 }
+		});
+		const offerId = offered.trade!.id;
+		const accepted = play(offered, 1, { type: 'respondTrade', offerId, accept: true });
+		receive(accepted);
+		const traded = play(accepted, 0, { type: 'confirmTrade', offerId, with: 1 });
+		receive(traded);
+		expect(client.onTheWay(1, 'brick')).toBe(1);
+		expect(client.onTheWay(0, 'ore')).toBe(1);
+		expect(client.onTheWay(0, 'sheep')).toBe(1);
+		client.arrived(0, 'ore');
+		expect(client.onTheWay(0)).toBe(1);
 		// Whatever hasn't arrived by then counts anyway.
 		vi.advanceTimersByTime(5000);
 		expect(client.dealt).toEqual([]);

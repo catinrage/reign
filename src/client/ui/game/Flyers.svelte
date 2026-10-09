@@ -16,7 +16,7 @@
 	let list = $state<Flyer[]>([]);
 	let nextId = 0;
 	/** How long a card takes to fly to its hand (the `fly` animation below). */
-	const FLIGHT_MS = 850;
+	export const FLIGHT_MS = 850;
 
 	/** The middle of the first of these elements that is on screen. */
 	function centerOf(...selectors: string[]): Point | null {
@@ -25,6 +25,13 @@
 			if (r && r.width > 0) return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 		}
 		return null;
+	}
+
+	/** A player's cards: your hand's slot for `resource` when it's you (`me`), else their plaque. */
+	function cardsOf(player: number, resource: string, me: number): Point | null {
+		return player === me
+			? centerOf(`[data-hand="${resource}"]`)
+			: centerOf(`[data-plaque-cards="${player}"]`, `[data-plaque="${player}"]`);
 	}
 
 	function launch(resource: string, from: Point, to: Point, end: number, onArrive?: () => void) {
@@ -51,17 +58,24 @@
 			else onArrive?.();
 		},
 		/**
-		 * A card one player takes from another (a Monopoly), from the giver's cards to the taker's:
-		 * your hand's slot for `resource` when it's you (`me`), a plaque for anyone else.
+		 * A card that goes from one player to another (a Monopoly, a trade), from the giver's cards
+		 * to the taker's: your hand's slot for `resource` when it's you (`me`), a plaque for anyone
+		 * else.
 		 */
 		pass(resource: string, from: number, to: number, me: number, onArrive?: () => void) {
-			const start =
-				from === me
-					? centerOf(`[data-hand="${resource}"]`)
-					: centerOf(`[data-plaque-cards="${from}"]`, `[data-plaque="${from}"]`);
+			const start = cardsOf(from, resource, me);
 			if (!start) onArrive?.();
 			else if (to === me) flyers.add(resource, start, onArrive);
 			else flyers.toPlayer(to, resource, start, onArrive);
+		},
+		/**
+		 * A card a player hands over to the bank, from their cards to a point on screen: the bank's
+		 * pile on the table, or a harbor on the island.
+		 */
+		away(resource: string, from: number, me: number, to: Point, onArrive?: () => void) {
+			const start = cardsOf(from, resource, me);
+			if (start) launch(resource, start, to, 0.45, onArrive);
+			else onArrive?.();
 		}
 	};
 </script>
