@@ -195,15 +195,16 @@
 				client.aimAt(hex);
 				if (hex !== null) sfx.hover();
 			},
-			// A resource rose from its tile: yours flies into your hand and counts as it gets
-			// there; another player's counts on their plaque right away.
+			// A resource rose from its tile and flies to whoever got it: into your hand, or onto
+			// another player's plaque. It counts as it gets there.
 			onResourcePopped: (player, resource, screen) => {
+				const arrived = () => client.arrived(player, resource);
 				if (player === client.view?.me) {
 					sfx.coin();
-					flyers.add(resource, screen, () => client.arrived(player, resource));
+					flyers.add(resource, screen, arrived);
 				} else {
 					sfx.pop();
-					client.arrived(player, resource);
+					flyers.toPlayer(player, resource, screen, arrived);
 				}
 			}
 		});

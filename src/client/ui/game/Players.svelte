@@ -36,6 +36,7 @@
 			class:offline
 			style="--c:{PLAYER_CSS[p.color]}; --frame: var(--art-plaque-{p.color})"
 			aria-current={current ? 'true' : undefined}
+			data-plaque={i}
 		>
 			{#if current}<TurnTab color={p.color} />{/if}
 			{#if ch}
@@ -53,10 +54,13 @@
 			<div class="info">
 				<div class="name title">{i === view.me ? `${p.name} (you)` : p.name}</div>
 				<div class="stats">
+					<!-- Cards dealt on the board fly here and count as they land, with a bump. -->
 					<span
 						class:warn={cards > limit}
 						title="Resource cards{cards > limit ? ': will discard on a 7' : ''}"
-						><img class="icon-px" src={PIXEL.cards} alt="" />{cards}</span
+						data-plaque-cards={i}
+						><img class="icon-px" src={PIXEL.cards} alt="" />{#key cards}<b class="bump">{cards}</b
+						>{/key}</span
 					>
 					<span title="Development cards"
 						><img class="icon-px" src={PIXEL.dev} alt="" />{p.devCardCount}</span
@@ -197,6 +201,16 @@
 	}
 	.stats .hot {
 		color: var(--gold);
+	}
+	.bump {
+		display: inline-block;
+		animation: bump 0.35s ease-out;
+	}
+	@keyframes bump {
+		40% {
+			transform: translateY(-4px) scale(1.4);
+			color: #fff8e0;
+		}
 	}
 	.stats .warn {
 		color: #ff9a80;
