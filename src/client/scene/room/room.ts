@@ -63,9 +63,23 @@ export function buildRoom(stage: Stage): Room {
 	const updaters: ((dt: number, t: number) => void)[] = [];
 	/** Point lights live in the scene, so room-unit positions are scaled to world. */
 	const K = ROOM_SCALE;
-	const flame = (x: number, y: number, z: number, color: string, intensity: number, distance: number) =>
-		stage.lighting.addFlame(new THREE.Vector3(x * K, y * K, z * K), color, intensity, distance * K);
-	/** Low quality skips some purely decorative pieces. */
+	const flame = (
+		x: number,
+		y: number,
+		z: number,
+		color: string,
+		intensity: number,
+		distance: number,
+		minor = false
+	) =>
+		stage.lighting.addFlame(
+			new THREE.Vector3(x * K, y * K, z * K),
+			color,
+			intensity,
+			distance * K,
+			minor
+		);
+	/** Low and very low quality skip some purely decorative pieces. */
 	const hq = stage.qualityLevel === 'high';
 
 	// ---------------------------------------------------------------- table, chairs, floor
@@ -216,7 +230,7 @@ export function buildRoom(stage: Stage): Room {
 	bookcase('nz', -168);
 	item('nz', buildChest, 'chest', -8, 24);
 	item('nz', buildLantern, 'lantern', -16, 26, FLOOR_Y + 38, 0.4);
-	const chestLight = flame(0, FLOOR_Y + 52, 0, '#ff9a3a', 140, 360);
+	const chestLight = flame(0, FLOOR_Y + 52, 0, '#ff9a3a', 140, 360, true);
 	/** The fire's light and the chest lantern's move out with their walls. */
 	const placeLights = () => {
 		const k = roomHalf / ROOM_HALF;
@@ -312,7 +326,7 @@ export function buildRoom(stage: Stage): Room {
 	});
 
 	// ---------------------------------------------------------------- lights
-	const tableLight = flame(LANTERN.x, 12, LANTERN.z, '#ffb04a', 80, 320);
+	const tableLight = flame(LANTERN.x, 12, LANTERN.z, '#ffb04a', 80, 320, true);
 
 	group.scale.setScalar(K);
 	stage.scene.add(group);

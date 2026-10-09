@@ -107,7 +107,7 @@
 		<div class="divider"><i></i><span>{t('Graphics')}</span><i></i></div>
 		<div class="row">
 			<span class="name">{t('Quality')}</span>
-			<div class="seg">
+			<div class="seg wrap">
 				<button
 					class="btn small"
 					class:on={settings.quality === 'high'}
@@ -118,10 +118,17 @@
 					class:on={settings.quality === 'low'}
 					onclick={() => settings.setQuality('low')}>{t('Low')}</button
 				>
+				<button
+					class="btn small"
+					class:on={settings.quality === 'veryLow'}
+					onclick={() => settings.setQuality('veryLow')}>{t('Very low')}</button
+				>
 			</div>
 		</div>
 		<p class="hint">
-			{t('Low turns off shadows and depth of field for older devices. The game reloads to apply it.')}
+			{t(
+				'Low is lighter on your device. Very low is for old devices: it turns off shadows, blur and glow, and draws fewer pixels on big screens. The game reloads to apply it.'
+			)}
 		</p>
 		<div class="row">
 			<span class="name">{t('Island detail')}</span>
@@ -180,6 +187,11 @@
 	}
 	.row:has(.seg) {
 		grid-template-columns: 1fr auto;
+	}
+	/* Three long names (Очень низкое, Sehr niedrig) take two lines on narrow screens. */
+	.seg.wrap {
+		flex-wrap: wrap;
+		justify-content: flex-end;
 	}
 	.row.off {
 		opacity: 0.45;

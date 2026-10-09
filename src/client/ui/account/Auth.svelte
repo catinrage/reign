@@ -18,6 +18,7 @@
 	import Embers from '../menu/Embers.svelte';
 	import { sideLayout } from '../menu/sideLayout';
 	import { PIXEL } from '../pixel';
+	import { settings } from '../settings.svelte';
 	import { sfx } from '../sound';
 	import AvatarPicker from './AvatarPicker.svelte';
 	import { ACCOUNT_ICONS } from './icons';
@@ -43,7 +44,7 @@
 		if (!canvas) return;
 		let logo: LogoView | null = null;
 		try {
-			logo = new LogoView(canvas);
+			logo = new LogoView(canvas, settings.quality);
 		} catch {
 			logoOk = false;
 		}

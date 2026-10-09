@@ -1,3 +1,4 @@
+import type { Quality } from '../scene/stage';
 import { sceneRef } from './sceneRef';
 import { getVolume, setVolume, type Channel } from './sound';
 import { msg } from '../i18n/index.svelte';
@@ -35,6 +36,12 @@ function clampSize(v: number): number {
 	return Math.round(Math.min(SIZE_MAX, Math.max(SIZE_MIN, v)) * 100) / 100;
 }
 
+const QUALITIES: Quality[] = ['high', 'low', 'veryLow'];
+function readQuality(): Quality {
+	const q = read('reign:quality');
+	return QUALITIES.find((k) => k === q) ?? 'high';
+}
+
 export const CHANNELS: { id: Channel; label: string }[] = [
 	{ id: 'master', label: msg('Master') },
 	{ id: 'sfx', label: msg('Effects') },
@@ -43,7 +50,7 @@ export const CHANNELS: { id: Channel; label: string }[] = [
 ];
 
 class Settings {
-	quality = $state<'high' | 'low'>(read('reign:quality') === 'low' ? 'low' : 'high');
+	quality = $state<Quality>(readQuality());
 	/** Voxels per terrain unit: 1 standard, 2 fine (an experiment with half-size voxels). */
 	detail = $state<1 | 2>(read('reign:detail') === '2' ? 2 : 1);
 	reduceMotion = $state(
@@ -69,7 +76,7 @@ class Settings {
 		setVolume(channel, v);
 	}
 
-	setQuality(q: 'high' | 'low') {
+	setQuality(q: Quality) {
 		if (q === this.quality) return;
 		this.quality = q;
 		write('reign:quality', q);
@@ -106,4 +113,6 @@ export const settings = new Settings();
 
 export function applySettings() {
 	document.body.classList.toggle('reduce-motion', settings.reduceMotion);
+	// Very low also spares the interface its costliest effects (see ui.css).
+	document.body.classList.toggle('very-low', settings.quality === 'veryLow');
 }

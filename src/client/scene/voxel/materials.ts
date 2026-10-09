@@ -46,6 +46,16 @@ export const sharedUniforms = {
 	uYards: { value: Array.from({ length: YARDS }, () => new THREE.Vector4()) }
 };
 
+/**
+ * The last lines of a custom fragment shader: tone-map the color and encode it for the screen,
+ * as the built-in materials do. Very low quality draws straight to the screen, with no
+ * post-processing to do it afterwards; drawn into post-processing's buffer, they change nothing.
+ */
+export const FRAG_OUTPUT = /* glsl */ `
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+`;
+
 export interface VoxelMaterialOptions {
 	roughness?: number;
 	metalness?: number;

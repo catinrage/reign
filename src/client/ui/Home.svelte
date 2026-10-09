@@ -41,7 +41,7 @@
 		if (!canvas) return;
 		let logo: LogoView | null = null;
 		try {
-			logo = new LogoView(canvas);
+			logo = new LogoView(canvas, settings.quality);
 		} catch {
 			// No second WebGL context: show the title as text instead.
 			logoOk = false;

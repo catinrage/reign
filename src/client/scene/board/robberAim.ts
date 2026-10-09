@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Mat } from '../voxel/grid';
-import { sharedUniforms } from '../voxel/materials';
+import { FRAG_OUTPUT, sharedUniforms } from '../voxel/materials';
 import { ease } from '../anim';
 import type { Particles } from '../effects';
 import { HEX_R, VOXEL } from '../layout';
@@ -72,6 +72,7 @@ export class RobberAim {
 					float f = clamp(1.0 - y, 0.0, 1.0);
 					float a = f * sqrt(f) * (0.6 + 0.4 * band) * uAmount;
 					gl_FragColor = vec4(mix(uColor, vec3(1.0), 0.15) * a, 1.0);
+					${FRAG_OUTPUT}
 				}`,
 			transparent: true,
 			depthWrite: false,
