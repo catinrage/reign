@@ -33,10 +33,18 @@ interface Seat {
 	lastSeen: number;
 	/** When this seat last sent a pigeon (Date.now() time), to keep the sky from filling up. */
 	lastPigeon?: number;
+	/** Pressed Leave during a game (rather than losing the connection). Cleared when they rejoin. */
+	left: boolean;
 }
 
 /** Seconds a disconnected player can stall the table before a bot covers for them. */
 const AFK_TAKEOVER_MS = 45_000;
+/**
+ * How long a room with nobody in it waits for someone to come back before it is cancelled, when
+ * not everyone pressed Leave: a reload, a dropped connection or a phone gone to sleep shouldn't
+ * end the game. The table waits for them meanwhile.
+ */
+export const EMPTY_GRACE_MS = 30 * 60_000;
 const BOT_NAMES = ['Ada', 'Bram', 'Cleo', 'Dorn', 'Esme', 'Finn', 'Gale', 'Hollis'];
 /** The events a roll can end with: what it produced, or on a 7 the discards it calls for. */
 const ROLL_ENDS = new Set(['diceRolled', 'produced', 'nothingProduced', 'mustDiscard']);
@@ -78,6 +86,10 @@ export class Room {
 	 * bot's pick, which it then moves to.
 	 */
 	private aim: { player: number; hex: number; bot: boolean } | null = null;
+	/** When the last player went away (Date.now() time), or 0 while someone is at the table. */
+	private emptySince = 0;
+	/** The last player in the lobby pressed Leave (a lobby drops seats, so it can't ask them). */
+	private lobbyLeft = false;
 
 	/** `cheats` lets players use dev cheats; only the local dev server turns it on. */
 	constructor(
@@ -90,14 +102,16 @@ export class Room {
 	}
 
 	/**
-	 * The table stops when a player pauses the game for everyone, or when every connected player
-	 * has the menu open (a solo game vs bots).
+	 * The table stops when a player pauses the game for everyone, when every connected player
+	 * has the menu open (a solo game vs bots), or when nobody is connected at all.
 	 */
 	get paused() {
 		if (!this.game || this.game.phase === 'ended') return false;
 		if (this.heldBy) return true;
 		const humans = this.seats.filter((s) => !s.isBot && s.sockets.size > 0);
-		return humans.length > 0 && humans.every((s) => this.pausedBy.has(s.id));
+		// Nobody is at the table: it waits for them instead of the bots playing it out.
+		if (!humans.length) return true;
+		return humans.every((s) => this.pausedBy.has(s.id));
 	}
 
 	lobbyInfo(): LobbyInfo {
@@ -117,6 +131,7 @@ export class Room {
 					color: s.color,
 					isBot: s.isBot,
 					connected: s.isBot || s.sockets.size > 0,
+					left: s.left,
 					isHost: s.id === this.hostId,
 					character: s.character,
 					ready: this.isReady(s)
@@ -140,15 +155,20 @@ export class Room {
 				character: this.freeCharacter(),
 				ready: false,
 				sockets: new Set(),
-				lastSeen: Date.now()
+				lastSeen: Date.now(),
+				left: false
 			};
 			this.seats.push(seat);
 		}
 		seat.sockets.add(ws);
 		seat.lastSeen = Date.now();
+		seat.left = false;
+		this.emptySince = 0;
+		this.lobbyLeft = false;
 		// A fresh connection starts with the menu closed; the client says so if it is open.
 		this.pausedBy.delete(seat.id);
-		if (!this.hostId || !this.seats.find((s) => s.id === this.hostId && !s.isBot)) {
+		const host = this.seats.find((s) => s.id === this.hostId && !s.isBot);
+		if (!host || (host.left && host !== seat)) {
 			this.hostId = seat.id;
 		}
 		send(ws, {
@@ -168,6 +188,8 @@ export class Room {
 			});
 			const aim = this.aim;
 			if (aim && aim.player !== this.seatIndex(seat)) send(ws, { t: 'aim', player: aim.player, hex: aim.hex });
+			// A table that waited while nobody was at it goes on.
+			this.scheduleBots();
 		}
 		return seat;
 	}
@@ -179,6 +201,7 @@ export class Room {
 				if (!s.sockets.size) this.pausedBy.delete(s.id);
 			}
 		}
+		if (this.isEmpty()) this.emptySince ||= Date.now();
 		if (!this.started) {
 			// In the lobby an empty seat is just gone.
 			this.seats = this.seats.filter((s) => s.isBot || s.sockets.size > 0);
@@ -217,7 +240,8 @@ export class Room {
 					character: this.freeCharacter(),
 					ready: true,
 					sockets: new Set(),
-					lastSeen: Date.now()
+					lastSeen: Date.now(),
+					left: false
 				});
 				return this.broadcastLobby();
 			}
@@ -348,6 +372,12 @@ export class Room {
 				return this.sendPigeon(seat, msg.to, msg.text, ws);
 			case 'leave':
 				seat.sockets.delete(ws);
+				if (this.started) {
+					seat.left = true;
+					if (isHost) this.passHost();
+				} else {
+					this.lobbyLeft = this.seats.every((s) => s === seat || s.isBot || !s.sockets.size);
+				}
 				return this.disconnect(ws);
 		}
 	}
@@ -392,8 +422,23 @@ export class Room {
 		return this.seats.every((s) => s.isBot || s.sockets.size === 0);
 	}
 
-	lastActivity() {
-		return Math.max(this.createdAt, ...this.seats.map((s) => (s.sockets.size ? Date.now() : s.lastSeen)));
+	/** Whether `token` holds a seat in this game, and who is still at the table. */
+	peek(token?: string): { open: boolean; players: string[] } {
+		const mine = !!token && this.started && this.seats.some((s) => s.token === token && !s.isBot);
+		const players = this.seats.filter((s) => !s.isBot && s.sockets.size > 0).map((s) => s.name);
+		return { open: mine && players.length > 0, players };
+	}
+
+	/**
+	 * Nobody is left at the table, so the game is cancelled: at once when everyone pressed Leave,
+	 * or once EMPTY_GRACE_MS has passed when someone only lost their connection. While even one
+	 * player stays, the room stays open and the others can rejoin their seats.
+	 */
+	abandoned(now = Date.now()): boolean {
+		if (!this.isEmpty()) return false;
+		const humans = this.seats.filter((s) => !s.isBot);
+		const everyoneLeft = this.started ? humans.every((s) => s.left) : this.lobbyLeft;
+		return everyoneLeft || now - (this.emptySince || this.createdAt) >= EMPTY_GRACE_MS;
 	}
 
 	dispose() {
@@ -434,6 +479,12 @@ export class Room {
 	/** The host changed what will be played, so everyone confirms again. */
 	private unready() {
 		for (const s of this.seats) if (!s.isBot) s.ready = false;
+	}
+
+	/** The host walked out of a game: someone still at the table hosts the rematch. */
+	private passHost() {
+		const next = this.seats.find((s) => !s.isBot && s.id !== this.hostId && s.sockets.size > 0);
+		if (next) this.hostId = next.id;
 	}
 
 	/** A character nobody at the table plays yet, picked at random. */
@@ -619,7 +670,8 @@ export class Room {
 		}
 		const controlled = (i: number) => {
 			const s = this.seats[i];
-			return s.isBot || (s.sockets.size === 0 && Date.now() - s.lastSeen > AFK_TAKEOVER_MS);
+			if (s.isBot || s.left) return true;
+			return s.sockets.size === 0 && Date.now() - s.lastSeen > AFK_TAKEOVER_MS;
 		};
 		// Out-of-turn answers first (discards, trade replies), then the active player.
 		for (let i = 0; i < this.seats.length; i++) {

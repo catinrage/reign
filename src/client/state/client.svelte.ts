@@ -40,6 +40,9 @@ function newestRoll(log: GameEvent[], after = -1): Roll | null {
 	return null;
 }
 
+/** The code of the last game this player sat down to, so the menu can offer to rejoin it. */
+const LAST_GAME = 'reign:lastGame';
+
 function storage(key: string, value?: string): string | null {
 	try {
 		if (value === undefined) return localStorage.getItem(key);
@@ -112,6 +115,8 @@ class GameClient {
 	freshPigeon = $state.raw<PigeonNote | null>(null);
 	/** The tile another player moving the robber points at, as the server last said. */
 	aim = $state.raw<{ player: number; hex: number } | null>(null);
+	/** A game this player left that is still going, with who is still at the table: they can rejoin. */
+	resumable = $state<{ code: string; players: string[] } | null>(null);
 
 	private ws: WebSocket | null = null;
 	private retry = 0;
@@ -140,6 +145,7 @@ class GameClient {
 			this.retry = 0;
 			const room = this.code ?? this.joining?.code;
 			if (room && !this.joining?.error) this.join(room);
+			else if (!room) this.peekLastGame();
 			for (const m of this.queue.splice(0)) this.send(m);
 		};
 		ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data) as ServerMessage);
@@ -176,6 +182,7 @@ class GameClient {
 			case 'lobby':
 				// Stray news from a room this player has just left.
 				if (!this.seat) break;
+				this.tellComings(this.lobby, msg.lobby);
 				this.lobby = msg.lobby;
 				this.setClock(msg.lobby.clock);
 				// A game in progress stays behind the loading screen until its state arrives.
@@ -186,6 +193,7 @@ class GameClient {
 				this.receive(msg.view);
 				this.setClock(msg.clock);
 				this.joining = null;
+				if (this.code) storage(LAST_GAME, this.code);
 				break;
 			case 'pigeons':
 				this.pigeons = msg.notes;
@@ -198,6 +206,13 @@ class GameClient {
 			case 'aim':
 				this.aim = msg.hex === null ? null : { player: msg.player, hex: msg.hex };
 				break;
+			case 'peek':
+				if (msg.open) this.resumable = { code: msg.code, players: msg.players };
+				else {
+					this.resumable = null;
+					if (storage(LAST_GAME) === msg.code) storage(LAST_GAME, '');
+				}
+				break;
 			case 'error':
 				this.pendingJoin = false;
 				this.rollAsked = false;
@@ -208,6 +223,10 @@ class GameClient {
 				if (this.joining && !this.seat) this.joining = { ...this.joining, error: msg.message };
 				else this.toast(msg.message, 'error');
 				if (!this.seat) {
+					if (this.code && storage(LAST_GAME) === this.code) {
+						storage(LAST_GAME, '');
+						this.resumable = null;
+					}
 					this.code = null;
 					this.setUrl(null);
 				}
@@ -293,6 +312,24 @@ class GameClient {
 			if (d.player === player && (!resource || d.resource === resource)) n += d.left;
 		}
 		return n;
+	}
+
+	/** During a game, say when another player leaves the table or comes back to it. */
+	private tellComings(prev: LobbyInfo | null, next: LobbyInfo) {
+		if (!prev || prev.code !== next.code || !prev.started || !next.started) return;
+		for (const s of next.seats) {
+			const was = prev.seats.find((p) => p.id === s.id);
+			if (!was || s.isBot || s.id === this.seat) continue;
+			if (s.left && !was.left) this.toast(`${s.name} left the table. A bot plays for them until they rejoin.`);
+			else if (s.connected && !was.connected) this.toast(`${s.name} is back at the table.`, 'good');
+		}
+	}
+
+	/** Ask whether the last game this player was in is still going, so the menu can offer it. */
+	peekLastGame() {
+		const code = storage(LAST_GAME);
+		if (!code) return;
+		this.send({ t: 'peek', code, token: storage(`reign:token:${code}`) ?? undefined });
 	}
 
 	/** The server sends the time left (not a deadline: clocks differ), so the deadline is set here. */
@@ -389,6 +426,8 @@ class GameClient {
 		this.joining = null;
 		this.setClock(null);
 		this.setUrl(null);
+		// While anyone else is still playing, the menu offers the way back in.
+		this.peekLastGame();
 	}
 
 	/** Send a private note by pigeon to the player in seat `to`. */

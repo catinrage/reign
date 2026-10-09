@@ -11,6 +11,8 @@ export interface LobbySeat {
 	color: PlayerColor;
 	isBot: boolean;
 	connected: boolean;
+	/** Pressed Leave during the game; a bot plays the seat until they rejoin. */
+	left: boolean;
 	isHost: boolean;
 	/** The character this seat plays in Reign Extended (each one at most once per table). */
 	character: CharacterId | null;
@@ -91,6 +93,8 @@ export type ClientMessage =
 	/** The tile under the pointer of the player moving the robber (null when it's on none). */
 	| { t: 'aim'; hex: number | null }
 	| { t: 'leave' }
+	/** Is the game at `code` still open, and does `token` still hold a seat there? */
+	| { t: 'peek'; code: string; token?: string }
 	| { t: 'ping' };
 
 export type ServerMessage =
@@ -105,6 +109,11 @@ export type ServerMessage =
 	| { t: 'pigeon'; note: PigeonNote }
 	/** The tile `player` is about to move the robber to, as they point at it (null: none now). */
 	| { t: 'aim'; player: number; hex: number | null }
+	/**
+	 * The answer to a peek: `open` when the game is still going and the token holds a seat in it,
+	 * with the names of the players still at the table.
+	 */
+	| { t: 'peek'; code: string; open: boolean; players: string[] }
 	| { t: 'pong' };
 
 /** The most any table seats; how many a game actually takes depends on the mode and island. */

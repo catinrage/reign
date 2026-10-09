@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../src/shared/protocol';
-import { Room } from '../src/server/room';
+import { EMPTY_GRACE_MS, Room } from '../src/server/room';
 import { settlementSpots } from '../src/shared/rules/queries';
 import type { Action, GameEvent } from '../src/shared/rules/types';
 
@@ -709,6 +709,107 @@ describe('robber aim', () => {
 		expect(room.game!.robberHex).toBe(g.robberHex);
 		vi.advanceTimersByTime(1000);
 		expect(room.game!.robberHex).toBe(aim!.hex);
+		room.dispose();
+	});
+});
+
+describe('leaving a game', () => {
+	afterEach(() => vi.useRealTimers());
+
+	function twoPlayers() {
+		vi.useFakeTimers();
+		const room = new Room('LEAVE');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'addBot' }, a.ws);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		const token = (sent: ServerMessage[]) => {
+			const welcome = sent.find((m) => m.t === 'welcome');
+			if (welcome?.t !== 'welcome') throw new Error('no welcome');
+			return welcome.token;
+		};
+		return { room, host, guest, a, b, hostToken: token(a.sent), guestToken: token(b.sent) };
+	}
+
+	it('keeps the game open while one player stays, and lets the others rejoin their seat', () => {
+		const { room, guest, b, guestToken } = twoPlayers();
+		room.handle(guest, { t: 'leave' }, b.ws);
+		expect(room.abandoned()).toBe(false);
+		vi.advanceTimersByTime(60 * 60_000);
+		expect(room.abandoned()).toBe(false);
+		expect(room.lobbyInfo().seats.find((s) => s.id === guest.id)).toMatchObject({ connected: false, left: true });
+		expect(room.peek(guestToken)).toEqual({ open: true, players: ['Ada'] });
+
+		const back = fakeSocket();
+		const again = room.join(back.ws, 'Bram', guestToken);
+		expect(again).toBe(guest);
+		expect(room.lobbyInfo().seats.find((s) => s.id === guest.id)).toMatchObject({ connected: true, left: false });
+		expect(back.sent.some((m) => m.t === 'game')).toBe(true);
+		room.dispose();
+	});
+
+	it('is cancelled at once when every player has left', () => {
+		const { room, host, guest, a, b, guestToken } = twoPlayers();
+		room.handle(guest, { t: 'leave' }, b.ws);
+		room.handle(host, { t: 'leave' }, a.ws);
+		expect(room.abandoned()).toBe(true);
+		expect(room.peek(guestToken).open).toBe(false);
+		room.dispose();
+	});
+
+	it('waits a little for a player who only lost the connection', () => {
+		const { room, guest, a, b } = twoPlayers();
+		room.handle(guest, { t: 'leave' }, b.ws);
+		room.disconnect(a.ws);
+		expect(room.abandoned()).toBe(false);
+		vi.advanceTimersByTime(EMPTY_GRACE_MS - 1000);
+		expect(room.abandoned()).toBe(false);
+		vi.advanceTimersByTime(1000);
+		expect(room.abandoned()).toBe(true);
+		room.dispose();
+	});
+
+	it('hands hosting to a player still at the table when the host leaves', () => {
+		const { room, host, guest, a, hostToken } = twoPlayers();
+		room.handle(host, { t: 'leave' }, a.ws);
+		expect(room.hostId).toBe(guest.id);
+		// Coming back doesn't take it away again.
+		room.join(fakeSocket().ws, 'Ada', hostToken);
+		expect(room.hostId).toBe(guest.id);
+		room.dispose();
+	});
+
+	it('holds a game against bots while its player is away, and goes on when they are back', () => {
+		const { room, me } = soloTable();
+		const token = me.sent.find((m) => m.t === 'welcome')!;
+		room.disconnect(me.ws);
+		const log = room.game!.log.length;
+		vi.advanceTimersByTime(10 * 60_000);
+		expect(room.game!.log.length).toBe(log);
+		expect(room.abandoned()).toBe(false);
+
+		room.join(fakeSocket().ws, 'Komeil', token.t === 'welcome' ? token.token : undefined);
+		vi.advanceTimersByTime(60_000);
+		const myIndex = room.seats.findIndex((s) => !s.isBot);
+		expect(room.game!.log.length > log || room.game!.current === myIndex).toBe(true);
+		room.dispose();
+	});
+
+	it('cancels a game against bots when its player leaves', () => {
+		const { room, seat, me } = soloTable();
+		room.handle(seat, { t: 'leave' }, me.ws);
+		expect(room.abandoned()).toBe(true);
+		room.dispose();
+	});
+
+	it('does not offer a seat to someone who never had one', () => {
+		const { room } = twoPlayers();
+		expect(room.peek('not-a-token').open).toBe(false);
+		expect(room.peek().open).toBe(false);
 		room.dispose();
 	});
 });
