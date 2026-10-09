@@ -5,7 +5,7 @@ import type { Resource, ResourceCounts } from './config';
  * off in the lobby, and Classic never has any. This file holds their data (names, what they do,
  * limits); the rules live in the engine and queries, and the bots know how to use each one.
  */
-export const EXTRA_BUILDINGS = ['workshop', 'stoneRoad', 'storehouse', 'castle', 'guildHall', 'fortress'] as const;
+export const EXTRA_BUILDINGS = ['workshop', 'stoneRoad', 'storehouse', 'tavern', 'castle', 'guildHall', 'fortress'] as const;
 export type ExtraBuilding = (typeof EXTRA_BUILDINGS)[number];
 /** Which extra buildings a game has. */
 export type BuildingRules = Record<ExtraBuilding, boolean>;
@@ -33,6 +33,11 @@ export const BUILDING_INFO: Record<ExtraBuilding, BuildingInfo> = {
 		name: 'Storehouses',
 		label: 'Storehouse',
 		text: "Added onto one of your settlements or cities, one each. It keeps three of your cards safe: nothing takes your last three at random (not the robber, a thief, a toll or an event), and on a 7 they don't count towards your hand."
+	},
+	tavern: {
+		name: 'Taverns',
+		label: 'Tavern',
+		text: 'Added onto one of your settlements or cities, one each. You hear the rumors there: you see the next Event card before it turns over. Only in games with the Events deck.'
 	},
 	castle: {
 		name: 'Castles',

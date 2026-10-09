@@ -31,8 +31,8 @@ export const PLAYER_COLORS = ['red', 'blue', 'yellow', 'green', 'white', 'orange
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
 /**
- * Everything a player can pay for. Workshops, stone roads, storehouses and the city paths (castle,
- * guild hall, fortress) are Reign Extended only (see buildings.ts).
+ * Everything a player can pay for. Workshops, stone roads, storehouses, taverns and the city paths
+ * (castle, guild hall, fortress) are Reign Extended only (see buildings.ts).
  */
 export type BuildKind =
 	| 'road'
@@ -42,6 +42,7 @@ export type BuildKind =
 	| 'workshop'
 	| 'stoneRoad'
 	| 'storehouse'
+	| 'tavern'
 	| 'castle'
 	| 'guildHall'
 	| 'fortress';
@@ -54,6 +55,7 @@ export const COSTS: Record<BuildKind, Partial<ResourceCounts>> = {
 	workshop: { wood: 1, brick: 1, ore: 1 },
 	stoneRoad: { brick: 1, ore: 1 },
 	storehouse: { wood: 1, sheep: 1, wheat: 1 },
+	tavern: { wood: 1, wheat: 1 },
 	castle: { brick: 1, wheat: 2, ore: 2 },
 	guildHall: { wood: 1, sheep: 2, wheat: 1 },
 	fortress: { brick: 2, wheat: 1, ore: 2 }

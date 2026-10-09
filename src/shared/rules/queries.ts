@@ -35,6 +35,7 @@ type Shared = Pick<
 	| 'workshops'
 	| 'stoneRoads'
 	| 'storehouses'
+	| 'taverns'
 	| 'cityPaths'
 	| 'guildGoods'
 	| 'events'
@@ -112,6 +113,25 @@ export function safeCards(s: Shared, player: number): number {
 /** Buildings a player can add a storehouse onto: any settlement or city of theirs, while they have none. */
 export function storehouseSpots(s: Shared, player: number): number[] {
 	if (!s.buildingRules.storehouse || storehouseOf(s, player) !== null) return [];
+	const out: number[] = [];
+	s.buildings.forEach((b, v) => {
+		if (b?.owner === player) out.push(v);
+	});
+	return out;
+}
+
+/** The building this player's tavern stands on, if they have one. */
+export function tavernOf(s: Pick<Shared, 'taverns' | 'buildings'>, player: number): number | null {
+	const v = s.taverns?.findIndex((on, i) => on && s.buildings[i]?.owner === player) ?? -1;
+	return v >= 0 ? v : null;
+}
+
+/**
+ * Buildings a player can add a tavern onto: any settlement or city of theirs, while they have
+ * none and the game has an Events deck for its rumors to be about.
+ */
+export function tavernSpots(s: Shared, player: number): number[] {
+	if (!s.buildingRules.tavern || !s.events || tavernOf(s, player) !== null) return [];
 	const out: number[] = [];
 	s.buildings.forEach((b, v) => {
 		if (b?.owner === player) out.push(v);

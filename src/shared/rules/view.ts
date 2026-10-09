@@ -1,5 +1,6 @@
 import { totalResources } from './config';
 import { totalPoints } from './engine';
+import { rumorFor } from './events';
 import { publicPoints } from './queries';
 import type { EventMove, GameEvent, GameState, GameView } from './types';
 
@@ -11,8 +12,9 @@ export function viewFor(s: GameState, me: number): GameView {
 		...structuredClone(rest),
 		board: s.board,
 		devDeckCount: devDeck.length,
-		// The event deck's order stays secret: players see this round's card and what's left.
-		events: events && (({ deck, ...ev }) => ({ ...structuredClone(ev), deckCount: deck.length }))(events),
+		// The event deck's order stays secret: players see this round's card and what's left, and
+		// a player with a tavern the next card's rumor.
+		events: events && (({ deck, ...ev }) => ({ ...structuredClone(ev), deckCount: deck.length, rumor: rumorFor(s, me) }))(events),
 		me,
 		players: players.map((p, i) => {
 			const mine = i === me || reveal;

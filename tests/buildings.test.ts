@@ -78,7 +78,9 @@ describe('host switches for the Reign Extended buildings', () => {
 	});
 
 	it('Reign Extended plays them all unless the host turns one off', () => {
-		expect(createGame(players(2), 1, undefined, extended()).buildingRules).toEqual(allBuildings());
+		// These games have no Events deck, which a tavern's rumors need.
+		expect(createGame(players(2), 1, undefined, extended()).buildingRules).toEqual({ ...allBuildings(), tavern: false });
+		expect(createGame(players(2), 1, undefined, extended({ events: undefined })).buildingRules).toEqual(allBuildings());
 		const s = midGame(extended({ buildings: { ...allBuildings(), workshop: false } }));
 		expect(s.buildingRules.workshop).toBe(false);
 		expect(workshopSpots(s, s.current)).toEqual([]);
@@ -190,7 +192,7 @@ describe('workshops', () => {
 	it('show up in every player view', () => {
 		const s = act(midGame(extended()), 0, { type: 'endTurn' });
 		const view = viewFor(s, 1);
-		expect(view.buildingRules).toEqual(allBuildings());
+		expect(view.buildingRules).toEqual({ ...allBuildings(), tavern: false });
 		expect(view.workshops).toEqual(s.workshops);
 	});
 });

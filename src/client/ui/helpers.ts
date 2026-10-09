@@ -35,6 +35,8 @@ import {
 	settlementSpots,
 	storehouseOf,
 	storehouseSpots,
+	tavernOf,
+	tavernSpots,
 	workshopCount,
 	workshopSpots
 } from '../../shared/rules/queries';
@@ -110,6 +112,8 @@ export function buildAvailable(view: GameView, kind: BuildKind): boolean {
 			return paveSpots(view, view.me).length > 0;
 		case 'storehouse':
 			return storehouseSpots(view, view.me).length > 0;
+		case 'tavern':
+			return tavernSpots(view, view.me).length > 0;
 		case 'castle':
 		case 'guildHall':
 		case 'fortress':
@@ -131,6 +135,7 @@ export function openCities(view: GameView): number {
 export function extraStock(view: GameView, kind: ExtraBuilding): number {
 	if (kind === 'workshop') return WORKSHOP_LIMIT - workshopCount(view, view.me);
 	if (kind === 'storehouse') return storehouseOf(view, view.me) === null ? 1 : 0;
+	if (kind === 'tavern') return tavernOf(view, view.me) === null ? 1 : 0;
 	if (isCityPath(kind)) {
 		const open = openCities(view);
 		if (kind === 'fortress') return fortressOf(view, view.me) === null ? Math.min(1, open) : 0;
@@ -161,6 +166,7 @@ export function buildNote(view: GameView, kind: BuildKind): string {
 	}
 	if (kind === 'stoneRoad' && !paveSpots(view, view.me).length) return t('Every one of your roads is paved already.');
 	if (kind === 'storehouse' && storehouseOf(view, view.me) !== null) return t('You already have a storehouse.');
+	if (kind === 'tavern' && tavernOf(view, view.me) !== null) return t('You already have a tavern.');
 	if (isCityPath(kind)) {
 		if (kind === 'fortress' && fortressOf(view, view.me) !== null) return t('You already have a fortress.');
 		if (kind === 'guildHall' && !guildGoodsFor(view, view.me).length) return t('You already trade every good at 2:1.');
@@ -205,6 +211,8 @@ function builtParts(view: GameView, kind: BuiltKind, at: number, player: LogPart
 			return tParts('{player} built a stone road', slots, T);
 		case 'storehouse':
 			return tParts('{player} built a storehouse', slots, T);
+		case 'tavern':
+			return tParts('{player} built a tavern', slots, T);
 		case 'workshop':
 			return tParts('{player} built a {workshop}', slots, T, { workshop: workshopName(view, at) });
 		case 'castle':
@@ -231,6 +239,8 @@ export function pieceName(view: GameView, kind: BuiltKind, at: number): string {
 			return t('City');
 		case 'storehouse':
 			return t('Storehouse');
+		case 'tavern':
+			return t('Tavern');
 		case 'castle':
 		case 'guildHall':
 		case 'fortress':
@@ -248,8 +258,8 @@ export function builtWhen(view: GameView, kind: BuiltKind, at: number): string |
 /**
  * What the tooltip of a piece on the board says: its name over who owns it and the turn it went
  * up on. A city also says when it was settled (and when it took its path, with what that path
- * does), a stone road when it was a plain road, and a building when its storehouse went up. Null
- * when nothing stands on the spot.
+ * does), a stone road when it was a plain road, and a building when its storehouse or tavern went
+ * up (and, to the tavern's owner, the rumor heard there). Null when nothing stands on the spot.
  */
 export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text: string } | null {
 	const { place, at } = spot;
@@ -286,6 +296,12 @@ export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text:
 	} else when(kind, built);
 	if (place === 'vertex' && view.storehouses?.[at])
 		when('storehouse', (turn) => (turn ? t('Storehouse added on turn {turn}', { turn }) : t('Storehouse added during setup')));
+	if (place === 'vertex' && view.taverns?.[at]) {
+		when('tavern', (turn) => (turn ? t('Tavern added on turn {turn}', { turn }) : t('Tavern added during setup')));
+		// Only the tavern's owner hears its rumors.
+		const rumor = owner === view.me ? view.events?.rumor : null;
+		if (rumor) lines.push(t('Rumor: the next event is {event}', { event: t(EVENT_INFO[rumor].name) }));
+	}
 	if (path) lines.push(pathLine(view, path, at));
 	return { head: pieceName(view, path ?? kind, at), text: lines.join('\n') };
 }
