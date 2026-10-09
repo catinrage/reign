@@ -164,7 +164,6 @@
 			</button>
 		</nav>
 	</div>
-	<footer>A voxel island game for 2 to 4 players</footer>
 </div>
 
 {#if sheet === 'help'}
@@ -328,18 +327,6 @@
 		color: #fff2d2;
 		text-shadow: var(--outline-dark);
 	}
-	footer {
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 10px;
-		text-align: center;
-		font-size: 13px;
-		font-weight: 700;
-		color: rgba(255, 236, 205, 0.6);
-		text-shadow: 0 1px 2px #000;
-		pointer-events: none;
-	}
 	@media (min-width: 1100px) and (min-aspect-ratio: 4/3) {
 		.column {
 			align-items: flex-start;
@@ -356,10 +343,6 @@
 		}
 		.sign {
 			width: 420px;
-		}
-		footer {
-			text-align: left;
-			left: max(40px, 5vw);
 		}
 	}
 	@media (max-height: 760px) and (min-width: 701px) {
