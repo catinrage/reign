@@ -7,11 +7,12 @@ import type { EventMove, GameEvent, GameState, GameView } from './types';
 /** Strip hidden information: other hands, the deck order, the rng, private steal results. */
 export function viewFor(s: GameState, me: number): GameView {
 	const reveal = s.phase === 'ended';
-	const { rng: _rng, devDeck, players, log, events, ...rest } = s;
+	const { rng: _rng, devDeck, players, log, events, stats, ...rest } = s;
 	return {
 		...structuredClone(rest),
 		board: s.board,
 		devDeckCount: devDeck.length,
+		...(reveal && stats ? { stats: structuredClone(stats) } : {}),
 		// The event deck's order stays secret: players see this round's card and what's left, and
 		// a player with a tavern the next card's rumor.
 		events: events && (({ deck, ...ev }) => ({ ...structuredClone(ev), deckCount: deck.length, rumor: rumorFor(s, me) }))(events),

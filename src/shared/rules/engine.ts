@@ -30,6 +30,7 @@ import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules, isCi
 import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
 import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays, topUp } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
+import { StatsTracker, newStats } from './stats';
 import {
 	armySize,
 	builtKey,
@@ -174,6 +175,7 @@ export function createGame(
 		longestRoadHolder: null,
 		largestArmyHolder: null,
 		winner: null,
+		stats: newStats(n),
 		log: [],
 		nextEventSeq: 1
 	};
@@ -212,6 +214,8 @@ function check(result: string | null | false) {
 
 class Ctx {
 	events: GameEvent[] = [];
+	/** Counts the end-of-game numbers as the action plays out (only actions players take). */
+	stats: StatsTracker | null = null;
 	constructor(public s: GameState) {}
 	/** `emit` for code outside the engine (the Events deck). */
 	readonly emitter = (e: DistributiveOmit<GameEvent, 'seq'>) => this.emit(e);
@@ -221,6 +225,7 @@ class Ctx {
 		this.s.log.push(ev);
 		// Every piece goes up through a 'built' event, so new kinds of building get a date too.
 		if (ev.type === 'built') this.s.builtTurns[builtKey(ev.kind, ev.at)] = this.s.turn;
+		this.stats?.event(ev);
 		if (this.s.log.length > LOG_LIMIT) this.s.log.splice(0, this.s.log.length - LOG_LIMIT);
 	}
 }
@@ -236,12 +241,14 @@ export function applyAction(state: GameState, player: number, action: Action): A
 	if (state.phase === 'ended') return { ok: false, error: 'The game is over.' };
 	const s = cloneState(state);
 	const ctx = new Ctx(s);
+	ctx.stats = new StatsTracker(s);
 	try {
 		dispatch(ctx, player, action);
 	} catch (e) {
 		if (e instanceof RuleError) return { ok: false, error: e.message };
 		throw e;
 	}
+	ctx.stats.finish(ctx.events);
 	s.version++;
 	return { ok: true, state: s, events: ctx.events };
 }

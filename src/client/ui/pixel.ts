@@ -531,5 +531,48 @@ export const PIXEL = {
 			'....kkkkkk....'
 		],
 		{ k: '#2a1a10', w: '#fff6e0', b: '#3f86c9' }
+	),
+	robber: svg(
+		[
+			'...kkk...',
+			'..kgggk..',
+			'.kgggggk.',
+			'.kgkgkgk.',
+			'..kgggk..',
+			'.kgggggk.',
+			'kgggggggk',
+			'kgggggggk',
+			'.kgggggk.',
+			'kkkkkkkkk'
+		],
+		{ k: '#1a0f08', g: '#8d8f96' }
+	),
+	clover: svg(
+		[
+			'..kk.kk..',
+			'.kggkggk.',
+			'.kgghggk.',
+			'kkkghgkkk',
+			'kgghhhggk',
+			'kgggkgggk',
+			'.kkk.kkk.',
+			'....kk...',
+			'...kk....'
+		],
+		{ k: '#123a12', g: '#5fc04a', h: '#b6f08a' }
+	),
+	raincloud: svg(
+		[
+			'...kkkk....',
+			'..kwwwwk...',
+			'.kwwwwwwkk.',
+			'kwwwwwwwwwk',
+			'kgwwwwwwwgk',
+			'.kgggggggk.',
+			'..kkkkkkk..',
+			'.b..b..b...',
+			'b..b..b....'
+		],
+		{ k: '#1e2633', w: '#c3cad6', g: '#8a94a6', b: '#5aa0e8' }
 	)
 };
