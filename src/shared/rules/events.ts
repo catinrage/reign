@@ -3,7 +3,7 @@ import { randomInt, shuffle } from '../rng';
 import { RESOURCES, TERRAIN_RESOURCE, pips, totalResources, type Resource } from './config';
 import { publicPoints, safeCards, tavernOf } from './queries';
 import type { BoardHex } from '../board/topology';
-import type { EventMove, GameEvent, GameState } from './types';
+import type { EventMove, GameEvent, GameState, GameView } from './types';
 
 /**
  * Reign Extended's Events deck: one card flips at the start of each round (or every other round)
@@ -391,7 +391,7 @@ export function eventYield(s: Pick<GameState, 'events'>, res: Resource): number 
 }
 
 /** Whether a tile pays on this roll: its number, or a pasture on a 7 while the herds migrate. */
-export function tilePays(s: Pick<GameState, 'events'>, hex: BoardHex, total: number): boolean {
+export function tilePays(s: Pick<GameState | GameView, 'events'>, hex: BoardHex, total: number): boolean {
 	if (hex.number === total) return true;
 	return total === 7 && s.events?.current === 'migratingHerds' && hex.terrain === 'pasture';
 }
