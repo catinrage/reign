@@ -75,13 +75,25 @@
 	/**
 	 * With auto roll on, the Roll dice button rolls by itself once it has been up a moment. Using a
 	 * power holds it, and a Knight takes the turn off the roll until the robber has moved, so either
-	 * starts the wait over. A paused game doesn't roll.
+	 * starts the wait over. A paused game doesn't roll, and the fuse holds while the pointer is on
+	 * the button, then burns on from where it stopped.
 	 */
 	const autoRolling = $derived(autoRoll.on && canRoll && !ui.power && !client.lobby?.paused);
+	let fuseHeld = $state(false);
+	/** What is left of the fuse: the whole of it each time the wait starts over. */
+	let fuseLeft = AUTO_ROLL_MS;
 	$effect(() => {
-		if (!autoRolling) return;
-		const timer = setTimeout(() => client.act({ type: 'rollDice' }), AUTO_ROLL_MS);
-		return () => clearTimeout(timer);
+		if (!autoRolling) {
+			fuseLeft = AUTO_ROLL_MS;
+			return;
+		}
+		if (fuseHeld) return;
+		const lit = performance.now();
+		const timer = setTimeout(() => client.act({ type: 'rollDice' }), fuseLeft);
+		return () => {
+			clearTimeout(timer);
+			fuseLeft = Math.max(0, fuseLeft - (performance.now() - lit));
+		};
 	});
 
 	function onPower() {
@@ -191,9 +203,11 @@
 				style:--auto-ms="{AUTO_ROLL_MS}ms"
 				title={autoRolling ? t('Auto roll is on: the dice roll by themselves in a moment.') : undefined}
 				onclick={() => client.act({ type: 'rollDice' })}
+				onpointerenter={() => (fuseHeld = true)}
+				onpointerleave={() => (fuseHeld = false)}
 			>
 				<img src={PIXEL.die} alt="" /> {t('Roll dice')}
-				{#if autoRolling}<span class="fuse" aria-hidden="true"></span>{/if}
+				{#if autoRolling}<span class="fuse" class:held={fuseHeld} aria-hidden="true"></span>{/if}
 			</button>
 		{/if}
 		{#if mine && view.step === 'main'}
@@ -271,19 +285,22 @@
 	.roll img {
 		height: calc(var(--s) * 10);
 	}
-	/* Auto roll: a fuse burns down along the button, and the dice roll when it runs out. */
+	/* Auto roll: a fuse burns down from both ends to the middle of the button, and the dice roll
+	   when it runs out. It holds while the pointer is on the button. */
 	.fuse {
 		position: absolute;
 		left: 6%;
 		right: 6%;
 		bottom: calc(var(--s) * -2);
 		height: calc(var(--s) * 2);
-		background: linear-gradient(90deg, #ffd166, #ff8a3d);
+		background: linear-gradient(90deg, #ff8a3d, #ffd166, #ff8a3d);
 		box-shadow:
 			0 0 0 2px #2a1a10,
 			0 0 6px rgba(255, 170, 60, 0.8);
-		transform-origin: left;
 		animation: fuse var(--auto-ms) linear both;
+	}
+	.fuse.held {
+		animation-play-state: paused;
 	}
 	@keyframes fuse {
 		to {
