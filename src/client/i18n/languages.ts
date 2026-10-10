@@ -16,7 +16,8 @@ export const LANGUAGES: Language[] = [
 	{ code: 'en', name: 'English', match: ['en'] },
 	{ code: 'ru', name: 'Русский', match: ['ru'] },
 	{ code: 'zh-CN', name: '简体中文', match: ['zh'] },
-	{ code: 'de', name: 'Deutsch', match: ['de'] }
+	{ code: 'de', name: 'Deutsch', match: ['de'] },
+	{ code: 'fr', name: 'Français', match: ['fr'] }
 ];
 
 export const SOURCE_LANGUAGE = 'en';
