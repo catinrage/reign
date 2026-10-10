@@ -84,9 +84,12 @@ function isInside(o: THREE.Object3D | null, root: THREE.Object3D): boolean {
 	return false;
 }
 
-/** Where a piece stands: a settlement or city on a vertex, a road on an edge, a workshop on a tile. */
+/**
+ * What a board tooltip is about: a piece where it stands (a settlement or city on a vertex, a road
+ * on an edge, a workshop on a tile), or a harbor (`at` indexes `board.ports`).
+ */
 export interface BoardSpot {
-	place: 'vertex' | 'edge' | 'hex';
+	place: 'vertex' | 'edge' | 'hex' | 'harbor';
 	at: number;
 }
 
@@ -1382,8 +1385,7 @@ export class GameScene {
 		// A tap on a piece (when nothing is being placed) shows its tooltip on touch screens.
 		if (e.pointerType === 'touch' && !this.pick && !this.stage.rig.dragged) {
 			this.onPointerMove(e);
-			const piece = this.pieceAtPointer();
-			const spot = piece && spotOf(piece.key);
+			const spot = this.spotAtPointer();
 			if (spot) this.callbacks.onPieceHover?.(spot, true);
 			return;
 		}
@@ -1450,16 +1452,20 @@ export class GameScene {
 		return this.catHovered;
 	}
 
-	/** The built piece under the pointer, if any. */
-	private pieceAtPointer(): PieceObj | null {
-		if (this.mode !== 'game' || !this.pieces.size) return null;
+	/** The built piece or the harbor disc under the pointer, if any, for its tooltip. */
+	private spotAtPointer(): BoardSpot | null {
+		const harbors = this.boardView?.harborDiscs ?? [];
+		if (this.mode !== 'game' || (!this.pieces.size && !harbors.length)) return null;
 		this.raycaster.setFromCamera(this.pointer, this.stage.camera);
-		const objs = [...this.pieces.values()].map((p) => p.obj);
+		const objs = [...[...this.pieces.values()].map((p) => p.obj), ...harbors];
 		for (const hit of this.raycaster.intersectObjects(objs, true)) {
+			if (hit.object.name.endsWith('ghost')) continue;
 			let o: THREE.Object3D | null = hit.object;
-			while (o && o.userData.pieceKey === undefined) o = o.parent;
-			const piece = o && this.pieces.get(o.userData.pieceKey);
-			if (piece) return piece;
+			while (o && o.userData.pieceKey === undefined && o.userData.harbor === undefined) o = o.parent;
+			if (!o) continue;
+			if (o.userData.harbor !== undefined) return { place: 'harbor', at: o.userData.harbor };
+			const spot = this.pieces.has(o.userData.pieceKey) && spotOf(o.userData.pieceKey);
+			if (spot) return spot;
 		}
 		return null;
 	}
@@ -1469,11 +1475,14 @@ export class GameScene {
 	 * (null when there is no such piece any more, or it is off screen).
 	 */
 	pieceTipPoint(spot: BoardSpot): { x: number; y: number } | null {
-		const prefix = { vertex: 'v', edge: 'e', hex: 'w' }[spot.place] + spot.at + ':';
-		let piece: PieceObj | null = null;
-		for (const p of this.pieces.values()) if (p.key.startsWith(prefix)) piece = p;
-		if (!piece) return null;
-		const box = new THREE.Box3().setFromObject(piece.obj);
+		let obj: THREE.Object3D | null = null;
+		if (spot.place === 'harbor') obj = this.boardView?.harborDiscs[spot.at] ?? null;
+		else {
+			const prefix = { vertex: 'v', edge: 'e', hex: 'w' }[spot.place] + spot.at + ':';
+			for (const p of this.pieces.values()) if (p.key.startsWith(prefix)) obj = p.obj;
+		}
+		if (!obj) return null;
+		const box = new THREE.Box3().setFromObject(obj);
 		const top = box.getCenter(new THREE.Vector3()).setY(box.max.y);
 		const v = top.project(this.stage.camera);
 		if (v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return null;
@@ -1489,8 +1498,7 @@ export class GameScene {
 		if (live && !moved && ++this.hoverIdle < 12) return;
 		this.hoverAt.copy(this.pointer);
 		this.hoverIdle = 0;
-		const piece = live ? this.pieceAtPointer() : null;
-		const spot = piece && spotOf(piece.key);
+		const spot = live ? this.spotAtPointer() : null;
 		const key = spot ? `${spot.place}${spot.at}` : '';
 		if (key === this.hoverKey) return;
 		this.hoverKey = key;

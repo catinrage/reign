@@ -1572,5 +1572,14 @@ export default {
 	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "Замшелый надгробный камень с костяно-белыми точками, а вместо единицы — светящийся череп.",
 	"Midnight blue with glowing stars, and a gold star for the 1.": "Полночная синева со светящимися звёздами, а вместо единицы — золотая звезда.",
 	"Pick one of the dice.": "Выберите одни из кубиков.",
-	"Everyone at the table sees your dice when you roll.": "Все за столом видят ваши кубики, когда вы бросаете."
+	"Everyone at the table sees your dice when you roll.": "Все за столом видят ваши кубики, когда вы бросаете.",
+	"{resource} harbor": "Гавань: {resource}",
+	"Harbor for any resource": "Гавань для любого ресурса",
+	"Trade 3 cards of any one resource for 1 card of your choice.": "Меняйте 3 карты одного любого ресурса на 1 карту на выбор.",
+	"Trade 2 {resource} for 1 card of your choice.": "Меняйте 2 карты «{resource}» на 1 карту на выбор.",
+	"Free: build a settlement on one of its two corners to trade here.": "Свободна: постройте поселение на одном из двух её углов, чтобы торговать здесь.",
+	"Yours: you trade here.": "Ваша: вы торгуете здесь.",
+	"Traded at by: {players}": "Здесь торгуют: {players}",
+	"Closed this round by the Storm at Sea.": "Закрыта в этом раунде из-за шторма на море.",
+	"Your harbors": "Ваши гавани"
 } satisfies Messages;

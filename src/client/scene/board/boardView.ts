@@ -5,12 +5,16 @@ import { getIcons } from '../icons';
 import { sharedUniforms } from '../voxel/materials';
 import { cloneModel, robberModel, sheepModel, shipModel } from './models';
 import { type BoardBuild, DECK_TOP, LAND_TOP, buildBoard } from './terrain';
-import { harborToken, numberToken, tokenRing } from './tokens';
+import { TOKEN_RADIUS, harborToken, numberToken, tokenRing } from './tokens';
 
 /** Number tokens are a little smaller than a third of a tile, as in the reference. */
 const TOKEN_SCALE = 0.82;
 /** How much number and harbor tokens light up from within at night, so they read in the dark. */
 const NIGHT_TOKEN = 0.3;
+/** Harbor discs are a little bigger than number tokens, so their resource reads from afar. */
+const HARBOR_SCALE = 0.9;
+/** How far harbor discs lean toward the camera (radians). */
+const HARBOR_TILT = 0.45;
 
 /**
  * Everything that belongs to one island: terrain, number and harbor tokens, ships,
@@ -72,11 +76,15 @@ export class BoardView {
 
 		const icons = getIcons();
 		for (const p of this.build.ports) {
-			const tok = harborToken(p.kind === 'any' ? null : icons.canvases[p.kind], p.ratio, p.kind);
-			tok.position.set(p.x, DECK_TOP + 0.2, p.z);
+			const tok = harborToken(icons.canvases, p.ratio, p.kind);
+			tok.scale.setScalar(HARBOR_SCALE);
+			// Propped up toward the camera like a sign, so it doesn't flatten out far across the table.
+			tok.rotation.order = 'YXZ';
+			tok.rotation.x = HARBOR_TILT;
+			tok.position.set(p.x, DECK_TOP + 0.2 + Math.sin(HARBOR_TILT) * TOKEN_RADIUS * HARBOR_SCALE, p.z);
 			tok.userData.baseY = tok.position.y;
-			tok.scale.setScalar(0.62);
 			this.faces.push(tok);
+			tok.userData.harbor = this.harbors.length;
 			this.harbors.push(tok);
 			this.portOwners.push(null);
 			this.group.add(tok);
@@ -230,6 +238,11 @@ export class BoardView {
 	/** Where the grazing sheep are now. */
 	sheepSpots(): THREE.Vector3[] {
 		return this.sheep.map((s) => s.obj.position.clone());
+	}
+
+	/** The harbor discs, in `build.ports` order (for pointing at one). */
+	get harborDiscs(): readonly THREE.Object3D[] {
+		return this.harbors;
 	}
 
 	/** How many harbors the island has (see `harborSpot`). */

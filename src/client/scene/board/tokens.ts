@@ -174,21 +174,60 @@ export function numberToken(n: number): THREE.Group {
 	return g;
 }
 
-export function harborToken(icon: HTMLCanvasElement | null, ratio: number, kind: string): THREE.Group {
+/** Each harbor's resource color, as on its cards (light, dark), so a harbor reads by color alone. */
+const HARBOR_TINT: Record<string, [string, string]> = {
+	wood: ['#4a9236', '#24561a'],
+	brick: ['#d8643f', '#8a3418'],
+	sheep: ['#93cc58', '#4f8a2c'],
+	wheat: ['#f0bf45', '#b07a14'],
+	ore: ['#a3a8b1', '#5a5e66']
+};
+const RATIO_FONT = '900 {px}px "Nunito Variable", system-ui, sans-serif';
+
+/**
+ * A harbor's disc: the face is filled with its resource's color, with the resource drawn big
+ * on it and its rate on a dark plate below, so it can be read from the table's usual view.
+ * The 3:1 harbor shows all five resources over its rate. `icons` are the resource pictures.
+ */
+export function harborToken(icons: Record<string, HTMLCanvasElement>, ratio: number, kind: string): THREE.Group {
 	const tex = faceTexture((ctx, s) => {
-		if (icon) ctx.drawImage(icon, s * 0.22, s * 0.1, s * 0.56, s * 0.56);
-		else {
-			ctx.fillStyle = '#3a2416';
-			ctx.font = `700 92px ${FONT}`;
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.fillText('?', s / 2, s * 0.38);
+		ctx.imageSmoothingEnabled = false;
+		const tint = HARBOR_TINT[kind];
+		if (tint) {
+			const grad = ctx.createRadialGradient(s / 2, s * 0.38, s * 0.06, s / 2, s / 2, s * 0.44);
+			grad.addColorStop(0, tint[0]);
+			grad.addColorStop(1, tint[1]);
+			ctx.fillStyle = grad;
+			ctx.beginPath();
+			ctx.arc(s / 2, s / 2, s / 2 - 20, 0, Math.PI * 2);
+			ctx.fill();
+			const icon = icons[kind];
+			if (icon) ctx.drawImage(icon, s * 0.1, s * -0.06, s * 0.8, s * 0.8);
+		} else {
+			// Any resource: the five of them in an arch over the rate.
+			const list = Object.keys(HARBOR_TINT);
+			list.forEach((r, i) => {
+				const a = Math.PI * (0.92 - (0.84 * i) / (list.length - 1));
+				const x = s / 2 + Math.cos(a) * s * 0.27;
+				const y = s * 0.5 - Math.sin(a) * s * 0.27;
+				const size = s * 0.3;
+				if (icons[r]) ctx.drawImage(icons[r], x - size / 2, y - size / 2, size, size);
+			});
 		}
-		ctx.fillStyle = kind === 'any' ? '#3a2416' : '#7a3d12';
-		ctx.font = `700 62px ${FONT}`;
+		// The rate on a dark plate, big enough to read at a glance.
+		const text = `${ratio}:1`;
+		ctx.font = RATIO_FONT.replace('{px}', '86');
+		const w = ctx.measureText(text).width + 30;
+		const h = 78;
+		const y = s * 0.6;
+		ctx.fillStyle = 'rgba(43, 26, 16, 0.92)';
+		ctx.beginPath();
+		ctx.roundRect(s / 2 - w / 2, y, w, h, 14);
+		ctx.fill();
+		ctx.fillStyle = '#fff2d2';
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
-		ctx.fillText(`${ratio}:1`, s / 2, s * 0.78);
+		ctx.fillText(text, s / 2, y + h / 2 + 3);
 	});
 	return withFace(tex);
 }
