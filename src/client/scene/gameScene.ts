@@ -1152,7 +1152,7 @@ export class GameScene {
 				slot.add(bar);
 			} else if (req.kind === 'settlement') {
 				// Four corner brackets on the ground round the spot, open in the middle.
-				slot.add(cornerBrackets(color));
+				slot.add(cornerBrackets(color, bracketLift(pos, (x, z) => bv.groundAt(x, z, 0))));
 			} else {
 				const gem = new THREE.Mesh(MARKER_GEM, markerMat);
 				gem.position.y = markerHeight(req.kind);
@@ -1482,7 +1482,7 @@ export class GameScene {
 			const ring = slot.getObjectByName('ring');
 			const brackets = slot.getObjectByName('brackets');
 			ghost.visible = hovered;
-			if (brackets && bv) aimBrackets(brackets, hovered, this.stage.rig.azimuth, t + slot.userData.phase, dt, (x, z) => bv.groundAt(x, z, 1));
+			if (brackets) aimBrackets(brackets, hovered, this.stage.rig.azimuth, t + slot.userData.phase, dt);
 			if (this.pick?.kind === 'tearDown') {
 				// The workshop itself trembles inside a red shell.
 				ghost.scale.setScalar(ghost.userData.base * 1.06);
@@ -1584,7 +1584,6 @@ function ringMaterial(color: number) {
 const BRACKET_VOXEL = 0.8;
 const BRACKET_HALF = 3.5;
 const UP = new THREE.Vector3(0, 1, 0);
-const bracketAt = new THREE.Vector3();
 
 const bracketSeeCache = new Map<number, THREE.MeshBasicMaterial>();
 /** The brackets drawn faintly where wheat, trees or a slope stand in front of them. */
@@ -1602,11 +1601,11 @@ function bracketSeeMaterial(color: number) {
  * at the corners of a square, low on the ground and open in the middle, so a crowded island
  * stays readable. Each corner holds a plain and a lit copy (see `aimBrackets`).
  */
-function cornerBrackets(color: number): THREE.Group {
+function cornerBrackets(color: number, lift: number): THREE.Group {
 	const g = new THREE.Group();
 	g.name = 'brackets';
 	g.scale.setScalar(BRACKET_VOXEL);
-	g.position.y = -0.3;
+	g.position.y = lift - 0.3;
 	const see = bracketSeeMaterial(color);
 	for (let k = 0; k < 4; k++) {
 		const corner = new THREE.Group();
@@ -1634,23 +1633,34 @@ function cornerBrackets(color: number): THREE.Group {
 }
 
 /**
- * Keep the brackets square to the view (a corner pointing at the camera, as in the design), set
- * each one on the ground under it, let them breathe a little, and spread and light them up while
- * the pointer is on their spot. `ground` gives the world height of the bare land at (x, z).
+ * How far above a spot its brackets lie, so the square stays level and clear of the ground round
+ * it: up to the highest bare land under the ring the corners turn on (they follow the camera), but
+ * no more than a couple of units, so a corner by a peak doesn't hang in the air (it shows through
+ * the slope instead). `ground` gives the world height of the bare land at (x, z).
  */
-function aimBrackets(g: THREE.Object3D, hovered: boolean, azimuth: number, t: number, dt: number, ground: (x: number, z: number) => number) {
+function bracketLift(pos: THREE.Vector3, ground: (x: number, z: number) => number) {
+	const r = BRACKET_HALF * Math.SQRT2 * BRACKET_VOXEL;
+	let top = pos.y;
+	for (let k = 0; k < 16; k++) {
+		const a = (k * Math.PI) / 8;
+		top = Math.max(top, ground(pos.x + Math.cos(a) * r, pos.z + Math.sin(a) * r));
+	}
+	return Math.min(top - pos.y, 2);
+}
+
+/**
+ * Keep the brackets square to the view (a corner pointing at the camera, as in the design), let
+ * them breathe a little, and spread and light them up while the pointer is on their spot. They
+ * stay one level square throughout.
+ */
+function aimBrackets(g: THREE.Object3D, hovered: boolean, azimuth: number, t: number, dt: number) {
 	g.rotation.y = azimuth + Math.PI / 4;
-	const base = g.parent!.position;
 	const k = Math.min(1, dt * 12);
 	for (const corner of g.children) {
 		const u = corner.userData;
 		u.spread += ((hovered ? 0.8 : Math.sin(t * 2.4) * 0.12) - u.spread) * k;
 		corner.position.copy(u.dir).multiplyScalar(BRACKET_HALF * Math.SQRT2 + u.spread);
-		// Up onto a slope or a raised tile where a corner reaches over one, never down into a dip.
-		const at = bracketAt.copy(corner.position).multiplyScalar(BRACKET_VOXEL).applyAxisAngle(UP, g.rotation.y).add(base);
-		const lift = Math.max(0, ground(at.x, at.z) - base.y) / BRACKET_VOXEL + (hovered ? 0.35 : 0);
-		u.lift = u.lift === undefined ? lift : u.lift + (lift - u.lift) * k;
-		corner.position.y = u.lift;
+		corner.position.y = (Math.max(0, u.spread) / 0.8) * 0.35;
 		corner.getObjectByName('idle')!.visible = !hovered;
 		corner.getObjectByName('hot')!.visible = hovered;
 	}
