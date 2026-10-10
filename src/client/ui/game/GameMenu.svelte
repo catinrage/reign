@@ -83,10 +83,12 @@
 		close();
 	}
 	function onKey(e: KeyboardEvent) {
-		if (e.key.toLowerCase() !== 'p' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+		const key = e.key.toLowerCase();
+		if ((key !== 'p' && key !== 'n') || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
 		if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]'))
 			return;
-		if (playing) client.pauseGame(!pausedBy);
+		if (key === 'n') settings.setNight(!settings.night);
+		else if (playing) client.pauseGame(!pausedBy);
 	}
 </script>
 
@@ -122,6 +124,21 @@
 			><img src={PIXEL.die} alt="" /><span class="tag">{autoRoll.on ? t('On') : t('Off')}</span></button
 		>
 	{/if}
+	<button
+		class="icon-btn night"
+		class:on={settings.night}
+		onclick={() => {
+			sfx.click();
+			settings.setNight(!settings.night);
+		}}
+		aria-label={t('Night mode')}
+		aria-pressed={settings.night}
+		title={settings.night
+			? t('On: the room is lit by the fire and the moon. Only you see it. (N)')
+			: t("Off: put the room's lights out for a cozy evening. Only you see it. (N)")}
+		data-tip-head={t('Night mode')}
+		><img src={PIXEL.moon} alt="" /><span class="tag">{settings.night ? t('On') : t('Off')}</span></button
+	>
 	<div class="turn-row"><TurnCounter /><span class="events"><EventChip /><RumorChip /></span></div>
 	<SpectatorBadge />
 </div>
@@ -280,16 +297,23 @@
 		font-size: 20px;
 		color: var(--text);
 	}
-	.auto-roll {
+	.auto-roll,
+	.night {
 		position: relative;
 	}
-	.auto-roll img {
+	.auto-roll img,
+	.night img {
 		opacity: 0.6;
 	}
-	.auto-roll.on img {
+	.auto-roll.on img,
+	.night.on img {
 		opacity: 1;
 	}
-	.auto-roll .tag {
+	.night.on img {
+		filter: drop-shadow(0 0 4px rgba(255, 220, 120, 0.75));
+	}
+	.auto-roll .tag,
+	.night .tag {
 		position: absolute;
 		bottom: calc(var(--s) * -4);
 		left: 50%;
@@ -307,6 +331,10 @@
 	}
 	.auto-roll.on .tag {
 		background: #3f8f3a;
+		color: #fff;
+	}
+	.night.on .tag {
+		background: #3a4f8f;
 		color: #fff;
 	}
 	.gear img {

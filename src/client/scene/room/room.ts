@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Stage } from '../stage';
 import { hex } from '../voxel/grid';
+import { sharedUniforms } from '../voxel/materials';
 import { FIRE_LIGHT, buildChimney, buildFireplace } from './fireplace';
 import {
 	type Cat,
@@ -15,7 +16,9 @@ import {
 	buildMug,
 	buildPlant,
 	buildTray,
-	buildWindow
+	buildMoonbeam,
+	buildWindow,
+	moonbeamMaterial
 } from './props';
 import { type Side, buildCeiling, buildFloor, buildWalls, wallFrame } from './shell';
 import { SHELF_S, buildBookcase } from './shelves';
@@ -248,10 +251,23 @@ export function buildRoom(stage: Stage): Room {
 	item('nz', () => buildPlant('tall', 21, 2.2), 'plant', 222, 36);
 	item('nz', () => buildPlant('bush', 19, 2.4), 'plant', 272, 30, FLOOR_Y, 0, true);
 
+	// The windows let in shafts of moonlight at night.
+	const beamMat = moonbeamMaterial();
+	const moonWindow = () => {
+		const w = buildWindow();
+		w.add(buildMoonbeam(beamMat));
+		return w;
+	};
+	updaters.push(() => {
+		const n = sharedUniforms.uNight.value;
+		beamMat.uniforms.uOpacity.value = n * 0.35;
+		beamMat.visible = n > 0.01;
+	});
+
 	// Left wall (-x): a snowy window between bookcases.
 	bookcase('nx', 172, { seed: 5, at: 80, hang: 26 });
 	bookcase('nx', 46);
-	item('nx', buildWindow, 'window', -60, 3, FLOOR_Y + 115);
+	item('nx', moonWindow, 'window', -60, 3, FLOOR_Y + 115);
 	item('nx', buildChest, 'chest', -180, 24, FLOOR_Y, 0.05, true);
 	item('nx', () => buildPlant('tall', 33, 2.2), 'plant', -238, 40);
 	item('nx', () => buildPlant('bush', 17, 2.4), 'plant', -276, 30, FLOOR_Y, 0, true);
@@ -260,7 +276,7 @@ export function buildRoom(stage: Stage): Room {
 	bookcase('pz', -292, { seed: 11, at: 64, hang: 24 });
 	item('pz', () => buildPlant('tall', 27, 2.2), 'plant', -142, 40);
 	bookcase('pz', -112);
-	item('pz', buildWindow, 'window', 86, 3, FLOOR_Y + 115);
+	item('pz', moonWindow, 'window', 86, 3, FLOOR_Y + 115);
 	item('pz', () => buildPlant('bush', 29, 2.4), 'plant', 186, 30, FLOOR_Y, 0, true);
 	later(() => {
 		const clock = buildClock();

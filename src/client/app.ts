@@ -18,6 +18,7 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	applySettings();
 	getIcons();
 	sceneRef.current = new GameScene(canvas, settings.quality, settings.detail);
+	sceneRef.current.stage.setNight(settings.night, true);
 	(window as any).__scene = sceneRef.current;
 	sceneRef.current.onPurr = sfx.purr;
 	mount(App, { target: el });

@@ -178,6 +178,25 @@ export const PIXEL = {
 		['....k.....', '....kk....', 'kkkkkyk...', 'kyyyyyyk..', 'kkkkkyk...', '....kk..k.', '....k..kk.', '...kgkkkkk', '..kggggggk', '...kgkkkkk', '....kk....'],
 		{ ...base, y: '#f2c14e', g: '#7fd36b' }
 	),
+	moon: svg(
+		[
+			'.....k........',
+			'...kkdk....w..',
+			'..kddyk...www.',
+			'.kddyk.....w..',
+			'kddyyk........',
+			'kdyyyk........',
+			'kdyyyyk.......',
+			'kdyyyyk.......',
+			'kdyyyyykk..kk.',
+			'kddyyyyyykkddk',
+			'.kdyyyyyyyydk.',
+			'..kdyyyyyydk..',
+			'...kddddddk...',
+			'....kkkkkk....'
+		],
+		{ ...base, y: '#fff0a8', d: '#e3b84e' }
+	),
 	die: svg(
 		[
 			'.kkkkkkkkkk.',

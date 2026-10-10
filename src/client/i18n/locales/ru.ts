@@ -1462,5 +1462,9 @@ export default {
 	"Auto roll": "Авто-бросок",
 	"On: your dice roll by themselves a moment after your turn starts.": "Вкл.: ваши кубики бросаются сами вскоре после начала вашего хода.",
 	"Off: press Roll dice yourself. Turn it on to roll by itself when your turn starts.": "Выкл.: нажимайте «Бросить кубики» сами. Включите, чтобы кубики бросались сами в начале вашего хода.",
-	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}, кнопка с кубиком в углу, бросает кубики за вас вскоре после начала вашего хода. Вы ещё успеете сыграть Рыцаря или применить способность."
+	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}, кнопка с кубиком в углу, бросает кубики за вас вскоре после начала вашего хода. Вы ещё успеете сыграть Рыцаря или применить способность.",
+	"Night mode": "Ночной режим",
+	"Puts the room's lights out for a cozy evening by the fire, with the houses lit from within. Only you see it, and it changes nothing in the game.": "Гасит свет в комнате: уютный вечер у камина, а в домах горят окна. Видите это только вы, и на игру это никак не влияет.",
+	"On: the room is lit by the fire and the moon. Only you see it. (N)": "Вкл.: комнату освещают камин и луна. Видите это только вы. (N)",
+	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "Выкл.: погасите свет в комнате для уютного вечера. Видите это только вы. (N)"
 } satisfies Messages;

@@ -34,6 +34,12 @@ const FOCUS_RANGE = 250;
 /** Low draws the 3D view with at most this many pixels, about a 1366x768 screen's worth. */
 const LOW_PIXELS = 1366 * 768;
 
+/** The room beyond the light, by day and at night. */
+const DAY_BACK = new THREE.Color('#140b07');
+const DAY_FOG = new THREE.Color('#1a0e08');
+const NIGHT_BACK = new THREE.Color('#07070e');
+const NIGHT_FOG = new THREE.Color('#0b0a14');
+
 /** Vertical field of view for a screen's aspect ratio. */
 function fovFor(aspect: number) {
 	const across = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(MIN_ACROSS / 2)) / aspect);
@@ -50,6 +56,10 @@ export class Stage {
 	/** Low has none: the scene is drawn straight to the screen. */
 	private composer: EffectComposer | null = null;
 	private dof: DepthOfFieldEffect | null = null;
+	private bloom: BloomEffect | null = null;
+	private vignette: VignetteEffect | null = null;
+	/** The night the room was last drawn at (see `applyNight`). */
+	private nightShown = -1;
 	private clock = new THREE.Clock();
 	private updaters = new Set<(dt: number, t: number) => void>();
 	private running = false;
@@ -71,8 +81,8 @@ export class Stage {
 		// Without post-processing, each material tone-maps its own colors as it draws them.
 		this.renderer.toneMapping = plain ? THREE.NeutralToneMapping : THREE.NoToneMapping;
 
-		this.scene.background = new THREE.Color('#140b07');
-		this.scene.fog = new THREE.Fog('#1a0e08', FOG_NEAR, FOG_FAR);
+		this.scene.background = DAY_BACK.clone();
+		this.scene.fog = new THREE.Fog(DAY_FOG.clone(), FOG_NEAR, FOG_FAR);
 		// The room's reflections (low quality makes up for their light, see `Lighting`).
 		if (!plain) {
 			const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -104,17 +114,17 @@ export class Stage {
 			resolutionScale: 0.5
 		});
 		this.dof.target = new THREE.Vector3(0, 0, 0);
-		const bloom = new BloomEffect({
+		const bloom = (this.bloom = new BloomEffect({
 			intensity: 0.85,
 			luminanceThreshold: 0.92,
 			luminanceSmoothing: 0.22,
 			mipmapBlur: true,
 			radius: 0.72
-		});
+		}));
 		const tone = new ToneMappingEffect({ mode: ToneMappingMode.NEUTRAL });
 		const grade = new HueSaturationEffect({ saturation: 0.04, hue: 0 });
 		const contrast = new BrightnessContrastEffect({ brightness: 0, contrast: 0.06 });
-		const vignette = new VignetteEffect({ offset: 0.32, darkness: 0.62 });
+		const vignette = (this.vignette = new VignetteEffect({ offset: 0.32, darkness: 0.62 }));
 		composer.addPass(new EffectPass(this.camera, this.dof));
 		composer.addPass(new EffectPass(this.camera, bloom, tone, grade, contrast, vignette));
 		if (!high) composer.addPass(new EffectPass(this.camera, new SMAAEffect()));
@@ -130,6 +140,34 @@ export class Stage {
 		if (this.quality === 'high') return Math.min(dpr, 2);
 		if (this.quality === 'medium') return Math.min(dpr, 1.25);
 		return Math.min(dpr, 1, Math.sqrt(LOW_PIXELS / Math.max(1, w * h)));
+	}
+
+	/** Night mode on or off: the room fades to night (or back), or changes at once if `instant`. */
+	setNight(on: boolean, instant = false) {
+		this.lighting.nightGoal = on ? 1 : 0;
+		if (instant) this.lighting.night = this.lighting.nightGoal;
+	}
+
+	get night() {
+		return this.lighting.nightGoal === 1;
+	}
+
+	/**
+	 * The parts of night that aren't lights: a darker, bluer room beyond the light, dimmer
+	 * reflections, and windows and flames that glow out into the dark.
+	 */
+	private applyNight() {
+		const n = sharedUniforms.uNight.value;
+		if (n === this.nightShown) return;
+		this.nightShown = n;
+		(this.scene.background as THREE.Color).lerpColors(DAY_BACK, NIGHT_BACK, n);
+		(this.scene.fog as THREE.Fog).color.lerpColors(DAY_FOG, NIGHT_FOG, n);
+		if (this.scene.environment) this.scene.environmentIntensity = THREE.MathUtils.lerp(0.38, 0.1, n);
+		if (this.bloom) {
+			this.bloom.intensity = THREE.MathUtils.lerp(0.85, 1.25, n);
+			this.bloom.luminanceMaterial.threshold = THREE.MathUtils.lerp(0.92, 0.7, n);
+		}
+		if (this.vignette) this.vignette.darkness = THREE.MathUtils.lerp(0.62, 0.8, n);
 	}
 
 	setFocus(target: THREE.Vector3) {
@@ -214,6 +252,7 @@ export class Stage {
 		}
 		this.rig.update(dt);
 		this.lighting.update(dt, t);
+		this.applyNight();
 		for (const fn of this.updaters) fn(dt, t);
 		if (this.composer) this.composer.render(dt);
 		else this.renderer.render(this.scene, this.camera);

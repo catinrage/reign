@@ -9,6 +9,8 @@ import { harborToken, numberToken, tokenRing } from './tokens';
 
 /** Number tokens are a little smaller than a third of a tile, as in the reference. */
 const TOKEN_SCALE = 0.82;
+/** How much number and harbor tokens light up from within at night, so they read in the dark. */
+const NIGHT_TOKEN = 0.3;
 
 /**
  * Everything that belongs to one island: terrain, number and harbor tokens, ships,
@@ -289,6 +291,7 @@ export class BoardView {
 			if (face) {
 				const m = face.material as THREE.MeshStandardMaterial;
 				m.color.setScalar(THREE.MathUtils.lerp(m.color.r, target, 0.1));
+				m.emissive.setScalar(sharedUniforms.uNight.value * NIGHT_TOKEN * m.color.r);
 				const ghost = tok.getObjectByName('ghost') as THREE.Mesh | undefined;
 				if (ghost) (ghost.material as THREE.MeshBasicMaterial).color.copy(m.color);
 			}

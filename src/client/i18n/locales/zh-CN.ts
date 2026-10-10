@@ -1462,5 +1462,9 @@ export default {
 	"Auto roll": "自动掷骰",
 	"On: your dice roll by themselves a moment after your turn starts.": "开：你的回合开始后片刻，骰子会自动掷出。",
 	"Off: press Roll dice yourself. Turn it on to roll by itself when your turn starts.": "关：自己按“掷骰”。开启后，你的回合开始时会自动掷骰。",
-	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}（角落里的骰子按钮）会在你的回合开始后片刻替你掷骰。你仍有时间先打出骑士或使用技能。"
+	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}（角落里的骰子按钮）会在你的回合开始后片刻替你掷骰。你仍有时间先打出骑士或使用技能。",
+	"Night mode": "夜间模式",
+	"Puts the room's lights out for a cozy evening by the fire, with the houses lit from within. Only you see it, and it changes nothing in the game.": "熄灭房间的灯，在炉火旁度过一个温馨的夜晚，房屋里亮起灯火。只有你能看到，也不会改变游戏中的任何东西。",
+	"On: the room is lit by the fire and the moon. Only you see it. (N)": "开：房间由炉火和月光照亮。只有你能看到。(N)",
+	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "关：熄灭房间的灯，享受温馨的夜晚。只有你能看到。(N)"
 } satisfies Messages;
