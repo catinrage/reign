@@ -109,6 +109,24 @@ export function cityModel(color: number): THREE.Group {
 	}, undefined, 1, PIECE);
 }
 
+/**
+ * One corner of the mark on a corner where a settlement can go: an L in the player's color, one
+ * piece voxel high and thick (built at twice the detail, so the lit copy can have a top of its
+ * own), with its outer corner at the origin and its arms along +x and +z. `hot` is the copy for
+ * the spot under the pointer: the same sides under a glowing gold top.
+ */
+export function bracketModel(color: number, hot = false): THREE.Group {
+	const top = hot ? mix(hex('#ffcf40'), color, 0.15) : shade(color, 1.08);
+	return build(`bracket:${color}:${hot}`, [6, 2, 6], (g) => {
+		const side = (x: number, y: number, z: number) => shade(color, 0.94 + hash3(x, y, z, 7) * 0.1);
+		const lit = hot ? Mat.Glow : Mat.Solid;
+		g.box(0, 0, 0, 5, 0, 1, side);
+		g.box(0, 0, 2, 1, 0, 5, side);
+		g.box(0, 1, 0, 5, 1, 1, top, lit);
+		g.box(0, 1, 2, 1, 1, 5, top, lit);
+	}, [0, 0, 0], 0.5, { outline: true, mats: { [Mat.Solid]: { lift: hot ? 0.6 : 0.35 }, [Mat.Glow]: { emissive: 1.2 } } });
+}
+
 /** Road along local +x, centered. Length in voxels. */
 export function roadModel(color: number, length = 8): THREE.Group {
 	return build(`road:${color}:${length}`, [length, 2, 2], (g) => {

@@ -12,7 +12,7 @@ import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
-import { cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
+import { bracketModel, cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
 import { PATH_LOOK, animatePath, pathObject } from './board/cityPaths';
 import { type AnnexHost, type Footprint, annexSpot, annexYard } from './board/annex';
 import { STOREHOUSE_SIZE, animateStorehouse, storehouseObject } from './board/storehouse';
@@ -1150,6 +1150,9 @@ export class GameScene {
 				bar.position.y = req.kind === 'road' ? 1.2 : 2.4;
 				bar.name = 'marker';
 				slot.add(bar);
+			} else if (req.kind === 'settlement') {
+				// Four corner brackets on the ground round the spot, open in the middle.
+				slot.add(cornerBrackets(color));
 			} else {
 				const gem = new THREE.Mesh(MARKER_GEM, markerMat);
 				gem.position.y = markerHeight(req.kind);
@@ -1477,7 +1480,9 @@ export class GameScene {
 			const ghost = slot.getObjectByName('ghost')!;
 			const marker = slot.getObjectByName('marker');
 			const ring = slot.getObjectByName('ring');
+			const brackets = slot.getObjectByName('brackets');
 			ghost.visible = hovered;
+			if (brackets && bv) aimBrackets(brackets, hovered, this.stage.rig.azimuth, t + slot.userData.phase, dt, (x, z) => bv.groundAt(x, z, 1));
 			if (this.pick?.kind === 'tearDown') {
 				// The workshop itself trembles inside a red shell.
 				ghost.scale.setScalar(ghost.userData.base * 1.06);
@@ -1573,6 +1578,82 @@ function ringMaterial(color: number) {
 		ringCache.set(color, m);
 	}
 	return m;
+}
+
+/** World units per voxel of the settlement brackets, and half the square they mark, in voxels. */
+const BRACKET_VOXEL = 0.8;
+const BRACKET_HALF = 3.5;
+const UP = new THREE.Vector3(0, 1, 0);
+const bracketAt = new THREE.Vector3();
+
+const bracketSeeCache = new Map<number, THREE.MeshBasicMaterial>();
+/** The brackets drawn faintly where wheat, trees or a slope stand in front of them. */
+function bracketSeeMaterial(color: number) {
+	let m = bracketSeeCache.get(color);
+	if (!m) {
+		m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, depthWrite: false, depthFunc: THREE.GreaterDepth });
+		bracketSeeCache.set(color, m);
+	}
+	return m;
+}
+
+/**
+ * The mark on a corner where a settlement can go: four L-shaped brackets in the player's color
+ * at the corners of a square, low on the ground and open in the middle, so a crowded island
+ * stays readable. Each corner holds a plain and a lit copy (see `aimBrackets`).
+ */
+function cornerBrackets(color: number): THREE.Group {
+	const g = new THREE.Group();
+	g.name = 'brackets';
+	g.scale.setScalar(BRACKET_VOXEL);
+	g.position.y = -0.3;
+	const see = bracketSeeMaterial(color);
+	for (let k = 0; k < 4; k++) {
+		const corner = new THREE.Group();
+		corner.rotation.y = (k * Math.PI) / 2;
+		corner.userData.dir = new THREE.Vector3(-1, 0, -1).normalize().applyAxisAngle(UP, corner.rotation.y);
+		corner.userData.spread = 0;
+		const idle = cloneModel(bracketModel(color));
+		idle.name = 'idle';
+		const hot = cloneModel(bracketModel(color, true));
+		hot.name = 'hot';
+		hot.visible = false;
+		for (const o of [...idle.children]) {
+			const m = o as THREE.Mesh;
+			if (!m.isMesh || m.name === 'outline') continue;
+			const ghost = new THREE.Mesh(m.geometry, see);
+			ghost.position.copy(m.position);
+			ghost.scale.copy(m.scale);
+			ghost.renderOrder = 2;
+			corner.add(ghost);
+		}
+		corner.add(idle, hot);
+		g.add(corner);
+	}
+	return g;
+}
+
+/**
+ * Keep the brackets square to the view (a corner pointing at the camera, as in the design), set
+ * each one on the ground under it, let them breathe a little, and spread and light them up while
+ * the pointer is on their spot. `ground` gives the world height of the bare land at (x, z).
+ */
+function aimBrackets(g: THREE.Object3D, hovered: boolean, azimuth: number, t: number, dt: number, ground: (x: number, z: number) => number) {
+	g.rotation.y = azimuth + Math.PI / 4;
+	const base = g.parent!.position;
+	const k = Math.min(1, dt * 12);
+	for (const corner of g.children) {
+		const u = corner.userData;
+		u.spread += ((hovered ? 0.8 : Math.sin(t * 2.4) * 0.12) - u.spread) * k;
+		corner.position.copy(u.dir).multiplyScalar(BRACKET_HALF * Math.SQRT2 + u.spread);
+		// Up onto a slope or a raised tile where a corner reaches over one, never down into a dip.
+		const at = bracketAt.copy(corner.position).multiplyScalar(BRACKET_VOXEL).applyAxisAngle(UP, g.rotation.y).add(base);
+		const lift = Math.max(0, ground(at.x, at.z) - base.y) / BRACKET_VOXEL + (hovered ? 0.35 : 0);
+		u.lift = u.lift === undefined ? lift : u.lift + (lift - u.lift) * k;
+		corner.position.y = u.lift;
+		corner.getObjectByName('idle')!.visible = !hovered;
+		corner.getObjectByName('hot')!.visible = hovered;
+	}
 }
 
 const ghostCache = new Map<number, THREE.MeshStandardMaterial>();
