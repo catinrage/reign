@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CHARACTER_INFO } from '../../../shared/rules/characters';
 	import { RESOURCE_LABEL, pips } from '../../../shared/rules/config';
-	import { tileIncome, type TileIncome } from '../../../shared/rules/income';
+	import { rollLights, tileIncome, type TileIncome } from '../../../shared/rules/income';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
 	import { TERRAIN_NAME } from '../extended/terrainColors';
@@ -36,24 +36,37 @@
 	function tipFor(tile: TileIncome): string {
 		const terrain = t(TERRAIN_NAME[view.board.hexes[tile.hex].terrain]);
 		const from = [
-			tile.settlements && t('{n, plural, one {# settlement} other {# settlements}}', { n: tile.settlements }),
+			tile.settlements &&
+				t('{n, plural, one {# settlement} other {# settlements}}', { n: tile.settlements }),
 			tile.cities && t('{n, plural, one {# city} other {# cities}}', { n: tile.cities }),
 			tile.workshop && t('your workshop')
 		].filter((x): x is string => !!x);
 		const sources = from.reduce((list, next) => t('{list}, {next}', { list, next }));
-		const pays = t('{amount} {resource} from {sources}.', { amount: tile.amount, resource: t(RESOURCE_LABEL[tile.resource]), sources });
+		const pays = t('{amount} {resource} from {sources}.', {
+			amount: tile.amount,
+			resource: t(RESOURCE_LABEL[tile.resource]),
+			sources
+		});
 		return tile.robbed
-			? t('{terrain} {number}: the robber sits here, so it pays nothing until he moves. Free, it would pay {pays}', {
-					terrain,
-					number: tile.number,
-					pays
-				})
+			? t(
+					'{terrain} {number}: the robber sits here, so it pays nothing until he moves. Free, it would pay {pays}',
+					{
+						terrain,
+						number: tile.number,
+						pays
+					}
+				)
 			: t('{terrain} {number}: {pays}', { terrain, number: tile.number, pays });
 	}
 
-	// The number just rolled lights up once the dice have landed.
+	// Once the dice land, the tiles the roll paid you light up gold, and the ones it would have but
+	// for the robber (or the Witch's Hex, or a bank run dry) light up red, until the next roll.
 	const roll = $derived(client.tossing ? null : client.lastRoll);
-	const rolled = $derived(roll ? roll.dice[0] + roll.dice[1] : 0);
+	const lights = $derived(roll ? rollLights(view, me, roll.seq) : null);
+	function rowLight(r: Row) {
+		const lit = r.tiles.map((tile) => lights?.tiles.get(tile.hex));
+		return lit.includes('paid') ? 'paid' : lit.includes('blocked') ? 'blocked' : null;
+	}
 
 	// Open on wide screens, folded on phones, until the player says otherwise.
 	const KEY = 'reign:tilesOpen';
@@ -91,9 +104,14 @@
 		{#if open}
 			<div class="rows">
 				{#each rows as r (r.number)}
-					{@const hit = r.number === rolled}
-					<div class="row" class:hit class:dead={r.tiles.every((tile) => tile.robbed)}>
-						{#if hit}{#key roll?.seq}<span class="glow"></span>{/key}{/if}
+					{@const light = rowLight(r)}
+					<div
+						class="row"
+						class:hit={light === 'paid'}
+						class:stopped={light === 'blocked'}
+						class:dead={r.tiles.every((tile) => tile.robbed)}
+					>
+						{#if light}{#key roll?.seq}<span class="glow"></span>{/key}{/if}
 						<span class="token" class:red={r.number === 6 || r.number === 8}>
 							<b>{r.number}</b>
 							<span class="pips"
@@ -102,22 +120,31 @@
 						</span>
 						<span class="pays">
 							{#each r.tiles as tile (tile.hex)}
-								<span class="chip" class:robbed={tile.robbed} title={tile.tip}>
+								{@const lit = lights?.tiles.get(tile.hex)}
+								<span
+									class="chip"
+									class:robbed={tile.robbed}
+									class:paid={lit === 'paid'}
+									class:blocked={lit === 'blocked'}
+									title={tile.tip}
+								>
 									<span class="art" style="--pat: var(--pat-{tile.resource})"
 										><img src={icons[tile.resource]} alt={t(RESOURCE_LABEL[tile.resource])} /></span
 									>
-									{#if tile.robbed}<img class="robber" src={PIXEL.robber} alt={t('robber')} />{:else}<b
-											>{tile.amount}</b
-										>{/if}
+									{#if tile.robbed}<img
+											class="robber"
+											src={PIXEL.robber}
+											alt={t('robber')}
+										/>{:else}<b>{tile.amount}</b>{/if}
 								</span>
 							{/each}
 						</span>
 					</div>
 				{/each}
 				{#if shepherd}
-					{@const hit = rolled === 7}
-					<div class="row" class:hit>
-						{#if hit}{#key roll?.seq}<span class="glow"></span>{/key}{/if}
+					{@const light = lights?.shepherd}
+					<div class="row" class:hit={light === 'paid'} class:stopped={light === 'blocked'}>
+						{#if light}{#key roll?.seq}<span class="glow"></span>{/key}{/if}
 						<span class="token seven"
 							><b>7</b><span class="pips"
 								>{#each { length: 6 } as _, k (k)}<i></i>{/each}</span
@@ -126,6 +153,8 @@
 						<span class="pays">
 							<span
 								class="chip"
+								class:paid={light === 'paid'}
+								class:blocked={light === 'blocked'}
 								title={t('{name} {title}: {text}', {
 									name: t(CHARACTER_INFO.shepherd.name),
 									title: t(CHARACTER_INFO.shepherd.title),
@@ -209,6 +238,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: 3px;
+		/* Room for a lit tile's glow, which the scrolling box would clip at its edge. */
+		padding: 6px;
+		margin: -6px;
 		scrollbar-width: thin;
 		scrollbar-color: #7a4a2c transparent;
 		pointer-events: auto;
@@ -226,12 +258,19 @@
 		background: rgba(255, 196, 70, 0.22);
 		box-shadow: inset 0 0 0 2px rgba(255, 212, 90, 0.75);
 	}
+	.row.stopped {
+		background: rgba(200, 40, 28, 0.24);
+		box-shadow: inset 0 0 0 2px rgba(240, 70, 50, 0.8);
+	}
 	.glow {
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
 		background: rgba(255, 226, 140, 0.55);
 		animation: flash 1.1s ease-out forwards;
+	}
+	.stopped .glow {
+		background: rgba(255, 90, 70, 0.5);
 	}
 	@keyframes flash {
 		to {
@@ -326,6 +365,70 @@
 	}
 	.chip.robbed .art {
 		filter: grayscale(1) brightness(0.55);
+	}
+	/* The roll's tiles light up: gold for the ones that paid you, red for the ones stopped. */
+	.chip.paid .art,
+	.chip.blocked .art {
+		z-index: 1;
+		animation: lit-pop 0.45s ease-out;
+	}
+	.chip.paid .art {
+		box-shadow:
+			0 0 0 2px #ffe07a,
+			0 0 0 4px #2b1a10,
+			0 0 14px 6px rgba(255, 196, 60, 0.95),
+			inset 0 2px 0 rgba(255, 255, 255, 0.4);
+	}
+	.chip.paid .art img {
+		filter: brightness(1.25) saturate(1.2) drop-shadow(0 2px 0 rgba(0, 0, 0, 0.3));
+	}
+	.chip.blocked .art {
+		filter: none;
+		box-shadow:
+			0 0 0 2px #ff5a42,
+			0 0 0 4px #2b1a10,
+			0 0 14px 6px rgba(255, 40, 20, 0.9);
+	}
+	.chip.blocked .art img {
+		filter: grayscale(1) brightness(0.7);
+	}
+	.chip.blocked .art::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: rgba(230, 30, 20, 0.45);
+	}
+	.chip.paid b {
+		color: #ffe27a;
+	}
+	.chip.blocked b {
+		color: #ff8a7a;
+	}
+	.row.hit .token {
+		box-shadow:
+			0 0 0 2px #ffe07a,
+			0 3px 0 2px #1a0c05,
+			0 0 12px 4px rgba(255, 196, 60, 0.8);
+	}
+	.row.dead.stopped .token {
+		filter: none;
+	}
+	.row.stopped .token {
+		box-shadow:
+			0 0 0 2px #ff5a42,
+			0 3px 0 2px #1a0c05,
+			0 0 12px 4px rgba(255, 40, 20, 0.75);
+	}
+	@keyframes lit-pop {
+		0% {
+			transform: scale(1);
+		}
+		40% {
+			transform: scale(1.22);
+		}
+		100% {
+			transform: scale(1);
+		}
 	}
 	.robber {
 		width: 18px;
