@@ -79,7 +79,7 @@ export function buildRoom(stage: Stage): Room {
 			distance * K,
 			minor
 		);
-	/** Low and very low quality skip some purely decorative pieces. */
+	/** Medium and low quality skip some purely decorative pieces. */
 	const hq = stage.qualityLevel === 'high';
 
 	// ---------------------------------------------------------------- table, chairs, floor

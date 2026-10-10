@@ -7,7 +7,7 @@ import { sharedUniforms } from './voxel/materials';
  * hemisphere fill, and flickering point lights for the fireplace and lanterns.
  * `night` (0..1) is the hook for the later day/night cycle.
  *
- * Very low quality has no shadows and no reflections of the room (see `Stage`). A brighter
+ * Low quality has no shadows and no reflections of the room (see `Stage`). A brighter
  * hemisphere and an even ambient light give back the light the reflections added, and only
  * the fire lights the room: every point light costs each pixel some work.
  */
@@ -24,7 +24,7 @@ export class Lighting {
 		readonly scene: THREE.Scene,
 		quality: Quality
 	) {
-		this.plain = quality === 'veryLow';
+		this.plain = quality === 'low';
 		this.hemiBase = this.plain ? 2.25 : 0.9;
 		this.hemi = new THREE.HemisphereLight('#ffe0b8', '#4a2a18', this.hemiBase);
 		scene.add(this.hemi);
@@ -62,7 +62,7 @@ export class Lighting {
 		this.key.shadow.normalBias = 0.35 * scale;
 	}
 
-	/** A flickering light. A `minor` one is left out of the scene at very low quality. */
+	/** A flickering light. A `minor` one is left out of the scene at low quality. */
 	addFlame(
 		position: THREE.Vector3,
 		color: string,
