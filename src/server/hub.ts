@@ -113,7 +113,7 @@ export class Hub {
 			c.user = user;
 			if (c.room) rooms.add(c.room);
 		}
-		for (const room of rooms) room.updateUser(user.id, user.nickname, user.avatar);
+		for (const room of rooms) room.updateUser(user.id, user.nickname, user.avatar, user.dice);
 		await this.pushFriends(...(await this.accounts.friendIds(user.id)));
 	}
 
@@ -180,5 +180,5 @@ function rank(w: Whereabouts) {
 }
 
 function publicOf(u: Me): PublicUser {
-	return { id: u.id, username: u.username, nickname: u.nickname, avatar: u.avatar };
+	return { id: u.id, username: u.username, nickname: u.nickname, avatar: u.avatar, dice: u.dice };
 }

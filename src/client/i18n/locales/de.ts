@@ -1551,5 +1551,22 @@ export default {
 	"Unpacking the realm": "Das Reich wird ausgepackt",
 	"Carving the island": "Die Insel wird geschnitzt",
 	"Lighting the hearth": "Das Herdfeuer wird entzündet",
-	"Opening the gates": "Die Tore öffnen sich"
+	"Opening the gates": "Die Tore öffnen sich",
+	"Royal": "Königlich",
+	"Dragonfire": "Drachenfeuer",
+	"Frost": "Frost",
+	"Woodland": "Waldland",
+	"Tide": "Gezeiten",
+	"Crypt": "Gruft",
+	"Starlight": "Sternenlicht",
+	"White with black spots and a red 1, as dice have always been.": "Weiß mit schwarzen Augen und einer roten 1, wie Würfel schon immer waren.",
+	"Purple and gold, with a crown for the 1.": "Purpur und Gold, mit einer Krone als 1.",
+	"Charcoal with glowing embers, and a flame for the 1.": "Holzkohle mit glühender Glut, und einer Flamme als 1.",
+	"Frosted ice with deep blue spots, and a snowflake for the 1.": "Bereiftes Eis mit tiefblauen Augen, und einer Schneeflocke als 1.",
+	"Carved oak with burnt-in spots, and a leaf for the 1.": "Geschnitzte Eiche mit eingebrannten Augen, und einem Blatt als 1.",
+	"Sea green with foam-white spots, and a gold coin for the 1.": "Meergrün mit schaumweißen Augen, und einer Goldmünze als 1.",
+	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "Bemooster Grabstein mit knochenweißen Augen, und einem leuchtenden Schädel als 1.",
+	"Midnight blue with glowing stars, and a gold star for the 1.": "Mitternachtsblau mit leuchtenden Sternen, und einem goldenen Stern als 1.",
+	"Pick one of the dice.": "Wähle einen der Würfel.",
+	"Everyone at the table sees your dice when you roll.": "Alle am Tisch sehen deine Würfel, wenn du würfelst."
 } satisfies Messages;

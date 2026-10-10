@@ -118,7 +118,8 @@ export class LocalSocket {
 			const user = {
 				id: OFFLINE_USER.id,
 				nickname: OFFLINE_USER.nickname,
-				avatar: OFFLINE_USER.avatar
+				avatar: OFFLINE_USER.avatar,
+				dice: OFFLINE_USER.dice
 			};
 			const seat = room.join(ws, user.nickname, msg.token, user);
 			if (typeof seat === 'string') return send(ws, { t: 'error', message: seat });

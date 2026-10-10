@@ -2,6 +2,7 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import {
 	type AvatarId,
+	type DiceStyleId,
 	type FriendRequest,
 	type Match,
 	type MatchHistory,
@@ -13,6 +14,7 @@ import {
 	cleanNickname,
 	cleanUsername,
 	isAvatar,
+	isDiceStyle,
 	passwordProblem,
 	usernameProblem
 } from '../shared/accounts';
@@ -52,16 +54,22 @@ const HISTORY_LIMIT = 50;
 
 export class AccountError extends Error {}
 
-type UserRow = { id: string; username: string; nickname: string; avatar: string; created_at: Date | string };
+type UserRow = { id: string; username: string; nickname: string; avatar: string; dice: string | null; created_at: Date | string };
 
-const USER_COLS = 'id::text as id, username, nickname, avatar, created_at';
+const USER_COLS = 'id::text as id, username, nickname, avatar, dice, created_at';
 
 function iso(t: Date | string | null): string | null {
 	return t == null ? null : new Date(t).toISOString();
 }
 
 function publicUser(r: UserRow): PublicUser {
-	return { id: r.id, username: r.username, nickname: r.nickname, avatar: (isAvatar(r.avatar) ? r.avatar : 'knight') as AvatarId };
+	return {
+		id: r.id,
+		username: r.username,
+		nickname: r.nickname,
+		avatar: (isAvatar(r.avatar) ? r.avatar : 'knight') as AvatarId,
+		dice: (isDiceStyle(r.dice) ? r.dice : 'classic') as DiceStyleId
+	};
 }
 
 function me(r: UserRow): Me {
@@ -91,6 +99,7 @@ export interface ProfileChange {
 	username?: string;
 	nickname?: string;
 	avatar?: string;
+	dice?: string;
 	password?: string;
 	/** Needed to change the password. */
 	currentPassword?: string;
@@ -171,7 +180,7 @@ export class Accounts {
 		const [row] = await this.db.query<UserRow>(
 			`update sessions s set last_seen = now() from users u
 			 where s.token_hash = $1 and s.user_id = u.id and s.last_seen > now() - interval '${SESSION_DAYS} days'
-			 returning u.id::text as id, u.username, u.nickname, u.avatar, u.created_at`,
+			 returning u.id::text as id, u.username, u.nickname, u.avatar, u.dice, u.created_at`,
 			[tokenHash(token)]
 		);
 		return row ? me(row) : null;
@@ -193,7 +202,7 @@ export class Accounts {
 		return row ? publicUser(row) : null;
 	}
 
-	/** Change any of username, nickname, avatar and password. Returns the updated player. */
+	/** Change any of username, nickname, avatar, dice and password. Returns the updated player. */
 	async updateProfile(id: string, change: ProfileChange, keepSession?: string): Promise<Me> {
 		const sets: string[] = [];
 		const params: unknown[] = [];
@@ -215,6 +224,10 @@ export class Accounts {
 		if (change.avatar !== undefined) {
 			if (!isAvatar(change.avatar)) throw new AccountError('Pick one of the avatars.');
 			set('avatar', change.avatar);
+		}
+		if (change.dice !== undefined) {
+			if (!isDiceStyle(change.dice)) throw new AccountError('Pick one of the dice.');
+			set('dice', change.dice);
 		}
 		if (change.password !== undefined) {
 			const problem = passwordProblem(change.password);
@@ -251,7 +264,7 @@ export class Accounts {
 	/** Friends (accepted both ways) and requests still waiting, with the other player's profile. */
 	async friendships(id: string): Promise<{ friends: PublicUser[]; requests: FriendRequest[] }> {
 		const rows = await this.db.query<UserRow & { incoming: boolean; accepted_at: Date | null; since: Date }>(
-			`select u.id::text as id, u.username, u.nickname, u.avatar, u.created_at,
+			`select u.id::text as id, u.username, u.nickname, u.avatar, u.dice, u.created_at,
 			        f.askee = $1 as incoming, f.accepted_at, f.created_at as since
 			 from friendships f join users u on u.id = case when f.asker = $1 then f.askee else f.asker end
 			 where f.asker = $1 or f.askee = $1
@@ -488,9 +501,10 @@ export class Accounts {
 					username: string | null;
 					nickname: string | null;
 					avatar: string | null;
+					dice: string | null;
 				}>(
 					`select p.match_id::text as match_id, p.seat, p.name, p.color, p.is_bot, p.character, p.points, p.place,
-					        u.id::text as uid, u.username, u.nickname, u.avatar
+					        u.id::text as uid, u.username, u.nickname, u.avatar, u.dice
 					 from match_players p left join users u on u.id = p.user_id
 					 where p.match_id = any($1::bigint[]) order by p.match_id, p.seat`,
 					[ids]
@@ -500,7 +514,7 @@ export class Accounts {
 		for (const r of playerRows) {
 			const list = byMatch.get(r.match_id) ?? [];
 			list.push({
-				user: r.uid ? publicUser({ id: r.uid, username: r.username!, nickname: r.nickname!, avatar: r.avatar!, created_at: '' }) : null,
+				user: r.uid ? publicUser({ id: r.uid, username: r.username!, nickname: r.nickname!, avatar: r.avatar!, dice: r.dice, created_at: '' }) : null,
 				name: r.name,
 				color: r.color as PlayerColor,
 				isBot: r.is_bot,

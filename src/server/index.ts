@@ -237,7 +237,7 @@ wss.on('connection', (ws: WebSocket, req) => {
 				void hub.setRoom(ws, room);
 				return;
 			}
-			seat = room.join(ws, user.nickname, msg.token, { id: user.id, nickname: user.nickname, avatar: user.avatar });
+			seat = room.join(ws, user.nickname, msg.token, { id: user.id, nickname: user.nickname, avatar: user.avatar, dice: user.dice });
 			if (typeof seat === 'string') {
 				send(ws, { t: 'error', message: seat });
 				room = null;

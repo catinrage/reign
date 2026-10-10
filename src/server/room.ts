@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { AvatarId } from '../shared/accounts';
+import type { AvatarId, DiceStyleId } from '../shared/accounts';
 import type {
 	ClientMessage,
 	LobbyInfo,
@@ -51,6 +51,8 @@ interface Seat {
 	/** The account sitting here (null for bots and for tables without accounts, as in tests). */
 	userId: string | null;
 	avatar: AvatarId | null;
+	/** The dice this player throws (null for bots: the classic dice). */
+	dice: DiceStyleId | null;
 }
 
 /** The signed-in player taking a seat. */
@@ -58,6 +60,7 @@ export interface SeatUser {
 	id: string;
 	nickname: string;
 	avatar: AvatarId;
+	dice: DiceStyleId;
 }
 
 /** Told when a game at the table starts, ends, or the table closes; the match history listens. */
@@ -187,7 +190,8 @@ export class Room {
 					isHost: s.id === this.hostId,
 					ready: this.isReady(s),
 					userId: s.userId,
-					avatar: s.avatar
+					avatar: s.avatar,
+					dice: s.dice
 				})
 			)
 		};
@@ -233,11 +237,14 @@ export class Room {
 				lastSeen: Date.now(),
 				left: false,
 				userId: user?.id ?? null,
-				avatar: user?.avatar ?? null
+				avatar: user?.avatar ?? null,
+				dice: user?.dice ?? null
 			};
 			if (user) seat.name = cleanName(user.nickname) || seat.name;
 			this.seats.push(seat);
 		}
+		// Coming back with other dice: they roll the new ones from now on.
+		if (user) seat.dice = user.dice;
 		seat.sockets.add(ws);
 		seat.lastSeen = Date.now();
 		seat.left = false;
@@ -322,7 +329,8 @@ export class Room {
 					lastSeen: Date.now(),
 					left: false,
 					userId: null,
-					avatar: null
+					avatar: null,
+					dice: null
 				});
 				return this.broadcastLobby();
 			}
@@ -590,10 +598,11 @@ export class Room {
 	}
 
 	/** A player at this table changed their profile. Names stay put while a game runs. */
-	updateUser(userId: string, nickname: string, avatar: AvatarId) {
+	updateUser(userId: string, nickname: string, avatar: AvatarId, dice: DiceStyleId) {
 		const seat = this.seats.find((s) => s.userId === userId);
 		if (!seat) return;
 		seat.avatar = avatar;
+		seat.dice = dice;
 		if (!this.lockedSettings) seat.name = cleanName(nickname) || seat.name;
 		this.broadcastLobby();
 	}

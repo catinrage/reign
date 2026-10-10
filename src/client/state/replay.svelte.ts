@@ -260,7 +260,8 @@ function lobbyFor(match: Match, start: GameState): LobbyInfo {
 				isHost: false,
 				ready: true,
 				userId: m?.user?.id ?? null,
-				avatar: m?.user?.avatar ?? null
+				avatar: m?.user?.avatar ?? null,
+				dice: m?.user?.dice ?? null
 			};
 		}),
 		started: true,

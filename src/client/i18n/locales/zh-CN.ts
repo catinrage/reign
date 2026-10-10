@@ -1551,5 +1551,22 @@ export default {
 	"Unpacking the realm": "正在展开王国",
 	"Carving the island": "正在雕刻岛屿",
 	"Lighting the hearth": "正在点燃炉火",
-	"Opening the gates": "正在打开城门"
+	"Opening the gates": "正在打开城门",
+	"Royal": "皇家",
+	"Dragonfire": "龙焰",
+	"Frost": "霜冻",
+	"Woodland": "林地",
+	"Tide": "潮汐",
+	"Crypt": "墓穴",
+	"Starlight": "星光",
+	"White with black spots and a red 1, as dice have always been.": "白底黑点，红色的 1，一如既往的骰子。",
+	"Purple and gold, with a crown for the 1.": "紫色配金色，1 点是一顶王冠。",
+	"Charcoal with glowing embers, and a flame for the 1.": "炭黑色配发光的余烬，1 点是一团火焰。",
+	"Frosted ice with deep blue spots, and a snowflake for the 1.": "霜冻的冰面配深蓝色点，1 点是一片雪花。",
+	"Carved oak with burnt-in spots, and a leaf for the 1.": "雕刻的橡木配烙印的点，1 点是一片叶子。",
+	"Sea green with foam-white spots, and a gold coin for the 1.": "海绿色配泡沫白的点，1 点是一枚金币。",
+	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "长满青苔的墓石配骨白色的点，1 点是一个发光的骷髅。",
+	"Midnight blue with glowing stars, and a gold star for the 1.": "午夜蓝配发光的星星，1 点是一颗金星。",
+	"Pick one of the dice.": "请选择一种骰子。",
+	"Everyone at the table sees your dice when you roll.": "你掷骰时，桌上的每个人都能看到你的骰子。"
 } satisfies Messages;

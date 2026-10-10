@@ -61,8 +61,10 @@
 		<div class="rolls">
 			{#each view.rollChoices! as d, i (i)}
 				<button class="btn wood roll" onclick={() => client.act({ type: 'keepRoll', index: i })}>
-					<span class="die" style="background-image: {dieFace(d[0])}"></span>
-					<span class="die" style="background-image: {dieFace(d[1])}"></span>
+					<span class="die" style="background-image: {dieFace(d[0], client.lobby?.seats[me]?.dice)}"
+					></span>
+					<span class="die" style="background-image: {dieFace(d[1], client.lobby?.seats[me]?.dice)}"
+					></span>
 					<b class:seven={d[0] + d[1] === 7}>{d[0] + d[1]}</b>
 				</button>
 			{/each}

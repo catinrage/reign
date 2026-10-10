@@ -1,5 +1,5 @@
 import type { AvatarId, Me, SavedMap } from '../../shared/accounts';
-import { AVATARS, NICKNAME_MAX, isAvatar } from '../../shared/accounts';
+import { AVATARS, NICKNAME_MAX, isAvatar, isDiceStyle } from '../../shared/accounts';
 import type { CustomMap } from '../../shared/board/maps';
 import { msg } from '../i18n/index.svelte';
 
@@ -39,6 +39,7 @@ function loadMe(): Me {
 		username: 'you',
 		nickname: typeof saved.nickname === 'string' && saved.nickname.trim() ? saved.nickname : 'You',
 		avatar: isAvatar(saved.avatar) ? saved.avatar : (AVATARS[0] as AvatarId),
+		dice: isDiceStyle(saved.dice) ? saved.dice : 'classic',
 		createdAt: saved.createdAt ?? new Date().toISOString()
 	};
 }
@@ -55,6 +56,7 @@ export async function offlineApi<T>(path: string, method: string, body?: any): P
 				if (nickname) OFFLINE_USER.nickname = nickname;
 			}
 			if (isAvatar(body?.avatar)) OFFLINE_USER.avatar = body.avatar;
+			if (isDiceStyle(body?.dice)) OFFLINE_USER.dice = body.dice;
 			write(PROFILE_KEY, OFFLINE_USER);
 		}
 		return { user: { ...OFFLINE_USER } } as T;

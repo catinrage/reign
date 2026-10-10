@@ -1,5 +1,7 @@
 import { PLAYER_COLORS } from '../../shared/rules/config';
 import { PLAYER_CSS } from '../scene/layout';
+import type { DiceStyleId } from '../../shared/accounts';
+import { DICE_LOOKS, markAt } from '../scene/diceStyles';
 
 /**
  * Pixel-art pieces for the 2D interface, drawn as crisp SVG at startup: 9-slice frames
@@ -494,10 +496,11 @@ const PATTERNS: Record<string, Paint> = {
 	}
 };
 
-const dieCache = new Map<number, string>();
-/** A die face as a pixel image (url string for CSS). 14×14. */
-export function dieFace(n: number): string {
-	const hit = dieCache.get(n);
+const dieCache = new Map<string, string>();
+/** A die face as a pixel image (url string for CSS), in one of the dice styles. 14×14. */
+export function dieFace(n: number, style: DiceStyleId | null = 'classic'): string {
+	const key = `${style ?? 'classic'}:${n}`;
+	const hit = dieCache.get(key);
 	if (hit) return hit;
 	const P: Record<number, [number, number][]> = {
 		1: [[6, 6]],
@@ -534,19 +537,38 @@ export function dieFace(n: number): string {
 	};
 	const pips = P[n] ?? [];
 	const W = 14;
-	const url = pixelSvg(W, W, (x, y) => {
-		const { e } = edge(x, y, W, W);
-		const cx = Math.min(x, W - 1 - x);
-		const cy = Math.min(y, W - 1 - y);
-		if (cx === 0 && cy === 0) return null;
-		if (e === 0 || (cx === 1 && cy === 1)) return '#2a1a10';
-		for (const [px, py] of pips)
-			if (x >= px && x <= px + 1 && y >= py && y <= py + 1) return n === 1 ? '#d42a1e' : '#2e1a14';
-		if (x === W - 2 || y === W - 2) return '#cfc3a6';
-		if (x === 1 || y === 1) return '#ffffff';
-		return '#fbf4e2';
-	});
-	dieCache.set(n, url);
+	const look = style && style !== 'classic' ? DICE_LOOKS[style] : null;
+	const url = look
+		? pixelSvg(W, W, (x, y) => {
+				const { e } = edge(x, y, W, W);
+				const cx = Math.min(x, W - 1 - x);
+				const cy = Math.min(y, W - 1 - y);
+				if (cx === 0 && cy === 0) return null;
+				if (e === 0 || (cx === 1 && cy === 1)) return look.rim;
+				// The style's picture for the 1, 6×6 in the middle.
+				if (n === 1 && look.mark) {
+					if (x >= 4 && x <= 9 && y >= 4 && y <= 9 && markAt(look.mark, x - 4, y - 4)) return look.one;
+				} else
+					for (const [px, py] of pips)
+						if (x >= px && x <= px + 1 && y >= py && y <= py + 1) return n === 1 ? look.one : look.pip;
+				const body = look.body[look.grain ? Math.floor(h2(0, y, 3) * look.body.length) : 0];
+				if (x === W - 2 || y === W - 2) return tint(look.trim ?? body, -0.25);
+				if (x === 1 || y === 1) return tint(look.trim ?? body, 0.3);
+				return body;
+			})
+		: pixelSvg(W, W, (x, y) => {
+				const { e } = edge(x, y, W, W);
+				const cx = Math.min(x, W - 1 - x);
+				const cy = Math.min(y, W - 1 - y);
+				if (cx === 0 && cy === 0) return null;
+				if (e === 0 || (cx === 1 && cy === 1)) return '#2a1a10';
+				for (const [px, py] of pips)
+					if (x >= px && x <= px + 1 && y >= py && y <= py + 1) return n === 1 ? '#d42a1e' : '#2e1a14';
+				if (x === W - 2 || y === W - 2) return '#cfc3a6';
+				if (x === 1 || y === 1) return '#ffffff';
+				return '#fbf4e2';
+			});
+	dieCache.set(key, url);
 	return url;
 }
 

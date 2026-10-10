@@ -1,19 +1,21 @@
 <script lang="ts">
-	import { type AvatarId, NICKNAME_MAX, USERNAME_MAX, cleanUsername, passwordProblem, usernameProblem } from '../../../shared/accounts';
+	import { type AvatarId, type DiceStyleId, DICE_NAMES, NICKNAME_MAX, USERNAME_MAX, cleanUsername, passwordProblem, usernameProblem } from '../../../shared/accounts';
 	import { t, tx } from '../../i18n/index.svelte';
 	import { OFFLINE } from '../../offline/flag';
 	import { account } from '../../state/account.svelte';
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
 	import AvatarPicker from './AvatarPicker.svelte';
+	import DicePicker from './DicePicker.svelte';
 	import { ACCOUNT_ICONS } from './icons';
 
-	/** The player's own profile: avatar, nickname, username and password, and signing out. */
+	/** The player's own profile: avatar, dice, nickname, username and password, and signing out. */
 
 	let { onclose }: { onclose: () => void } = $props();
 
 	const me = account.me!;
 	let avatar = $state<AvatarId>(me.avatar);
+	let dice = $state<DiceStyleId>(me.dice ?? 'classic');
 	let nickname = $state(me.nickname);
 	let username = $state(me.username);
 	let current = $state('');
@@ -24,6 +26,7 @@
 
 	const dirty = $derived(
 		avatar !== account.me?.avatar ||
+			dice !== account.me?.dice ||
 			nickname.trim() !== account.me?.nickname ||
 			cleanUsername(username) !== account.me?.username ||
 			(changingPassword && !!password)
@@ -35,6 +38,7 @@
 		error = '';
 		const change: Parameters<typeof account.updateProfile>[0] = {};
 		if (avatar !== account.me?.avatar) change.avatar = avatar;
+		if (dice !== account.me?.dice) change.dice = dice;
 		if (nickname.trim() !== account.me?.nickname) change.nickname = nickname;
 		if (cleanUsername(username) !== account.me?.username) {
 			const problem = usernameProblem(cleanUsername(username));
@@ -95,6 +99,11 @@
 					>
 				{/if}
 			{/if}
+			<div class="field">
+				<span class="label">{t('Dice')}: <b class="dice-name">{t(DICE_NAMES[dice])}</b></span>
+				<div class="well dice"><DicePicker bind:value={dice} /></div>
+				<span class="hint">{t('Everyone at the table sees your dice when you roll.')}</span>
+			</div>
 		</div>
 		<div class="col">
 			<span class="label">{t('Avatar')}</span>
@@ -145,6 +154,12 @@
 	}
 	.avatars {
 		padding: 8px 6px;
+	}
+	.dice {
+		padding: 6px 4px;
+	}
+	.dice-name {
+		color: #ffd86b;
 	}
 	.btn img {
 		height: 16px;

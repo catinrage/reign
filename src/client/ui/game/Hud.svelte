@@ -57,6 +57,11 @@
 	// A timed game hangs its clock under the turn banner (see the styles below).
 	const timed = $derived(!!client.lobby?.turnTime && view.phase !== 'ended');
 
+	// Each player rolls their own dice (picked in their profile), seen by everyone at the table.
+	$effect(() => {
+		sceneRef.current?.setDiceStyles(client.lobby?.seats.map((s) => s.dice) ?? []);
+	});
+
 	// Feed every new state to the 3D scene the moment it arrives. The interface renders from
 	// `client.view`, which waits for the dice of a roll to land. While an event card that just
 	// turned over is held up, the board waits too: what it does plays out once it is put down.
