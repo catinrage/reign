@@ -2,12 +2,14 @@
 	import { client } from '../../state/client.svelte';
 	import { msg, t, tParts } from '../../i18n/index.svelte';
 	import { roundOf } from '../../../shared/rules/events';
+	import { PIXEL } from '../pixel';
 
 	/**
 	 * Which turn the game is in: every player's turn counts one, the same number the board's
 	 * tooltips date pieces by. Beside it, the round: every player taking one turn, the count the
 	 * Events deck and power recharge go by. The draft and the setup come before turn 1 and say so
-	 * instead.
+	 * instead. Last, under a crown, the points it takes to win, which the host set in the lobby: a
+	 * bare number, as words would push the corner over the prompt at 1366 wide.
 	 */
 	const view = $derived(client.view!);
 	const round = $derived(roundOf(view.turn, view.players.length));
@@ -19,6 +21,11 @@
 		);
 	const turnParts = $derived(count(msg('Turn {turn}'), view.turn, 'turn'));
 	const roundParts = $derived(count(msg('Round {round}'), round, 'round'));
+	const goalTip = $derived(
+		t('First to {points, plural, one {# point} other {# points}} wins the game.', {
+			points: view.pointsToWin
+		})
+	);
 	const label = $derived(
 		view.phase === 'draft' ? t('Draft') : view.phase === 'setup' ? t('Setup') : null
 	);
@@ -40,7 +47,7 @@
 <div
 	class="turn plaque"
 	title={tip}
-	aria-label={label ?? t('Turn {turn}, round {round}', { turn: view.turn, round })}
+	aria-label={`${label ?? t('Turn {turn}, round {round}', { turn: view.turn, round })}. ${goalTip}`}
 	role="status"
 >
 	{#if label}
@@ -57,6 +64,12 @@
 			{/each}
 		{/each}
 	{/if}
+	<span class="split" aria-hidden="true"></span>
+	<span class="goal" title={goalTip}
+		><img class="icon-px crown" src={PIXEL.crown} alt="" />{#key view.pointsToWin}<b class="n"
+				>{view.pointsToWin}</b
+			>{/key}</span
+	>
 </div>
 
 <style>
@@ -85,6 +98,16 @@
 		margin: calc(var(--s) * 3) calc(var(--s) * 1);
 		background: rgba(20, 10, 4, 0.55);
 		box-shadow: 1px 0 rgba(255, 220, 160, 0.18);
+	}
+	/* The goal: a crown, then how many points win. */
+	.goal {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.crown {
+		width: 18px;
+		height: 18px;
 	}
 	.n {
 		display: inline-block;
@@ -116,6 +139,13 @@
 		}
 		.n {
 			font-size: 16px;
+		}
+		.goal {
+			gap: 3px;
+		}
+		.crown {
+			width: 14px;
+			height: 14px;
 		}
 	}
 </style>
