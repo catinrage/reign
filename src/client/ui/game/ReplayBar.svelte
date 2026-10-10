@@ -116,6 +116,8 @@
 		if (ui.menu || e.ctrlKey || e.metaKey || e.altKey) return;
 		if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]'))
 			return;
+		// Space on a focused button presses that button instead.
+		if (e.key === ' ' && (e.target as HTMLElement | null)?.closest?.('button')) return;
 		switch (e.key) {
 			case ' ':
 				replay.toggle();
@@ -217,7 +219,8 @@
 			<div class="tools">
 				<button
 					class="btn small wood cycle"
-					onclick={() => replay.setSpeed(SPEEDS[(SPEEDS.indexOf(replay.speed) + 1) % SPEEDS.length])}
+					onclick={() =>
+						replay.setSpeed(SPEEDS[(SPEEDS.indexOf(replay.speed) + 1) % SPEEDS.length])}
 					title={t('Speed')}
 					aria-label={t('Speed')}>{replay.speed === 0.5 ? '½' : replay.speed}×</button
 				>
