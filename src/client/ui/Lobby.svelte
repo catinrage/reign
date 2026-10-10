@@ -89,8 +89,17 @@
 	);
 	let picking = $state<'character' | 'map' | null>(null);
 	const CLASSIC_TILES = MAP_PRESETS[0].tiles;
-	// The table shows the island that will be played.
-	$effect(() => sceneRef.current?.showMenuMap(extended ? mapTiles : null));
+	// The table shows the island that will be played. Building it takes a moment, so it waits
+	// until the new settings have painted.
+	$effect(() => {
+		const tiles = extended ? mapTiles : null;
+		let timer = 0;
+		const frame = requestAnimationFrame(() => (timer = window.setTimeout(() => sceneRef.current?.showMenuMap(tiles))));
+		return () => {
+			cancelAnimationFrame(frame);
+			clearTimeout(timer);
+		};
+	});
 
 	// The lobby spreads over two columns, so the table slides over to the middle of the space
 	// left beside it.
