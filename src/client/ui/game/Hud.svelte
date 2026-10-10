@@ -15,7 +15,7 @@
 		tradeHarbor,
 		workshopSpots
 	} from '../../../shared/rules/queries';
-	import type { GameEvent } from '../../../shared/rules/types';
+	import type { BuiltKind, GameEvent } from '../../../shared/rules/types';
 	import type { PickKind } from '../../scene/gameScene';
 	import { client } from '../../state/client.svelte';
 	import { myTurn } from '../helpers';
@@ -270,7 +270,7 @@
 				if (e.player === me) client.toast(t('You command the Largest Army! +2'), 'good');
 				break;
 			case 'built':
-				flyToBank(e.player, e.paid);
+				flyToPiece(e.player, e.paid, e.kind, e.at);
 				break;
 			case 'discarded':
 				if (e.player === me) sfx.card();
@@ -366,9 +366,9 @@
 	}
 
 	/**
-	 * Cards a player hands to the bank, for a build, a development card or a trade, or thrown back
-	 * on a 7: they fly one after another from the player's cards to the bank's pile of their kind on
-	 * the table, or to `harbor` when a trade got its rate.
+	 * Cards a player hands to the bank, for a development card or a trade, or thrown back on a 7:
+	 * they fly one after another from the player's cards to the bank's pile of their kind on the
+	 * table, or to `harbor` when a trade got its rate.
 	 */
 	function flyToBank(player: number, cards: Partial<ResourceCounts>, harbor = -1) {
 		const scene = sceneRef.current;
@@ -379,6 +379,26 @@
 				if (me === undefined) return;
 				const to = scene.tradeTarget(resource, harbor);
 				flyers.away(resource, player, me, to, () => scene.tradeLanded(resource, harbor));
+			}, k * CARD_GAP_MS)
+		);
+	}
+
+	/**
+	 * The cards paid for a build fly one after another from the player's cards to the piece it put
+	 * up on the board, at everyone's table. Should the piece not be there, they go to the bank.
+	 */
+	function flyToPiece(player: number, cards: Partial<ResourceCounts>, kind: BuiltKind, at: number) {
+		const scene = sceneRef.current;
+		if (!scene) return;
+		oneByOne(cards).forEach((resource, k) =>
+			setTimeout(() => {
+				const me = client.view?.me;
+				if (me === undefined) return;
+				const piece = scene.buildTarget(kind, at);
+				const to = piece ?? scene.tradeTarget(resource, -1);
+				flyers.away(resource, player, me, to, () =>
+					piece ? scene.buildLanded(kind, at) : scene.tradeLanded(resource, -1)
+				);
 			}, k * CARD_GAP_MS)
 		);
 	}
