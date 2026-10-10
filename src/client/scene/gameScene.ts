@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DICE_STYLES, type DiceStyleId } from '../../shared/accounts';
 import { generateBoard, generateStandardBoard } from '../../shared/board/generate';
 import type { MapTile } from '../../shared/board/maps';
 import { type Board, getTopology } from '../../shared/board/topology';
@@ -12,7 +13,7 @@ import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
-import { bracketModel, cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
+import { bracketModel, cityModel, cloneModel, dieModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
 import { tokenRing } from './board/tokens';
 import { PATH_LOOK, animatePath, pathObject } from './board/cityPaths';
 import { type AnnexHost, type Footprint, annexSpot, annexYard } from './board/annex';
@@ -185,6 +186,8 @@ export class GameScene {
 	private reach = 54;
 	/** The map shown on the lobby table ('' for the classic island). */
 	private menuMap = '';
+	/** The dice each player throws, by seat (see `setDiceStyles`). */
+	private diceStyles: DiceStyleId[] = [];
 	/** Settles when the dice of the latest roll come to rest. */
 	private diceLanded: Promise<void> = Promise.resolve();
 	/** Settles when the robber's latest hop to a new tile lands. */
@@ -238,6 +241,11 @@ export class GameScene {
 	async warmUp(): Promise<void> {
 		while (!this.room.ready) await new Promise((r) => setTimeout(r, 50));
 		await Promise.all([this.stage.compile(), this.stage.compile(prewarmKit())]);
+	}
+
+	/** The dice each player throws, by seat (null: the classic dice). */
+	setDiceStyles(styles: (DiceStyleId | null)[]) {
+		this.diceStyles = styles.map((s) => s ?? 'classic');
 	}
 
 	setCallbacks(cb: SceneCallbacks) {
@@ -700,6 +708,7 @@ export class GameScene {
 			case 'diceRolled': {
 				const spot = this.diceSpots();
 				const total = e.dice[0] + e.dice[1];
+				this.dice.setStyle(this.diceStyles[e.player] ?? 'classic');
 				// As the dice land, the numbers rolled light up and the interface shows the roll.
 				this.diceLanded = this.dice.roll(e.dice, spot.from, spot.ends, spot.yaw).then(() => {
 					this.flashTokens(total);
@@ -1796,6 +1805,8 @@ function prewarmKit(): THREE.Group {
 		if (m.isMesh) add(new THREE.Mesh(m.geometry, m.name === 'outline' ? glow.rim : glow.lit));
 	}
 	add(new THREE.Mesh(HALO, glow.ring), new THREE.Mesh(BEAM, glow.beam));
+	// Every style of dice, so nobody's first roll waits on meshing or a shader.
+	for (const style of DICE_STYLES) add(cloneModel(dieModel(style)));
 	return kit;
 }
 

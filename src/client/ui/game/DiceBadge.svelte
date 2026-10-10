@@ -15,6 +15,8 @@
 	const roll = $derived(client.lastRoll);
 	const who = $derived(toss ? toss.player : (roll?.player ?? -1));
 	const total = $derived(roll ? roll.dice[0] + roll.dice[1] : 0);
+	/** The thrower's own dice (see the profile). */
+	const style = $derived(client.lobby?.seats[who]?.dice ?? null);
 
 	let faces = $state<[number, number]>([1, 1]);
 	$effect(() => {
@@ -61,7 +63,7 @@
 						<span
 							class="die"
 							data-face={d}
-							style="background-image: {dieFace(d)}; --r:{i ? 8 : -6}deg"
+							style="background-image: {dieFace(d, style)}; --r:{i ? 8 : -6}deg"
 						></span>
 					{/each}
 					<span class="eq">=</span>

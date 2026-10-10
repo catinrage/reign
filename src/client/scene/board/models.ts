@@ -3,6 +3,8 @@ import { Mat, VoxelGrid, hash3, hex, mix, pick, shade } from '../voxel/grid';
 import { type VoxelMaterialOptions, meshesFor } from '../voxel/materials';
 import { meshGrid } from '../voxel/mesher';
 import { addOutline } from '../voxel/outline';
+import type { DiceStyleId } from '../../../shared/accounts';
+import { DICE_LOOKS, markAt } from '../diceStyles';
 
 /**
  * Small voxel models: player pieces, robber, sheep, ships, dice and resource items.
@@ -305,17 +307,21 @@ const PIP_LAYOUT: Record<number, [number, number][]> = {
 export const DIE_VOXELS = 12;
 
 /**
- * A white die with pips that read from across the table: each pip is a 2x2 block of near
- * black, and the 1 is one big red pip. The body is plain white with soft bevels, so the
- * voxel grid doesn't speckle the faces.
+ * A die with pips that read from across the table: each pip is a 2x2 block, and the 1 is one
+ * big pip or the style's picture (a crown, a flame...). The classic die is plain white with
+ * near-black pips and a red 1. Soft bevels keep the voxel grid from speckling the faces.
  */
-export function dieModel(): THREE.Group {
+export function dieModel(style: DiceStyleId = 'classic'): THREE.Group {
 	const N = DIE_VOXELS;
+	const look = DICE_LOOKS[style];
+	const body = look.body.map(hex);
 	return build(
-		'die',
+		style === 'classic' ? 'die' : `die:${style}`,
 		[N, N, N],
 		(g) => {
-			g.box(0, 0, 0, N - 1, N - 1, N - 1, hex('#f7f2e6'));
+			g.box(0, 0, 0, N - 1, N - 1, N - 1, (x, y, z) =>
+				pick(body, look.grain ? hash3(0, y, z, 7) : hash3(x, y, z, 7))
+			);
 			// round the corners and edges a bit
 			for (let y = 0; y < N; y++)
 				for (let z = 0; z < N; z++)
@@ -325,8 +331,8 @@ export function dieModel(): THREE.Group {
 						const ez = z === 0 || z === N - 1;
 						if ((ex && ey) || (ey && ez) || (ex && ez)) g.clear(x, y, z);
 					}
-			const ink = hex('#1c1411');
-			const red = hex('#d3281c');
+			const pip = hex(look.pip);
+			const one = hex(look.one);
 			// Voxel at (u, w) on a face.
 			const at = (n: THREE.Vector3, u: number, w: number): [number, number, number] => {
 				if (n.y !== 0) return [u, n.y > 0 ? N - 1 : 0, w];
@@ -335,20 +341,40 @@ export function dieModel(): THREE.Group {
 			};
 			for (const [num, n] of Object.entries(DIE_FACES)) {
 				const v = Number(num);
+				if (look.trim) {
+					const trim = hex(look.trim);
+					for (let i = 1; i < N - 1; i++)
+						for (const j of [1, N - 2]) {
+							g.set(...at(n, i, j), trim);
+							g.set(...at(n, j, i), trim);
+						}
+				}
 				const cells: [number, number][] = [];
-				if (v === 1) {
+				if (v === 1 && look.mark) {
+					// Its top towards -z: a 1 comes to rest with -z away from the viewer (see `Dice.roll`).
+					for (let w = 0; w < 6; w++)
+						for (let u = 0; u < 6; u++) if (markAt(look.mark, u, w)) cells.push([3 + u, 3 + w]);
+				} else if (v === 1) {
 					for (let w = 4; w < 8; w++)
 						for (let u = 4; u < 8; u++) if (!((u === 4 || u === 7) && (w === 4 || w === 7))) cells.push([u, w]);
 				} else {
 					for (const [a, b] of PIP_LAYOUT[v])
 						for (const [du, dw] of [[0, 0], [1, 0], [0, 1], [1, 1]]) cells.push([5 + a * 3 + du, 5 + b * 3 + dw]);
 				}
-				for (const [u, w] of cells) g.set(...at(n, u, w), v === 1 ? red : ink);
+				const glow = v === 1 ? look.oneGlow : look.pipGlow;
+				for (const [u, w] of cells)
+					g.set(...at(n, u, w), v === 1 ? one : pip, glow ? Mat.Glow : Mat.Solid);
 			}
 		},
 		[N / 2, N / 2, N / 2],
 		1,
-		{ jitter: 0.02, mats: { [Mat.Solid]: { bevel: 0.2, bevelWidth: 0.08 } } }
+		{
+			jitter: 0.02,
+			mats: {
+				[Mat.Solid]: { bevel: 0.2, bevelWidth: 0.08, ...(look.lift ? { lift: look.lift } : {}) },
+				[Mat.Glow]: { emissive: 0.8, bevel: 0.2, bevelWidth: 0.08 }
+			}
+		}
 	);
 }
 

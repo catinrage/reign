@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { DiceStyleId } from '../../shared/accounts';
 import type { Animator } from './anim';
 import { DIE_FACES, DIE_VOXELS, cloneModel, dieModel } from './board/models';
 import type { Particles } from './effects';
@@ -10,10 +11,14 @@ const HALF = (DIE_VOXELS / 2) * DIE_SCALE;
 /** Half the width of a die, in world units: the dice need this much clear table round them. */
 export const DIE_HALF = HALF;
 
-/** Two voxel dice that get tossed onto the table and tumble to the rolled faces. */
+/**
+ * Two voxel dice that get tossed onto the table and tumble to the rolled faces, in the style of
+ * whoever throws them.
+ */
 export class Dice {
 	readonly dice: THREE.Group[] = [];
 	private rolling = false;
+	private style: DiceStyleId = 'classic';
 
 	constructor(
 		readonly scene: THREE.Scene,
@@ -21,13 +26,24 @@ export class Dice {
 		readonly particles: Particles
 	) {
 		for (let i = 0; i < 2; i++) {
-			const d = cloneModel(dieModel());
+			const d = new THREE.Group();
+			d.add(cloneModel(dieModel()));
 			d.scale.setScalar(DIE_SCALE);
 			d.quaternion.copy(this.faceUp(i === 0 ? 5 : 2, i * 1.3));
 			// Out of sight until the table is ready and they are put down (see `place`).
 			d.visible = false;
 			scene.add(d);
 			this.dice.push(d);
+		}
+	}
+
+	/** Throw dice of this style from now on (they change in the thrower's hand, out of sight). */
+	setStyle(style: DiceStyleId) {
+		if (style === this.style) return;
+		this.style = style;
+		for (const d of this.dice) {
+			d.clear();
+			d.add(cloneModel(dieModel(style)));
 		}
 	}
 
@@ -66,8 +82,9 @@ export class Dice {
 				// Side by side all the way, so the two paths never cross.
 				const start = from.clone().add(ends[i].clone().sub(mid).setY(0));
 				// They come to rest square to the view, give or take a few degrees, so the spots on
-				// top read at a glance.
-				const turn = (Math.floor(Math.random() * 4) * Math.PI) / 2 + (Math.random() - 0.5) * 0.14;
+				// top read at a glance. A 1 stands upright, as some styles draw a picture on it.
+				const quarter = values[i] === 1 ? 0 : Math.floor(Math.random() * 4);
+				const turn = (quarter * Math.PI) / 2 + (Math.random() - 0.5) * 0.14;
 				const qEnd = this.faceUp(values[i], yaw + turn);
 				const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
 				// Fewer turns for the shorter toss, so they spin as fast as before.

@@ -1,4 +1,4 @@
-import type { AvatarId, FriendsInfo, RoomInvite, Whereabouts } from './accounts';
+import type { AvatarId, DiceStyleId, FriendsInfo, RoomInvite, Whereabouts } from './accounts';
 import type { MapChoice } from './board/maps';
 import type { ExtraBuilding } from './rules/buildings';
 import type { Cheat } from './rules/cheats';
@@ -25,6 +25,8 @@ export interface LobbySeat {
 	/** The account of the player in this seat (null for bots). */
 	userId: string | null;
 	avatar: AvatarId | null;
+	/** The dice this player throws, which everyone sees when they roll (null: the classic dice). */
+	dice: DiceStyleId | null;
 }
 
 /**

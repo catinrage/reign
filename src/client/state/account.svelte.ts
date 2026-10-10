@@ -1,4 +1,4 @@
-import type { AvatarId, Friend, FriendRequest, FriendsInfo, MatchHistory, Me, RoomInvite, Whereabouts } from '../../shared/accounts';
+import type { AvatarId, DiceStyleId, Friend, FriendRequest, FriendsInfo, MatchHistory, Me, RoomInvite, Whereabouts } from '../../shared/accounts';
 import { msg, t, tx } from '../i18n/index.svelte';
 import { OFFLINE } from '../offline/flag';
 
@@ -84,7 +84,7 @@ class Account {
 		this.signedOut();
 	}
 
-	async updateProfile(change: { username?: string; nickname?: string; avatar?: AvatarId; password?: string; currentPassword?: string }) {
+	async updateProfile(change: { username?: string; nickname?: string; avatar?: AvatarId; dice?: DiceStyleId; password?: string; currentPassword?: string }) {
 		const { user } = await api<{ user: Me }>('me', 'PATCH', change);
 		this.me = user;
 	}

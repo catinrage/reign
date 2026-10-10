@@ -44,6 +44,48 @@ export function isAvatar(a: unknown): a is AvatarId {
 	return typeof a === 'string' && (AVATARS as readonly string[]).includes(a);
 }
 
+/**
+ * The dice a player throws. Everyone at the table sees a player's dice when they roll. The
+ * colors are in src/client/scene/diceStyles.ts.
+ */
+export const DICE_STYLES = [
+	'classic',
+	'royal',
+	'dragonfire',
+	'frost',
+	'woodland',
+	'tide',
+	'crypt',
+	'starlight'
+] as const;
+export type DiceStyleId = (typeof DICE_STYLES)[number];
+
+export const DICE_NAMES: Record<DiceStyleId, string> = {
+	classic: 'Classic',
+	royal: 'Royal',
+	dragonfire: 'Dragonfire',
+	frost: 'Frost',
+	woodland: 'Woodland',
+	tide: 'Tide',
+	crypt: 'Crypt',
+	starlight: 'Starlight'
+};
+
+export const DICE_BLURBS: Record<DiceStyleId, string> = {
+	classic: 'White with black spots and a red 1, as dice have always been.',
+	royal: 'Purple and gold, with a crown for the 1.',
+	dragonfire: 'Charcoal with glowing embers, and a flame for the 1.',
+	frost: 'Frosted ice with deep blue spots, and a snowflake for the 1.',
+	woodland: 'Carved oak with burnt-in spots, and a leaf for the 1.',
+	tide: 'Sea green with foam-white spots, and a gold coin for the 1.',
+	crypt: 'Mossy tomb stone with bone-white spots, and a glowing skull for the 1.',
+	starlight: 'Midnight blue with glowing stars, and a gold star for the 1.'
+};
+
+export function isDiceStyle(d: unknown): d is DiceStyleId {
+	return typeof d === 'string' && (DICE_STYLES as readonly string[]).includes(d);
+}
+
 /** Usernames are how friends find each other: lowercase letters, digits and underscores. */
 export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 20;
@@ -85,6 +127,7 @@ export interface PublicUser {
 	username: string;
 	nickname: string;
 	avatar: AvatarId;
+	dice: DiceStyleId;
 }
 
 /** The signed-in player. */

@@ -130,6 +130,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, accou
 						username: pick('username'),
 						nickname: pick('nickname'),
 						avatar: pick('avatar'),
+						dice: pick('dice'),
 						password: pick('password'),
 						currentPassword: pick('currentPassword')
 					},

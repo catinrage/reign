@@ -76,6 +76,16 @@ describe('profile', () => {
 		await expect(accounts.updateProfile(b.user.id, { avatar: 'dragon' })).rejects.toThrow(AccountError);
 	});
 
+	it('keeps the dice a player picks, classic until they pick', async () => {
+		const { user } = await player();
+		expect(user.dice).toBe('classic');
+		expect(await accounts.updateProfile(user.id, { dice: 'starlight' })).toMatchObject({
+			dice: 'starlight'
+		});
+		expect((await accounts.user(user.id))?.dice).toBe('starlight');
+		await expect(accounts.updateProfile(user.id, { dice: 'loaded' })).rejects.toThrow(AccountError);
+	});
+
 	it('changes the password only with the current one, and signs out other devices', async () => {
 		const { user, token } = await player();
 		const other = await accounts.login({ username: user.username, password: 'secret12' });
@@ -230,7 +240,7 @@ describe('signed-in players at a table', () => {
 		const ws = { readyState: 1, OPEN: 1, send: (data: string) => sent.push(JSON.parse(data)) };
 		return { ws: ws as unknown as WebSocket, sent };
 	}
-	const ada = { id: '1', nickname: 'Ada', avatar: 'owl' as const };
+	const ada = { id: '1', nickname: 'Ada', avatar: 'owl' as const, dice: 'classic' as const };
 
 	it('sits players under their nickname with their avatar, and gives them their seat back', () => {
 		const room = new Room('QWERT');
@@ -243,13 +253,20 @@ describe('signed-in players at a table', () => {
 		expect(room.join(second.ws, 'x', undefined, ada)).toBe(seat);
 		expect(room.seats).toHaveLength(1);
 		// Someone else's token doesn't hand them this seat.
-		const bram = room.join(fakeSocket().ws, 'Bram', seat.token, { id: '2', nickname: 'Bram', avatar: 'fox' });
+		const bram = room.join(fakeSocket().ws, 'Bram', seat.token, { id: '2', nickname: 'Bram', avatar: 'fox', dice: 'classic' });
 		expect(bram).not.toBe(seat);
 		// Names come from the profile, not from setName.
 		room.handle(seat, { t: 'setName', name: 'Hacker' }, first.ws);
 		expect(room.seats[0].name).toBe('Ada');
-		room.updateUser('1', 'Ada Prime', 'queen');
-		expect(room.lobbyInfo().seats[0]).toMatchObject({ name: 'Ada Prime', avatar: 'queen' });
+		room.updateUser('1', 'Ada Prime', 'queen', 'frost');
+		expect(room.lobbyInfo().seats[0]).toMatchObject({
+			name: 'Ada Prime',
+			avatar: 'queen',
+			dice: 'frost'
+		});
+		// Rejoining with other dice brings them along.
+		room.join(fakeSocket().ws, 'x', undefined, { ...ada, dice: 'dragonfire' });
+		expect(room.lobbyInfo().seats[0].dice).toBe('dragonfire');
 		room.dispose();
 	});
 

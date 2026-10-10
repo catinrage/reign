@@ -1551,5 +1551,22 @@ export default {
 	"Unpacking the realm": "Распаковываем королевство",
 	"Carving the island": "Вырезаем остров",
 	"Lighting the hearth": "Разжигаем очаг",
-	"Opening the gates": "Открываем ворота"
+	"Opening the gates": "Открываем ворота",
+	"Royal": "Королевские",
+	"Dragonfire": "Драконий огонь",
+	"Frost": "Иней",
+	"Woodland": "Лесные",
+	"Tide": "Прилив",
+	"Crypt": "Склеп",
+	"Starlight": "Звёздный свет",
+	"White with black spots and a red 1, as dice have always been.": "Белые с чёрными точками и красной единицей, как всегда и было.",
+	"Purple and gold, with a crown for the 1.": "Пурпур и золото, а вместо единицы — корона.",
+	"Charcoal with glowing embers, and a flame for the 1.": "Уголь с тлеющими искрами, а вместо единицы — пламя.",
+	"Frosted ice with deep blue spots, and a snowflake for the 1.": "Заиндевелый лёд с тёмно-синими точками, а вместо единицы — снежинка.",
+	"Carved oak with burnt-in spots, and a leaf for the 1.": "Резной дуб с выжженными точками, а вместо единицы — лист.",
+	"Sea green with foam-white spots, and a gold coin for the 1.": "Морская волна с белыми, как пена, точками, а вместо единицы — золотая монета.",
+	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "Замшелый надгробный камень с костяно-белыми точками, а вместо единицы — светящийся череп.",
+	"Midnight blue with glowing stars, and a gold star for the 1.": "Полночная синева со светящимися звёздами, а вместо единицы — золотая звезда.",
+	"Pick one of the dice.": "Выберите одни из кубиков.",
+	"Everyone at the table sees your dice when you roll.": "Все за столом видят ваши кубики, когда вы бросаете."
 } satisfies Messages;

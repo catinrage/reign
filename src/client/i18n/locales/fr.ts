@@ -1551,5 +1551,22 @@ export default {
 	"Unpacking the realm": "Le royaume se déballe",
 	"Carving the island": "L’île se sculpte",
 	"Lighting the hearth": "Le feu s’allume dans l’âtre",
-	"Opening the gates": "Les portes s’ouvrent"
+	"Opening the gates": "Les portes s’ouvrent",
+	"Royal": "Royal",
+	"Dragonfire": "Feu de dragon",
+	"Frost": "Givre",
+	"Woodland": "Sylvestre",
+	"Tide": "Marée",
+	"Crypt": "Crypte",
+	"Starlight": "Lumière d’étoiles",
+	"White with black spots and a red 1, as dice have always been.": "Blancs à points noirs avec un 1 rouge, comme les dés l’ont toujours été.",
+	"Purple and gold, with a crown for the 1.": "Pourpre et or, avec une couronne pour le 1.",
+	"Charcoal with glowing embers, and a flame for the 1.": "Charbon aux braises luisantes, avec une flamme pour le 1.",
+	"Frosted ice with deep blue spots, and a snowflake for the 1.": "Glace givrée aux points bleu nuit, avec un flocon pour le 1.",
+	"Carved oak with burnt-in spots, and a leaf for the 1.": "Chêne sculpté aux points brûlés, avec une feuille pour le 1.",
+	"Sea green with foam-white spots, and a gold coin for the 1.": "Vert marin aux points blancs d’écume, avec une pièce d’or pour le 1.",
+	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "Pierre tombale moussue aux points blanc os, avec un crâne luisant pour le 1.",
+	"Midnight blue with glowing stars, and a gold star for the 1.": "Bleu minuit aux étoiles luisantes, avec une étoile d’or pour le 1.",
+	"Pick one of the dice.": "Choisissez l’un des dés.",
+	"Everyone at the table sees your dice when you roll.": "Tout le monde à table voit vos dés quand vous lancez."
 } satisfies Messages;

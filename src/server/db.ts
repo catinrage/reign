@@ -137,7 +137,8 @@ const MIGRATIONS = [
 		-- The replay as gzipped JSON, served to the browser as it is.
 		data bytea not null,
 		created_at timestamptz not null default now()
-	);`
+	);`,
+	`alter table users add column dice text not null default 'classic';`
 ];
 
 async function migrate(db: Db) {
