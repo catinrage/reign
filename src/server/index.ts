@@ -41,6 +41,7 @@ const MIME: Record<string, string> = {
 	'.woff': 'font/woff',
 	'.woff2': 'font/woff2',
 	'.json': 'application/json',
+	'.webmanifest': 'application/manifest+json',
 	'.ico': 'image/x-icon',
 	'.mp3': 'audio/mpeg',
 	'.ogg': 'audio/ogg'
