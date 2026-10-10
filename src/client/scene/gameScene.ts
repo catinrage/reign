@@ -225,6 +225,15 @@ export class GameScene {
 		this.stage.start();
 	}
 
+	/**
+	 * Resolves once the room has finished building (it is added over several frames) and the
+	 * scene's shaders are compiled, so the loading screen can lift onto a finished, smooth room.
+	 */
+	async warmUp(): Promise<void> {
+		while (!this.room.ready) await new Promise((r) => setTimeout(r, 50));
+		await this.stage.renderer.compileAsync(this.stage.scene, this.stage.camera).catch(() => {});
+	}
+
 	setCallbacks(cb: SceneCallbacks) {
 		this.callbacks = cb;
 	}

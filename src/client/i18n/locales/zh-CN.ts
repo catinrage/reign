@@ -1545,5 +1545,10 @@ export default {
 	"Victory points over the game": "整局的胜利分变化",
 	"Dice paid {rolled} (about {expected} expected)": "骰子带来 {rolled} 张（预期约 {expected} 张）",
 	"{n, plural, one {# roll} other {# rolls}} so far": "{n, plural, =1 {到目前为止 # 次掷骰} other {到目前为止 # 次掷骰}}",
-	"Watch again": "再看一遍"
+	"Watch again": "再看一遍",
+	"Loading": "加载中",
+	"Unpacking the realm": "正在展开王国",
+	"Carving the island": "正在雕刻岛屿",
+	"Lighting the hearth": "正在点燃炉火",
+	"Opening the gates": "正在打开城门"
 } satisfies Messages;
