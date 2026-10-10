@@ -5,22 +5,20 @@
 	import { PIXEL } from '../pixel';
 
 	/**
-	 * Which turn the game is in: every player's turn counts one, the same number the board's
-	 * tooltips date pieces by. Beside it, the round: every player taking one turn, the count the
-	 * Events deck and power recharge go by. The draft and the setup come before turn 1 and say so
-	 * instead. Last, under a crown, the points it takes to win, which the host set in the lobby: a
-	 * bare number, as words would push the corner over the prompt at 1366 wide.
+	 * Which round the game is in: every player taking one turn, the count the Events deck and
+	 * power recharge go by. The draft and the setup come before round 1 and say so instead. Last,
+	 * under a crown, the points it takes to win, which the host set in the lobby: a bare number, as
+	 * words would push the corner over the prompt at 1366 wide.
 	 */
 	const view = $derived(client.view!);
 	const round = $derived(roundOf(view.turn, view.players.length));
 	type Part = { n: number } | { word: string };
-	/** "Turn 6" and "Round 2" with the number apart, in each language's word order. */
-	const count = (message: string, n: number, slot: string) =>
-		tParts<Part>(message, { [slot]: { n } }, (s) => ({ word: s.trim() })).filter(
+	/** "Round 2" with the number apart, in each language's word order. */
+	const roundParts = $derived(
+		tParts<Part>(msg('Round {round}'), { round: { n: round } }, (s) => ({ word: s.trim() })).filter(
 			(p) => !('word' in p) || p.word
-		);
-	const turnParts = $derived(count(msg('Turn {turn}'), view.turn, 'turn'));
-	const roundParts = $derived(count(msg('Round {round}'), round, 'round'));
+		)
+	);
 	const goalTip = $derived(
 		t('First to {points, plural, one {# point} other {# points}} wins the game.', {
 			points: view.pointsToWin
@@ -31,37 +29,28 @@
 	);
 	const tip = $derived(
 		view.phase === 'draft'
-			? t('Draft: turn 1 starts once everyone has placed two settlements.')
+			? t('Draft: round 1 starts once everyone has placed two settlements.')
 			: view.phase === 'setup'
-				? t('Setup: turn 1 starts once everyone has placed two settlements.')
-				: t(
-						"Turn {turn}, round {round}. A turn is one player's go; a round is every player taking one turn.",
-						{
-							turn: view.turn,
-							round
-						}
-					)
+				? t('Setup: round 1 starts once everyone has placed two settlements.')
+				: t('Round {round}. A round is every player taking one turn.', { round })
 	);
 </script>
 
 <div
 	class="turn plaque"
 	title={tip}
-	aria-label={`${label ?? t('Turn {turn}, round {round}', { turn: view.turn, round })}. ${goalTip}`}
+	aria-label={`${label ?? t('Round {round}', { round })}. ${goalTip}`}
 	role="status"
 >
 	{#if label}
 		<span class="word">{label}</span>
 	{:else}
-		{#each [turnParts, roundParts] as parts, i (i)}
-			{#if i}<span class="split" aria-hidden="true"></span>{/if}
-			{#each parts as part, j (j)}
-				{#if 'n' in part}
-					{#key part.n}<b class="n">{part.n}</b>{/key}
-				{:else}
-					<span class="word">{part.word}</span>
-				{/if}
-			{/each}
+		{#each roundParts as part, j (j)}
+			{#if 'n' in part}
+				{#key part.n}<b class="n">{part.n}</b>{/key}
+			{:else}
+				<span class="word">{part.word}</span>
+			{/if}
 		{/each}
 	{/if}
 	<span class="split" aria-hidden="true"></span>
@@ -91,7 +80,7 @@
 		color: var(--gold);
 		text-shadow: var(--outline-dark);
 	}
-	/* A notch in the plank between the turn and the round. */
+	/* A notch in the plank between the round and the goal. */
 	.split {
 		align-self: stretch;
 		width: var(--s);
