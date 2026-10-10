@@ -146,6 +146,11 @@ function sameOrigin(origin: string | undefined, host: string | undefined) {
 	}
 }
 
+/** A ping's `n` to send back with the pong: a number, or nothing. */
+function pingId(n: unknown): number | undefined {
+	return typeof n === 'number' && Number.isFinite(n) ? n : undefined;
+}
+
 wss.on('connection', (ws: WebSocket, req) => {
 	let room: Room | null = null;
 	let seat: ReturnType<Room['join']> | null = null;
@@ -171,7 +176,6 @@ wss.on('connection', (ws: WebSocket, req) => {
 
 	function handle(msg: ClientMessage) {
 		if (!user) return;
-		if (msg.t === 'ping') return send(ws, { t: 'pong' });
 		if (msg.t === 'peek') {
 			const code = String(msg.code ?? '').toUpperCase();
 			const peek = rooms.get(code)?.peek(msg.token, user.id) ?? { open: false, players: [] };
@@ -245,6 +249,8 @@ wss.on('connection', (ws: WebSocket, req) => {
 		} catch {
 			return;
 		}
+		// Pings skip the line, so the round trip they time is the network's alone.
+		if (msg?.t === 'ping') return send(ws, { t: 'pong', n: pingId(msg.n) });
 		line = line.then(() => handle(msg)).catch((e) => console.error(e));
 	});
 

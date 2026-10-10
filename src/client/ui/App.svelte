@@ -7,6 +7,7 @@
 	import Home from './Home.svelte';
 	import Joining from './Joining.svelte';
 	import Lobby from './Lobby.svelte';
+	import NetReadout from './NetReadout.svelte';
 	import Toasts from './Toasts.svelte';
 	import { PIXEL } from './pixel';
 	import { setMusicMode, sfx } from './sound';
@@ -77,6 +78,7 @@
 
 <svelte:window onpointerdown={onPointerDown} onpointerover={onPointerOver} />
 
+<NetReadout />
 <div class="ui" style:zoom={size === 1 ? undefined : size} style:--ui-zoom={size}>
 	{#if screen === 'auth'}
 		{#if account.status === 'out'}<Auth />{/if}

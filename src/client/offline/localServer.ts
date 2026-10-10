@@ -91,7 +91,7 @@ export class LocalSocket {
 
 	private handle(msg: ClientMessage) {
 		const ws = this.server;
-		if (msg.t === 'ping') return send(ws, { t: 'pong' });
+		if (msg.t === 'ping') return send(ws, { t: 'pong', n: msg.n });
 		if (msg.t === 'peek') {
 			const code = String(msg.code ?? '').toUpperCase();
 			const peek = rooms.get(code)?.peek(msg.token, OFFLINE_USER.id) ?? {
