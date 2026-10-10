@@ -14,14 +14,18 @@ export const AVATARS = [
 	'archer',
 	'wizard',
 	'queen',
+	'king',
 	'pirate',
 	'monk',
 	'bard',
 	'farmer',
+	'vampire',
+	'alien',
 	'fox',
 	'owl',
 	'bear',
-	'frog'
+	'frog',
+	'cat'
 ] as const;
 export type AvatarId = (typeof AVATARS)[number];
 
@@ -30,14 +34,18 @@ export const AVATAR_NAMES: Record<AvatarId, string> = {
 	archer: 'Archer',
 	wizard: 'Wizard',
 	queen: 'Queen',
+	king: 'King',
 	pirate: 'Pirate',
 	monk: 'Monk',
 	bard: 'Bard',
 	farmer: 'Farmer',
+	vampire: 'Vampire',
+	alien: 'Alien',
 	fox: 'Fox',
 	owl: 'Owl',
 	bear: 'Bear',
-	frog: 'Frog'
+	frog: 'Frog',
+	cat: 'Cat'
 };
 
 export function isAvatar(a: unknown): a is AvatarId {
