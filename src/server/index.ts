@@ -1,9 +1,11 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { gzip } from 'node:zlib';
 import { extname, join, normalize, resolve } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Me } from '../shared/accounts';
 import type { ClientMessage } from '../shared/protocol';
+import type { Recorder } from '../shared/replay';
 import { totalPoints } from '../shared/rules/engine';
 import { Accounts } from './accounts';
 import { SESSION_COOKIE, handleApi, readCookie } from './api';
@@ -94,6 +96,14 @@ function openRoom(): Room {
 		console.error(`[room ${room.code}] match history:`, e);
 		return null;
 	};
+	// The game's replay goes with its match, once the game is over (won or given up).
+	const keepReplay = (id: string, rec: Recorder | null) => {
+		if (!rec?.size) return;
+		const replay = rec.replay();
+		return new Promise<Buffer>((done, fail) => gzip(JSON.stringify(replay), (e, gz) => (e ? fail(e) : done(gz)))).then((gz) =>
+			accounts.saveReplay(id, replay.v, replay.steps.length, gz)
+		);
+	};
 	room.listener = {
 		gameStarted(r) {
 			const g = r.game!;
@@ -114,12 +124,23 @@ function openRoom(): Room {
 						})
 						.catch(failed)
 				: null;
+			// Nobody's history lists a game of bots alone, so it isn't recorded either.
+			if (!match) r.recorder = null;
 			void hub.roomChanged(r);
 		},
 		gameEnded(r) {
 			const g = r.game!;
 			const scores = points();
-			match?.then((id) => (id ? accounts.matchFinished(id, g.turn, g.winner ?? g.current, scores, characters()) : undefined)).catch(failed);
+			// Taken now: Play again starts the next game's recording before this one is saved.
+			const rec = r.recorder;
+			r.recorder = null;
+			match
+				?.then(async (id) => {
+					if (!id) return;
+					await accounts.matchFinished(id, g.turn, g.winner ?? g.current, scores, characters());
+					await keepReplay(id, rec);
+				})
+				.catch(failed);
 			match = null;
 			void hub.roomChanged(r);
 		},
@@ -127,7 +148,15 @@ function openRoom(): Room {
 			const g = r.game;
 			if (g && g.phase !== 'ended') {
 				const scores = points();
-				match?.then((id) => (id ? accounts.matchAbandoned(id, g.turn, scores, characters()) : undefined)).catch(failed);
+				const rec = r.recorder;
+				r.recorder = null;
+				match
+					?.then(async (id) => {
+						if (!id) return;
+						await accounts.matchAbandoned(id, g.turn, scores, characters());
+						await keepReplay(id, rec);
+					})
+					.catch(failed);
 			}
 			match = null;
 		}

@@ -148,6 +148,13 @@ class GameClient {
 	cheats = $state(false);
 	/** Watching a game that started without us: no seat, and no hand is ever shown. */
 	spectating = $state(false);
+	/**
+	 * Watching a recorded game played back in the page (see state/replay.svelte.ts). It counts as
+	 * spectating, with no server room behind it.
+	 */
+	replaying = $state(false);
+	/** Told when a replay stops being watched, however that happened. */
+	onReplayEnd: (() => void) | null = null;
 	/** Private notes this player wrote or was sent by pigeon in this room, oldest first. */
 	pigeons = $state.raw<PigeonNote[]>([]);
 	/** The newest pigeon to fly while we were here (sent or received), for the flight to play. */
@@ -390,6 +397,34 @@ class GameClient {
 		if (this.latest && this.presenting?.phase !== 'flip') this.show(this.latest);
 	}
 
+	/** Open a replay: its table and its first state, with nothing sent to the server. */
+	startReplay(lobby: LobbyInfo, view: GameView) {
+		if (this.code) this.leave();
+		this.replaying = true;
+		this.spectating = true;
+		this.lobby = lobby;
+		this.latest = null;
+		this.view = null;
+		this.setReplayView(view, true);
+	}
+
+	/**
+	 * The replay moved on to `view`: one step forward plays like a live game (dice, cards flying),
+	 * a jump (scrubbing, skipping) shows the new state at once.
+	 */
+	setReplayView(view: GameView, jump: boolean) {
+		if (!this.replaying) return;
+		if (!jump) return this.receive(view);
+		clearTimeout(this.tossTimer);
+		clearTimeout(this.presentTimer);
+		this.tossing = null;
+		this.presenting = null;
+		this.dealt = [];
+		this.latest = view;
+		this.view = view;
+		this.lastRoll = newestRoll(view.log);
+	}
+
 	/** Hand a state to the interface. Cards it deals on the board count once they reach a hand. */
 	private show(view: GameView) {
 		const prev = this.view;
@@ -562,12 +597,16 @@ class GameClient {
 	setMenuOpen(open: boolean) {
 		if (open === this.menuOpen) return;
 		this.menuOpen = open;
-		if (this.view) this.send({ t: 'pause', paused: open });
+		if (this.view && !this.replaying) this.send({ t: 'pause', paused: open });
 	}
 
 	leave() {
 		this.menuOpen = false;
-		this.send({ t: 'leave' });
+		// A replay has no room on the server to leave.
+		if (this.replaying) {
+			this.replaying = false;
+			this.onReplayEnd?.();
+		} else this.send({ t: 'leave' });
 		this.lobby = null;
 		this.latest = null;
 		this.view = null;

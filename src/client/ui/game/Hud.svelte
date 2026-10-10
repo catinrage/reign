@@ -44,12 +44,16 @@
 	import Prompt from './Prompt.svelte';
 	import TileIncome from './TileIncome.svelte';
 	import SpectatorBar from './SpectatorBar.svelte';
+	import ReplayBar from './ReplayBar.svelte';
+	import ReplayData from './ReplayData.svelte';
 	import TimeWarning from './TimeWarning.svelte';
 	import TradePanel from './TradePanel.svelte';
 	import Victory from './Victory.svelte';
 	import { ui } from './ui.svelte';
 
 	const view = $derived(client.view!);
+	/** A replay's data panel: open from the start on a wide screen, behind a button on a phone. */
+	let replayData = $state(window.innerWidth > 900);
 	// A timed game hangs its clock under the turn banner (see the styles below).
 	const timed = $derived(!!client.lobby?.turnTime && view.phase !== 'ended');
 
@@ -489,7 +493,10 @@
 	<Players />
 	<DiceBadge />
 	<Log />
-	{#if client.spectating}
+	{#if client.replaying}
+		<ReplayBar bind:statsOpen={replayData} />
+		{#if replayData}<ReplayData />{/if}
+	{:else if client.spectating}
 		<SpectatorBar />
 	{:else}
 		<Hand />

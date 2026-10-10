@@ -141,6 +141,8 @@ export interface Match {
 	endedAt: string | null;
 	turns: number;
 	players: MatchPlayer[];
+	/** The game was recorded and can be watched again (games from before replays were kept can't). */
+	replay: boolean;
 }
 
 export interface MatchStats {

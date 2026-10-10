@@ -129,7 +129,15 @@ const MIGRATIONS = [
 		created_at timestamptz not null default now(),
 		updated_at timestamptz not null default now()
 	);
-	create index maps_user on maps(user_id);`
+	create index maps_user on maps(user_id);`,
+	`create table match_replays (
+		match_id bigint primary key references matches(id) on delete cascade,
+		version int not null,
+		steps int not null,
+		-- The replay as gzipped JSON, served to the browser as it is.
+		data bytea not null,
+		created_at timestamptz not null default now()
+	);`
 ];
 
 async function migrate(db: Db) {

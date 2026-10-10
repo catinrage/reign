@@ -17,6 +17,21 @@ export function svg(rows: string[], pal: Record<string, string>): string {
 
 const base = { k: '#2a1a10', w: '#ffffff' };
 
+const mirror = (rows: string[]) => rows.map((r) => [...r].reverse().join(''));
+const TO_END = ['kk....kkk', 'kyk...kyk', 'kyyk..kyk', 'kyyyk.kyk', 'kyyyykkyk', 'kyyyk.kyk', 'kyyk..kyk', 'kyk...kyk', 'kk....kkk'];
+const FAST = [
+	'kk....kk....',
+	'kyk...kyk...',
+	'kyyk..kyyk..',
+	'kyyyk.kyyyk.',
+	'kyyyykkyyyyk',
+	'kyyyk.kyyyk.',
+	'kyyk..kyyk..',
+	'kyk...kyk...',
+	'kk....kk....'
+];
+const TRANSPORT = { k: '#3a1d04', y: '#fff3b8' };
+
 export const PIXEL = {
 	knight: svg(
 		[
@@ -345,6 +360,16 @@ export const PIXEL = {
 			'kk.......'
 		],
 		{ k: '#3a1d04', y: '#fff3b8' }
+	),
+	/** Replay controls: to the end, to the start, a turn on, a turn back. */
+	toEnd: svg(TO_END, TRANSPORT),
+	toStart: svg(mirror(TO_END), TRANSPORT),
+	turnOn: svg(FAST, TRANSPORT),
+	turnBack: svg(mirror(FAST), TRANSPORT),
+	/** A little bar chart: a replay's numbers. */
+	chart: svg(
+		['........kkk', '........kgk', '........kgk', '....kkk.kgk', '....kyk.kgk', '....kyk.kgk', 'kkk.kyk.kgk', 'krk.kyk.kgk', 'kkkkkkkkkkk'],
+		{ k: '#2a1a10', r: '#d9693e', y: '#f6cb4a', g: '#6fbf4a' }
 	),
 	/** A small arrow that points at whose turn it is. */
 	pointer: svg(['kk...', 'kwk..', 'kwwk.', 'kwwwk', 'kwwk.', 'kwk..', 'kk...'], {
