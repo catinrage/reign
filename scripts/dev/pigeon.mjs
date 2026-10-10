@@ -66,7 +66,7 @@ await page.goto(`${base}/`);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000, polling: 500 });
 await page.evaluate(() => {
 	try {
-		localStorage.setItem('reign:quality', 'low');
+		localStorage.setItem('reign:graphics', 'medium');
 	} catch {}
 	window.__client.setName('Komeil');
 	window.__client.create();

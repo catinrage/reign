@@ -10,7 +10,7 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+await page.addInitScript(() => localStorage.setItem('reign:graphics', 'medium'));
 const shot = async (name) => {
 	await page.waitForTimeout(1200);
 	await page.screenshot({ path: `${dir}/${name}.png`, timeout: 180000, animations: 'disabled' });

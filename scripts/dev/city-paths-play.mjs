@@ -3,7 +3,7 @@
 // (markers over your cities) and its ghost, the castle going up, the guild hall's goods dialog,
 // the guild hall with its tooltip, and the paths menu once every city has taken its path.
 // Needs the dev game server (cheats). UI_LANG=de (or ru, zh-CN) plays it in that language, and
-// QUALITY=veryLow (or low) draws it at that graphics quality, several times faster in software
+// QUALITY=low (or medium) draws it at that graphics quality, several times faster in software
 // rendering. Usage:
 //   BASE=http://localhost:5173 node scripts/dev/city-paths-play.mjs <outPrefix> [width] [height]
 import { chromium } from 'playwright';
@@ -16,7 +16,7 @@ const browser = await chromium.launch({
 });
 const context = await browser.newContext({ viewport: { width: Number(w), height: Number(h) } });
 if (process.env.UI_LANG) await context.addInitScript((c) => localStorage.setItem('reign:lang', c), process.env.UI_LANG);
-if (process.env.QUALITY) await context.addInitScript((q) => localStorage.setItem('reign:quality', q), process.env.QUALITY);
+if (process.env.QUALITY) await context.addInitScript((q) => localStorage.setItem('reign:graphics', q), process.env.QUALITY);
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

@@ -68,7 +68,7 @@ const endTurn = async () => {
 await signIn(page, base);
 await page.goto(`${base}/`);
 // Low graphics, so screenshots are quick enough to catch the fuse burning.
-await page.evaluate(() => localStorage.setItem('reign:quality', 'low'));
+await page.evaluate(() => localStorage.setItem('reign:graphics', 'medium'));
 await page.goto(`${base}/`);
 await until(() => window.__ready === true);
 // Times, on the page's own clock, when the Roll dice button went up and when the roll was sent.
