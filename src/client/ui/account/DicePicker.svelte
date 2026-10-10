@@ -29,7 +29,8 @@
 <style>
 	.picker {
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		/* As many pairs to a row as fit, so the picker never spills out of its box. */
+		grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
 		gap: 6px;
 		justify-items: center;
 	}
@@ -40,7 +41,7 @@
 		position: relative;
 		display: flex;
 		gap: 3px;
-		padding: 5px 4px;
+		padding: 5px 3px;
 		transition:
 			transform 0.1s,
 			filter 0.12s;
@@ -65,8 +66,8 @@
 		outline: 2px solid #ffd86b;
 	}
 	.die {
-		width: 26px;
-		height: 26px;
+		width: 22px;
+		height: 22px;
 		background: center / 100% 100% no-repeat;
 		transform: rotate(var(--r));
 		filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45));
