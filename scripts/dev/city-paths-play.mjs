@@ -2,7 +2,7 @@
 // the build panel with the City path plaque and its tooltip, the paths menu, the castle pick
 // (markers over your cities) and its ghost, the castle going up, the guild hall's goods dialog,
 // the guild hall with its tooltip, and the paths menu once every city has taken its path.
-// Needs the dev game server (cheats). UI_LANG=de (or ru, zh-CN) plays it in that language, and
+// Needs the dev game server (cheats). UI_LANG=de (or ru, zh-CN, fr) plays it in that language, and
 // QUALITY=low (or medium) draws it at that graphics quality, several times faster in software
 // rendering. Usage:
 //   BASE=http://localhost:5173 node scripts/dev/city-paths-play.mjs <outPrefix> [width] [height]

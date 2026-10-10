@@ -4,7 +4,7 @@
 // tavern's ghost, the tavern built, the rumor chip in the corner with its tooltip and the card it
 // holds up, the building's tooltip, a storehouse added beside the tavern, and the next round's card
 // turning over, which must be the rumored one.
-// Needs the dev game server (cheats). UI_LANG=de (or ru, zh-CN) plays it in that language, and
+// Needs the dev game server (cheats). UI_LANG=de (or ru, zh-CN, fr) plays it in that language, and
 // QUALITY=low (or medium) draws it at that graphics quality, several times faster in software
 // rendering; LOBBY=0 skips the lobby shots. Usage:
 //   BASE=http://localhost:5173 node scripts/dev/tavern-play.mjs <outPrefix> [width] [height]
