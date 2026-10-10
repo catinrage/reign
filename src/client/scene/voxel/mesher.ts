@@ -82,6 +82,8 @@ export interface MeshOptions {
 export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THREE.BufferGeometry> {
 	const { nx, ny, nz, data } = grid;
 	const buffers = new Map<Mat, Buffers>();
+	/** The same buffers by material, for a lookup without hashing. */
+	const byMat: (Buffers | undefined)[] = [];
 	const jitter = opts.jitter ?? 0.06;
 	// Output is in world-voxel coordinates (grid origin applied). Vertices stay on integer
 	// coordinates because the voxel shader derives each block's bevel from them.
@@ -89,9 +91,20 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 	const cy = -grid.oy;
 	const cz = -grid.oz;
 	const strideY = nx * nz;
+	// Index steps along x, y and z, so neighbours are read straight from the data.
+	const step = [1, strideY, nx];
+	const size = [nx, ny, nz];
 
 	const solidAt = (x: number, y: number, z: number) =>
 		x >= 0 && y >= 0 && z >= 0 && x < nx && y < ny && z < nz && data[x + nx * (z + nz * y)] !== 0;
+
+	// The vertex brightness only depends on a corner's occlusion and the voxel's jitter bucket,
+	// so it is worked out once per pair rather than per vertex (same arithmetic, same values).
+	const shadeOf = new Float64Array(4 * 1000);
+	for (let m = 0; m < 1000; m++) {
+		const jit = 1 + (m / 1000 - 0.5) * 2 * jitter;
+		for (let a = 0; a < 4; a++) shadeOf[a * 1000 + m] = Math.pow(AO_CURVE[a] * jit, 1.6);
+	}
 
 	const p = [0, 0, 0];
 	const q = [0, 0, 0];
@@ -101,18 +114,37 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 
 	for (let y = 0; y < ny; y++) {
 		for (let z = 0; z < nz; z++) {
+			const row = nx * z + strideY * y;
+			// Cells off the grid's outer shell have every neighbour and corner sample inside it.
+			const inner = y > 0 && y < ny - 1 && z > 0 && z < nz - 1;
 			for (let x = 0; x < nx; x++) {
-				const val = data[x + nx * z + strideY * y];
+				const i = x + row;
+				const val = data[i];
 				if (val === 0) continue;
 				const mat = ((val >>> 24) - 1) as Mat;
-				let buf = buffers.get(mat);
-				if (!buf) buffers.set(mat, (buf = new Buffers()));
+				let buf = byMat[mat];
+				if (!buf) buffers.set(mat, (buf = byMat[mat] = new Buffers()));
+				const fast = inner && x > 0 && x < nx - 1;
+				// Buried voxels have nothing to draw.
+				if (
+					fast &&
+					data[i + 1] !== 0 &&
+					data[i - 1] !== 0 &&
+					data[i + strideY] !== 0 &&
+					data[i - strideY] !== 0 &&
+					data[i + nx] !== 0 &&
+					data[i - nx] !== 0
+				)
+					continue;
 				const r0 = (val >> 16) & 255;
 				const g0 = (val >> 8) & 255;
 				const b0 = val & 255;
+				const lr = SRGB_TO_LINEAR[r0];
+				const lg = SRGB_TO_LINEAR[g0];
+				const lb = SRGB_TO_LINEAR[b0];
 				// Stable per-voxel tint so flat areas read as individual blocks.
 				const h = ((x * 73856093) ^ (y * 19349663) ^ (z * 83492791)) >>> 0;
-				const jit = 1 + ((h % 1000) / 1000 - 0.5) * 2 * jitter;
+				const bucket = h % 1000;
 
 				p[0] = x;
 				p[1] = y;
@@ -121,21 +153,36 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 					const nxp = x + f.n[0];
 					const nyp = y + f.n[1];
 					const nzp = z + f.n[2];
-					if (solidAt(nxp, nyp, nzp)) continue;
-					if (skipFloor && nyp < 0) continue;
-					for (let c = 0; c < 4; c++) {
-						const su = CORNERS[c][0] ? 1 : -1;
-						const sv = CORNERS[c][1] ? 1 : -1;
-						q[0] = nxp;
-						q[1] = nyp;
-						q[2] = nzp;
-						q[f.u] += su;
-						const s1 = solidAt(q[0], q[1], q[2]) ? 1 : 0;
-						q[f.v] += sv;
-						const cc = solidAt(q[0], q[1], q[2]) ? 1 : 0;
-						q[f.u] -= su;
-						const s2 = solidAt(q[0], q[1], q[2]) ? 1 : 0;
-						ao[c] = s1 && s2 ? 0 : 3 - (s1 + s2 + cc);
+					if (fast) {
+						const ni = i + f.sign * step[f.axis];
+						if (data[ni] !== 0) continue;
+						const du = step[f.u];
+						const dv = step[f.v];
+						for (let c = 0; c < 4; c++) {
+							const su = CORNERS[c][0] ? du : -du;
+							const sv = CORNERS[c][1] ? dv : -dv;
+							const s1 = data[ni + su] !== 0 ? 1 : 0;
+							const cc = data[ni + su + sv] !== 0 ? 1 : 0;
+							const s2 = data[ni + sv] !== 0 ? 1 : 0;
+							ao[c] = s1 && s2 ? 0 : 3 - (s1 + s2 + cc);
+						}
+					} else {
+						if (solidAt(nxp, nyp, nzp)) continue;
+						if (skipFloor && nyp < 0) continue;
+						for (let c = 0; c < 4; c++) {
+							const su = CORNERS[c][0] ? 1 : -1;
+							const sv = CORNERS[c][1] ? 1 : -1;
+							q[0] = nxp;
+							q[1] = nyp;
+							q[2] = nzp;
+							q[f.u] += su;
+							const s1 = solidAt(q[0], q[1], q[2]) ? 1 : 0;
+							q[f.v] += sv;
+							const cc = solidAt(q[0], q[1], q[2]) ? 1 : 0;
+							q[f.u] -= su;
+							const s2 = solidAt(q[0], q[1], q[2]) ? 1 : 0;
+							ao[c] = s1 && s2 ? 0 : 3 - (s1 + s2 + cc);
+						}
 					}
 					buf.reserve();
 					const base = buf.count;
@@ -154,23 +201,22 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 						buf.nrm[o] = f.n[0] * 127;
 						buf.nrm[o + 1] = f.n[1] * 127;
 						buf.nrm[o + 2] = f.n[2] * 127;
-						const k = AO_CURVE[ao[c]] * jit;
-						const kl = Math.pow(k, 1.6);
-						buf.col[o] = Math.min(65535, SRGB_TO_LINEAR[r0] * kl);
-						buf.col[o + 1] = Math.min(65535, SRGB_TO_LINEAR[g0] * kl);
-						buf.col[o + 2] = Math.min(65535, SRGB_TO_LINEAR[b0] * kl);
+						const kl = shadeOf[ao[c] * 1000 + bucket];
+						buf.col[o] = Math.min(65535, lr * kl);
+						buf.col[o + 1] = Math.min(65535, lg * kl);
+						buf.col[o + 2] = Math.min(65535, lb * kl);
 						buf.count++;
 					}
 					// Flip the quad diagonal so AO gradients don't show a seam.
 					const ix = buf.idx;
-					const i = buf.indices;
+					const j = buf.indices;
 					const d = ao[order[0]] + ao[order[2]] > ao[order[1]] + ao[order[3]] ? 0 : 1;
-					ix[i] = base + d;
-					ix[i + 1] = base + d + 1;
-					ix[i + 2] = base + d + 2;
-					ix[i + 3] = base + d;
-					ix[i + 4] = base + d + 2;
-					ix[i + 5] = base + ((d + 3) & 3);
+					ix[j] = base + d;
+					ix[j + 1] = base + d + 1;
+					ix[j + 2] = base + d + 2;
+					ix[j + 3] = base + d;
+					ix[j + 4] = base + d + 2;
+					ix[j + 5] = base + ((d + 3) & 3);
 					buf.indices += 6;
 				}
 			}
