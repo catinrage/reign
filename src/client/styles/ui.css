@@ -477,7 +477,7 @@
 	overflow: auto;
 }
 /* Blurring the moving table behind a dialog every frame is too much for old devices. */
-body.very-low .modal-backdrop {
+body.low-graphics .modal-backdrop {
 	backdrop-filter: none;
 	-webkit-backdrop-filter: none;
 }

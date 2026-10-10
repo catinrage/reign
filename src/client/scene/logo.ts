@@ -179,12 +179,12 @@ export class LogoView {
 	private t0 = performance.now();
 	private size: { w: number; h: number };
 
-	/** At very low quality the logo is drawn with fewer pixels and no smoothing. */
+	/** At low quality the logo is drawn with fewer pixels and no smoothing. */
 	constructor(
 		readonly canvas: HTMLCanvasElement,
 		quality: Quality = 'high'
 	) {
-		const plain = quality === 'veryLow';
+		const plain = quality === 'low';
 		this.renderer = new THREE.WebGLRenderer({
 			canvas,
 			alpha: true,

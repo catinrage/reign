@@ -36,10 +36,13 @@ function clampSize(v: number): number {
 	return Math.round(Math.min(SIZE_MAX, Math.max(SIZE_MIN, v)) * 100) / 100;
 }
 
-const QUALITIES: Quality[] = ['high', 'low', 'veryLow'];
+const QUALITIES: Quality[] = ['high', 'medium', 'low'];
 function readQuality(): Quality {
-	const q = read('reign:quality');
-	return QUALITIES.find((k) => k === q) ?? 'high';
+	const q = QUALITIES.find((k) => k === read('reign:graphics'));
+	if (q) return q;
+	// Saved before the levels became High, Medium and Low, when they were high, low and veryLow.
+	const old = read('reign:quality');
+	return old === 'low' ? 'medium' : old === 'veryLow' ? 'low' : 'high';
 }
 
 export const CHANNELS: { id: Channel; label: string }[] = [
@@ -79,7 +82,7 @@ class Settings {
 	setQuality(q: Quality) {
 		if (q === this.quality) return;
 		this.quality = q;
-		write('reign:quality', q);
+		write('reign:graphics', q);
 		// The renderer is set up once, so a reload applies it (the seat is reclaimed on reconnect).
 		location.reload();
 	}
@@ -113,6 +116,6 @@ export const settings = new Settings();
 
 export function applySettings() {
 	document.body.classList.toggle('reduce-motion', settings.reduceMotion);
-	// Very low also spares the interface its costliest effects (see ui.css).
-	document.body.classList.toggle('very-low', settings.quality === 'veryLow');
+	// Low also spares the interface its costliest effects (see ui.css).
+	document.body.classList.toggle('low-graphics', settings.quality === 'low');
 }

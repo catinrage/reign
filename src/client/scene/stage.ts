@@ -17,8 +17,8 @@ import { CameraRig } from './camera';
 import { Lighting } from './lighting';
 import { sharedUniforms } from './voxel/materials';
 
-/** Very low is for old devices: no shadows, reflections or post-processing, and fewer pixels. */
-export type Quality = 'high' | 'low' | 'veryLow';
+/** Low is for old devices: no shadows, reflections or post-processing, and fewer pixels. */
+export type Quality = 'high' | 'medium' | 'low';
 
 /** The camera stands in the room, close to the table, so it has a wide lens (vertical, degrees). */
 const FOV = 50;
@@ -31,8 +31,8 @@ const MIN_ACROSS = 40;
 const FOG_NEAR = 520;
 const FOG_FAR = 1250;
 const FOCUS_RANGE = 250;
-/** Very low draws the 3D view with at most this many pixels, about a 1366x768 screen's worth. */
-const VERY_LOW_PIXELS = 1366 * 768;
+/** Low draws the 3D view with at most this many pixels, about a 1366x768 screen's worth. */
+const LOW_PIXELS = 1366 * 768;
 
 /** Vertical field of view for a screen's aspect ratio. */
 function fovFor(aspect: number) {
@@ -47,7 +47,7 @@ export class Stage {
 	readonly camera: THREE.PerspectiveCamera;
 	readonly rig: CameraRig;
 	readonly lighting: Lighting;
-	/** Very low has none: the scene is drawn straight to the screen. */
+	/** Low has none: the scene is drawn straight to the screen. */
 	private composer: EffectComposer | null = null;
 	private dof: DepthOfFieldEffect | null = null;
 	private clock = new THREE.Clock();
@@ -57,7 +57,7 @@ export class Stage {
 
 	constructor(readonly canvas: HTMLCanvasElement, quality: Quality = 'high') {
 		this.quality = quality;
-		const plain = quality === 'veryLow';
+		const plain = quality === 'low';
 		this.renderer = new THREE.WebGLRenderer({
 			canvas,
 			antialias: false,
@@ -73,7 +73,7 @@ export class Stage {
 
 		this.scene.background = new THREE.Color('#140b07');
 		this.scene.fog = new THREE.Fog('#1a0e08', FOG_NEAR, FOG_FAR);
-		// The room's reflections (very low makes up for their light, see `Lighting`).
+		// The room's reflections (low quality makes up for their light, see `Lighting`).
 		if (!plain) {
 			const pmrem = new THREE.PMREMGenerator(this.renderer);
 			this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -90,7 +90,7 @@ export class Stage {
 		this.resize();
 	}
 
-	/** Depth of field, bloom and a color grade (high and low). */
+	/** Depth of field, bloom and a color grade (high and medium). */
 	private postProcessing(high: boolean) {
 		const composer = new EffectComposer(this.renderer, {
 			frameBufferType: THREE.HalfFloatType,
@@ -122,14 +122,14 @@ export class Stage {
 	}
 
 	/**
-	 * Canvas pixels per CSS pixel: high and low cap it on sharp screens, and very low also keeps
-	 * the whole view within VERY_LOW_PIXELS.
+	 * Canvas pixels per CSS pixel: high and medium cap it on sharp screens, and low also keeps
+	 * the whole view within LOW_PIXELS.
 	 */
 	private pixelRatio(w: number, h: number) {
 		const dpr = window.devicePixelRatio || 1;
 		if (this.quality === 'high') return Math.min(dpr, 2);
-		if (this.quality === 'low') return Math.min(dpr, 1.25);
-		return Math.min(dpr, 1, Math.sqrt(VERY_LOW_PIXELS / Math.max(1, w * h)));
+		if (this.quality === 'medium') return Math.min(dpr, 1.25);
+		return Math.min(dpr, 1, Math.sqrt(LOW_PIXELS / Math.max(1, w * h)));
 	}
 
 	setFocus(target: THREE.Vector3) {

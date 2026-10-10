@@ -115,24 +115,24 @@
 				>
 				<button
 					class="btn small"
-					class:on={settings.quality === 'low'}
-					onclick={() => settings.setQuality('low')}>{t('Low')}</button
+					class:on={settings.quality === 'medium'}
+					onclick={() => settings.setQuality('medium')}>{t('Medium')}</button
 				>
 				<button
 					class="btn small"
-					class:on={settings.quality === 'veryLow'}
-					onclick={() => settings.setQuality('veryLow')}>{t('Very low')}</button
+					class:on={settings.quality === 'low'}
+					onclick={() => settings.setQuality('low')}>{t('Low')}</button
 				>
 			</div>
 		</div>
 		<p class="hint">
 			{t(
-				'Low is lighter on your device. Very low is for old devices: it turns off shadows, blur and glow, and draws fewer pixels on big screens. The game reloads to apply it.'
+				'Medium is lighter on your device. Low is for old devices: it turns off shadows, blur and glow, and draws fewer pixels on big screens. The game reloads to apply it.'
 			)}
 		</p>
 		<div class="row">
 			<span class="name">{t('Island detail')}</span>
-			<div class="seg">
+			<div class="seg wrap">
 				<button
 					class="btn small"
 					class:on={settings.detail === 1}
@@ -188,7 +188,7 @@
 	.row:has(.seg) {
 		grid-template-columns: 1fr auto;
 	}
-	/* Three long names (Очень низкое, Sehr niedrig) take two lines on narrow screens. */
+	/* Long names (Высокое, Среднее, Низкое, Детальная) take two lines on narrow screens. */
 	.seg.wrap {
 		flex-wrap: wrap;
 		justify-content: flex-end;
