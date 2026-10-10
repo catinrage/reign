@@ -13,8 +13,227 @@
 		<link rel="shortcut icon" href="/favicon.ico" />
 		<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 		<link rel="manifest" href="/site.webmanifest" />
+		<!-- The loading screen: drawn with the page itself, before any of the game's code arrives. -->
+		<style>
+			#boot {
+				position: fixed;
+				inset: 0;
+				z-index: 1000;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 30px;
+				background: radial-gradient(ellipse at 50% 46%, #3a1f0e 0%, #1f110a 42%, #140b07 75%);
+				transition: opacity 0.5s ease;
+				user-select: none;
+				overflow: hidden;
+			}
+			#boot.gone {
+				opacity: 0;
+				pointer-events: none;
+			}
+			#boot .logo {
+				width: min(540px, 78vw);
+				height: auto;
+				image-rendering: pixelated;
+				filter: drop-shadow(0 6px 0 #0a0503) drop-shadow(0 0 40px rgba(255, 176, 74, 0.25));
+				animation: boot-bob 3.2s ease-in-out infinite;
+			}
+			#boot .track {
+				width: min(408px, 76vw);
+				padding: 3px;
+				background: #0a0503;
+				/* Notched pixel corners. */
+				clip-path: polygon(
+					3px 0,
+					calc(100% - 3px) 0,
+					100% 3px,
+					100% calc(100% - 3px),
+					calc(100% - 3px) 100%,
+					3px 100%,
+					0 calc(100% - 3px),
+					0 3px
+				);
+				filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.35));
+			}
+			#boot .well {
+				box-sizing: border-box;
+				height: 30px;
+				padding: 3px;
+				background: #0d0603;
+				/* Carved wood, lit from above. */
+				border: 3px solid;
+				border-color: #7d4b28 #4a2a16 #2e180b #4a2a16;
+			}
+			#boot .fill {
+				width: 0;
+				height: 100%;
+				/* Gold blocks with a bright top row and a shaded bottom row. */
+				background:
+					linear-gradient(
+						#fff2b0 0 3px,
+						transparent 3px calc(100% - 3px),
+						#b8740f calc(100% - 3px)
+					),
+					repeating-linear-gradient(90deg, #ffd45a 0 9px, #d8961a 9px 12px);
+				box-shadow: 0 0 14px rgba(255, 196, 80, 0.45);
+			}
+			#boot .cap {
+				min-height: 20px;
+				color: #d2b894;
+				font:
+					500 17px 'Pixelify Sans',
+					'Reign Px CJK',
+					system-ui,
+					sans-serif;
+				letter-spacing: 0.04em;
+				text-shadow: 0 2px 0 #0a0503;
+				opacity: 0;
+				transition: opacity 0.3s ease;
+			}
+			#boot .cap.on {
+				opacity: 1;
+			}
+			#boot i {
+				position: absolute;
+				bottom: -12px;
+				width: 6px;
+				height: 6px;
+				background: #ffb347;
+				box-shadow: 0 0 8px #ff8a2a;
+				animation: boot-ember 9s linear infinite;
+				opacity: 0;
+			}
+			@keyframes boot-bob {
+				50% {
+					transform: translateY(-6px);
+				}
+			}
+			@keyframes boot-ember {
+				10% {
+					opacity: 0.9;
+				}
+				80% {
+					opacity: 0.5;
+				}
+				100% {
+					transform: translate(40px, -105vh);
+					opacity: 0;
+				}
+			}
+			@media (max-width: 700px) {
+				#boot {
+					gap: 22px;
+				}
+				#boot .well {
+					height: 24px;
+				}
+				#boot .cap {
+					font-size: 14px;
+				}
+			}
+			@media (prefers-reduced-motion: reduce) {
+				#boot .logo,
+				#boot i {
+					animation: none;
+				}
+			}
+		</style>
 	</head>
 	<body>
+		<div
+			id="boot"
+			role="progressbar"
+			aria-label="Loading"
+			aria-valuemin="0"
+			aria-valuemax="100"
+			aria-valuenow="0"
+		>
+			<i style="left: 12%; animation-delay: -1s"></i>
+			<i style="left: 27%; animation-delay: -6s; animation-duration: 11s"></i>
+			<i style="left: 44%; animation-delay: -3.5s; width: 3px; height: 3px"></i>
+			<i style="left: 63%; animation-delay: -8s; animation-duration: 12s"></i>
+			<i style="left: 78%; animation-delay: -2s; width: 3px; height: 3px"></i>
+			<i style="left: 90%; animation-delay: -5s; animation-duration: 10s"></i>
+			<!-- public/logo.png, inline so it shows with the page (pixel art: no 2x needed). -->
+			<img
+				class="logo"
+				width="540"
+				height="228"
+				alt="Reign"
+				src="data:image/png;base64,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"
+			/>
+			<div class="track">
+				<div class="well"><div class="fill"></div></div>
+			</div>
+			<div class="cap"></div>
+		</div>
+		<script>
+			// Drives the bar until the game's code takes over (src/client/boot.ts). Each loading step
+			// sets the mark it has reached and the next one: the bar runs up to the first and then
+			// creeps toward the second, so it keeps moving through a long download without ever
+			// claiming a step that hasn't finished.
+			(function () {
+				var el = document.getElementById('boot');
+				var well = el.querySelector('.well');
+				var fill = el.querySelector('.fill');
+				var cap = el.querySelector('.cap');
+				var shown = 0,
+					at = 0.06,
+					next = 0.14,
+					last = performance.now();
+				var finish = null,
+					finishFrom = 0,
+					finishAt = 0;
+				function frame(now) {
+					// Time-based, so a slow frame rate (the room building behind) doesn't slow the bar.
+					var dt = Math.min(0.25, (now - last) / 1000);
+					last = now;
+					if (finish) shown = finishFrom + (1 - finishFrom) * Math.min(1, (now - finishAt) / 350);
+					else if (shown < at)
+						shown = Math.min(
+							at,
+							shown + Math.max((at - shown) * (1 - Math.exp(-dt * 9)), dt * 0.12)
+						);
+					else shown += (next - shown) * (1 - Math.exp(-dt * 0.35));
+					// Whole gold blocks only, like the pixel art around it.
+					var inner = well.clientWidth - 6;
+					var blocks = Math.floor((inner + 3) / 12);
+					fill.style.width = Math.min(inner, Math.round(shown * blocks) * 12) + 'px';
+					if (finish && shown >= 1) return finish();
+					requestAnimationFrame(frame);
+				}
+				window.__boot = {
+					step: function (reached, upTo, label) {
+						at = Math.max(at, reached);
+						next = Math.max(next, upTo, at);
+						el.setAttribute('aria-valuenow', String(Math.round(at * 100)));
+						if (label) {
+							cap.textContent = label;
+							cap.classList.add('on');
+						}
+					},
+					label: function (aria) {
+						el.setAttribute('aria-label', aria);
+					},
+					done: function () {
+						if (finish) return;
+						at = next = 1;
+						el.setAttribute('aria-valuenow', '100');
+						finishFrom = shown;
+						finishAt = performance.now();
+						finish = function () {
+							el.classList.add('gone');
+							setTimeout(function () {
+								el.remove();
+							}, 600);
+						};
+					}
+				};
+				requestAnimationFrame(frame);
+			})();
+		</script>
 		<canvas id="world"></canvas>
 		<div id="app"></div>
 		<script type="module" src="/main.ts"></script>

@@ -1545,5 +1545,10 @@ export default {
 	"Victory points over the game": "Points de victoire au fil de la partie",
 	"Dice paid {rolled} (about {expected} expected)": "Cartes des dés : {rolled} (environ {expected} attendues)",
 	"{n, plural, one {# roll} other {# rolls}} so far": "{n, plural, one {# lancer} other {# lancers}} jusqu'ici",
-	"Watch again": "Revoir"
+	"Watch again": "Revoir",
+	"Loading": "Chargement",
+	"Unpacking the realm": "Le royaume se déballe",
+	"Carving the island": "L’île se sculpte",
+	"Lighting the hearth": "Le feu s’allume dans l’âtre",
+	"Opening the gates": "Les portes s’ouvrent"
 } satisfies Messages;

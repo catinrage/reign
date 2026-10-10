@@ -9,6 +9,8 @@ import { replay } from './state/replay.svelte';
 import App from './ui/App.svelte';
 import { installArt } from './ui/art';
 import { applySettings, settings } from './ui/settings.svelte';
+import { bootStep, nextPaint, until } from './boot';
+import { t } from './i18n/index.svelte';
 import { sceneRef } from './ui/sceneRef';
 import { armAudio, sfx } from './ui/sound';
 import { installTooltips } from './ui/tooltip';
@@ -40,4 +42,25 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 		import('./autoplay').then((m) => m.startAutoplay());
 	}
 	(window as any).__ready = true;
+}
+
+/**
+ * Resolves once the first screen is ready to be seen (the room built, its shaders compiled, the
+ * account known and the game server reached), so the loading screen lifts onto a finished menu
+ * rather than one that fills in piece by piece. A slow server doesn't hold it up for long: the
+ * menu then shows with its "Connecting…" plaque.
+ */
+export async function whenReady(): Promise<void> {
+	bootStep(0.72, 0.88, t('Lighting the hearth'));
+	await sceneRef.current?.warmUp();
+	bootStep(0.88, 0.97, t('Opening the gates'));
+	await until(
+		() =>
+			account.status === 'out' ||
+			(account.status === 'in' && (client.status === 'online' || !!client.joining)),
+		8000
+	);
+	// Two frames, so the menu and its title are drawn before the screen fades.
+	await nextPaint();
+	await nextPaint();
 }

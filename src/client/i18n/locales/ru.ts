@@ -1545,5 +1545,10 @@ export default {
 	"Victory points over the game": "Победные очки по ходу игры",
 	"Dice paid {rolled} (about {expected} expected)": "Кубики принесли {rolled} (ожидалось около {expected})",
 	"{n, plural, one {# roll} other {# rolls}} so far": "{n, plural, one {# бросок} few {# броска} many {# бросков} other {# броска}} на этот момент",
-	"Watch again": "Смотреть снова"
+	"Watch again": "Смотреть снова",
+	"Loading": "Загрузка",
+	"Unpacking the realm": "Распаковываем королевство",
+	"Carving the island": "Вырезаем остров",
+	"Lighting the hearth": "Разжигаем очаг",
+	"Opening the gates": "Открываем ворота"
 } satisfies Messages;

@@ -1545,5 +1545,10 @@ export default {
 	"Victory points over the game": "Siegpunkte im Lauf des Spiels",
 	"Dice paid {rolled} (about {expected} expected)": "Würfel brachten {rolled} (etwa {expected} erwartet)",
 	"{n, plural, one {# roll} other {# rolls}} so far": "{n, plural, one {# Wurf} other {# Würfe}} bisher",
-	"Watch again": "Noch mal ansehen"
+	"Watch again": "Noch mal ansehen",
+	"Loading": "Lädt",
+	"Unpacking the realm": "Das Reich wird ausgepackt",
+	"Carving the island": "Die Insel wird geschnitzt",
+	"Lighting the hearth": "Das Herdfeuer wird entzündet",
+	"Opening the gates": "Die Tore öffnen sich"
 } satisfies Messages;
