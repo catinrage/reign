@@ -4,9 +4,12 @@ import { rumorFor } from './events';
 import { publicPoints } from './queries';
 import type { EventMove, GameEvent, GameState, GameView } from './types';
 
-/** Strip hidden information: other hands, the deck order, the rng, private steal results. */
-export function viewFor(s: GameState, me: number): GameView {
-	const reveal = s.phase === 'ended';
+/**
+ * Strip hidden information: other hands, the deck order, the rng, private steal results. Once the
+ * game is over nothing is hidden any more, and `revealAll` shows everything sooner (a replay).
+ */
+export function viewFor(s: GameState, me: number, revealAll = false): GameView {
+	const reveal = revealAll || s.phase === 'ended';
 	const { rng: _rng, devDeck, players, log, events, stats, ...rest } = s;
 	return {
 		...structuredClone(rest),

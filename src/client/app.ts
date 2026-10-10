@@ -5,6 +5,7 @@ import { getIcons } from './scene/icons';
 import { account } from './state/account.svelte';
 import { OFFLINE } from './offline/flag';
 import { client } from './state/client.svelte';
+import { replay } from './state/replay.svelte';
 import App from './ui/App.svelte';
 import { installArt } from './ui/art';
 import { applySettings, settings } from './ui/settings.svelte';
@@ -34,6 +35,7 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	} else void account.boot();
 	(window as any).__account = account;
 	(window as any).__client = client;
+	(window as any).__replay = replay;
 	if (new URLSearchParams(location.search).has('autoplay')) {
 		import('./autoplay').then((m) => m.startAutoplay());
 	}

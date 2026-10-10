@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { client } from '../../state/client.svelte';
+	import { replay } from '../../state/replay.svelte';
 	import { getIcons } from '../../scene/icons';
 	import Embers from '../menu/Embers.svelte';
 	import { RESOURCES, RESOURCE_LABEL } from '../helpers';
@@ -320,7 +321,12 @@
 				</div>
 				<div class="foot">
 					<button class="btn wood" onclick={() => (hidden = true)}>{t('View board')}</button>
-					{#if client.spectating}
+					{#if client.replaying}
+						<button class="btn green shine" onclick={() => replay.play()}
+							><img src={PIXEL.play} alt="" />{t('Watch again')}</button
+						>
+						<button class="btn red" onclick={() => replay.close()}>{t('Close replay')}</button>
+					{:else if client.spectating}
 						<button class="btn red" onclick={() => client.leave()}>{t('Stop watching')}</button>
 					{:else if client.isHost}
 						<button

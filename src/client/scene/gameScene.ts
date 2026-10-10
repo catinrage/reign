@@ -299,7 +299,27 @@ export class GameScene {
 
 	// ------------------------------------------------------------ game state
 
-	setView(view: GameView) {
+	/** Showing a recorded game: going back to an earlier state is not a new game. */
+	replay = false;
+	/** The next setView shows its state at once: nothing it changed is played out. */
+	private quiet = false;
+
+	/**
+	 * Show `view` straight away, without playing what happened since the last one (a replay
+	 * scrubbed or skipped to another point of the game, forwards or back).
+	 */
+	jumpTo(view: GameView) {
+		this.lastSeq = view.log.length ? view.log[view.log.length - 1].seq : 0;
+		this.stage.rig.autoRotate = 0;
+		this.quiet = true;
+		try {
+			this.setView(view);
+		} finally {
+			this.quiet = false;
+		}
+	}
+
+	setView(view: GameView): void {
 		// Workshops need plots laid out on the tiles; the island is otherwise dealt the same.
 		const plots = !!view.buildingRules?.workshop;
 		const board = JSON.stringify(view.board);
@@ -310,7 +330,7 @@ export class GameScene {
 		const shape = `${JSON.stringify(view.board.hexes.map((h) => [h.q, h.r]))}${plots}`;
 		// Play again: a new game straight after one that ended, with no trip back to the menu. Its
 		// island is dealt afresh even where it has the same shape as the last one.
-		const rematch = this.mode === 'game' && this.view?.phase === 'ended' && view.phase !== 'ended';
+		const rematch = !this.replay && this.mode === 'game' && this.view?.phase === 'ended' && view.phase !== 'ended';
 		if (rematch) this.boardKey = '';
 		const changed = key !== this.boardKey;
 		// A character's power changed a tile's terrain: the same island in the same game, rebuilt
@@ -341,11 +361,17 @@ export class GameScene {
 		}
 		const prev = this.view;
 		this.view = view;
+		if (!changed && this.quiet && view.board.hexes.some((h, i) => h.number !== this.boardView!.board.hexes[i]?.number)) {
+			// Numbers that moved since: the island is dealt again as it is then.
+			this.boardKey = '';
+			return this.setView(view);
+		}
 		if (!changed) this.syncNumbers(view);
-		this.syncPieces(view, !changed);
+		this.syncPieces(view, !changed && !this.quiet);
 		this.syncMarks(view);
 		this.syncPowerMarks(view);
-		if (!first && prev && prev.robberHex !== view.robberHex)
+		if (this.quiet) this.boardView!.setRobber(view.robberHex, true);
+		else if (!first && prev && prev.robberHex !== view.robberHex)
 			this.robberHop = this.moveRobber(view.robberHex);
 		const fresh = view.log.filter((e) => e.seq > this.lastSeq);
 		if (fresh.length) this.lastSeq = fresh[fresh.length - 1].seq;

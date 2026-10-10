@@ -30,6 +30,7 @@ import {
 } from '../shared/rules/modes';
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
+import { Recorder } from '../shared/replay';
 import type { Action, GameState } from '../shared/rules/types';
 import { viewFor } from '../shared/rules/view';
 
@@ -126,6 +127,8 @@ export class Room {
 	/** The last player in the lobby pressed Leave (a lobby drops seats, so it can't ask them). */
 	private lobbyLeft = false;
 	listener: RoomListener | null = null;
+	/** Writes the current game down step by step, for watching it again once it's over. */
+	recorder: Recorder | null = null;
 	/** The listener has heard that the current game ended. */
 	private endTold = false;
 
@@ -435,6 +438,7 @@ export class Room {
 					this.settings
 				);
 				this.endTold = false;
+				this.recorder = new Recorder(this.game);
 				this.listener?.gameStarted?.(this);
 				this.broadcastLobby();
 				this.broadcastGame();
@@ -678,6 +682,7 @@ export class Room {
 		// Once the robber has moved (or the turn moved on), nobody is aiming it.
 		const g = this.game;
 		if (this.aim && (g.step !== 'moveRobber' || g.current !== this.aim.player)) this.aim = null;
+		this.recorder?.record(g);
 		if (this.game.phase === 'ended' && !this.endTold) {
 			this.endTold = true;
 			this.listener?.gameEnded?.(this);

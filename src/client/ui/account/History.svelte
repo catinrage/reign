@@ -4,6 +4,7 @@
 	import { MODE_INFO } from '../../../shared/rules/modes';
 	import { i18n, t, tx } from '../../i18n/index.svelte';
 	import { account } from '../../state/account.svelte';
+	import { replay } from '../../state/replay.svelte';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import Avatar from './Avatar.svelte';
@@ -126,6 +127,19 @@
 							{#if length(m)}<span>{length(m)}</span>{/if}
 							{#if m.turns}<span>{t('{n, plural, one {# turn} other {# turns}}', { n: m.turns })}</span>{/if}
 							<span>{t('to {n, plural, one {# point} other {# points}}', { n: m.pointsToWin })}</span>
+							{#if m.replay}
+								<button
+									class="btn small green watch"
+									disabled={replay.loading !== null}
+									onclick={() => replay.watch(m)}
+									title={t('Watch this game again, move by move')}
+									><img src={replay.loading === m.id ? PIXEL.hourglass : PIXEL.play} alt="" />{t('Watch replay')}</button
+								>
+							{:else if m.status !== 'playing'}
+								<span class="no-replay" title={t("Games played before replays were added weren't recorded, so they can't be watched.")}
+									>{t('No replay: played before replays were kept')}</span
+								>
+							{/if}
 						</div>
 					</li>
 				{/each}
@@ -322,10 +336,23 @@
 	}
 	.meta {
 		display: flex;
-		gap: 12px;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 4px 12px;
 		font-size: 12px;
 		font-weight: 700;
 		color: var(--muted);
+	}
+	.watch {
+		margin-left: auto;
+	}
+	.watch img {
+		height: 12px;
+	}
+	.no-replay {
+		margin-left: auto;
+		font-style: italic;
+		opacity: 0.8;
 	}
 	.error {
 		color: #ffd2c4 !important;

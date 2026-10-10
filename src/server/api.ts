@@ -196,6 +196,21 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, accou
 			return (json(res, 200, await accounts.history(id)), true);
 		}
 
+		const replay = /^replays\/(\d+)$/.exec(path);
+		if (replay && method === 'GET') {
+			const gz = await accounts.replay(me.id, replay[1]);
+			if (!gz) return (json(res, 404, { error: "There's no replay of that game." }), true);
+			// Kept gzipped, and sent as it is: the browser unpacks it.
+			res.writeHead(200, {
+				'content-type': 'application/json',
+				'content-encoding': 'gzip',
+				'content-length': String(gz.byteLength),
+				'cache-control': 'private, max-age=86400'
+			});
+			res.end(Buffer.from(gz));
+			return true;
+		}
+
 		json(res, 404, { error: 'Nothing here.' });
 	} catch (e) {
 		if (e instanceof AccountError) json(res, 400, { error: e.message });

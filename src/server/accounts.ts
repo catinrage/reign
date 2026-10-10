@@ -31,6 +31,23 @@ const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 /** Sign-ins last this long without a visit. */
 export const SESSION_DAYS = 30;
 /** How many games the history shows. */
+/** A row of `matches` as the history reads it. */
+interface MatchRow {
+	id: string;
+	code: string;
+	mode: string;
+	map_name: string;
+	points_to_win: number;
+	status: string;
+	started_at: Date;
+	ended_at: Date | null;
+	turns: number;
+	replay: boolean;
+}
+
+const MATCH_COLUMNS = `m.id::text as id, m.code, m.mode, m.map_name, m.points_to_win, m.status, m.started_at, m.ended_at, m.turns,
+	exists(select 1 from match_replays r where r.match_id = m.id) as replay`;
+
 const HISTORY_LIMIT = 50;
 
 export class AccountError extends Error {}
@@ -440,22 +457,22 @@ export class Accounts {
 			 from match_players p join matches m on m.id = p.match_id where p.user_id = $1`,
 			[userId]
 		);
-		const matchRows = await this.db.query<{
-			id: string;
-			code: string;
-			mode: string;
-			map_name: string;
-			points_to_win: number;
-			status: string;
-			started_at: Date;
-			ended_at: Date | null;
-			turns: number;
-		}>(
-			`select m.id::text as id, m.code, m.mode, m.map_name, m.points_to_win, m.status, m.started_at, m.ended_at, m.turns
+		const matchRows = await this.db.query<MatchRow>(
+			`select ${MATCH_COLUMNS}
 			 from matches m join match_players p on p.match_id = m.id
 			 where p.user_id = $1 order by m.started_at desc, m.id desc limit ${HISTORY_LIMIT}`,
 			[userId]
 		);
+		const matches = await this.matchesFrom(matchRows);
+		return {
+			user: publicUser({ ...user, created_at: user.createdAt }),
+			stats: { played: Number(stats?.played ?? 0), finished: Number(stats?.finished ?? 0), won: Number(stats?.won ?? 0) },
+			matches
+		};
+	}
+
+	/** Matches as the interface shows them, with everyone who sat at each table. */
+	private async matchesFrom(matchRows: MatchRow[]): Promise<Match[]> {
 		const ids = matchRows.map((m) => m.id);
 		const playerRows = ids.length
 			? await this.db.query<{
@@ -493,7 +510,7 @@ export class Accounts {
 			});
 			byMatch.set(r.match_id, list);
 		}
-		const matches: Match[] = matchRows.map((m) => ({
+		return matchRows.map((m) => ({
 			id: Number(m.id),
 			code: m.code,
 			mode: m.mode as Match['mode'],
@@ -503,12 +520,41 @@ export class Accounts {
 			startedAt: iso(m.started_at)!,
 			endedAt: iso(m.ended_at),
 			turns: m.turns,
-			players: byMatch.get(m.id) ?? []
+			players: byMatch.get(m.id) ?? [],
+			replay: !!m.replay
 		}));
-		return {
-			user: publicUser({ ...user, created_at: user.createdAt }),
-			stats: { played: Number(stats?.played ?? 0), finished: Number(stats?.finished ?? 0), won: Number(stats?.won ?? 0) },
-			matches
-		};
+	}
+
+	// ------------------------------------------------------------ replays
+
+	/** Keep a finished (or abandoned) game's replay, already gzipped. */
+	async saveReplay(matchId: string, version: number, steps: number, gz: Uint8Array) {
+		await this.db.query(
+			`insert into match_replays (match_id, version, steps, data) values ($1, $2, $3, $4)
+			 on conflict (match_id) do update set version = $2, steps = $3, data = $4, created_at = now()`,
+			[matchId, version, steps, gz]
+		);
+	}
+
+	/**
+	 * A game's replay for `userId` to watch: they sat at that table, or a friend of theirs did.
+	 * Null when there is none (games from before replays were kept) or it isn't theirs to see.
+	 */
+	async replay(userId: string, matchId: string): Promise<Uint8Array | null> {
+		if (!/^\d{1,18}$/.test(matchId)) return null;
+		const [allowed] = await this.db.query<{ ok: boolean }>(
+			`select exists(
+				select 1 from match_players p where p.match_id = $1 and p.user_id is not null and (
+					p.user_id = $2 or exists(
+						select 1 from friendships f where f.accepted_at is not null and
+						((f.asker = $2 and f.askee = p.user_id) or (f.askee = $2 and f.asker = p.user_id))
+					)
+				)
+			) as ok`,
+			[matchId, userId]
+		);
+		if (!allowed?.ok) return null;
+		const [row] = await this.db.query<{ data: Uint8Array }>('select data from match_replays where match_id = $1', [matchId]);
+		return row?.data ?? null;
 	}
 }

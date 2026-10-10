@@ -198,7 +198,11 @@
 						<button class="btn wood block" onclick={() => go('settings')}
 							><img src={PIXEL.gear} alt="" />{t('Settings')}</button
 						>
-						{#if client.spectating}
+						{#if client.replaying}
+							<button class="btn red block" onclick={leave}
+								><img src={PIXEL.door} alt="" />{t('Close replay')}</button
+							>
+						{:else if client.spectating}
 							<button class="btn red block" onclick={leave}
 								><img src={PIXEL.door} alt="" />{t('Stop watching')}</button
 							>
