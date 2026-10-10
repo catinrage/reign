@@ -109,6 +109,12 @@ export interface BoardBuild {
 	surfaceY: (x: number, z: number) => number;
 	/** World y of the bare ground (tiles and borders, no features): where pieces stand. */
 	groundY: (x: number, z: number) => number;
+	/**
+	 * Where a ray (in world units) first meets the island's blocks, or null where it misses
+	 * them. It steps from column to column, which takes microseconds on any island; testing
+	 * the triangles takes longer than a frame on a big one.
+	 */
+	raycast: (ray: THREE.Ray) => THREE.Vector3 | null;
 	dispose: () => void;
 }
 
@@ -417,6 +423,58 @@ export function buildBoard(board: Board, seed: number, detail = 1, withPlots = f
 		return surfaceY(x, z);
 	};
 
+	// Grid units below: column (ix, iz) spans x ix..ix+1 and z iz..iz+1, and its blocks fill y
+	// from 0 to tops + 1. Piers aren't in `tops`, so a ray through one lands in the sea behind
+	// it, which is no tile either.
+	let peak = 0;
+	for (const t of tops) peak = Math.max(peak, t + 1);
+	const raycast = (ray: THREE.Ray) => {
+		const o = ray.origin;
+		const d = ray.direction;
+		const ox = o.x / vox + half;
+		const oy = o.y / vox;
+		const oz = o.z / vox + half;
+		// The stretch of the ray inside the grid and no higher than the tallest column.
+		let s0 = 0;
+		let s1 = Infinity;
+		const clip = (from: number, step: number, hi: number) => {
+			if (step === 0) return from >= 0 && from <= hi;
+			const a = -from / step;
+			const b = (hi - from) / step;
+			s0 = Math.max(s0, Math.min(a, b));
+			s1 = Math.min(s1, Math.max(a, b));
+			return s0 <= s1;
+		};
+		if (!clip(ox, d.x, W) || !clip(oz, d.z, D) || !clip(oy, d.y, peak)) return null;
+		let ix = Math.max(0, Math.min(W - 1, Math.floor(ox + d.x * s0)));
+		let iz = Math.max(0, Math.min(D - 1, Math.floor(oz + d.z * s0)));
+		const stepX = d.x > 0 ? 1 : -1;
+		const stepZ = d.z > 0 ? 1 : -1;
+		// How far along the ray it crosses into the next column, along x and along z.
+		let nextX = d.x === 0 ? Infinity : (ix + (d.x > 0 ? 1 : 0) - ox) / d.x;
+		let nextZ = d.z === 0 ? Infinity : (iz + (d.z > 0 ? 1 : 0) - oz) / d.z;
+		let s = s0;
+		for (;;) {
+			const out = Math.min(nextX, nextZ, s1);
+			const top = tops[ix + iz * W] + 1;
+			const y0 = oy + d.y * s;
+			// The ray meets this column if it is below the top anywhere inside it: at once, through
+			// a side, or on the way down through the top.
+			if (top > 0 && Math.min(y0, oy + d.y * out) <= top) return ray.at((y0 <= top ? s : (top - oy) / d.y) * vox, new THREE.Vector3());
+			if (out >= s1) return null;
+			if (nextX < nextZ) {
+				ix += stepX;
+				s = nextX;
+				nextX += Math.abs(1 / d.x);
+			} else {
+				iz += stepZ;
+				s = nextZ;
+				nextZ += Math.abs(1 / d.z);
+			}
+			if (ix < 0 || iz < 0 || ix >= W || iz >= D) return null;
+		}
+	};
+
 	return {
 		group,
 		tokenY,
@@ -425,6 +483,7 @@ export function buildBoard(board: Board, seed: number, detail = 1, withPlots = f
 		plots: plots.map((p, h) => (p ? { x: (centers[h].x + p.lx) * VOXEL, z: (centers[h].z + p.lz) * VOXEL, angle: p.angle } : null)),
 		surfaceY,
 		groundY,
+		raycast,
 		dispose: () => group.traverse((o) => (o as THREE.Mesh).geometry?.dispose())
 	};
 }
