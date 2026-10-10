@@ -209,6 +209,32 @@ describe('rules', () => {
 		expect((v as any).rng).toBeUndefined();
 	});
 
+	it('tells only the thief and the victim which card was stolen', () => {
+		let s = createGame(players(4), 9);
+		while (s.phase === 'setup') s = act(s, s.current, botAction(s, s.current)!);
+		const thief = s.current;
+		const victim = (thief + 1) % 4;
+		s = {
+			...s,
+			step: 'steal',
+			resumeStep: 'main',
+			stealCandidates: [victim],
+			players: s.players.map((pl, i) =>
+				i === victim ? { ...pl, resources: { wood: 0, brick: 0, sheep: 0, wheat: 1, ore: 0 } } : pl
+			)
+		};
+		s = act(s, thief, { type: 'steal', victim });
+		const stole = (log: GameEvent[]) => log.filter((e) => e.type === 'stole').pop();
+		expect(stole(s.log)).toEqual(expect.objectContaining({ thief, victim, resource: 'wheat' }));
+		// The other two players and anyone watching only learn that a card changed hands.
+		for (let me = -1; me < 4; me++) {
+			const known = me === thief || me === victim;
+			expect(stole(viewFor(s, me).log), `seat ${me}`).toEqual(
+				expect.objectContaining({ thief, victim, resource: known ? 'wheat' : null })
+			);
+		}
+	});
+
 	it('keeps victory point cards secret until the game ends', () => {
 		let s = createGame(players(3), 9);
 		while (s.phase === 'setup') s = act(s, s.current, botAction(s, s.current)!);

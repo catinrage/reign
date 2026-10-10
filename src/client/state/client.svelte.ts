@@ -25,7 +25,8 @@ export interface Roll {
 /** Cards of one resource a player got. */
 interface Gain {
 	player: number;
-	resource: Resource;
+	/** null for a card this player can't see: one stolen by somebody else, say. */
+	resource: Resource | null;
 	amount: number;
 }
 
@@ -33,7 +34,7 @@ interface Gain {
 interface Dealt {
 	batch: number;
 	player: number;
-	resource: Resource;
+	resource: Resource | null;
 	left: number;
 }
 
@@ -121,7 +122,7 @@ class GameClient {
 	lastRoll = $state.raw<Roll | null>(null);
 	/**
 	 * Cards on their way to a hand (dealt off the tiles by a roll or a second settlement, taken
-	 * with a Monopoly, picked with a Year of Plenty, traded) that haven't reached it yet.
+	 * with a Monopoly, picked with a Year of Plenty, traded, stolen) that haven't reached it yet.
 	 */
 	dealt = $state.raw<Dealt[]>([]);
 	/** This player asked for a roll and the server hasn't answered yet. */
@@ -392,7 +393,7 @@ class GameClient {
 		}
 		// Cards that fly to a hand: dealt off the tiles, taken with a Monopoly, picked from the bank
 		// with a Year of Plenty, bought from the bank or a harbor, traded between players, given back
-		// for a workshop torn down.
+		// for a workshop torn down, stolen or paid as a toll (face down unless it's yours or theirs).
 		const gains: Gain[] = [];
 		for (const e of view.log) {
 			if (e.seq <= after) continue;
@@ -413,6 +414,10 @@ class GameClient {
 			} else if (e.type === 'eventCards') {
 				// An event's cards handed to a player (the ones you can see).
 				for (const m of e.moves) if (m.to !== null && m.resource) gains.push({ player: m.to, resource: m.resource, amount: 1 });
+			} else if (e.type === 'stole') {
+				gains.push({ player: e.thief, resource: e.resource, amount: 1 });
+			} else if (e.type === 'traitToll') {
+				gains.push({ player: e.to, resource: e.resource, amount: 1 });
 			} else if (e.type === 'tornDown') {
 				for (const [resource, amount] of Object.entries(e.refund)) {
 					if (amount) gains.push({ player: e.player, resource: resource as Resource, amount });
@@ -435,7 +440,7 @@ class GameClient {
 	}
 
 	/** A dealt card reached its hand: it flew into yours, or onto another player's plaque. */
-	arrived(player: number, resource: string) {
+	arrived(player: number, resource: string | null) {
 		const i = this.dealt.findIndex((d) => d.player === player && d.resource === resource);
 		if (i < 0) return;
 		this.dealt = this.dealt.flatMap((d, k) =>
