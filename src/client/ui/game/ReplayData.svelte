@@ -531,7 +531,7 @@
 	@media (max-width: 900px) {
 		.data {
 			top: auto;
-			bottom: 150px;
+			bottom: 196px;
 			left: 6px;
 			right: 6px;
 			width: auto;

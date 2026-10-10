@@ -89,6 +89,8 @@ await shot(`${name}-playing`, 0);
 await page.evaluate(() => window.__replay.pause());
 await page.evaluate(() => window.__replay.seek(Math.round(window.__replay.last * 0.6)));
 await shot(`${name}-middle`);
+// On a phone the data panel starts closed: its button opens it.
+if (!(await page.locator('.data').count())) await page.locator('.tools .icon-btn').first().click();
 const tabs = await page.locator('.data .tab').count();
 for (let i = 1; i < tabs; i++) {
 	await page.locator('.data .tab').nth(i).click();
