@@ -129,8 +129,8 @@
 			<span
 				class="coin vp"
 				title={p.totalPoints !== undefined && p.totalPoints !== p.publicPoints
-					? t('Victory points (including your hidden cards)')
-					: t('Victory points')}>{pts}</span
+					? t('Victory points, with your hidden cards: {points} of {goal} to win', { points: pts, goal: view.pointsToWin })
+					: t('Victory points: {points} of {goal} to win', { points: pts, goal: view.pointsToWin })}>{pts}</span
 			>
 			{#if road || army || offline || hexed}
 				<div class="medals">
