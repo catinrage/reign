@@ -1039,7 +1039,7 @@ export default {
 	"Island detail": "Détail de l'île",
 	"Standard": "Standard",
 	"Fine": "Fin",
-	"Experimental: Fine builds the island from voxels half the size, for more detail. It takes a moment to rebuild and asks more of your device.": "Expérimental : Fin construit l'île avec des voxels deux fois plus petits, pour plus de détail. La reconstruction prend un moment et sollicite davantage votre appareil.",
+	"Fine builds the island from voxels half the size, for more detail. Standard is lighter on old devices. Switching takes a moment to rebuild.": "Fin construit l'île avec des voxels deux fois plus petits, pour plus de détail. Standard ménage les appareils anciens. Le changement prend un moment à reconstruire.",
 	"Reduce motion": "Réduire les animations",
 	"Show FPS and ping": "Afficher FPS et ping",
 	"A small readout in the corner with how many frames a second your device draws.": "Un petit affichage dans le coin : combien d'images par seconde votre appareil dessine.",

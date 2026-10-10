@@ -45,6 +45,16 @@ function readQuality(): Quality {
 	return old === 'low' ? 'medium' : old === 'veryLow' ? 'low' : 'high';
 }
 
+/**
+ * Fine unless the player picked Standard. Low graphics, meant for old devices, starts on
+ * Standard too, since Fine draws about four times the triangles.
+ */
+function readDetail(quality: Quality): 1 | 2 {
+	const d = read('reign:detail');
+	if (d === '1' || d === '2') return d === '2' ? 2 : 1;
+	return quality === 'low' ? 1 : 2;
+}
+
 export const CHANNELS: { id: Channel; label: string }[] = [
 	{ id: 'master', label: msg('Master') },
 	{ id: 'sfx', label: msg('Effects') },
@@ -54,8 +64,8 @@ export const CHANNELS: { id: Channel; label: string }[] = [
 
 class Settings {
 	quality = $state<Quality>(readQuality());
-	/** Voxels per terrain unit: 1 standard, 2 fine (an experiment with half-size voxels). */
-	detail = $state<1 | 2>(read('reign:detail') === '2' ? 2 : 1);
+	/** Voxels per terrain unit: 1 standard, 2 fine (half-size voxels, the default). */
+	detail = $state<1 | 2>(readDetail(this.quality));
 	/** The room's lights down for a cozy evening: only this player sees it, and it changes nothing in the game. */
 	night = $state(read('reign:night') === '1');
 	/** A small readout of frames per second and the ping to the server, like competitive games have. */

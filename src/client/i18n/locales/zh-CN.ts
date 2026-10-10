@@ -1039,7 +1039,7 @@ export default {
 	"Island detail": "岛屿细节",
 	"Standard": "标准",
 	"Fine": "精细",
-	"Experimental: Fine builds the island from voxels half the size, for more detail. It takes a moment to rebuild and asks more of your device.": "实验性：精细模式用一半大小的体素构建岛屿，细节更丰富。重建需要片刻，对设备要求也更高。",
+	"Fine builds the island from voxels half the size, for more detail. Standard is lighter on old devices. Switching takes a moment to rebuild.": "精细模式用一半大小的体素构建岛屿，细节更丰富。标准模式对旧设备更友好。切换后重建需要片刻。",
 	"Reduce motion": "减少动态效果",
 	"Show FPS and ping": "显示帧率和延迟",
 	"A small readout in the corner with how many frames a second your device draws.": "在角落显示一个小面板：你的设备每秒绘制多少帧。",
