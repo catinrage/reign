@@ -7,7 +7,7 @@
 // Math.random is seeded, so every run deals the same island.
 // Usage: BASE=http://localhost:5173 node scripts/dev/tavern.mjs <outPrefix> [width] [height]
 // Options: ONLY=island,0,3 picks the shots, FACE=1 looks at each tavern from the front, RAD/POL/AZ
-// set the camera, GROW=1 and PICK=1 add the shots after them, QUALITY=veryLow draws faster.
+// set the camera, GROW=1 and PICK=1 add the shots after them, QUALITY=low draws faster.
 import { chromium } from 'playwright';
 const [out = '/tmp/tavern', w = '1280', h = '800'] = process.argv.slice(2);
 const browser = await chromium.launch({
@@ -17,7 +17,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 page.setDefaultTimeout(120000);
 await page.addInitScript((q) => {
-	if (q) localStorage.setItem('reign:quality', q);
+	if (q) localStorage.setItem('reign:graphics', q);
 	let a = 20261009;
 	Math.random = () => {
 		a = (a + 0x6d2b79f5) | 0;

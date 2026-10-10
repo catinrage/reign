@@ -14,7 +14,7 @@ const errors = [];
 
 async function start(context) {
 	const page = await context.newPage();
-	await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+	await page.addInitScript(() => localStorage.setItem('reign:graphics', 'medium'));
 	page.on('pageerror', (e) => errors.push(e.message));
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	await signIn(page, base);

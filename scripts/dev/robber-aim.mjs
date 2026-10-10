@@ -15,7 +15,7 @@ const browser = await chromium.launch({
 });
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+await page.addInitScript(() => localStorage.setItem('reign:graphics', 'medium'));
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && !m.text().includes('WebSocket') && errors.push(m.text()));
 await signIn(page, base);

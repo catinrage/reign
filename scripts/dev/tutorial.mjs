@@ -15,7 +15,7 @@ const page = await browser.newPage({ viewport: { width: Number(w), height: Numbe
 page.setDefaultTimeout(240000);
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 page.on('console', (m) => m.type() === 'error' && console.log('[console]', m.text()));
-await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+await page.addInitScript(() => localStorage.setItem('reign:graphics', 'medium'));
 const url = process.env.URL || 'http://localhost:5173/';
 await signIn(page, url);
 await page.goto(url);

@@ -31,7 +31,7 @@ async function socket(first) {
 async function open(name) {
 	const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 	page.on('pageerror', (e) => console.log(`[${name}]`, e.message));
-	await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+	await page.addInitScript(() => localStorage.setItem('reign:graphics', 'medium'));
 	await signIn(page, base);
 	await page.goto(`${base}/`);
 	await page.waitForFunction(() => window.__ready === true, null, {

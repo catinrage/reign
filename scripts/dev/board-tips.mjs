@@ -17,7 +17,7 @@ const browser = await chromium.launch({
 });
 const errors = [];
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
-await page.addInitScript(() => localStorage.setItem('reign:quality', 'low'));
+await page.addInitScript(() => localStorage.setItem('reign:graphics', 'medium'));
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 const until = (fn, arg) => page.waitForFunction(fn, arg, { timeout: 600000, polling: 200 });
