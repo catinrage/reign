@@ -29,6 +29,7 @@ import {
 	costOf,
 	fortressOf,
 	guildGoodsFor,
+	harborUsers,
 	paveSpots,
 	pathSpots,
 	roadSpots,
@@ -263,6 +264,7 @@ export function builtWhen(view: GameView, kind: BuiltKind, at: number): string |
  */
 export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text: string } | null {
 	const { place, at } = spot;
+	if (place === 'harbor') return harborTip(view, at);
 	let owner: number | null | undefined;
 	let kind: BuiltKind;
 	let path: CityPath | null = null;
@@ -304,6 +306,40 @@ export function pieceTip(view: GameView, spot: BoardSpot): { head: string; text:
 	}
 	if (path) lines.push(pathLine(view, path, at));
 	return { head: pieceName(view, path ?? kind, at), text: lines.join('\n') };
+}
+
+/**
+ * A harbor's name: "Wool harbor", or "Harbor for any resource". The rate is left to the line
+ * under it, since the pixel face of tooltip heads makes a small 2 look like an 8.
+ */
+export function harborName(view: GameView, port: number): string {
+	const kind = view.board.ports[port]?.kind;
+	return !kind || kind === 'any' ? t('Harbor for any resource') : t('{resource} harbor', { resource: t(RESOURCE_LABEL[kind]) });
+}
+
+/**
+ * A harbor's tooltip: what it trades, who trades there (or how to get it), and whether this
+ * round's storm has closed it.
+ */
+export function harborTip(view: GameView, port: number): { head: string; text: string } | null {
+	const kind = view.board.ports[port]?.kind;
+	if (!kind) return null;
+	const lines = [
+		kind === 'any'
+			? t('Trade 3 cards of any one resource for 1 card of your choice.')
+			: t('Trade 2 {resource} for 1 card of your choice.', { resource: t(RESOURCE_LABEL[kind]) })
+	];
+	const users = harborUsers(view, port);
+	if (!users.length) lines.push(t('Free: build a settlement on one of its two corners to trade here.'));
+	else if (users.includes(view.me) && users.length === 1) lines.push(t('Yours: you trade here.'));
+	else {
+		const list = users
+			.map((i) => (i === view.me ? t('you') : name(view, i)))
+			.reduce((list, next) => t('{list}, {next}', { list, next }));
+		lines.push(t('Traded at by: {players}', { players: list }));
+	}
+	if (view.events?.current === 'stormAtSea') lines.push(t('Closed this round by the Storm at Sea.'));
+	return { head: harborName(view, port), text: lines.join('\n') };
 }
 
 /** When a city took its path, for its tooltip (a path is only ever taken on a turn, never in setup). */

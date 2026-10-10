@@ -1572,5 +1572,14 @@ export default {
 	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "Pierre tombale moussue aux points blanc os, avec un crâne luisant pour le 1.",
 	"Midnight blue with glowing stars, and a gold star for the 1.": "Bleu minuit aux étoiles luisantes, avec une étoile d’or pour le 1.",
 	"Pick one of the dice.": "Choisissez l’un des dés.",
-	"Everyone at the table sees your dice when you roll.": "Tout le monde à table voit vos dés quand vous lancez."
+	"Everyone at the table sees your dice when you roll.": "Tout le monde à table voit vos dés quand vous lancez.",
+	"{resource} harbor": "Port : {resource}",
+	"Harbor for any resource": "Port pour toute ressource",
+	"Trade 3 cards of any one resource for 1 card of your choice.": "Échangez 3 cartes d’une même ressource, au choix, contre 1 carte de votre choix.",
+	"Trade 2 {resource} for 1 card of your choice.": "Échangez 2 {resource} contre 1 carte de votre choix.",
+	"Free: build a settlement on one of its two corners to trade here.": "Libre : construisez une colonie sur l’un de ses deux coins pour commercer ici.",
+	"Yours: you trade here.": "À vous : vous commercez ici.",
+	"Traded at by: {players}": "Commercent ici : {players}",
+	"Closed this round by the Storm at Sea.": "Fermé cette manche à cause de la tempête en mer.",
+	"Your harbors": "Vos ports"
 } satisfies Messages;

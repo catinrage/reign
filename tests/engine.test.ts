@@ -6,6 +6,8 @@ import { BANK_PER_RESOURCE, RESOURCES, STANDARD_NUMBER_POOL } from '../src/share
 import { applyAction, createGame, totalPoints } from '../src/shared/rules/engine';
 import {
 	citySpots,
+	harborUsers,
+	harborsOf,
 	longestRoad,
 	roadSpots,
 	settlementSpots,
@@ -157,6 +159,11 @@ describe('rules', () => {
 		};
 		expect(tradeRatios(cartographer, 1).sheep).toBe(2);
 		expect(tradeHarbor(cartographer, 1, 'sheep', 2)).toBe(wool);
+		// The harbors listed under a player's tiles, and who a harbor's tooltip names.
+		expect(harborsOf(t, 0)).toEqual([wool, any].sort((a, b) => a - b));
+		expect(harborsOf(road, 1)).toEqual([]);
+		expect(harborsOf(cartographer, 1)).toEqual([wool]);
+		expect(harborUsers({ ...cartographer, buildings }, wool)).toEqual([0, 1]);
 	});
 
 	it('says what each build, development card and discard handed the bank', () => {

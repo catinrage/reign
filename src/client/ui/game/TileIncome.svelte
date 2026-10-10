@@ -2,9 +2,11 @@
 	import { CHARACTER_INFO } from '../../../shared/rules/characters';
 	import { RESOURCE_LABEL, pips } from '../../../shared/rules/config';
 	import { rollLights, tileIncome, type TileIncome } from '../../../shared/rules/income';
+	import { harborsOf } from '../../../shared/rules/queries';
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
 	import { TERRAIN_NAME } from '../extended/terrainColors';
+	import { harborTip } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 	import { t } from '../../i18n/index.svelte';
@@ -59,6 +61,16 @@
 			: t('{terrain} {number}: {pays}', { terrain, number: tile.number, pays });
 	}
 
+	// Under the tiles, the harbors you trade at: the resource each takes and its rate.
+	const harbors = $derived(
+		harborsOf(view, me).map((port) => {
+			const kind = view.board.ports[port].kind;
+			const tip = harborTip(view, port);
+			return { port, kind, ratio: kind === 'any' ? 3 : 2, head: tip?.head ?? '', text: tip?.text ?? '' };
+		})
+	);
+	const storm = $derived(view.events?.current === 'stormAtSea');
+
 	// Once the dice land, the tiles the roll paid you light up gold, and the ones it would have but
 	// for the robber (or the Witch's Hex, or a bank run dry) light up red, until the next roll.
 	const roll = $derived(client.tossing ? null : client.lastRoll);
@@ -89,7 +101,7 @@
 	}
 </script>
 
-{#if rows.length || shepherd}
+{#if rows.length || shepherd || harbors.length}
 	<div
 		class="tiles panel"
 		class:closed={!open}
@@ -166,6 +178,26 @@
 								>
 								<b>1</b>
 							</span>
+						</span>
+					</div>
+				{/if}
+				{#if harbors.length}
+					<div class="sub">{t('Your harbors')}</div>
+					<div class="row harbors" class:dead={storm}>
+						<span class="token anchor"><img src={PIXEL.anchor} alt="" /></span>
+						<span class="pays">
+							{#each harbors as h (h.port)}
+								<span class="chip" title={h.text} data-tip-head={h.head}>
+									{#if h.kind === 'any'}
+										<span class="art any"><img src={PIXEL.trade} alt={h.head} /></span>
+									{:else}
+										<span class="art" style="--pat: var(--pat-{h.kind})"
+											><img src={icons[h.kind]} alt={h.head} /></span
+										>
+									{/if}
+									<b class="rate">{h.ratio}:1</b>
+								</span>
+							{/each}
 						</span>
 					</div>
 				{/if}
@@ -429,6 +461,33 @@
 		100% {
 			transform: scale(1);
 		}
+	}
+	/* The harbors you trade at, under your tiles. */
+	.sub {
+		margin-top: 4px;
+		padding: 0 4px;
+		font-size: 14px;
+		color: var(--gold);
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.7);
+	}
+	.token.anchor img {
+		width: 18px;
+		height: auto;
+		image-rendering: pixelated;
+	}
+	.art.any {
+		background: radial-gradient(circle at 40% 35%, #fff3d6 0%, #f6deaf 60%, #e6c48c 100%);
+	}
+	.art.any img {
+		width: 70%;
+		margin: 0;
+		image-rendering: pixelated;
+	}
+	.chip b.rate::before {
+		content: none;
+	}
+	.row.harbors.dead .art {
+		filter: grayscale(1) brightness(0.6);
 	}
 	.robber {
 		width: 18px;

@@ -283,14 +283,32 @@ export function tradeHarbor(s: Shared, player: number, give: Resource, ratio: nu
 	const base = ch === 'merchant' ? 3 : 4;
 	if (ratio >= base) return -1;
 	const kind = ratio === 2 ? give : 'any';
+	return getTopology(s.board).portEdges.findIndex((p, i) => p.kind === kind && tradesAtHarbor(s, player, i));
+}
+
+/**
+ * Whether a player trades at harbor `port` (an index into `board.ports`): they built on one of
+ * its two corners, or they are the Cartographer and a road of theirs touches one.
+ */
+export function tradesAtHarbor(s: Shared, player: number, port: number): boolean {
 	const topo = getTopology(s.board);
-	const reaches = (v: number) =>
-		s.buildings[v]?.owner === player ||
-		(ch === 'cartographer' && topo.vertices[v].edges.some((e) => s.roads[e] === player));
-	return topo.portEdges.findIndex((p) => {
-		const e = topo.edges[p.edge];
-		return p.kind === kind && (reaches(e.a) || reaches(e.b));
-	});
+	const p = topo.portEdges[port];
+	if (!p) return false;
+	const carto = s.players[player]?.character === 'cartographer';
+	const e = topo.edges[p.edge];
+	return [e.a, e.b].some(
+		(v) => s.buildings[v]?.owner === player || (carto && topo.vertices[v].edges.some((r) => s.roads[r] === player))
+	);
+}
+
+/** The harbors a player trades at, as indexes into `board.ports`, in board order. */
+export function harborsOf(s: Shared, player: number): number[] {
+	return s.board.ports.map((_, i) => i).filter((i) => tradesAtHarbor(s, player, i));
+}
+
+/** Everyone who trades at harbor `port`, in seat order. */
+export function harborUsers(s: Shared, port: number): number[] {
+	return s.players.map((_, i) => i).filter((i) => tradesAtHarbor(s, i, port));
 }
 
 /** Points from a player's buildings: 1 a settlement, 2 a city, 3 a castle. */

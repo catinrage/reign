@@ -1572,5 +1572,14 @@ export default {
 	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "长满青苔的墓石配骨白色的点，1 点是一个发光的骷髅。",
 	"Midnight blue with glowing stars, and a gold star for the 1.": "午夜蓝配发光的星星，1 点是一颗金星。",
 	"Pick one of the dice.": "请选择一种骰子。",
-	"Everyone at the table sees your dice when you roll.": "你掷骰时，桌上的每个人都能看到你的骰子。"
+	"Everyone at the table sees your dice when you roll.": "你掷骰时，桌上的每个人都能看到你的骰子。",
+	"{resource} harbor": "{resource}港口",
+	"Harbor for any resource": "通用港口",
+	"Trade 3 cards of any one resource for 1 card of your choice.": "用同一种资源的 3 张卡牌换 1 张任选的卡牌。",
+	"Trade 2 {resource} for 1 card of your choice.": "用 2 张{resource}换 1 张任选的卡牌。",
+	"Free: build a settlement on one of its two corners to trade here.": "空闲：在它的两个角之一建造村庄，即可在此交易。",
+	"Yours: you trade here.": "你的：你可以在这里交易。",
+	"Traded at by: {players}": "在此交易：{players}",
+	"Closed this round by the Storm at Sea.": "本轮因海上风暴关闭。",
+	"Your harbors": "你的港口"
 } satisfies Messages;

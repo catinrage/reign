@@ -1572,5 +1572,14 @@ export default {
 	"Mossy tomb stone with bone-white spots, and a glowing skull for the 1.": "Bemooster Grabstein mit knochenweißen Augen, und einem leuchtenden Schädel als 1.",
 	"Midnight blue with glowing stars, and a gold star for the 1.": "Mitternachtsblau mit leuchtenden Sternen, und einem goldenen Stern als 1.",
 	"Pick one of the dice.": "Wähle einen der Würfel.",
-	"Everyone at the table sees your dice when you roll.": "Alle am Tisch sehen deine Würfel, wenn du würfelst."
+	"Everyone at the table sees your dice when you roll.": "Alle am Tisch sehen deine Würfel, wenn du würfelst.",
+	"{resource} harbor": "Hafen: {resource}",
+	"Harbor for any resource": "Hafen für jeden Rohstoff",
+	"Trade 3 cards of any one resource for 1 card of your choice.": "Tausche 3 Karten eines beliebigen Rohstoffs gegen 1 Karte deiner Wahl.",
+	"Trade 2 {resource} for 1 card of your choice.": "Tausche 2 {resource} gegen 1 Karte deiner Wahl.",
+	"Free: build a settlement on one of its two corners to trade here.": "Frei: Baue eine Siedlung an eine seiner zwei Ecken, um hier zu handeln.",
+	"Yours: you trade here.": "Deiner: Du handelst hier.",
+	"Traded at by: {players}": "Hier handeln: {players}",
+	"Closed this round by the Storm at Sea.": "In dieser Runde wegen Sturm auf See geschlossen.",
+	"Your harbors": "Deine Häfen"
 } satisfies Messages;
