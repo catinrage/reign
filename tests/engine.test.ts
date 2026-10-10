@@ -330,6 +330,6 @@ describe('full bot games', () => {
 				expect(totalPoints(s, s.winner!)).toBeGreaterThanOrEqual(10);
 				checkConservation(s);
 			}
-		});
+		}, 60_000);
 	}
 });

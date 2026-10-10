@@ -196,11 +196,16 @@ describe('taverns', () => {
 });
 
 describe('bots and taverns', () => {
-	/** A bot in its main step holding `hand`, with every building but the tavern switched off. */
+	/**
+	 * A bot in its main step holding `hand`, with every building but the tavern switched off, and its
+	 * trade offer for the turn already made and turned down.
+	 */
 	function botWith(hand: Partial<ResourceCounts>, tavern = false): GameState {
 		const s = structuredClone(midGame(extended({ buildings: { ...allBuildings(false), tavern: true } })));
 		s.players[s.current].resources = { ...NONE, ...hand };
 		settle(s);
+		const offer = { id: 1, from: s.current, give: { wood: 1 }, want: { ore: 1 }, responses: {} };
+		s.log.push({ type: 'tradeOffered', offer, seq: s.nextEventSeq++ } as GameEvent);
 		return tavern ? withTavern(s, s.current) : s;
 	}
 
