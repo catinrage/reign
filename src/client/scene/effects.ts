@@ -15,6 +15,8 @@ interface Particle {
 	gravity: number;
 	drag: number;
 	color: THREE.Color;
+	/** Grows in and shrinks away again (a firefly), rather than starting at full size. */
+	swell: boolean;
 }
 
 const MAX = 1500;
@@ -23,23 +25,26 @@ export class Particles {
 	readonly mesh: THREE.InstancedMesh;
 	private list: Particle[] = [];
 	private dummy = new THREE.Object3D();
+	private max: number;
 
-	constructor(scene: THREE.Scene) {
+	/** `glow` particles give light rather than catch it (sparks, fireflies), and cast no shadows. */
+	constructor(scene: THREE.Scene, glow = false) {
 		const geo = new THREE.BoxGeometry(1, 1, 1);
-		const mat = new THREE.MeshStandardMaterial({ roughness: 0.8, emissive: '#000000' });
-		this.mesh = new THREE.InstancedMesh(geo, mat, MAX);
+		const mat = glow ? new THREE.MeshBasicMaterial() : new THREE.MeshStandardMaterial({ roughness: 0.8, emissive: '#000000' });
+		this.max = glow ? 300 : MAX;
+		this.mesh = new THREE.InstancedMesh(geo, mat, this.max);
 		this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 		this.mesh.count = 0;
-		this.mesh.castShadow = true;
+		this.mesh.castShadow = !glow;
 		this.mesh.frustumCulled = false;
-		this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
+		this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.max * 3), 3);
 		scene.add(this.mesh);
 	}
 
 	emit(opts: {
 		at: THREE.Vector3;
 		count: number;
-		colors: (string | number)[];
+		colors: (string | number | THREE.Color)[];
 		speed?: number;
 		up?: number;
 		spread?: number;
@@ -47,8 +52,9 @@ export class Particles {
 		size?: number;
 		gravity?: number;
 		drag?: number;
+		swell?: boolean;
 	}) {
-		for (let i = 0; i < opts.count && this.list.length < MAX; i++) {
+		for (let i = 0; i < opts.count && this.list.length < this.max; i++) {
 			const ang = Math.random() * Math.PI * 2;
 			const sp = (opts.speed ?? 10) * (0.4 + Math.random() * 0.6);
 			const spread = opts.spread ?? 1;
@@ -62,7 +68,8 @@ export class Particles {
 				size: (opts.size ?? 0.8) * (0.6 + Math.random() * 0.6),
 				gravity: opts.gravity ?? 30,
 				drag: opts.drag ?? 2.5,
-				color: new THREE.Color(opts.colors[Math.floor(Math.random() * opts.colors.length)])
+				color: new THREE.Color(opts.colors[Math.floor(Math.random() * opts.colors.length)]),
+				swell: !!opts.swell
 			});
 		}
 	}
@@ -95,7 +102,7 @@ export class Particles {
 			p.rot.x += p.spin.x * dt;
 			p.rot.y += p.spin.y * dt;
 			p.rot.z += p.spin.z * dt;
-			const k = 1 - Math.pow(p.life / p.maxLife, 3);
+			const k = p.swell ? Math.sin((Math.PI * p.life) / p.maxLife) : 1 - Math.pow(p.life / p.maxLife, 3);
 			this.dummy.position.copy(p.pos);
 			this.dummy.rotation.copy(p.rot);
 			this.dummy.scale.setScalar(p.size * k);

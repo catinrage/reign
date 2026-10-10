@@ -1462,5 +1462,9 @@ export default {
 	"Auto roll": "Auto-Würfeln",
 	"On: your dice roll by themselves a moment after your turn starts.": "An: Kurz nach Beginn deines Zugs wird von selbst gewürfelt.",
 	"Off: press Roll dice yourself. Turn it on to roll by itself when your turn starts.": "Aus: Drück selbst auf Würfeln. Schalte es an, damit zu Beginn deines Zugs von selbst gewürfelt wird.",
-	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}, der Würfel-Knopf in der Ecke, würfelt kurz nach Beginn deines Zugs für dich. Du hast trotzdem Zeit, vorher einen Ritter zu spielen oder deine Kraft einzusetzen."
+	"{autoRoll}, the die button in the corner, rolls your dice for you a moment after your turn starts. There's still time to play a Knight or a power first.": "{autoRoll}, der Würfel-Knopf in der Ecke, würfelt kurz nach Beginn deines Zugs für dich. Du hast trotzdem Zeit, vorher einen Ritter zu spielen oder deine Kraft einzusetzen.",
+	"Night mode": "Nachtmodus",
+	"Puts the room's lights out for a cozy evening by the fire, with the houses lit from within. Only you see it, and it changes nothing in the game.": "Löscht das Licht im Zimmer für einen gemütlichen Abend am Kamin, und in den Häusern brennt Licht. Nur du siehst es, und am Spiel ändert es nichts.",
+	"On: the room is lit by the fire and the moon. Only you see it. (N)": "An: Kaminfeuer und Mond erhellen das Zimmer. Nur du siehst es. (N)",
+	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "Aus: Lösch das Licht im Zimmer für einen gemütlichen Abend. Nur du siehst es. (N)"
 } satisfies Messages;

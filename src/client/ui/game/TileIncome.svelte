@@ -354,7 +354,7 @@
 	/* Phones: under the corner buttons, which stand in a column here, and folded until opened. */
 	@media (max-width: 900px) {
 		.tiles {
-			--top: calc(104px + var(--clock-h, 0px) + var(--s) * 48 + 20px);
+			--top: calc(104px + var(--clock-h, 0px) + var(--s) * 80 + 36px);
 			--below: 290px;
 			left: 6px;
 			min-width: 150px;
@@ -383,7 +383,7 @@
 	}
 	@media (max-width: 700px) {
 		.tiles.cheats {
-			--top: calc(104px + var(--clock-h, 0px) + var(--s) * 64 + 30px);
+			--top: calc(104px + var(--clock-h, 0px) + var(--s) * 96 + 42px);
 		}
 	}
 </style>

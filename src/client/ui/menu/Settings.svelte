@@ -106,6 +106,22 @@
 	<section>
 		<div class="divider"><i></i><span>{t('Graphics')}</span><i></i></div>
 		<div class="row">
+			<span class="name"><img class="icon-px" src={PIXEL.moon} alt="" />{t('Night mode')}</span>
+			<div class="seg">
+				<button class="btn small" class:on={!settings.night} onclick={() => settings.setNight(false)}
+					>{t('Off')}</button
+				>
+				<button class="btn small" class:on={settings.night} onclick={() => settings.setNight(true)}
+					>{t('On')}</button
+				>
+			</div>
+		</div>
+		<p class="hint">
+			{t(
+				"Puts the room's lights out for a cozy evening by the fire, with the houses lit from within. Only you see it, and it changes nothing in the game."
+			)}
+		</p>
+		<div class="row">
 			<span class="name">{t('Quality')}</span>
 			<div class="seg wrap">
 				<button

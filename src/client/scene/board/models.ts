@@ -16,6 +16,28 @@ interface BuildOptions {
 	mats?: Partial<Record<Mat, VoxelMaterialOptions>>;
 	/** A dark rim round the silhouette (see `addOutline`). */
 	outline?: boolean;
+	/** Voxels only there at night (see `nightPart`), in a grid this size (the model's by default). */
+	night?: (g: VoxelGrid) => void;
+	nightSize?: [number, number, number];
+}
+
+/** Night-only voxels glow and flicker as the model's own do, and light up one by one. */
+const NIGHT_MATS: Partial<Record<Mat, VoxelMaterialOptions>> = {
+	[Mat.Fire]: { emissive: 2.6, night: true },
+	[Mat.Glow]: { emissive: 1.8, night: true },
+	[Mat.Solid]: { night: true }
+};
+
+/**
+ * What a model has only at night (a lantern by the door, a fire on a chimney), meshed on its own
+ * so it hides none of the model's faces by day. Named 'night', in the model's units.
+ */
+function nightPart(size: [number, number, number], fill: (g: VoxelGrid) => void, center: [number, number, number], scale: number) {
+	const grid = new VoxelGrid(size[0], size[1], size[2]);
+	fill(grid);
+	const part = meshesFor(meshGrid(grid, { jitter: 0.05 }), scale, NIGHT_MATS, center);
+	part.name = 'night';
+	return part;
 }
 
 export function build(
@@ -34,6 +56,7 @@ export function build(
 		const mats = { [Mat.Glow]: { emissive: 1.6 }, ...opts.mats };
 		g = meshesFor(meshGrid(grid, { jitter: opts.jitter ?? 0.05 }), scale, mats, c);
 		if (opts.outline) addOutline(g);
+		if (opts.night) g.add(nightPart(opts.nightSize ?? size, opts.night, c, scale));
 		cache.set(key, g);
 	}
 	return g;
@@ -49,6 +72,9 @@ export function cloneModel(g: THREE.Group): THREE.Group {
 export const WINDOW = hex('#ffd77a');
 export const DOOR = hex('#4a2c18');
 export const STONE = [hex('#8e8a84'), hex('#a29d96')];
+/** Night's flames: a lantern's, and the deeper orange of embers and beacons. */
+const LANTERN = hex('#ffc65a');
+const EMBER = hex('#ff8a2a');
 /** The dark joints between paving stones. */
 const MORTAR = hex('#5f5a55');
 
@@ -79,7 +105,15 @@ export function settlementModel(color: number): THREE.Group {
 		g.box(2, 4, 5, 4, 4, 5, wall);
 		// chimney
 		g.box(5, 4, 2, 5, 6, 2, (x, y, z) => pick(STONE, hash3(x, y, z)));
-	}, undefined, 1, PIECE);
+	}, undefined, 1, {
+		...PIECE,
+		// At night: a lantern lit by the door, and the hearth's glow in the chimney.
+		nightSize: [7, 8, 7],
+		night: (g) => {
+			g.set(4, 2, 6, LANTERN, Mat.Fire);
+			g.set(5, 7, 2, EMBER, Mat.Fire);
+		}
+	});
 }
 
 export function cityModel(color: number): THREE.Group {
@@ -106,7 +140,16 @@ export function cityModel(color: number): THREE.Group {
 		g.set(8, 2, 4, WINDOW, Mat.Glow);
 		// stone foundation
 		g.box(1, 0, 2, 8, 0, 6, (x, y, z) => (x === 5 || x === 6) && z === 6 ? DOOR : pick(STONE, hash3(x, y, z, 2)));
-	}, undefined, 1, PIECE);
+	}, undefined, 1, {
+		...PIECE,
+		// At night: torches either side of the door and a beacon burning on the tower.
+		nightSize: [10, 13, 8],
+		night: (g) => {
+			g.set(4, 2, 7, LANTERN, Mat.Fire);
+			g.set(7, 2, 7, LANTERN, Mat.Fire);
+			g.set(2, 12, 1, EMBER, Mat.Fire);
+		}
+	});
 }
 
 /**

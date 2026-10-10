@@ -11,12 +11,22 @@ import { Mat } from './grid';
 
 /** How many yards of trodden crops the land can have at once (see `sharedUniforms.uYards`). */
 export const YARDS = 16;
+/** How many buildings can light the ground round them at night (see `sharedUniforms.uLamps`). */
+export const LAMPS = 48;
 
 export const sharedUniforms = {
 	uTime: { value: 0 },
 	uFlicker: { value: 1 },
-	/** 0 = day, 1 = night. Phase two's day/night cycle drives this. */
+	/** 0 = day, 1 = night mode, set by `Lighting` as it fades between them. */
 	uNight: { value: 0 },
+	/**
+	 * Warm light spilling from the windows and doors of buildings at night, onto the land and
+	 * sea round them: each is (center x, center z, radius, strength) in world units, unused while
+	 * its radius is 0.
+	 */
+	uLamps: { value: Array.from({ length: LAMPS }, () => new THREE.Vector4()) },
+	/** How many of `uLamps` are in use, from the first. */
+	uLampCount: { value: 0 },
 	/**
 	 * Board tiles drained to a dark gray, for the robber: each is (center x, center z, amount,
 	 * 0) in world units. Two slots, so one tile can fade back while the next one grays.
@@ -84,6 +94,13 @@ export interface VoxelMaterialOptions {
 	 * shade of trees and peaks and stand out from the land round them.
 	 */
 	lift?: number;
+	/** Lit at night by the buildings round it (see `sharedUniforms.uLamps`): the island's land and sea. */
+	lamps?: boolean;
+	/**
+	 * Only there at night: each voxel lights up on its own as night falls (a building's lantern,
+	 * a fire in a brazier). Meshes of these should not cast shadows.
+	 */
+	night?: boolean;
 }
 
 const VERT_HEAD = /* glsl */ `
@@ -225,6 +242,26 @@ const FRAG_RIM = /* glsl */ `
 }
 `;
 
+/**
+ * Night: the warm light of nearby windows and doors pools on the ground round each building,
+ * fading out to its radius. Each voxel takes one value, so the light keeps to the blocks.
+ */
+const FRAG_LAMPS = /* glsl */ `
+if (uNight > 0.0 && uLampCount > 0.0) {
+	// The land isn't turned, only scaled and moved, so the voxel's middle is this far off.
+	vec2 cellW = vLampW.xy + (floor(vVox - vVoxN * 0.5).xz + 0.5 - vVox.xz) * vLampW.z;
+	float glow = 0.0;
+	for (int i = 0; i < ${LAMPS}; i++) {
+		if (float(i) >= uLampCount) break;
+		vec4 l = uLamps[i];
+		float d = length(cellW - l.xy) / l.z;
+		float k = clamp(1.0 - d, 0.0, 1.0);
+		glow += k * (0.35 + 0.65 * k) * l.w;
+	}
+	totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.56, 0.24) * min(glow, 2.2) * uNight;
+}
+`;
+
 function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMaterialOptions) {
 	const bevel = { value: opts.bevel ?? 0.55 };
 	const bevelWidth = { value: opts.bevelWidth ?? 0.14 };
@@ -240,6 +277,10 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		shader.uniforms.uBevel = bevel;
 		shader.uniforms.uBevelWidth = bevelWidth;
 		shader.uniforms.uLift = lift;
+		if (opts.lamps) {
+			shader.uniforms.uLamps = sharedUniforms.uLamps;
+			shader.uniforms.uLampCount = sharedUniforms.uLampCount;
+		}
 		if (opts.tileGray) {
 			shader.uniforms.uGray = sharedUniforms.uGray;
 			shader.uniforms.uGrayVoxel = sharedUniforms.uGrayVoxel;
@@ -273,6 +314,13 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 					transformed.x += sway * 0.5 * k * uSwayScale;
 					transformed.z += sway * 0.3 * k * uSwayScale;
 				}`
+			);
+		}
+		if (opts.lamps) {
+			vs = vs.replace('#include <common>', '#include <common>\nvarying vec3 vLampW;');
+			vs = vs.replace(
+				'#include <begin_vertex>',
+				'#include <begin_vertex>\nvLampW = vec3((modelMatrix * vec4(position, 1.0)).xz, length(modelMatrix[0].xyz));'
 			);
 		}
 		shader.vertexShader = vs;
@@ -309,22 +357,35 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 				'#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * uLift;'
 			);
 		}
+		if (opts.lamps) {
+			fs = fs.replace('#include <common>', `#include <common>\nuniform vec4 uLamps[${LAMPS}];\nuniform float uLampCount;\nvarying vec3 vLampW;`);
+			fs = fs.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${FRAG_LAMPS}`);
+		}
 		if (kind === Mat.Glow || kind === Mat.Fire) {
 			const flick = kind === Mat.Fire ? 'uFlicker' : '1.0';
+			// Windows and flames burn brighter at night, with the room's lights down.
+			const night = kind === Mat.Fire ? '0.45' : '0.9';
 			fs = fs.replace(
 				'#include <emissivemap_fragment>',
 				/* glsl */ `#include <emissivemap_fragment>
 				{
 					float h = voxHash(floor(vVox + 1e-3));
 					float f = ${flick} * (0.85 + 0.3 * sin(uTime * (6.0 + h * 5.0) + h * 30.0));
-					totalEmissiveRadiance = diffuseColor.rgb * emissive * f;
+					totalEmissiveRadiance = diffuseColor.rgb * emissive * f * (1.0 + uNight * ${night});
 				}`
+			);
+		}
+		if (opts.night) {
+			// Each voxel comes on at its own moment as night falls, and goes out again at dawn.
+			fs = fs.replace(
+				'#include <clipping_planes_fragment>',
+				'#include <clipping_planes_fragment>\nif (voxHash(floor(vVox - vVoxN * 0.5) + 0.37) * 0.9 + 0.05 >= uNight) discard;'
 			);
 		}
 		shader.fragmentShader = fs;
 	};
 	material.customProgramCacheKey = () =>
-		`voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}${opts.lift ? '-lift' : ''}`;
+		`voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}${opts.lift ? '-lift' : ''}${opts.lamps ? '-lamps' : ''}${opts.night ? '-night' : ''}`;
 	return material;
 }
 
@@ -359,7 +420,7 @@ export function meshesFor(
 	const group = new THREE.Group();
 	for (const [mat, geo] of geos) {
 		const mesh = new THREE.Mesh(geo, voxelMaterial(mat, opts[mat]));
-		mesh.castShadow = mat !== Mat.Water;
+		mesh.castShadow = mat !== Mat.Water && !opts[mat]?.night;
 		mesh.receiveShadow = true;
 		mesh.scale.setScalar(scale);
 		mesh.position.set(-center[0] * scale, -center[1] * scale, -center[2] * scale);

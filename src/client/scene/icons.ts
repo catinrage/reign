@@ -71,6 +71,8 @@ export function getIcons(): IconSet {
 	// `tight` frames the model's own voxels as the camera sees them, centred, instead of the sphere
 	// round its box: a tall, thin model (a mill with its sails) then fills its picture like the rest.
 	const shoot = (key: string, model: THREE.Object3D, yaw = -0.6, tight = false) => {
+		// Pictures show pieces by day, without what they light at night.
+		model.getObjectByName('night')?.removeFromParent();
 		const holder = new THREE.Group();
 		holder.add(model);
 		model.rotation.y = yaw;

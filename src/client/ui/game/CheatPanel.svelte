@@ -268,9 +268,9 @@
 		border-color: rgba(255, 110, 80, 0.5);
 	}
 	@media (max-width: 700px) {
-		/* Under the menu, pigeon, pause and auto roll buttons. */
+		/* Under the menu, pause, auto roll and night buttons and the turn. */
 		.toggle {
-			top: calc(104px + var(--clock-h, 0px) + var(--s) * 64 + 24px);
+			top: calc(104px + var(--clock-h, 0px) + var(--s) * 80 + 30px);
 			left: 6px;
 		}
 		.cheats {

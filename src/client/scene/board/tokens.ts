@@ -118,7 +118,8 @@ function withFace(tex: THREE.Texture, seeThrough = false): THREE.Group {
 	g.add(disc());
 	const face = new THREE.Mesh(
 		new THREE.CircleGeometry(TOKEN_RADIUS * 0.98, 40),
-		new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, transparent: true })
+		// At night the face glows a little from within (see `BoardView.update`), to read in the dark.
+		new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0x000000, roughness: 0.7, transparent: true })
 	);
 	face.rotation.x = -Math.PI / 2;
 	face.position.y = 2.02;

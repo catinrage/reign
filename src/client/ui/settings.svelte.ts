@@ -6,7 +6,7 @@ import { msg } from '../i18n/index.svelte';
 /**
  * Player preferences that live in this browser: volumes (owned by the sound module),
  * graphics quality (read by the scene at startup, so changing it reloads), island detail,
- * reduced motion and the size of the interface.
+ * night mode, reduced motion and the size of the interface.
  */
 
 function read(key: string): string | null {
@@ -56,6 +56,8 @@ class Settings {
 	quality = $state<Quality>(readQuality());
 	/** Voxels per terrain unit: 1 standard, 2 fine (an experiment with half-size voxels). */
 	detail = $state<1 | 2>(read('reign:detail') === '2' ? 2 : 1);
+	/** The room's lights down for a cozy evening: only this player sees it, and it changes nothing in the game. */
+	night = $state(read('reign:night') === '1');
 	reduceMotion = $state(
 		read('reign:reduceMotion') === null
 			? typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -93,6 +95,13 @@ class Settings {
 		write('reign:detail', String(d));
 		// Rebuilding takes a moment; let the button show its new state first.
 		setTimeout(() => sceneRef.current?.setDetail(d), 50);
+	}
+
+	setNight(on: boolean) {
+		if (on === this.night) return;
+		this.night = on;
+		write('reign:night', on ? '1' : '0');
+		sceneRef.current?.stage.setNight(on);
 	}
 
 	setHudSize(v: number) {

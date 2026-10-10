@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Mat, VoxelGrid, hash3, hex, mix, pick, shade } from '../voxel/grid';
+import { FRAG_OUTPUT } from '../voxel/materials';
 import { GREEN_PLAID, SWAY_Y, grain, rand, tartan, voxels } from './util';
 
 // ---------------------------------------------------------------- lantern (1-unit voxels)
@@ -504,6 +505,92 @@ export function buildWindow(): THREE.Group {
 	}
 	g.box(-23, 41, 0, 22, 42, 3, hex('#2a1a12'));
 	return voxels(g, 3, { jitter: 0.03, drop: (_x, y, z) => y < 0 || z < 0, shadows: false, mats: { [Mat.Glow]: { emissive: 0.7 } } });
+}
+
+/**
+ * Moonlight falling in through a window at night: a shaft from the glass, slanting down into the
+ * room and fading out. It is drawn as added light in thin sheets across it, each fading out to
+ * its edges and its far end, so the shaft has soft sides from any angle. `moonbeamMaterial`'s
+ * opacity follows the night. In the window's units, from `buildWindow`'s glass.
+ */
+export function buildMoonbeam(material: THREE.ShaderMaterial): THREE.Mesh {
+	// The glass, and where the light goes: into the room and down.
+	const [x0, x1, y0, y1, z] = [-39, 39, 6, 108, 3.5];
+	const dir = new THREE.Vector3(0, -0.6, 1).normalize().multiplyScalar(260);
+	const spread = 1.15;
+	const mid = new THREE.Vector3(0, (y0 + y1) / 2, z);
+	const far = (p: THREE.Vector3) => p.clone().sub(mid).multiplyScalar(spread).add(mid).add(dir);
+	const moon = new THREE.Color('#2c3f80');
+	const pos: number[] = [];
+	const col: number[] = [];
+	const put = (p: THREE.Vector3, k: number) => {
+		pos.push(p.x, p.y, p.z);
+		col.push(moon.r * k, moon.g * k, moon.b * k);
+	};
+	/** A sheet across the shaft from the glass line a-b: bright down its middle and at the glass. */
+	const sheet = (a: THREE.Vector3, b: THREE.Vector3, w: number) => {
+		const m = a.clone().lerp(b, 0.5);
+		const rows: [THREE.Vector3, number][] = [
+			[a, 0],
+			[m, w],
+			[b, 0]
+		];
+		for (let i = 0; i < 2; i++) {
+			const [p, kp] = rows[i];
+			const [q, kq] = rows[i + 1];
+			put(p, kp), put(q, kq), put(far(q), 0);
+			put(p, kp), put(far(q), 0), put(far(p), 0);
+		}
+	};
+	const N = 5;
+	for (let i = 0; i < N; i++) {
+		const t = (i + 0.5) / N;
+		const w = 1 - Math.abs(2 * t - 1) * 0.7;
+		const x = THREE.MathUtils.lerp(x0, x1, t);
+		const y = THREE.MathUtils.lerp(y0, y1, t);
+		sheet(new THREE.Vector3(x, y0, z), new THREE.Vector3(x, y1, z), w);
+		sheet(new THREE.Vector3(x0, y, z), new THREE.Vector3(x1, y, z), w);
+	}
+	const geo = new THREE.BufferGeometry();
+	geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+	geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+	const mesh = new THREE.Mesh(geo, material);
+	mesh.name = 'moonbeam';
+	mesh.renderOrder = 3;
+	mesh.frustumCulled = false;
+	return mesh;
+}
+
+/**
+ * The shafts of moonlight share one material: their light, added to what's behind them, and
+ * fading out close to the eye, so the camera can pass through a shaft without a blue haze.
+ */
+export function moonbeamMaterial() {
+	return new THREE.ShaderMaterial({
+		uniforms: { uOpacity: { value: 0 } },
+		vertexColors: true,
+		transparent: true,
+		blending: THREE.AdditiveBlending,
+		depthWrite: false,
+		side: THREE.DoubleSide,
+		vertexShader: /* glsl */ `
+			varying vec3 vColor;
+			varying float vDepth;
+			void main() {
+				vColor = color;
+				vec4 view = modelViewMatrix * vec4(position, 1.0);
+				vDepth = -view.z;
+				gl_Position = projectionMatrix * view;
+			}`,
+		fragmentShader: /* glsl */ `
+			uniform float uOpacity;
+			varying vec3 vColor;
+			varying float vDepth;
+			void main() {
+				gl_FragColor = vec4(vColor * uOpacity * smoothstep(40.0, 160.0, vDepth), 1.0);
+				${FRAG_OUTPUT}
+			}`
+	});
 }
 
 export interface Clock {

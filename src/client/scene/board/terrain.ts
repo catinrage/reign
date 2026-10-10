@@ -404,9 +404,9 @@ export function buildBoard(board: Board, seed: number, detail = 1, withPlots = f
 	const geos = meshGrid(grid, { jitter: 0.06, skipFloor: true });
 	const aa = S > 1;
 	const group = meshesFor(geos, vox, {
-		[Mat.Solid]: { tileGray: true, antialias: aa },
-		[Mat.Sway]: { swayBase: G * S, swayScale: S, roughness: 0.7, tileGray: true, antialias: aa },
-		[Mat.Water]: { roughness: 0.22, bevel: 0.35, antialias: aa }
+		[Mat.Solid]: { tileGray: true, antialias: aa, lamps: true },
+		[Mat.Sway]: { swayBase: G * S, swayScale: S, roughness: 0.7, tileGray: true, antialias: aa, lamps: true },
+		[Mat.Water]: { roughness: 0.22, bevel: 0.35, antialias: aa, lamps: true }
 	});
 	sharedUniforms.uGrayVoxel.value = vox;
 	group.name = 'board';

@@ -113,6 +113,9 @@ interface PieceObj {
 }
 
 const ROAD_LEN = 8;
+/** Night's glowing specks, brighter than white so they bloom: chimney sparks and fireflies. */
+const SPARKS = [new THREE.Color(3, 1.2, 0.3), new THREE.Color(2.6, 0.8, 0.2), new THREE.Color(3, 1.8, 0.6)];
+const FIREFLIES = [new THREE.Color(2.2, 3, 0.7), new THREE.Color(1.8, 2.6, 0.5), new THREE.Color(2.6, 2.8, 1)];
 const PIECE_SCALE = 0.64;
 /** The cat purrs for about as long as its sound, and at most once in this long. */
 const PURR_SECONDS = 3;
@@ -128,6 +131,9 @@ export class GameScene {
 	readonly stage: Stage;
 	readonly anim = new Animator();
 	readonly particles: Particles;
+	/** Sparks from the chimneys and fireflies over the island at night. */
+	private nightLights: Particles;
+	private fireflyClock = 0;
 	private room: Room;
 	private boardView: BoardView | null = null;
 	private boardKey = '';
@@ -203,6 +209,7 @@ export class GameScene {
 	) {
 		this.stage = new Stage(canvas, quality);
 		this.particles = new Particles(this.stage.scene);
+		this.nightLights = new Particles(this.stage.scene, true);
 		this.room = buildRoom(this.stage);
 		this.dice = new Dice(this.stage.scene, this.anim, this.particles);
 		this.aim = new RobberAim(this.stage.scene, this.particles);
@@ -429,6 +436,29 @@ export class GameScene {
 		for (const p of this.pieces.values()) this.stage.scene.remove(p.obj);
 		this.pieces.clear();
 		this.syncYards();
+		this.syncLamps();
+	}
+
+	/** At night the windows and doors of buildings light the land round them (see `uLamps`). */
+	private syncLamps() {
+		const lamps = sharedUniforms.uLamps.value;
+		let i = 0;
+		for (const p of this.pieces.values()) {
+			if (i >= lamps.length) break;
+			const look = lookOf(p.key);
+			const [radius, strength] = p.key.startsWith('t')
+				? [11, 1.4]
+				: p.key.startsWith('w')
+					? [8, 0.8]
+					: !p.key.startsWith('v')
+						? [0, 0]
+						: look === 'settlement'
+							? [11, 1.5]
+							: [14, 1.8];
+			if (radius) lamps[i++].set(p.obj.position.x, p.obj.position.z, radius, strength);
+		}
+		sharedUniforms.uLampCount.value = i;
+		for (; i < lamps.length; i++) lamps[i].set(0, 0, 0, 0);
 	}
 
 	/** Tread the crops flat in front of each storehouse and tavern, so a field's wheat doesn't bury it. */
@@ -528,6 +558,7 @@ export class GameScene {
 			if (animate) this.dropIn(obj, key.startsWith('e'));
 		}
 		this.syncYards();
+		this.syncLamps();
 	}
 
 	/** Ring the numbers of the tiles you're on, and show who holds each harbor. */
@@ -1380,6 +1411,27 @@ export class GameScene {
 		if (!local) return;
 		const at = p.obj.localToWorld(local.clone());
 		this.particles.emit({ at, count: 1, colors: ['#d9d4cc', '#c4beb5', '#eeeae4'], speed: 0.6, up: 3.2, spread: 0.3, life: 3.2, size: 0.9, gravity: -0.4, drag: 0.4 });
+		// At night the hearth below sends up a spark now and then.
+		if (sharedUniforms.uNight.value > 0.5 && Math.random() < 0.6)
+			this.nightLights.emit({ at, count: 1 + Math.floor(Math.random() * 2), colors: SPARKS, speed: 1.2, up: 5, spread: 0.4, life: 1.3, size: 0.32, gravity: -1, drag: 1.2 });
+	}
+
+	/** Fireflies drift over the woods and meadows at night. */
+	private fireflies(dt: number) {
+		const bv = this.boardView;
+		const n = sharedUniforms.uNight.value;
+		if (!bv || n < 0.3) return;
+		this.fireflyClock += dt * n;
+		if (this.fireflyClock < 0.1) return;
+		this.fireflyClock = 0;
+		const hexes = bv.board.hexes.flatMap((h, i) => (h.terrain === 'forest' || h.terrain === 'pasture' ? [i] : []));
+		if (!hexes.length) return;
+		const c = bv.hexCenter(hexes[Math.floor(Math.random() * hexes.length)]);
+		const a = Math.random() * Math.PI * 2;
+		const r = Math.sqrt(Math.random()) * HEX_R * 0.8;
+		const at = new THREE.Vector3(c.x + Math.cos(a) * r, 0, c.z + Math.sin(a) * r);
+		at.y = bv.groundAt(at.x, at.z, 1) + 2 + Math.random() * 5;
+		this.nightLights.emit({ at, count: 1, colors: FIREFLIES, speed: 1.4, up: 0.6, spread: 0.5, life: 4.5, size: 0.55, gravity: 0, drag: 0.15, swell: true });
 	}
 
 	/**
@@ -1524,6 +1576,8 @@ export class GameScene {
 	private frame(dt: number, t: number) {
 		this.anim.update(dt);
 		this.particles.update(dt);
+		this.nightLights.update(dt);
+		this.fireflies(dt);
 		this.room.update(dt, t);
 		if (!this.diceDown && this.room.ready && this.boardView) {
 			this.diceDown = true;
