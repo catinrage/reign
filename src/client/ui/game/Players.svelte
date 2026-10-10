@@ -41,7 +41,7 @@
 
 <svelte:window bind:innerWidth bind:innerHeight />
 
-<div class="players" style:zoom={zoom < 1 ? zoom.toFixed(3) : undefined}>
+<div class="players" data-net-anchor="players" style:zoom={zoom < 1 ? zoom.toFixed(3) : undefined}>
 	{#each view.players as p, i (i)}
 		{@const current = i === view.current && playing}
 		{@const pts = p.totalPoints ?? p.publicPoints}

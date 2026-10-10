@@ -6,7 +6,7 @@ import { msg } from '../i18n/index.svelte';
 /**
  * Player preferences that live in this browser: volumes (owned by the sound module),
  * graphics quality (read by the scene at startup, so changing it reloads), island detail,
- * night mode, reduced motion and the size of the interface.
+ * night mode, reduced motion, the size of the interface and the performance readout.
  */
 
 function read(key: string): string | null {
@@ -58,6 +58,8 @@ class Settings {
 	detail = $state<1 | 2>(read('reign:detail') === '2' ? 2 : 1);
 	/** The room's lights down for a cozy evening: only this player sees it, and it changes nothing in the game. */
 	night = $state(read('reign:night') === '1');
+	/** A small readout of frames per second and the ping to the server, like competitive games have. */
+	showStats = $state(read('reign:stats') === '1');
 	reduceMotion = $state(
 		read('reign:reduceMotion') === null
 			? typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -112,6 +114,11 @@ class Settings {
 	setMenuSize(v: number) {
 		this.menuSize = clampSize(v);
 		write('reign:menuSize', String(this.menuSize));
+	}
+
+	setShowStats(on: boolean) {
+		this.showStats = on;
+		write('reign:stats', on ? '1' : '0');
 	}
 
 	setReduceMotion(on: boolean) {

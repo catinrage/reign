@@ -119,7 +119,8 @@ export type ClientMessage =
 	/** Invite a friend (by account id) to this table. */
 	| { t: 'invite'; user: string }
 	| { t: 'declineInvite'; id: string }
-	| { t: 'ping' };
+	/** Keeps the line open; `n` asks for a pong carrying it back, to time the round trip. */
+	| { t: 'ping'; n?: number };
 
 export type ServerMessage =
 	/** `cheats` is set when the server runs as the local dev server and accepts dev cheats. */
@@ -150,7 +151,8 @@ export type ServerMessage =
 	| { t: 'presence'; user: string; where: Whereabouts }
 	/** A friend invites this player to their table. */
 	| { t: 'invited'; invite: RoomInvite }
-	| { t: 'pong' };
+	/** The answer to a ping, with its `n`. */
+	| { t: 'pong'; n?: number };
 
 /** The most any table seats; how many a game actually takes depends on the mode and island. */
 export const MAX_PLAYERS = 8;

@@ -4,6 +4,7 @@
 	import { isMuted, setMuted } from '../sound';
 	import { msg, t } from '../../i18n/index.svelte';
 	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
+	import { OFFLINE } from '../../offline/flag';
 
 	let muted = $state(isMuted());
 	function toggleMute(m: boolean) {
@@ -163,6 +164,28 @@
 		</div>
 		<p class="hint">
 			{t('Experimental: Fine builds the island from voxels half the size, for more detail. It takes a moment to rebuild and asks more of your device.')}
+		</p>
+		<div class="row">
+			<span class="name">{t('Show FPS and ping')}</span>
+			<div class="seg">
+				<button
+					class="btn small"
+					class:on={!settings.showStats}
+					onclick={() => settings.setShowStats(false)}>{t('Off')}</button
+				>
+				<button
+					class="btn small"
+					class:on={settings.showStats}
+					onclick={() => settings.setShowStats(true)}>{t('On')}</button
+				>
+			</div>
+		</div>
+		<p class="hint">
+			{OFFLINE
+				? t('A small readout in the corner with how many frames a second your device draws.')
+				: t(
+						'A small readout in the corner with how many frames a second your device draws and how long a message takes to reach the server and back (ping).'
+					)}
 		</p>
 		<div class="row">
 			<span class="name">{t('Reduce motion')}</span>

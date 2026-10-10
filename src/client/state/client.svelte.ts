@@ -5,6 +5,7 @@ import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
 import type { Action, GameEvent, GameView } from '../../shared/rules/types';
 import { t, tx } from '../i18n/index.svelte';
 import { account } from './account.svelte';
+import { netStats } from './netStats.svelte';
 
 /**
  * The one connection to the game server plus everything the interface renders from.
@@ -178,6 +179,11 @@ class GameClient {
 	constructor() {
 		const code = invitedRoom();
 		if (code) this.joining = { code, error: null };
+		netStats.connect((n) => {
+			if (this.ws?.readyState !== WebSocket.OPEN) return false;
+			this.send({ t: 'ping', n });
+			return true;
+		});
 	}
 
 	connect() {
@@ -200,6 +206,7 @@ class GameClient {
 			if (this.ws !== ws) return;
 			this.status = 'offline';
 			this.ws = null;
+			netStats.dropped();
 			if (!this.wanted) return;
 			const delay = Math.min(8000, 400 * 2 ** this.retry++);
 			setTimeout(() => this.connect(), delay);
@@ -235,6 +242,9 @@ class GameClient {
 				break;
 			case 'notice':
 				this.toast(tx(msg.message), 'info');
+				break;
+			case 'pong':
+				netStats.pong(msg.n);
 				break;
 			case 'welcome':
 				if (this.dropJoin) {
