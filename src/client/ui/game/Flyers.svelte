@@ -89,8 +89,8 @@
 			else flyers.toPlayer(to, resource, start, onArrive);
 		},
 		/**
-		 * A card a player hands over to the bank, from their cards to a point on screen: the bank's
-		 * pile on the table, or a harbor on the island.
+		 * A card a player hands over, from their cards to a point on screen: the bank's pile on the
+		 * table, a harbor on the island, or the piece the card paid for.
 		 */
 		away(resource: string, from: number, me: number, to: Point, onArrive?: () => void) {
 			const start = cardsOf(from, resource, me);

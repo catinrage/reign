@@ -7,7 +7,7 @@ import { RESOURCES, TERRAIN_RESOURCE } from '../../shared/rules/config';
 import { isCityPath } from '../../shared/rules/buildings';
 import type { EventCard } from '../../shared/rules/events';
 import { builtKey } from '../../shared/rules/queries';
-import type { GameEvent, GameView } from '../../shared/rules/types';
+import type { BuiltKind, GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
@@ -98,6 +98,8 @@ function spotOf(key: string): BoardSpot | null {
 	const place = m && SPOT_PLACE[m[1]];
 	return place ? { place, at: Number(m[2]) } : null;
 }
+/** How the key of the piece a build puts up starts (settlements, cities and their paths: v). */
+const BUILT_PLACE: Partial<Record<BuiltKind, string>> = { road: 'e', stoneRoad: 'e', workshop: 'w', storehouse: 's', tavern: 't' };
 
 interface PieceObj {
 	key: string;
@@ -1029,13 +1031,49 @@ export class GameScene {
 	}
 
 	/**
-	 * Where on screen the cards paid to the bank land (in a trade, for a build or a development
-	 * card, or thrown back on a 7): on the bank's pile of `resource`, or on the harbor whose rate a
-	 * trade got. When that is out of sight, off screen or under one of the interface's panels, they
-	 * fly off the edge of the screen toward it rather than onto a panel (a player's plaque, say).
+	 * Where on screen the cards paid to the bank land (in a trade, for a development card, or thrown
+	 * back on a 7): on the bank's pile of `resource`, or on the harbor whose rate a trade got. When
+	 * that is out of sight, off screen or under one of the interface's panels, they fly off the edge
+	 * of the screen toward it rather than onto a panel (a player's plaque, say).
 	 */
 	tradeTarget(resource: string, harbor: number) {
-		const at = this.onScreen(this.tradeSpot(resource, harbor), -60);
+		return this.cardTarget(this.tradeSpot(resource, harbor));
+	}
+
+	/**
+	 * Where on screen the cards paid for a build land: on the piece it put up (`kind` on spot `at`,
+	 * as the `built` event says), or off the edge of the screen toward it like the bank's piles.
+	 * Null when that piece isn't on the board.
+	 */
+	buildTarget(kind: BuiltKind, at: number) {
+		const spot = this.builtSpot(kind, at);
+		return spot && this.cardTarget(spot);
+	}
+
+	/** A card paid for a build reached the piece it put up. */
+	buildLanded(kind: BuiltKind, at: number) {
+		const spot = this.builtSpot(kind, at);
+		if (spot) this.particles.sparkle(spot, '#fff1b8', 5);
+	}
+
+	/** The middle of the piece a build put up, as it stands once it has dropped into place. */
+	private builtSpot(kind: BuiltKind, at: number): THREE.Vector3 | null {
+		const prefix = `${BUILT_PLACE[kind] ?? 'v'}${at}:`;
+		for (const p of this.pieces.values()) {
+			if (!p.key.startsWith(prefix)) continue;
+			// Measured without the light round it while its player is highlighted.
+			const box = new THREE.Box3();
+			p.obj.updateWorldMatrix(true, false);
+			for (const part of p.obj.children) if (part !== p.glow) box.expandByObject(part);
+			const c = box.getCenter(new THREE.Vector3());
+			return c.setY(c.y + p.ground - p.obj.position.y);
+		}
+		return null;
+	}
+
+	/** Where on screen a card flying to `p` lands, or the edge it leaves by when `p` is out of sight. */
+	private cardTarget(p: THREE.Vector3) {
+		const at = this.onScreen(p, -60);
 		return this.underHud(at) ? this.pastEdge(at) : at;
 	}
 
