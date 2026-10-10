@@ -453,9 +453,14 @@
 	}
 
 	/* A storm: slanted rain over everything and a flash of lightning. */
+	/*
+	 * The rain pours by moving the whole sheet (on the graphics card), not its pattern (which
+	 * would repaint the screen every frame). It reaches one pattern tile higher, 120px, so its
+	 * top edge stays out of sight as it moves down, with the stripes where they were.
+	 */
 	.rain {
 		position: absolute;
-		inset: -20% -20%;
+		inset: calc(-20% - 120px) -20% -20%;
 		background: repeating-linear-gradient(
 			105deg,
 			transparent 0 14px,
@@ -476,7 +481,7 @@
 	}
 	@keyframes pour {
 		to {
-			background-position: -32px 120px;
+			transform: translate(-32px, 120px);
 		}
 	}
 	@keyframes fade {

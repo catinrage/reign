@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CameraRig } from './camera';
 import { Lighting } from './lighting';
+import { ShadowCache } from './shadowCache';
 import { sharedUniforms } from './voxel/materials';
 
 /** Low is for old devices: no shadows, reflections or post-processing, and fewer pixels. */
@@ -53,6 +54,8 @@ export class Stage {
 	readonly camera: THREE.PerspectiveCamera;
 	readonly rig: CameraRig;
 	readonly lighting: Lighting;
+	/** Low has no shadows. */
+	readonly shadows: ShadowCache | null = null;
 	/** Low has none: the scene is drawn straight to the screen. */
 	private composer: EffectComposer | null = null;
 	private dof: DepthOfFieldEffect | null = null;
@@ -64,6 +67,11 @@ export class Stage {
 	private updaters = new Set<(dt: number, t: number) => void>();
 	private running = false;
 	private quality: Quality;
+	/**
+	 * Where the canvas is on the page, in CSS pixels, as of the last resize: pointer events and
+	 * tooltips read this rather than asking the page to lay itself out again.
+	 */
+	readonly box = { left: 0, top: 0, width: 1, height: 1 };
 
 	constructor(readonly canvas: HTMLCanvasElement, quality: Quality = 'high') {
 		this.quality = quality;
@@ -93,11 +101,31 @@ export class Stage {
 		this.camera = new THREE.PerspectiveCamera(FOV, 1, 4, 2400);
 		this.rig = new CameraRig(this.camera, canvas);
 		this.lighting = new Lighting(this.scene, quality);
+		if (!plain) this.shadows = new ShadowCache(this.renderer, this.scene, this.lighting.key);
 
 		if (!plain) this.composer = this.postProcessing(quality === 'high');
 
 		window.addEventListener('resize', this.resize);
 		this.resize();
+	}
+
+	/**
+	 * Build the shaders for `object` (the whole scene by default) ahead of its first frame, in
+	 * the background where the browser can, so nothing stalls a frame to build them later.
+	 */
+	async compile(object: THREE.Object3D = this.scene) {
+		const r = this.renderer;
+		const back = r.getRenderTarget();
+		// Shaders are built for where they draw: post-processing draws the scene into a buffer of
+		// its own (linear colors), not straight to the screen (sRGB), so build them for that.
+		if (this.composer) r.setRenderTarget(this.composer.inputBuffer);
+		let ready: Promise<unknown>;
+		try {
+			ready = r.compileAsync(object, this.camera, this.scene);
+		} finally {
+			r.setRenderTarget(back);
+		}
+		await ready.catch(() => {});
 	}
 
 	/** Depth of field, bloom and a color grade (high and medium). */
@@ -261,6 +289,8 @@ export class Stage {
 	resize = () => {
 		const w = this.canvas.clientWidth || window.innerWidth;
 		const h = this.canvas.clientHeight || window.innerHeight;
+		const r = this.canvas.getBoundingClientRect();
+		Object.assign(this.box, { left: r.left, top: r.top, width: r.width || w, height: r.height || h });
 		this.renderer.setPixelRatio(this.pixelRatio(w, h));
 		this.renderer.setSize(w, h, false);
 		this.composer?.setSize(w, h, false);
@@ -280,6 +310,7 @@ export class Stage {
 		window.removeEventListener('resize', this.resize);
 		this.rig.dispose();
 		this.composer?.dispose();
+		this.shadows?.dispose();
 		this.renderer.dispose();
 	}
 }

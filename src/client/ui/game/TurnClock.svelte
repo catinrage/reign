@@ -26,7 +26,9 @@
 		title={running ? t('Time left this turn') : t('Paused')}
 	>
 		<span class="time">{Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}</span>
-		<span class="bar"><i style="width:{Math.min(100, (100 * left) / total)}%"></i></span>
+		<span class="bar"
+			><i style="transform:scaleX({Math.max(0, Math.min(1, left / total))})"></i></span
+		>
 	</div>
 {/if}
 
@@ -80,11 +82,13 @@
 		height: var(--s);
 		background: rgba(10, 4, 2, 0.6);
 	}
+	/* It drains by shrinking from the right (a transform, so the page isn't laid out again ten times a second). */
 	.bar i {
 		display: block;
 		height: 100%;
 		background: linear-gradient(180deg, #ffe08a, #f2b431);
-		transition: width 0.1s linear;
+		transform-origin: left;
+		transition: transform 0.1s linear;
 	}
 	.low .time {
 		color: #ffb4a0;

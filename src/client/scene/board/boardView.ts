@@ -285,7 +285,7 @@ export class BoardView {
 			else if (g.amount > g.target) g.amount = Math.max(g.target, g.amount - dt / 0.8);
 		}
 		this.applyGray();
-		for (const tok of [...this.tokens, ...this.harbors]) {
+		for (const list of [this.tokens, this.harbors]) for (const tok of list) {
 			const target = tok.userData.dim ? 0.55 : 1;
 			const face = tok.getObjectByName('face') as THREE.Mesh | undefined;
 			if (face) {
