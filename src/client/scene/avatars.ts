@@ -1,6 +1,6 @@
 import type { AvatarId } from '../../shared/accounts';
 import { hash3, hex, shade } from './voxel/grid';
-import { type Bust, bustImage } from './portraits';
+import { type Bust, bustImage, characterBusts, drawBust, drawBusts } from './portraits';
 
 /**
  * Player avatars: premade voxel busts a player wears on their account, built like the Reign
@@ -389,7 +389,24 @@ const BUILDERS: Record<AvatarId, (b: Bust) => void> = {
 	frog
 };
 
-/** A rendered avatar as an image URL (PNG data), or null where WebGL isn't available. */
-export function avatarUrl(id: AvatarId): string | null {
+/**
+ * A rendered avatar as an image URL (PNG data), null where WebGL isn't available, or undefined
+ * while it's still being drawn (in the background, once per avatar).
+ */
+export function avatarUrl(id: AvatarId): string | null | undefined {
 	return bustImage(`avatar:${id}`, BUILDERS[id] ?? knight);
+}
+
+/** An avatar once it's drawn (null without WebGL). */
+export function loadAvatar(id: AvatarId): Promise<string | null> {
+	return drawBust(`avatar:${id}`, BUILDERS[id] ?? knight);
+}
+
+/**
+ * Draw every avatar and character portrait ahead of time, one at a time between frames, so no
+ * screen has to wait for them. Settles once all are drawn; `progress` hears after each one.
+ */
+export function prewarmBusts(progress?: (done: number, total: number) => void): Promise<void> {
+	const avatars = Object.entries(BUILDERS).map(([id, build]): [string, (b: Bust) => void] => [`avatar:${id}`, build]);
+	return drawBusts([...avatars, ...characterBusts()], progress);
 }

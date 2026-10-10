@@ -22,9 +22,10 @@
 
 <span class="avatar" class:framed style="--size:{size}px">
 	<span class="pic">
+		<!-- The url is undefined while the picture is being drawn, and null where WebGL isn't available. -->
 		{#if url}
 			<img src={url} alt={id ? t(AVATAR_NAMES[id]) : ''} draggable="false" />
-		{:else}
+		{:else if url === null}
 			<span class="initial">{id ? t(AVATAR_NAMES[id])[0] : '?'}</span>
 		{/if}
 	</span>

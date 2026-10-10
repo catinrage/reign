@@ -35,6 +35,8 @@ async function open(name) {
 const lobby = (page) => page.waitForFunction(() => !!window.__client.lobby, null, { timeout: 60000 });
 const shot = async (page, name, wait = 1500) => {
 	await page.waitForTimeout(wait);
+	// Portraits draw in the background, one at a time.
+	await page.evaluate(() => window.__portraits());
 	await page.screenshot({ path: `${dir}/${name}.png`, timeout: 180000, animations: 'disabled' });
 	console.log('shot', name);
 };

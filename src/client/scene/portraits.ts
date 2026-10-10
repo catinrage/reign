@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { SvelteMap } from 'svelte/reactivity';
 import type { CharacterId } from '../../shared/rules/characters';
 import { Mat, VoxelGrid, hash3, hex, mix, shade } from './voxel/grid';
 import { meshesFor } from './voxel/materials';
@@ -644,70 +645,158 @@ export function bustGroup(build: (b: Bust) => void): THREE.Group {
 // ---------------------------------------------------------------- rendering to images
 
 const SIZE = 256;
-const cache = new Map<string, string>();
-let renderer: THREE.WebGLRenderer | null = null;
-let failed = false;
 
 /**
- * A rendered portrait as an image URL (PNG data), or null where WebGL isn't available.
- * Rendering happens once per character and is cached.
+ * Drawn images by key: a PNG data URL, or null where WebGL isn't available. A SvelteMap, so an
+ * interface reading one shows the image the moment it's drawn.
  */
-export function portraitUrl(id: CharacterId): string | null {
+const images = new SvelteMap<string, string | null>();
+type Job = { build: (b: Bust) => void; done: ((url: string | null) => void)[] };
+const jobs = new Map<string, Job>();
+/** Keys to draw: `soon` for images on screen, `later` for drawing ahead of time. */
+const soon: string[] = [];
+const later: string[] = [];
+let studio: Studio | null = null;
+let failed = false;
+let running = false;
+
+/**
+ * A rendered portrait as an image URL (PNG data), null where WebGL isn't available, or undefined
+ * while it's still being drawn. Each character is drawn once, in the background, and cached.
+ */
+export function portraitUrl(id: CharacterId): string | null | undefined {
 	return bustImage(`character:${id}`, BUILDERS[id]);
 }
 
-/** A bust drawn by `build` rendered as an image URL, cached under `key`; null without WebGL. */
-export function bustImage(key: string, build: (b: Bust) => void): string | null {
-	const hit = cache.get(key);
-	if (hit || failed) return hit ?? null;
-	try {
-		renderer ??= makeRenderer();
-		const url = render(renderer, bustGroup(build));
-		cache.set(key, url);
-		return url;
-	} catch (e) {
-		console.warn('Portraits unavailable', e);
-		failed = true;
-		return null;
+/** A character's portrait once it's drawn (null without WebGL). */
+export function loadPortrait(id: CharacterId): Promise<string | null> {
+	return drawBust(`character:${id}`, BUILDERS[id]);
+}
+
+/** Every character's portrait, drawn ahead of time so no screen waits for them. */
+export function characterBusts(): [string, (b: Bust) => void][] {
+	return Object.entries(BUILDERS).map(([id, build]) => [`character:${id}`, build]);
+}
+
+/**
+ * A bust drawn by `build` as an image URL, cached under `key`: null without WebGL, undefined
+ * until it's drawn. Never draws on the spot: it queues the bust and returns, so a screen full of
+ * portraits opens at once and fills in as each one is ready.
+ */
+export function bustImage(key: string, build: (b: Bust) => void): string | null | undefined {
+	if (images.has(key)) return images.get(key);
+	if (failed) return null;
+	void drawBust(key, build);
+	return undefined;
+}
+
+/**
+ * Draw a bust (if it isn't drawn yet) and settle with its image URL, or null without WebGL.
+ * `ahead` puts it behind every bust a screen is waiting for.
+ */
+export function drawBust(key: string, build: (b: Bust) => void, ahead = false): Promise<string | null> {
+	if (images.has(key)) return Promise.resolve(images.get(key)!);
+	if (failed) return Promise.resolve(null);
+	return new Promise((done) => {
+		const job = jobs.get(key);
+		if (job) job.done.push(done);
+		else jobs.set(key, { build, done: [done] });
+		(ahead ? later : soon).push(key);
+		if (!running) {
+			running = true;
+			// Start after the next paint, so whatever asked for the bust shows first.
+			requestAnimationFrame(() => setTimeout(next));
+		}
+	});
+}
+
+/** Draw several busts ahead of time, one after another; `progress` hears after each. */
+export async function drawBusts(list: [string, (b: Bust) => void][], progress?: (done: number, total: number) => void) {
+	let count = 0;
+	progress?.(0, list.length);
+	await Promise.all(list.map(([key, build]) => drawBust(key, build, true).then(() => progress?.(++count, list.length))));
+}
+
+/**
+ * Draw the next waiting bust, then yield to the page before the one after: each takes a few
+ * milliseconds, where all of them at once held the page up for seconds.
+ */
+async function next() {
+	const key = soon.shift() ?? later.shift();
+	if (key === undefined) {
+		running = false;
+		return;
 	}
+	const job = jobs.get(key);
+	if (job) {
+		let url: string | null = null;
+		try {
+			studio ??= new Studio();
+			url = await studio.draw(bustGroup(job.build));
+		} catch (e) {
+			console.warn('Portraits unavailable', e);
+			failed = true;
+		}
+		jobs.delete(key);
+		images.set(key, url);
+		job.done.forEach((done) => done(url));
+		if (failed) {
+			for (const [k, j] of jobs) {
+				images.set(k, null);
+				j.done.forEach((done) => done(null));
+			}
+			jobs.clear();
+		}
+	}
+	setTimeout(next);
 }
 
-function makeRenderer() {
-	const canvas = document.createElement('canvas');
-	const r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, powerPreference: 'low-power' });
-	r.setPixelRatio(1);
-	r.setSize(SIZE, SIZE, false);
-	r.outputColorSpace = THREE.SRGBColorSpace;
-	r.toneMapping = THREE.ACESFilmicToneMapping;
-	r.toneMappingExposure = 1.05;
-	r.setClearColor(0x000000, 0);
-	return r;
-}
-
-function render(r: THREE.WebGLRenderer, bust: THREE.Group): string {
-	const scene = new THREE.Scene();
-	const pmrem = new THREE.PMREMGenerator(r);
-	scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-	scene.environmentIntensity = 0.35;
-	pmrem.dispose();
-	scene.add(new THREE.HemisphereLight('#ffe6c8', '#3a1c0c', 1.1));
-	const key = new THREE.DirectionalLight('#ffd8a8', 2.2);
-	key.position.set(-40, 60, 80);
-	scene.add(key);
-	const rim = new THREE.DirectionalLight('#ff9a4a', 1.4);
-	rim.position.set(60, 20, -40);
-	scene.add(rim);
-
-	bust.rotation.y = -0.42;
-	bust.rotation.x = 0.06;
-	scene.add(bust);
+/** One renderer, scene, lights and camera, set up once and shared by every portrait. */
+class Studio {
+	private renderer: THREE.WebGLRenderer;
+	private scene = new THREE.Scene();
 	// Framed from the chest up, like a painted portrait.
-	const camera = new THREE.PerspectiveCamera(22, 1, 10, 1000);
-	camera.position.set(0, 6, 70);
-	camera.lookAt(0, 3, 0);
-	r.render(scene, camera);
-	const url = r.domElement.toDataURL('image/png');
-	scene.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
-	scene.environment?.dispose();
-	return url;
+	private camera = new THREE.PerspectiveCamera(22, 1, 10, 1000);
+
+	constructor() {
+		const canvas = document.createElement('canvas');
+		const r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true, powerPreference: 'low-power' });
+		r.setPixelRatio(1);
+		r.setSize(SIZE, SIZE, false);
+		r.outputColorSpace = THREE.SRGBColorSpace;
+		r.toneMapping = THREE.ACESFilmicToneMapping;
+		r.toneMappingExposure = 1.05;
+		r.setClearColor(0x000000, 0);
+		this.renderer = r;
+
+		const scene = this.scene;
+		const pmrem = new THREE.PMREMGenerator(r);
+		scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+		scene.environmentIntensity = 0.35;
+		pmrem.dispose();
+		scene.add(new THREE.HemisphereLight('#ffe6c8', '#3a1c0c', 1.1));
+		const key = new THREE.DirectionalLight('#ffd8a8', 2.2);
+		key.position.set(-40, 60, 80);
+		scene.add(key);
+		const rim = new THREE.DirectionalLight('#ff9a4a', 1.4);
+		rim.position.set(60, 20, -40);
+		scene.add(rim);
+		this.camera.position.set(0, 6, 70);
+		this.camera.lookAt(0, 3, 0);
+	}
+
+	async draw(bust: THREE.Group): Promise<string> {
+		bust.rotation.y = -0.42;
+		bust.rotation.x = 0.06;
+		this.scene.add(bust);
+		try {
+			// Compile any new shaders off the main thread where the browser can (only the first bust has any).
+			await this.renderer.compileAsync(this.scene, this.camera);
+			this.renderer.render(this.scene, this.camera);
+			return this.renderer.domElement.toDataURL('image/png');
+		} finally {
+			this.scene.remove(bust);
+			bust.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+		}
+	}
 }

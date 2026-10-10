@@ -16,9 +16,10 @@
 </script>
 
 <span class="portrait" class:framed style="--size:{size}px" title={info && tip ? t('{character} {epithet}', { character: name, epithet: t(info.title) }) : undefined}>
+	<!-- The url is undefined while the picture is being drawn, and null where WebGL isn't available. -->
 	{#if url}
 		<img src={url} alt={name} draggable="false" />
-	{:else}
+	{:else if url === null}
 		<span class="initial">{name[0] ?? '?'}</span>
 	{/if}
 </span>

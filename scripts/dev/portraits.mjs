@@ -14,7 +14,7 @@ await page.evaluate(async () => {
 	document.body.innerHTML = '<div id=g style="display:grid;grid-template-columns:repeat(4,256px);gap:8px;padding:8px;background:#3a1f12"></div>';
 	for (const id of ids) {
 		const img = new Image();
-		img.src = m.portraitUrl(id);
+		img.src = await m.loadPortrait(id);
 		img.style.background = '#5a3020';
 		document.getElementById('g').appendChild(img);
 	}
