@@ -269,6 +269,52 @@ describe('client: rolls and dealt cards', () => {
 		expect(client.dealt).toEqual([]);
 	});
 
+	it('counts a stolen card as it lands, face down when it is not yours or taken from you', () => {
+		const g = botGame(17);
+		while (g.state.phase === 'setup') receive(g.step());
+		vi.advanceTimersByTime(6000);
+		receive(g.state);
+		expect(client.dealt).toEqual([]);
+		// The thief may steal from the victim, whose only card is an ore.
+		const steal = (state: GameState, thief: number, victim: number) => {
+			const robbable: GameState = {
+				...state,
+				current: thief,
+				step: 'steal',
+				resumeStep: 'main',
+				stealCandidates: [victim],
+				players: state.players.map((pl, i) =>
+					i === victim
+						? { ...pl, resources: { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 1 } }
+						: pl
+				)
+			};
+			const r = applyAction(robbable, thief, { type: 'steal', victim });
+			if (!r.ok) throw new Error(r.error);
+			receive(r.state);
+			return r.state;
+		};
+
+		// Player 0 steals: the ore is on its way to their hand.
+		const mine = steal(g.state, 0, 1);
+		expect(client.onTheWay(0, 'ore')).toBe(1);
+		client.arrived(0, 'ore');
+		expect(client.dealt).toEqual([]);
+
+		// Between two others: a card is on its way to the thief, but player 0 can't tell which.
+		const theirs = steal(mine, 1, 2);
+		expect(client.onTheWay(1)).toBe(1);
+		expect(client.onTheWay(1, 'ore')).toBe(0);
+		client.arrived(1, null);
+		expect(client.dealt).toEqual([]);
+
+		// Stolen from player 0, who knows what they lost; it counts anyway after a while.
+		steal(theirs, 2, 0);
+		expect(client.onTheWay(2, 'ore')).toBe(1);
+		vi.advanceTimersByTime(5000);
+		expect(client.dealt).toEqual([]);
+	});
+
 	it('starts over with a new game, whose events count from the start again', () => {
 		const g = botGame(16);
 		const { roll } = rollNext(g);

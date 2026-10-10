@@ -158,6 +158,8 @@ export class GameScene {
 	private menuMap = '';
 	/** Settles when the dice of the latest roll come to rest. */
 	private diceLanded: Promise<void> = Promise.resolve();
+	/** Settles when the robber's latest hop to a new tile lands. */
+	private robberHop: Promise<void> = Promise.resolve();
 	/** The Reign Extended event card in play this round, shown on the island while it lasts. */
 	private eventLook: EventCard | null = null;
 	/** A Comet is waiting for the next roll. */
@@ -304,7 +306,8 @@ export class GameScene {
 		this.syncPieces(view, !changed);
 		this.syncMarks(view);
 		this.syncPowerMarks(view);
-		if (!first && prev && prev.robberHex !== view.robberHex) this.moveRobber(view.robberHex);
+		if (!first && prev && prev.robberHex !== view.robberHex)
+			this.robberHop = this.moveRobber(view.robberHex);
 		const fresh = view.log.filter((e) => e.seq > this.lastSeq);
 		if (fresh.length) this.lastSeq = fresh[fresh.length - 1].seq;
 		if (!first) for (const e of fresh) this.playEvent(e);
@@ -973,6 +976,11 @@ export class GameScene {
 	tradeTarget(resource: string, harbor: number) {
 		const at = this.onScreen(this.tradeSpot(resource, harbor), -60);
 		return this.underHud(at) ? this.pastEdge(at) : at;
+	}
+
+	/** Settles once the robber is on its tile: at once, or as its hop to a new one lands. */
+	robberLanded(): Promise<void> {
+		return this.robberHop;
 	}
 
 	/** A card paid to the bank reached the pile or the harbor. */

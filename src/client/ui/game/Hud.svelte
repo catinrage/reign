@@ -242,14 +242,22 @@
 				else client.toast(t('{player} ran out of time', { player: view.players[e.player].name }));
 				break;
 			case 'stole':
-				sfx.steal();
-				if (e.victim === me) {
-					const thief = view.players[e.thief].name;
-					if (e.resource) client.toast(t('{player} stole your {resource}!', { player: thief, resource: t(RESOURCE_LABEL[e.resource]) }), 'error');
-					else client.toast(t('{player} stole a card!', { player: thief }), 'error');
-				}
-				if (e.thief === me && e.resource)
-					client.toast(t('You stole {resource} from {player}', { resource: t(RESOURCE_LABEL[e.resource]), player: view.players[e.victim].name }), 'good');
+				// Once the robber has landed, the card flies from the victim's cards to the thief's.
+				afterRobber(() => {
+					sfx.steal();
+					if (e.victim === me) {
+						const thief = view.players[e.thief].name;
+						if (e.resource) client.toast(t('{player} stole your {resource}!', { player: thief, resource: t(RESOURCE_LABEL[e.resource]) }), 'error');
+						else client.toast(t('{player} stole a card!', { player: thief }), 'error');
+					}
+					if (e.thief === me && e.resource)
+						client.toast(t('You stole {resource} from {player}', { resource: t(RESOURCE_LABEL[e.resource]), player: view.players[e.victim].name }), 'good');
+					flyStolen(e.victim, e.thief, e.resource);
+				});
+				break;
+			case 'traitToll':
+				// The Witch's purse makes a thief pay her instead; the Baron takes a toll on roads.
+				afterRobber(() => flyStolen(e.from, e.to, e.resource));
 				break;
 			case 'monopoly':
 				if (e.player !== me && e.taken[me]) client.toast(t('{player} took all your {resource}!', { player: view.players[e.player].name, resource: t(RESOURCE_LABEL[e.resource]) }), 'error');
@@ -320,6 +328,37 @@
 
 	/** Time between cards that fly off one after another in a trade or a payment, in ms. */
 	const CARD_GAP_MS = 120;
+	/** How long a stolen card waits at most for the robber to land (a hidden tab draws nothing). */
+	const ROBBER_WAIT_MS = 3000;
+	/** When the last stolen card set off (performance.now()), so the next one follows it. */
+	let lastStolen = -Infinity;
+
+	/**
+	 * Show a stolen card once the robber has landed on its new tile, a moment after the card
+	 * before it (the Rogue takes two).
+	 */
+	function afterRobber(show: () => void) {
+		const landed = sceneRef.current?.robberLanded() ?? Promise.resolve();
+		const timeout = new Promise((done) => setTimeout(done, ROBBER_WAIT_MS));
+		Promise.race([landed, timeout]).then(() => {
+			const now = performance.now();
+			const at = Math.max(now, lastStolen + CARD_GAP_MS);
+			lastStolen = at;
+			setTimeout(show, at - now);
+		});
+	}
+
+	/**
+	 * A card that changes hands without a trade, stolen or paid as a toll: it flies from the
+	 * giver's cards to the taker's, face down for anyone who doesn't know what it is, and counts as
+	 * it lands.
+	 */
+	function flyStolen(from: number, to: number, resource: Resource | null) {
+		const counted = () => client.arrived(to, resource);
+		const me = client.view?.me;
+		if (me === undefined) return counted();
+		flyers.pass(resource ?? 'back', from, to, me, counted);
+	}
 
 	/** Each card in a set of cards, kind by kind. */
 	function oneByOne(cards: Partial<ResourceCounts>): Resource[] {
