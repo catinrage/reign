@@ -306,10 +306,14 @@ export class GameScene {
 		const land = JSON.stringify({ ...view.board, hexes: view.board.hexes.map((h) => ({ ...h, number: null })) });
 		const key = plots ? `${land}+plots` : land;
 		const shape = `${JSON.stringify(view.board.hexes.map((h) => [h.q, h.r]))}${plots}`;
+		// Play again: a new game straight after one that ended, with no trip back to the menu. Its
+		// island is dealt afresh even where it has the same shape as the last one.
+		const rematch = this.mode === 'game' && this.view?.phase === 'ended' && view.phase !== 'ended';
+		if (rematch) this.boardKey = '';
 		const changed = key !== this.boardKey;
 		// A character's power changed a tile's terrain: the same island in the same game, rebuilt
 		// in place, with the game's events playing on.
-		const retiled = changed && this.mode === 'game' && !!this.view && shape === this.boardShape;
+		const retiled = changed && !rematch && this.mode === 'game' && !!this.view && shape === this.boardShape;
 		const first = changed && !retiled;
 		if (changed) {
 			this.boardKey = key;
@@ -321,8 +325,9 @@ export class GameScene {
 		}
 		if (first) {
 			this.lastSeq = view.log.length ? view.log[view.log.length - 1].seq : 0;
-			if (this.mode === 'menu') {
+			if (this.mode === 'menu' || rematch) {
 				this.mode = 'game';
+				// Stops the slow turn of the menu, or of the last game's victory.
 				this.stage.rig.autoRotate = 0;
 				// Each player looks at the table from their own side.
 				const seat = Math.max(0, view.me);
