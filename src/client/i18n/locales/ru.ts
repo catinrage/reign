@@ -1039,7 +1039,7 @@ export default {
 	"Island detail": "Детализация острова",
 	"Standard": "Обычная",
 	"Fine": "Детальная",
-	"Experimental: Fine builds the island from voxels half the size, for more detail. It takes a moment to rebuild and asks more of your device.": "Эксперимент: «Детальная» строит остров из вокселей вдвое меньше, для большей детализации. Перестройка занимает время и сильнее нагружает устройство.",
+	"Fine builds the island from voxels half the size, for more detail. Standard is lighter on old devices. Switching takes a moment to rebuild.": "«Детальная» строит остров из вокселей вдвое меньше, для большей детализации. «Обычная» легче для старых устройств. Перестройка при переключении занимает время.",
 	"Reduce motion": "Меньше анимации",
 	"Show FPS and ping": "Показывать FPS и пинг",
 	"A small readout in the corner with how many frames a second your device draws.": "Небольшая панель в углу: сколько кадров в секунду рисует ваше устройство.",

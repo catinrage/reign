@@ -163,7 +163,7 @@
 			</div>
 		</div>
 		<p class="hint">
-			{t('Experimental: Fine builds the island from voxels half the size, for more detail. It takes a moment to rebuild and asks more of your device.')}
+			{t('Fine builds the island from voxels half the size, for more detail. Standard is lighter on old devices. Switching takes a moment to rebuild.')}
 		</p>
 		<div class="row">
 			<span class="name">{t('Show FPS and ping')}</span>
