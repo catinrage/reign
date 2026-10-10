@@ -1466,5 +1466,7 @@ export default {
 	"Night mode": "Ночной режим",
 	"Puts the room's lights out for a cozy evening by the fire, with the houses lit from within. Only you see it, and it changes nothing in the game.": "Гасит свет в комнате: уютный вечер у камина, а в домах горят окна. Видите это только вы, и на игру это никак не влияет.",
 	"On: the room is lit by the fire and the moon. Only you see it. (N)": "Вкл.: комнату освещают камин и луна. Видите это только вы. (N)",
-	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "Выкл.: погасите свет в комнате для уютного вечера. Видите это только вы. (N)"
+	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "Выкл.: погасите свет в комнате для уютного вечера. Видите это только вы. (N)",
+	"Night on": "Ночь вкл.",
+	"Night off": "Ночь выкл."
 } satisfies Messages;

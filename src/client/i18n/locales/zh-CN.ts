@@ -1466,5 +1466,7 @@ export default {
 	"Night mode": "夜间模式",
 	"Puts the room's lights out for a cozy evening by the fire, with the houses lit from within. Only you see it, and it changes nothing in the game.": "熄灭房间的灯，在炉火旁度过一个温馨的夜晚，房屋里亮起灯火。只有你能看到，也不会改变游戏中的任何东西。",
 	"On: the room is lit by the fire and the moon. Only you see it. (N)": "开：房间由炉火和月光照亮。只有你能看到。(N)",
-	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "关：熄灭房间的灯，享受温馨的夜晚。只有你能看到。(N)"
+	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "关：熄灭房间的灯，享受温馨的夜晚。只有你能看到。(N)",
+	"Night on": "开启夜间",
+	"Night off": "关闭夜间"
 } satisfies Messages;

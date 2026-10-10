@@ -89,9 +89,16 @@
 		muted = !muted;
 		setMuted(muted);
 	}
+	function onKey(e: KeyboardEvent) {
+		if (reading && e.key === 'Escape') return closeTutorial();
+		// N turns night mode on and off, as in a game, unless typing.
+		if (e.key.toLowerCase() !== 'n' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+		if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
+		settings.setNight(!settings.night);
+	}
 </script>
 
-<svelte:window onkeydown={(e) => reading && e.key === 'Escape' && closeTutorial()} />
+<svelte:window onkeydown={onKey} />
 
 <div class="home">
 	<Embers />
@@ -192,6 +199,21 @@
 			<button class="medal" onclick={toggleSound}>
 				<span class="icon-btn"><img src={muted ? PIXEL.mute : PIXEL.speaker} alt="" /></span>
 				<span class="cap">{muted ? t('Sound off') : t('Sound on')}</span>
+			</button>
+			<button
+				class="medal night"
+				class:on={settings.night}
+				onclick={() => {
+					sfx.click();
+					settings.setNight(!settings.night);
+				}}
+				aria-pressed={settings.night}
+				title={settings.night
+					? t('On: the room is lit by the fire and the moon. Only you see it. (N)')
+					: t("Off: put the room's lights out for a cozy evening. Only you see it. (N)")}
+			>
+				<span class="icon-btn"><img src={PIXEL.moon} alt="" /></span>
+				<span class="cap">{settings.night ? t('Night on') : t('Night off')}</span>
 			</button>
 		</nav>
 	</div>
@@ -424,6 +446,13 @@
 		border-image-source: var(--art-btn-wood-down);
 		transform: translateY(var(--s));
 	}
+	.night img {
+		opacity: 0.6;
+	}
+	.night.on img {
+		opacity: 1;
+		filter: drop-shadow(0 0 4px rgba(255, 220, 120, 0.75));
+	}
 	.medal:focus-visible .icon-btn {
 		filter: drop-shadow(0 0 5px rgba(255, 210, 90, 0.9));
 	}
@@ -495,8 +524,17 @@
 		.tagline {
 			font-size: 14px;
 		}
+		/* Six buttons across a phone: closer together, with smaller captions on one line each,
+		   and a second row when the captions are long (Russian). */
 		.extras {
-			gap: 16px;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: 10px 8px;
+			max-width: calc(100vw / var(--ui-zoom) - 12px);
+		}
+		.cap {
+			font-size: 12px;
+			white-space: nowrap;
 		}
 	}
 </style>
