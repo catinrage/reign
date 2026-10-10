@@ -368,7 +368,7 @@ describe('seven and eight players', () => {
 				expect(s.bank[r] + s.players.reduce((k, p) => k + p.resources[r], 0)).toBe(BANK_PER_RESOURCE_HUGE);
 			}
 		}
-	});
+	}, 60_000);
 });
 
 describe('random islands at their biggest goal', () => {

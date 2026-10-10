@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { ServerMessage } from '../src/shared/protocol';
-import { EMPTY_GRACE_MS, Room } from '../src/server/room';
+import { BOT_OFFER_MS, EMPTY_GRACE_MS, Room } from '../src/server/room';
 import { randomMap } from '../src/shared/board/random';
+import { botAction } from '../src/shared/rules/bot';
+import { BANK_PER_RESOURCE, RESOURCES } from '../src/shared/rules/config';
+import { applyAction } from '../src/shared/rules/engine';
 import { settlementSpots } from '../src/shared/rules/queries';
 import type { Action, GameEvent } from '../src/shared/rules/types';
 
@@ -1065,6 +1068,68 @@ describe('random islands and balanced goals', () => {
 		expect(a.sent.some((m) => m.t === 'error' && m.message.includes('at most 12'))).toBe(true);
 		room.handle(host, { t: 'setPointsToWin', points: 8 }, a.ws);
 		expect(room.lobbyInfo().settings.pointsToWin).toBe(8);
+		room.dispose();
+	});
+});
+
+describe('bot trade offers', () => {
+	afterEach(() => vi.useRealTimers());
+
+	/** A person and a bot, past the setup: the bot one Ore short of a city, the person holding Ore. */
+	function table() {
+		vi.useFakeTimers();
+		const room = new Room('OFFER');
+		const me = fakeSocket();
+		const seat = room.join(me.ws, 'Komeil');
+		if (typeof seat === 'string') throw new Error(seat);
+		room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		// Hold the table while the bot is handed its turn.
+		room.handle(seat, { t: 'pauseGame', paused: true }, me.ws);
+		const bot = room.seats.findIndex((s) => s.isBot);
+		const person = 1 - bot;
+		let g = room.game!;
+		while (g.phase === 'setup') {
+			const r = applyAction(g, g.current, botAction(g, g.current)!);
+			if (!r.ok) throw new Error(r.error);
+			g = r.state;
+		}
+		g = structuredClone(g);
+		g.step = 'main';
+		g.current = bot;
+		const none = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
+		g.players[bot].resources = { ...none, wheat: 2, ore: 2, wood: 2 };
+		g.players[person].resources = { ...none, ore: 2 };
+		for (const r of RESOURCES) g.bank[r] = BANK_PER_RESOURCE - g.players.reduce((n, p) => n + p.resources[r], 0);
+		g.log.push({ type: 'turnStarted', player: bot, turn: g.turn, seq: g.nextEventSeq++ } as GameEvent);
+		room.game = g;
+		room.handle(seat, { t: 'pauseGame', paused: false }, me.ws);
+		// The bot asks for the Ore.
+		for (let ms = 0; ms < 5000 && !room.game.trade; ms += 50) vi.advanceTimersByTime(50);
+		expect(room.game.trade).toMatchObject({ from: bot, give: { wood: 1 }, want: { ore: 1 } });
+		return { room, seat, me, bot, person };
+	}
+
+	it('waits a while for a person to answer, then withdraws the offer', () => {
+		const { room } = table();
+		const id = room.game!.trade!.id;
+		vi.advanceTimersByTime(BOT_OFFER_MS - 1000);
+		expect(room.game!.trade?.id).toBe(id);
+		// Withdrawn after the bot's usual pause.
+		vi.advanceTimersByTime(2500);
+		expect(room.game!.trade?.id).not.toBe(id);
+		expect(room.game!.log.some((e) => e.type === 'tradeCancelled')).toBe(true);
+		room.dispose();
+	});
+
+	it('trades as soon as the person accepts', () => {
+		const { room, seat, me, bot, person } = table();
+		const offerId = room.game!.trade!.id;
+		vi.advanceTimersByTime(1000);
+		room.handle(seat, { t: 'action', action: { type: 'respondTrade', offerId, accept: true } }, me.ws);
+		vi.advanceTimersByTime(2000);
+		expect(room.game!.log.find((e) => e.type === 'tradeCompleted')).toMatchObject({ from: bot, to: person });
+		expect(room.game!.players[person].resources).toMatchObject({ ore: 1, wood: 1 });
 		room.dispose();
 	});
 });

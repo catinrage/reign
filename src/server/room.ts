@@ -12,7 +12,7 @@ import { MAX_PLAYERS, MIN_PLAYERS, PIGEON_MAX_CHARS, TURN_TIMES } from '../share
 import { type CustomMap, type MapChoice, mapName, mapTiles, presetById, validateCustomMap } from '../shared/board/maps';
 import { cleanRandomOptions } from '../shared/board/random';
 import { randomSeed } from '../shared/rng';
-import { botAction } from '../shared/rules/bot';
+import { botAction, closeOffer } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
 import { EVENT_SHOW_MS, cleanEventRules } from '../shared/rules/events';
@@ -84,6 +84,12 @@ const PIGEON_KEEP = 400;
 const PIGEON_GAP_MS = 600;
 /** How long a bot points at the robber's new tile before the robber jumps there. */
 const BOT_AIM_MS = 900;
+/**
+ * How long a bot's trade offer stays open for answers before it takes the best one it has, so a
+ * person gets a fair chance to accept before another bot does, and someone who never answers
+ * can't hold up the turn.
+ */
+export const BOT_OFFER_MS = 8000;
 
 export class Room {
 	seats: Seat[] = [];
@@ -95,6 +101,10 @@ export class Room {
 	/** Mode, map and points to win. The host picks them in the lobby. */
 	settings: GameSettings = structuredClone(DEFAULT_SETTINGS);
 	private botTimer: NodeJS.Timeout | null = null;
+	/** The bot timer is only checking back later (not a move on its way), so news can cut it short. */
+	private botTimerIdle = false;
+	/** The open trade offer and when the table first saw it, to time a bot's offer. */
+	private offerSeen: { id: number; at: number } | null = null;
 	/** Until when the table is showing an event card that just turned over (see EVENT_SHOW_MS). */
 	private eventShowUntil = 0;
 	/** The newest log entry the table has been sent. */
@@ -780,18 +790,28 @@ export class Room {
 
 	/** Bots (and stand-ins for players who dropped) act one step at a time, with a human-ish pause. */
 	private scheduleBots() {
+		if (this.botTimer && this.botTimerIdle) {
+			clearTimeout(this.botTimer);
+			this.botTimer = null;
+		}
 		if (this.botTimer || !this.game || this.game.phase === 'ended' || this.paused) return;
 		const next = this.nextBotMove();
 		if (!next) {
-			// Someone may go AFK later; check back.
-			if (this.seats.some((s) => !s.isBot && s.sockets.size === 0)) {
+			// A bot waiting on answers to its offer closes it once its time is up; and someone may go
+			// AFK later. Check back.
+			const g = this.game;
+			const offer = g.trade && this.offerSeen && this.controlled(g.trade.from) ? this.offerSeen : null;
+			const wait = offer ? Math.max(50, offer.at + BOT_OFFER_MS - Date.now()) : 5000;
+			if (offer || this.seats.some((s) => !s.isBot && s.sockets.size === 0)) {
+				this.botTimerIdle = true;
 				this.botTimer = setTimeout(() => {
 					this.botTimer = null;
 					this.scheduleBots();
-				}, 5000);
+				}, Math.min(wait, 5000));
 			}
 			return;
 		}
+		this.botTimerIdle = false;
 		const last = this.game.log[this.game.log.length - 1];
 		let delay = 650 + Math.random() * 500;
 		// After a roll, whatever it ended with, bots give the dice time to land before moving on.
@@ -850,22 +870,28 @@ export class Room {
 			this.botTurnKey = turnKey;
 			this.botActionsThisTurn = 0;
 		}
-		const controlled = (i: number) => {
-			const s = this.seats[i];
-			if (s.isBot || s.left) return true;
-			return s.sockets.size === 0 && Date.now() - s.lastSeen > AFK_TAKEOVER_MS;
-		};
+		if (g.trade && g.trade.id !== this.offerSeen?.id) this.offerSeen = { id: g.trade.id, at: Date.now() };
 		// Out-of-turn answers first (discards, trade replies), then the active player.
 		for (let i = 0; i < this.seats.length; i++) {
-			if (i === g.current || !controlled(i)) continue;
+			if (i === g.current || !this.controlled(i)) continue;
 			const action = botAction(g, i);
 			if (action) return { player: i, action };
 		}
-		if (controlled(g.current)) {
+		if (this.controlled(g.current)) {
 			const action = botAction(g, g.current, this.botActionsThisTurn);
 			if (action) return { player: g.current, action };
+			// Its own offer, still short of answers: once its time is up it takes the best it has.
+			const waited = this.offerSeen && Date.now() - this.offerSeen.at >= (this.fastBots ? 0 : BOT_OFFER_MS);
+			if (g.trade?.from === g.current && waited) return { player: g.current, action: closeOffer(g, g.current) };
 		}
 		return null;
+	}
+
+	/** Whether bot logic plays a seat: a bot, a player who left, or one away long enough. */
+	private controlled(i: number): boolean {
+		const s = this.seats[i];
+		if (s.isBot || s.left) return true;
+		return s.sockets.size === 0 && Date.now() - s.lastSeen > AFK_TAKEOVER_MS;
 	}
 }
 
