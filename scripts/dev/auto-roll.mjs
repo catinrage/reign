@@ -1,6 +1,7 @@
 // Dev: auto roll against bots. Turns the corner switch on, then checks that the dice roll by
 // themselves on your roll step (and how long that takes), that a Knight played first starts the
-// wait over, that a paused game doesn't roll, and that switching it off leaves the roll to you.
+// wait over, that a paused game doesn't roll, that the pointer on the button holds the fuse (and
+// it burns on from there), and that switching it off leaves the roll to you.
 // Needs the dev game server (cheats). Usage:
 //   BASE=http://localhost:5173 node scripts/dev/auto-roll.mjs <outPrefix>
 import { chromium } from 'playwright';
@@ -62,6 +63,9 @@ const endTurn = async () => {
 	});
 	if ((await page.evaluate(() => window.__client.view.step)) === 'moveRobber') await robber();
 	await until(() => window.__client.view.step === 'main');
+	// An empty hand, so a bot's 7 never waits on this player to discard.
+	await cheat({ type: 'clearHand', player: await me() });
+	await page.waitForTimeout(300);
 	await page.evaluate(() => window.__client.act({ type: 'endTurn' }));
 };
 
@@ -143,28 +147,40 @@ await until((n) => {
 }, r2);
 await endTurn();
 
-// 4. Switched off: the roll waits for you.
+// 4. The pointer on the button holds the fuse; moving off, it burns on from where it stopped.
+await myRoll();
+const r4 = await myRolls();
+await page.waitForTimeout(700);
+const box = await page.locator('.actions .roll').boundingBox();
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+const heldAt = await page.evaluate(() => performance.now());
+await page.waitForTimeout(4000);
+const whileHovered = (await myRolls()) - r4;
+await page.screenshot({
+	path: `${out}-fuse-held.png`,
+	clip: { x: box.x - 40, y: box.y - 40, width: box.width + 80, height: box.height + 70 }
+});
+await page.mouse.move(700, 450);
+const leftAt = await page.evaluate(() => performance.now());
+await until((n) => {
+	const v = window.__client.latest;
+	return v.log.filter((e) => e.type === 'diceRolled' && e.player === v.me).length > n;
+}, r4);
+/** Time the fuse burned, not counting the hold: should come to the whole fuse again. */
+const burned = await page.evaluate(
+	([held, left]) =>
+		Math.round(window.__times.rolled.at(-1) - window.__times.up.at(-1) - (left - held)),
+	[heldAt, leftAt]
+);
+await endTurn();
+
+// 5. Switched off: the roll waits for you.
 await page.click(sw, { force: true });
 await myRoll();
 const r3 = await myRolls();
 await page.waitForTimeout(5000);
 const whileOff = (await myRolls()) - r3;
 await shot('off-roll');
-// The fuse, held part-burnt for the picture (and the roll it would send held back).
-await page.evaluate(() => {
-	const act = window.__client.act;
-	window.__client.act = (a) => a.type !== 'rollDice' && act(a);
-	const st = document.createElement('style');
-	st.textContent =
-		'.fuse { animation-delay: -0.9s !important; animation-play-state: paused !important; }';
-	document.head.append(st);
-});
-await page.click(sw, { force: true });
-await shot('fuse', 500);
-await page.screenshot({
-	path: `${out}-fuse-zoom.png`,
-	clip: { x: 1100, y: 760, width: 340, height: 140 }
-});
 await page.setViewportSize({ width: 390, height: 844 });
 await shot('phone', 1500);
 
@@ -175,6 +191,8 @@ console.log(
 		backToRoll,
 		afterKnight,
 		whilePaused,
+		whileHovered,
+		burned,
 		whileOff,
 		errors: errors.slice(0, 10)
 	})
