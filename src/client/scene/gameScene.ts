@@ -1233,8 +1233,10 @@ export class GameScene {
 		if (!this.pick || !this.boardView) return null;
 		this.raycaster.setFromCamera(this.pointer, this.stage.camera);
 		if (this.pick.kind === 'robber' || this.pick.kind === 'tile') {
-			const hits = this.raycaster.intersectObject(this.boardView.build.group, true);
-			const p = hits[0]?.point ?? this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -5), new THREE.Vector3());
+			// This runs every frame, so it steps through the island's columns: testing its
+			// triangles took 15 ms a frame on the classic island and over 100 ms on the biggest.
+			const ray = this.raycaster.ray;
+			const p = this.boardView.build.raycast(ray) ?? ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -5), new THREE.Vector3());
 			if (!p) return null;
 			const ax = worldToHex(p.x / HEX_R, p.z / HEX_R);
 			const idx = this.boardView.board.hexes.findIndex((h) => hexKey(h) === hexKey(ax));
