@@ -21,7 +21,10 @@ await signIn(page, base, 'Komeil');
 await page.goto(`${base}/`);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000, polling: 500 });
 // The loading screen lifts once the menu is drawn and the server reached.
-await page.waitForFunction(() => !document.getElementById('boot'), null, { timeout: 300000, polling: 500 });
+await page.waitForFunction(() => !document.getElementById('boot'), null, {
+	timeout: 300000,
+	polling: 500
+});
 await page.click('.sign .btn.green', { force: true });
 await page.waitForFunction(() => !!window.__client.lobby, null, { timeout: 60000 });
 await page.waitForTimeout(4000);
