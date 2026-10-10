@@ -1466,5 +1466,7 @@ export default {
 	"Night mode": "Nachtmodus",
 	"Puts the room's lights out for a cozy evening by the fire, with the houses lit from within. Only you see it, and it changes nothing in the game.": "Löscht das Licht im Zimmer für einen gemütlichen Abend am Kamin, und in den Häusern brennt Licht. Nur du siehst es, und am Spiel ändert es nichts.",
 	"On: the room is lit by the fire and the moon. Only you see it. (N)": "An: Kaminfeuer und Mond erhellen das Zimmer. Nur du siehst es. (N)",
-	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "Aus: Lösch das Licht im Zimmer für einen gemütlichen Abend. Nur du siehst es. (N)"
+	"Off: put the room's lights out for a cozy evening. Only you see it. (N)": "Aus: Lösch das Licht im Zimmer für einen gemütlichen Abend. Nur du siehst es. (N)",
+	"Night on": "Nacht an",
+	"Night off": "Nacht aus"
 } satisfies Messages;
