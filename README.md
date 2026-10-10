@@ -4,7 +4,7 @@
 
 **Settle, trade and build on a hand-crafted voxel island, right in your browser.**
 
-**English** · [Русский](README.ru.md) · [简体中文](README.zh-CN.md) · [Deutsch](README.de.md)
+**English** · [Русский](README.ru.md) · [简体中文](README.zh-CN.md) · [Deutsch](README.de.md) · [Français](README.fr.md)
 
 [![Play the demo](https://img.shields.io/badge/play-demo%20vs%20bots-f5b301?style=for-the-badge)](https://reign-khaki.vercel.app)
 
@@ -58,8 +58,8 @@ of any shape and size.
   answer events.
 - 🛡️ **Server-authoritative.** The server runs the rules and sends each player only what they may
   see, so hands, the deck and the dice seed stay secret.
-- 🌍 **Four languages.** English, Russian, Simplified Chinese and German, picked from your browser
-  and switchable in Settings or on the sign-in screen.
+- 🌍 **Five languages.** English, Russian, Simplified Chinese, German and French, picked from your
+  browser and switchable in Settings or on the sign-in screen.
 - 📚 **Built-in tutorial.** A full illustrated rule book for both modes, from the main menu or the
   in-game menu.
 

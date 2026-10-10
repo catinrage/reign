@@ -4,7 +4,7 @@
 
 **Besiedeln, handeln und bauen auf einer handgemachten Voxel-Insel, direkt im Browser.**
 
-[English](README.md) · [Русский](README.ru.md) · [简体中文](README.zh-CN.md) · **Deutsch**
+[English](README.md) · [Русский](README.ru.md) · [简体中文](README.zh-CN.md) · **Deutsch** · [Français](README.fr.md)
 
 [![Demo spielen](https://img.shields.io/badge/spielen-Demo%20gegen%20Bots-f5b301?style=for-the-badge)](https://reign-khaki.vercel.app)
 
@@ -29,8 +29,8 @@ Form und Größe.
 > **Gleich ausprobieren:** Auf [reign-khaki.vercel.app](https://reign-khaki.vercel.app) läuft die
 > Version nur mit Bots im Browser. Kein Konto, keine Installation.
 
-> Das Spiel gibt es auf Deutsch, Englisch, Russisch und Chinesisch. Die Sprache wechselst du in
-> den Einstellungen oder direkt beim Anmelden.
+> Das Spiel gibt es auf Deutsch, Englisch, Russisch, Chinesisch und Französisch. Die Sprache
+> wechselst du in den Einstellungen oder direkt beim Anmelden.
 
 ## Inhalt
 
@@ -64,8 +64,8 @@ Form und Größe.
   Charakterkräfte ein und reagieren auf Ereignisse.
 - 🛡️ **Der Server hat das Sagen.** Der Server führt die Regeln aus und schickt jedem Spieler nur,
   was er sehen darf. Fremde Hände, der Stapel und der Würfel-Seed bleiben geheim.
-- 🌍 **Vier Sprachen.** Englisch, Russisch, vereinfachtes Chinesisch und Deutsch, passend zum
-  Browser und in den Einstellungen oder beim Anmelden umschaltbar.
+- 🌍 **Fünf Sprachen.** Englisch, Russisch, vereinfachtes Chinesisch, Deutsch und Französisch,
+  passend zum Browser und in den Einstellungen oder beim Anmelden umschaltbar.
 - 📚 **Eingebautes Tutorial.** Ein vollständig bebildertes Regelbuch für beide Modi, im
   Hauptmenü und im Spielmenü.
 
