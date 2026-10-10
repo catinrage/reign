@@ -12,12 +12,15 @@
 </div>
 
 <style>
+	/* Three to a row, the last row centred, so any number of languages lines up. */
 	.langs {
+		--gap: calc(var(--s) * 2);
 		display: flex;
 		flex-wrap: wrap;
-		gap: calc(var(--s) * 2);
+		justify-content: center;
+		gap: var(--gap);
 	}
 	.langs .btn {
-		flex: 1 1 auto;
+		flex: 0 0 calc((100% - 2 * var(--gap)) / 3);
 	}
 </style>
