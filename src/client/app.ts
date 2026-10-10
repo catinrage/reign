@@ -9,7 +9,7 @@ import App from './ui/App.svelte';
 import { installArt } from './ui/art';
 import { applySettings, settings } from './ui/settings.svelte';
 import { sceneRef } from './ui/sceneRef';
-import { armAudio } from './ui/sound';
+import { armAudio, sfx } from './ui/sound';
 import { installTooltips } from './ui/tooltip';
 
 export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
@@ -19,6 +19,7 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	getIcons();
 	sceneRef.current = new GameScene(canvas, settings.quality, settings.detail);
 	(window as any).__scene = sceneRef.current;
+	sceneRef.current.onPurr = sfx.purr;
 	mount(App, { target: el });
 	armAudio();
 	// The game connection opens once signed in, and closes on signing out.

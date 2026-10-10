@@ -70,6 +70,18 @@ export interface SceneCallbacks {
 	onAim?: (hex: number | null) => void;
 }
 
+/** An object and everything above it are visible. */
+function shown(o: THREE.Object3D | null): boolean {
+	for (; o; o = o.parent) if (!o.visible) return false;
+	return true;
+}
+
+/** `o` is `root` or one of its descendants. */
+function isInside(o: THREE.Object3D | null, root: THREE.Object3D): boolean {
+	for (; o; o = o.parent) if (o === root) return true;
+	return false;
+}
+
 /** Where a piece stands: a settlement or city on a vertex, a road on an edge, a workshop on a tile. */
 export interface BoardSpot {
 	place: 'vertex' | 'edge' | 'hex';
@@ -102,6 +114,9 @@ interface PieceObj {
 
 const ROAD_LEN = 8;
 const PIECE_SCALE = 0.64;
+/** The cat purrs for about as long as its sound, and at most once in this long. */
+const PURR_SECONDS = 3;
+const PURR_COOLDOWN_MS = 10_000;
 /** How much a piece's model is scaled on the board, by its key. */
 const pieceScale = (key: string) => (key.startsWith('w') ? WORKSHOP_SCALE : PIECE_SCALE);
 
@@ -169,6 +184,16 @@ export class GameScene {
 	private highlighted: number | null = null;
 	/** How lit up each player's pieces are, from 0 to 1, as they fade in and out. */
 	private lit: number[] = [];
+	/**
+	 * Called when the cat on the armchair is clicked and starts to purr (an easter egg, for this
+	 * player only: nothing goes to the server). Set by the app, which plays the purr.
+	 */
+	onPurr: (() => void) | null = null;
+	/** When the cat last purred (performance.now() ms): it purrs at most once every PURR_COOLDOWN_MS. */
+	private purredAt = -Infinity;
+	/** The mouse is over the cat. */
+	private catHovered = false;
+	private catHoverAt = new THREE.Vector2(-9, -9);
 
 	constructor(
 		canvas: HTMLCanvasElement,
@@ -1210,6 +1235,14 @@ export class GameScene {
 
 	private onPointerUp = (e: PointerEvent) => {
 		this.pointerHeld = false;
+		// A click or tap on the cat makes it purr, and does nothing else.
+		if (e.button === 0 && !this.stage.rig.dragged) {
+			this.onPointerMove(e);
+			if (this.catAtPointer()) {
+				this.petCat();
+				return;
+			}
+		}
 		// A tap on a piece (when nothing is being placed) shows its tooltip on touch screens.
 		if (e.pointerType === 'touch' && !this.pick && !this.stage.rig.dragged) {
 			this.onPointerMove(e);
@@ -1245,6 +1278,40 @@ export class GameScene {
 		const hits = this.raycaster.intersectObjects(this.ghostHits.map((g) => g.mesh), false);
 		if (!hits.length) return null;
 		return this.ghostHits.find((g) => g.mesh === hits[0].object)?.id ?? null;
+	}
+
+	/** The pointer is on the cat asleep on the armchair, with nothing (the table, a chair) in front of it. */
+	private catAtPointer(): boolean {
+		const cat = this.room.cat;
+		if (!cat) return false;
+		const ray = this.raycaster;
+		ray.setFromCamera(this.pointer, this.stage.camera);
+		const hit = ray.intersectObject(cat.group, true)[0];
+		if (!hit) return false;
+		const far = ray.far;
+		ray.far = hit.distance;
+		const front = ray.intersectObjects(this.boardView ? [this.room.group, this.boardView.group] : [this.room.group], true);
+		ray.far = far;
+		return !front.some((h) => (h.object as THREE.Mesh).isMesh && shown(h.object) && !isInside(h.object, cat.group));
+	}
+
+	/** The cat purrs, unless it purred less than PURR_COOLDOWN_MS ago. */
+	private petCat() {
+		const now = performance.now();
+		if (now - this.purredAt < PURR_COOLDOWN_MS) return;
+		this.purredAt = now;
+		this.room.cat?.purr(PURR_SECONDS);
+		this.onPurr?.();
+	}
+
+	/** Whether the mouse is over the cat, looked up when it moves. */
+	private hoverCat(): boolean {
+		if (this.pointerType === 'touch' || this.pointerHeld) return false;
+		if (!this.catHoverAt.equals(this.pointer)) {
+			this.catHoverAt.copy(this.pointer);
+			this.catHovered = this.catAtPointer();
+		}
+		return this.catHovered;
 	}
 
 	/** The built piece under the pointer, if any. */
@@ -1475,7 +1542,7 @@ export class GameScene {
 		// hover feedback
 		this.hoverPiece();
 		const id = this.pick ? this.pickAtPointer() : null;
-		this.stage.canvas.style.cursor = id !== null ? 'pointer' : '';
+		this.stage.canvas.style.cursor = id !== null || (!this.pick && this.hoverCat()) ? 'pointer' : '';
 		for (const slot of this.ghosts.children) {
 			if (slot.userData.id === undefined) continue;
 			const hovered = slot.userData.id === id;
