@@ -21,3 +21,9 @@ async function boot() {
 	mountApp(canvas, document.getElementById('app')!);
 }
 boot();
+
+// Installs as an app and opens from the stored copy (see pwa/sw.js). Built versions only: the dev
+// server's files change on every save.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+	addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
