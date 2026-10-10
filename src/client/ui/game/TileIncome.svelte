@@ -5,7 +5,7 @@
 	import { getIcons } from '../../scene/icons';
 	import { client } from '../../state/client.svelte';
 	import { TERRAIN_NAME } from '../extended/terrainColors';
-	import { PIXEL, svg } from '../pixel';
+	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 	import { t } from '../../i18n/index.svelte';
 
@@ -74,22 +74,6 @@
 			/* private mode: keep it for this visit */
 		}
 	}
-
-	const ROBBER = svg(
-		[
-			'...kkk...',
-			'..kgggk..',
-			'.kgggggk.',
-			'.kgkgkgk.',
-			'..kgggk..',
-			'.kgggggk.',
-			'kgggggggk',
-			'kgggggggk',
-			'.kgggggk.',
-			'kkkkkkkkk'
-		],
-		{ k: '#1a0f08', g: '#8d8f96' }
-	);
 </script>
 
 {#if rows.length || shepherd}
@@ -122,7 +106,7 @@
 									<span class="art" style="--pat: var(--pat-{tile.resource})"
 										><img src={icons[tile.resource]} alt={t(RESOURCE_LABEL[tile.resource])} /></span
 									>
-									{#if tile.robbed}<img class="robber" src={ROBBER} alt={t('robber')} />{:else}<b
+									{#if tile.robbed}<img class="robber" src={PIXEL.robber} alt={t('robber')} />{:else}<b
 											>{tile.amount}</b
 										>{/if}
 								</span>

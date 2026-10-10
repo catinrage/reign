@@ -4,6 +4,7 @@ import type { CharacterId } from './characters';
 import type { DevCardType, PlayerColor, Resource, ResourceCounts, Terrain } from './config';
 import type { EventCard, EventsState, EventsView } from './events';
 import type { GameMode } from './modes';
+import type { GameStats } from './stats';
 
 export interface DevCard {
 	type: DevCardType;
@@ -147,6 +148,8 @@ export interface GameState {
 	longestRoadHolder: number | null;
 	largestArmyHolder: number | null;
 	winner: number | null;
+	/** Numbers for the end-of-game window, kept from the start; players see them once it's over. */
+	stats: GameStats;
 	log: GameEvent[];
 	nextEventSeq: number;
 }
@@ -344,8 +347,10 @@ export interface PlayerView {
 }
 
 export interface GameView
-	extends Omit<GameState, 'rng' | 'devDeck' | 'players' | 'log' | 'events'> {
+	extends Omit<GameState, 'rng' | 'devDeck' | 'players' | 'log' | 'events' | 'stats'> {
 	devDeckCount: number;
+	/** Only once the game is over: they tell who stole what. */
+	stats?: GameStats;
 	events: EventsView | null;
 	players: PlayerView[];
 	log: GameEvent[];
