@@ -28,7 +28,7 @@ async function open(name) {
 	page.on('pageerror', (e) => console.log(`[${name}]`, e.message));
 	await signIn(page, base, name);
 	await page.goto(`${base}/`);
-	await page.waitForFunction(() => window.__ready === true, null, { timeout: 300000, polling: 500 });
+	await page.waitForFunction(() => !document.getElementById('boot'), null, { timeout: 300000, polling: 500 });
 	await page.waitForTimeout(2000);
 	return page;
 }
