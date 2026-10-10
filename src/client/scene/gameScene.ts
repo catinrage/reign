@@ -13,6 +13,7 @@ import { BoardView } from './board/boardView';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
 import { bracketModel, cityModel, cloneModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
+import { tokenRing } from './board/tokens';
 import { PATH_LOOK, animatePath, pathObject } from './board/cityPaths';
 import { type AnnexHost, type Footprint, annexSpot, annexYard } from './board/annex';
 import { STOREHOUSE_SIZE, animateStorehouse, storehouseObject } from './board/storehouse';
@@ -170,6 +171,11 @@ export class GameScene {
 	private hoverKey = '';
 	private hoverAt = new THREE.Vector2(-9, -9);
 	private hoverIdle = 0;
+	/** What the markers on the board were laid out for (see `setPick`). */
+	private pickKey = '';
+	private pickBoard: BoardView | null = null;
+	/** The canvas's cursor as last set. */
+	private cursor = '';
 	private mode: 'menu' | 'game' = 'menu';
 	private callbacks: SceneCallbacks = {};
 	private smokeClock = 0;
@@ -231,7 +237,7 @@ export class GameScene {
 	 */
 	async warmUp(): Promise<void> {
 		while (!this.room.ready) await new Promise((r) => setTimeout(r, 50));
-		await this.stage.renderer.compileAsync(this.stage.scene, this.stage.camera).catch(() => {});
+		await Promise.all([this.stage.compile(), this.stage.compile(prewarmKit())]);
 	}
 
 	setCallbacks(cb: SceneCallbacks) {
@@ -331,7 +337,6 @@ export class GameScene {
 	setView(view: GameView): void {
 		// Workshops need plots laid out on the tiles; the island is otherwise dealt the same.
 		const plots = !!view.buildingRules?.workshop;
-		const board = JSON.stringify(view.board);
 		// Number tokens can trade places mid-game (a Reign Extended earthquake, the Cartographer's
 		// power) without the island being dealt again, so they're left out of what keys it.
 		const land = JSON.stringify({ ...view.board, hexes: view.board.hexes.map((h) => ({ ...h, number: null })) });
@@ -1200,6 +1205,22 @@ export class GameScene {
 	// ------------------------------------------------------------ picking
 
 	setPick(req: PickRequest | null) {
+		// The same spots on the same island (the interface asks again on every new state, a chat
+		// line too): keep the markers as they are, with the new request's callback.
+		const key = req && this.boardView ? `${this.boardKey}|${req.kind}|${req.color}|${req.options.join()}` : '';
+		const same =
+			!!key &&
+			key === this.pickKey &&
+			this.pickBoard === this.boardView &&
+			!!this.pick &&
+			req!.kind !== 'storehouse' &&
+			req!.kind !== 'tavern';
+		this.pickKey = key;
+		this.pickBoard = this.boardView;
+		if (same) {
+			this.pick = req;
+			return;
+		}
 		if (this.pick?.kind === 'tearDown') for (const p of this.pieces.values()) if (p.key.startsWith('w')) p.obj.rotation.z = 0;
 		if (isCityPath(this.pick?.kind)) for (const p of this.pieces.values()) if (p.key.startsWith('v')) p.obj.visible = true;
 		this.pick = req;
@@ -1299,10 +1320,7 @@ export class GameScene {
 				slot.add(ring);
 			}
 			this.ghosts.add(slot);
-			const hit = new THREE.Mesh(
-				edge ? new THREE.BoxGeometry(9, 6, 4) : new THREE.SphereGeometry(5, 8, 6),
-				new THREE.MeshBasicMaterial({ visible: false })
-			);
+			const hit = new THREE.Mesh(edge ? HIT_EDGE : HIT_SPOT, HIT_MAT);
 			hit.position.copy(pos).setY(pos.y + 2);
 			hit.rotation.y = rot;
 			this.ghosts.add(hit);
@@ -1332,7 +1350,7 @@ export class GameScene {
 	}
 
 	private onPointerMove = (e: PointerEvent) => {
-		const r = this.stage.canvas.getBoundingClientRect();
+		const r = this.stage.box;
 		this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 		this.pointerType = e.pointerType;
 		this.pointerHeld = e.buttons !== 0;
@@ -1450,7 +1468,7 @@ export class GameScene {
 		const top = box.getCenter(new THREE.Vector3()).setY(box.max.y);
 		const v = top.project(this.stage.camera);
 		if (v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return null;
-		const r = this.stage.canvas.getBoundingClientRect();
+		const r = this.stage.box;
 		return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
 	}
 
@@ -1674,7 +1692,8 @@ export class GameScene {
 		// hover feedback
 		this.hoverPiece();
 		const id = this.pick ? this.pickAtPointer() : null;
-		this.stage.canvas.style.cursor = id !== null || (!this.pick && this.hoverCat()) ? 'pointer' : '';
+		const cursor = id !== null || (!this.pick && this.hoverCat()) ? 'pointer' : '';
+		if (cursor !== this.cursor) this.stage.canvas.style.cursor = this.cursor = cursor;
 		for (const slot of this.ghosts.children) {
 			if (slot.userData.id === undefined) continue;
 			const hovered = slot.userData.id === id;
@@ -1748,6 +1767,38 @@ function claimFlag(color: number): THREE.Group {
 	return g;
 }
 
+/**
+ * One of each thing a game puts on the table later (pieces of every kind, the markers and
+ * ghosts of a pick, a highlighted player's glow, cards flying up from the tiles), never shown:
+ * its shaders are built while the loading screen is up, rather than holding up the frame that
+ * first shows one (on some machines a shader takes a tenth of a second or more to build).
+ * Shaders depend on the kind of material, not its color, so one player's color does for all.
+ */
+function prewarmKit(): THREE.Group {
+	const color = PLAYER_RGB.red;
+	const kit = new THREE.Group();
+	const add = (...o: THREE.Object3D[]) => kit.add(...o);
+	const settlement = cloneModel(settlementModel(color));
+	add(settlement, cloneModel(cityModel(color)), cloneModel(roadModel(color)), cloneModel(stoneRoadModel(color)));
+	add(storehouseObject(color), tavernObject(color), claimFlag(color), tokenRing(color));
+	for (const path of ['castle', 'fortress', 'guildHall'] as const) add(pathObject(path, color));
+	for (const res of RESOURCES) add(workshopObject(res, color), resourceItemModel(res));
+	add(cornerBrackets(color, 0), new THREE.Mesh(MARKER_GEM, markerMaterial(color)), new THREE.Mesh(MARKER_RING, ringMaterial(color)));
+	add(new THREE.Mesh(BLESS_HALO, HALO_MAT));
+	const ghost = cloneModel(settlementModel(color));
+	ghost.traverse((o) => {
+		if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = ghostMaterial(color);
+	});
+	add(ghost);
+	const glow = glowKit(color);
+	for (const c of settlement.children) {
+		const m = c as THREE.Mesh;
+		if (m.isMesh) add(new THREE.Mesh(m.geometry, m.name === 'outline' ? glow.rim : glow.lit));
+	}
+	add(new THREE.Mesh(HALO, glow.ring), new THREE.Mesh(BEAM, glow.beam));
+	return kit;
+}
+
 /** How high a pick's glowing gem floats above its spot, clear of the piece that would go there. */
 function markerHeight(kind: PickKind) {
 	if (isCityPath(kind)) return 12.5;
@@ -1756,6 +1807,11 @@ function markerHeight(kind: PickKind) {
 
 /** Picking a workshop to tear down glows in this red. */
 const TEAR_DOWN_RGB = 0xff5a3c;
+
+/** What the pointer is tested against for a pick: invisible, and shared by every spot. */
+const HIT_EDGE = new THREE.BoxGeometry(9, 6, 4);
+const HIT_SPOT = new THREE.SphereGeometry(5, 8, 6);
+const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
 
 const MARKER_GEM = new THREE.OctahedronGeometry(1.5, 0).scale(1, 1.45, 1);
 const MARKER_BAR = new THREE.BoxGeometry(6.5, 0.9, 0.9);

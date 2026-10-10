@@ -87,8 +87,12 @@ export class Particles {
 	}
 
 	update(dt: number) {
+		// Nothing alive and nothing drawn: no buffers to send (they hold MAX particles).
+		if (!this.list.length && !this.mesh.count) return;
 		let n = 0;
-		this.list = this.list.filter((p) => (p.life += dt) < p.maxLife);
+		let live = 0;
+		for (const p of this.list) if ((p.life += dt) < p.maxLife) this.list[live++] = p;
+		this.list.length = live;
 		for (const p of this.list) {
 			p.vel.y -= p.gravity * dt;
 			p.vel.multiplyScalar(Math.exp(-p.drag * dt));
@@ -112,7 +116,15 @@ export class Particles {
 			n++;
 		}
 		this.mesh.count = n;
-		this.mesh.instanceMatrix.needsUpdate = true;
-		if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+		if (!n) return;
+		// Only the live particles' part of the buffers goes to the graphics card.
+		const matrices = this.mesh.instanceMatrix;
+		matrices.clearUpdateRanges();
+		matrices.addUpdateRange(0, n * 16);
+		matrices.needsUpdate = true;
+		const colors = this.mesh.instanceColor!;
+		colors.clearUpdateRanges();
+		colors.addUpdateRange(0, n * 3);
+		colors.needsUpdate = true;
 	}
 }

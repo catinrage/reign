@@ -13,13 +13,18 @@
 	let clearedAt = $state(0);
 	// A fresh game restarts the log's numbering, so an old mark no longer applies.
 	const cut = $derived((view.log.at(-1)?.seq ?? 0) >= clearedAt ? clearedAt : 0);
-	const lines = $derived(
-		view.log
-			.filter((e) => e.seq > cut)
-			.map((e) => ({ seq: e.seq, chat: e.type === 'chat', parts: eventParts(e, view) }))
-			.filter((l) => l.parts)
-			.slice(-40)
-	);
+	/** The last 40 lines worth showing, found from the end: a long game's log isn't read through each time. */
+	const lines = $derived.by(() => {
+		const out: { seq: number; chat: boolean; parts: NonNullable<ReturnType<typeof eventParts>> }[] =
+			[];
+		for (let i = view.log.length - 1; i >= 0 && out.length < 40; i--) {
+			const e = view.log[i];
+			if (e.seq <= cut) continue;
+			const parts = eventParts(e, view);
+			if (parts) out.push({ seq: e.seq, chat: e.type === 'chat', parts });
+		}
+		return out.reverse();
+	});
 	let box: HTMLDivElement | undefined = $state();
 	let text = $state('');
 

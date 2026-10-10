@@ -73,6 +73,13 @@ let timer = 0;
 let lastHidden = 0;
 let frame = 0;
 let touchHide = 0;
+/**
+ * The tooltip's size in its own pixels (and its border's width), measured once per text and
+ * zoom: `place` runs every frame, and measuring makes the page lay itself out again.
+ */
+let size: { w: number; h: number; inset: number } | null = null;
+/** What `place` last wrote, so an unmoved tooltip costs the page nothing. */
+let placed = { transform: '', arrow: '', below: false };
 /** A long press showed a tooltip: swallow the click that ends it. */
 let swallowClick = false;
 const watcher = new MutationObserver(() => {
@@ -118,6 +125,7 @@ function fill(el: Element): boolean {
 	note.classList.toggle('time', tone === 'time');
 	noteIcon.src = tone === 'good' ? PIXEL.check : tone === 'time' ? PIXEL.hourglass : PIXEL.close;
 	noteText.textContent = n;
+	size = null;
 	return true;
 }
 
@@ -137,20 +145,24 @@ function place() {
 	if (tip.style.zoom !== (z === 1 ? '' : String(z))) {
 		tip.style.zoom = z === 1 ? '' : String(z);
 		tip.style.setProperty('--ui-zoom', String(z));
+		size = null;
 	}
+	size ??= { w: tip.offsetWidth, h: tip.offsetHeight, inset: tip.clientLeft };
 	const vw = innerWidth;
-	const w = tip.offsetWidth * z;
-	const h = tip.offsetHeight * z;
+	const w = size.w * z;
+	const h = size.h * z;
 	const cx = r.left + r.width / 2;
 	let below = r.top - h - GAP < EDGE;
 	if (below && r.bottom + h + GAP > innerHeight - EDGE) below = false;
 	const top = below ? r.bottom + GAP : r.top - h - GAP;
 	const left = Math.min(Math.max(cx - w / 2, EDGE), vw - w - EDGE);
-	tip.style.transform = `translate(${Math.round(left) / z}px, ${Math.round(top) / z}px)`;
-	tip.classList.toggle('below', below);
+	const transform = `translate(${Math.round(left) / z}px, ${Math.round(top) / z}px)`;
+	if (transform !== placed.transform) tip.style.transform = placed.transform = transform;
+	if (below !== placed.below) tip.classList.toggle('below', (placed.below = below));
 	// The pointer sits in the padding box, inside the plate's border.
-	const ax = Math.min(Math.max((cx - left) / z, 16), w / z - 16) - tip.clientLeft;
-	arrow.style.left = `${Math.round(ax / 2) * 2}px`;
+	const ax = Math.min(Math.max((cx - left) / z, 16), w / z - 16) - size.inset;
+	const arrowLeft = `${Math.round(ax / 2) * 2}px`;
+	if (arrowLeft !== placed.arrow) arrow.style.left = placed.arrow = arrowLeft;
 }
 
 function loop() {
@@ -227,6 +239,8 @@ let pointed: Element | null = null;
 export function installTooltips() {
 	if (installed) return;
 	installed = true;
+	// A new window size can change the tooltip's text wrap or the size of its art.
+	addEventListener('resize', () => (size = null));
 	const root = document.documentElement.style;
 	root.setProperty('--art-tip', plate());
 	root.setProperty('--art-tip-pointer', pointer());
