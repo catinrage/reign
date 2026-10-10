@@ -70,12 +70,28 @@ export class VoxelGrid {
 		color: number | ((x: number, y: number, z: number) => number),
 		mat: Mat = Mat.Solid
 	) {
-		for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
-			for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++)
-				for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
+		// The same writes as calling set() per cell, with the bounds and material worked out once.
+		const { nx, ny, nz, ox, oy, oz, data } = this;
+		const tag = ((mat + 1) & 0xff) << 24;
+		const xa = Math.min(x0, x1);
+		const xb = Math.max(x0, x1);
+		const za = Math.min(z0, z1);
+		const zb = Math.max(z0, z1);
+		const yb = Math.max(y0, y1);
+		for (let y = Math.min(y0, y1); y <= yb; y++) {
+			const gy = y - oy;
+			const yIn = gy >= 0 && gy < ny;
+			for (let z = za; z <= zb; z++) {
+				const gz = z - oz;
+				const row = yIn && gz >= 0 && gz < nz ? nx * (gz + nz * gy) : -1;
+				for (let x = xa; x <= xb; x++) {
 					const c = typeof color === 'number' ? color : color(x, y, z);
-					if (c >= 0) this.set(x, y, z, c, mat);
+					if (!(c >= 0) || row < 0) continue;
+					const gx = x - ox;
+					if (gx >= 0 && gx < nx) data[row + gx] = (tag | (c & 0xffffff)) >>> 0;
 				}
+			}
+		}
 	}
 
 	/** Highest solid y in a column, or -Infinity. */

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { type Axial, hexKey, worldToHex } from '../../../shared/board/hex';
+import { type Axial, worldToHex } from '../../../shared/board/hex';
 import { type Board, getTopology } from '../../../shared/board/topology';
 import { TERRAIN_RESOURCE, type Terrain } from '../../../shared/rules/config';
 import { HEX_R, SEA_Y, VOXEL } from '../layout';
@@ -193,8 +193,10 @@ export function buildBoard(board: Board, seed: number, detail = 1, withPlots = f
 	const grid = new VoxelGrid(half * 2, MAX_Y * S, half * 2, -half, 0, -half);
 	const W = grid.nx;
 	const D = grid.nz;
-	const hexIndex = new Map<string, number>();
-	board.hexes.forEach((h, i) => hexIndex.set(hexKey(h), i));
+	// Keyed by a number rather than a hexKey string: this is looked up for every column.
+	const hexId = (q: number, r: number) => (q + 2048) * 4096 + r + 2048;
+	const hexIndex = new Map<number, number>();
+	board.hexes.forEach((h, i) => hexIndex.set(hexId(h.q, h.r), i));
 	const centers = topo.hexes.map((t) => ({ x: (t.x * HEX_R) / VOXEL, z: (t.z * HEX_R) / VOXEL }));
 	// Reign Extended workshops stand on a plot inside their tile, kept flat and clear of trees,
 	// crops and sheep. Without workshops the island is built exactly as before.
@@ -213,7 +215,7 @@ export function buildBoard(board: Board, seed: number, detail = 1, withPlots = f
 			const x = ix - half + 0.5;
 			const z = iz - half + 0.5;
 			const ax: Axial = worldToHex((x * vox) / HEX_R, (z * vox) / HEX_R);
-			const h = hexIndex.get(hexKey(ax));
+			const h = hexIndex.get(hexId(ax.q, ax.r));
 			if (h === undefined) continue;
 			const lx = x / S - centers[h].x;
 			const lz = z / S - centers[h].z;
@@ -286,7 +288,9 @@ export function buildBoard(board: Board, seed: number, detail = 1, withPlots = f
 			if (col.edge < 1.05) {
 				const c = pick(C.border, r);
 				const top = BORDER_TOP * S - 1;
-				grid.box(x, 0, z, x, top, z, (_, y) => (y > top - S ? c : y > top - 3 * S ? shade(c, 0.86) : pick(C.dirt, r)));
+				const under = shade(c, 0.86);
+				const dirt = pick(C.dirt, r);
+				grid.box(x, 0, z, x, top, z, (_, y) => (y > top - S ? c : y > top - 3 * S ? under : dirt));
 				tops[i] = top;
 				continue;
 			}
@@ -520,6 +524,9 @@ function distanceField(land: Uint8Array, W: number, D: number) {
 
 // ---------------------------------------------------------------- terrain columns
 
+/** The colors of a hill's sides below the top layer. */
+const CLAY_SIDE = C.clayDark.concat(C.clay);
+
 /** Peak heights and radii (voxels) for the three summits round a mountain tile. */
 const MOUNTAIN_PEAKS = [
 	{ h: 19, r: 8 },
@@ -545,7 +552,9 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 	/** The top voxel of a VOXEL-sized layer. */
 	const layerTop = (y: number) => (y + 1) * S - 1;
 	const fill = (top: number, topColor: number, mat: Mat = Mat.Solid) => {
-		grid.box(x, 0, z, x, top - S, z, (_, y) => (y > top - 3 * S ? shade(topColor, 0.72) : pick(C.dirt, r)));
+		const under = shade(topColor, 0.72);
+		const dirt = pick(C.dirt, r);
+		grid.box(x, 0, z, x, top - S, z, (_, y) => (y > top - 3 * S ? under : dirt));
 		for (let y = top - S + 1; y <= top; y++) grid.set(x, y, z, topColor, mat);
 		return top;
 	};
@@ -619,7 +628,7 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 			const top = gt + h;
 			grid.box(x, 0, z, x, top, z, (_, y) => {
 				if (y > top - S) return h > 2 * S && hash3(x, y, z, hs) > 0.6 ? pick(C.clayHi, r) : pick(C.clay, r);
-				if (y >= (g - 1) * S) return pick(C.clayDark.concat(C.clay), hash3(x, y, z, hs));
+				if (y >= (g - 1) * S) return pick(CLAY_SIDE, hash3(x, y, z, hs));
 				return pick(C.dirt, r);
 			});
 			return top;
