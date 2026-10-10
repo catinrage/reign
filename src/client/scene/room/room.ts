@@ -3,6 +3,7 @@ import type { Stage } from '../stage';
 import { hex } from '../voxel/grid';
 import { FIRE_LIGHT, buildChimney, buildFireplace } from './fireplace';
 import {
+	type Cat,
 	buildArmchair,
 	buildCandles,
 	buildCards,
@@ -37,6 +38,8 @@ export interface Room {
 	 * camera still has room to stand back.
 	 */
 	fitTable(scale: number): void;
+	/** The cat asleep on the armchair, once it is built (it purrs when clicked). */
+	readonly cat: Cat | null;
 	update(dt: number, t: number): void;
 }
 
@@ -193,6 +196,7 @@ export function buildRoom(stage: Stage): Room {
 
 	// Right wall (+x): the fireplace, seen back-right from the default view, with the cat's
 	// armchair beside it.
+	let cat: Cat | null = null;
 	const fireLeft = -160;
 	const fireLight = flame(0, FLOOR_Y + FIRE_LIGHT.y, 0, '#ff6a1e', 950, 1100);
 	let hearth: THREE.Object3D | undefined;
@@ -212,13 +216,13 @@ export function buildRoom(stage: Stage): Room {
 	});
 	later(() => {
 		const chair = buildArmchair();
-		const cat = buildCat();
+		cat = buildCat();
 		cat.group.scale.setScalar(1.35);
 		cat.group.position.set(-2, 36, 6);
 		cat.group.rotation.y = 0.3;
 		chair.add(cat.group);
 		against('px', N(chair, 'armchair'), -226, 74, FLOOR_Y, Math.PI / 2 - 0.7);
-		updaters.push((_dt, t) => cat.update(t));
+		updaters.push((_dt, t) => cat!.update(t));
 	});
 	item('px', buildLogBasket, 'logbasket', fireLeft + 176, 40, FLOOR_Y, 0.25);
 	bookcase('px', -292, { seed: 7, at: 70, hang: 26 });
@@ -348,6 +352,9 @@ export function buildRoom(stage: Stage): Room {
 		},
 		get tableHalf() {
 			return tableHalfVox * 4 * K;
+		},
+		get cat() {
+			return cat;
 		},
 		fitTable(scale: number) {
 			const half = Math.round(37 * Math.max(1, scale));

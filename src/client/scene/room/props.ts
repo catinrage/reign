@@ -341,6 +341,8 @@ export function buildArmchair(): THREE.Group {
 export interface Cat {
 	group: THREE.Group;
 	update(t: number): void;
+	/** Purr for `seconds`: the cat breathes deeper and trembles with it. */
+	purr(seconds: number): void;
 }
 
 /** A sleeping orange tabby curled up, ~30 x 15 x 24 units. Breathes gently. */
@@ -398,11 +400,26 @@ export function buildCat(): Cat {
 	const body = voxels(g, 1, { jitter: 0.05, shadows: false });
 	const group = new THREE.Group();
 	group.add(body);
+	let now = 0;
+	let purrStart = -Infinity;
+	let purrEnd = -Infinity;
 	return {
 		group,
 		update(t) {
+			now = t;
 			const b = Math.sin(t * 1.7) * 0.5 + 0.5;
-			body.scale.set(1 + b * 0.015, 1 + b * 0.05, 1 + b * 0.025);
+			// While purring: a fine tremble, fading in and out, on top of the breathing.
+			const p = t < purrEnd ? Math.min(1, (t - purrStart) / 0.3, (purrEnd - t) / 0.6) : 0;
+			const shiver = p * Math.sin(t * 47) * 0.012;
+			body.scale.set(
+				1 + b * 0.015 + shiver * 0.5,
+				1 + b * 0.05 * (1 + p * 0.6) + shiver,
+				1 + b * 0.025 + shiver * 0.5
+			);
+		},
+		purr(seconds) {
+			purrStart = now;
+			purrEnd = now + seconds;
 		}
 	};
 }

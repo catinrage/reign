@@ -31,7 +31,8 @@ const SAMPLES = [
 	'coo',
 	'horn',
 	'trade',
-	'tearDown'
+	'tearDown',
+	'purr'
 ] as const;
 type SampleName = (typeof SAMPLES)[number];
 
@@ -57,7 +58,8 @@ const VOLUME: Record<SampleName, number> = {
 	coo: 0.55,
 	horn: 0.7,
 	trade: 0.5,
-	tearDown: 0.7
+	tearDown: 0.7,
+	purr: 0.6
 };
 /** Random pitch spread (playbackRate +/- this) for sounds that repeat a lot. */
 const VARY: Partial<Record<SampleName, number>> = {
@@ -590,6 +592,11 @@ const synth: Record<SampleName, () => void> = {
 		tone(120, 0.4, 'sine', 0.32, 0.35, 0.45);
 		click(0.36, 0.28, 0.4);
 		swish(0.36, 0.9, 0.1, 1100, 220, 0.05);
+	},
+	purr() {
+		// A low buzz at a cat's purring rate, breathed out and in.
+		tone(26, 1.2, 'sawtooth', 0.12);
+		tone(24, 1.4, 'sawtooth', 0.1, 1.3);
 	}
 };
 
@@ -648,5 +655,7 @@ export const sfx = {
 	/** Wings beating as a carrier pigeon takes off. */
 	flutter: () => play('flutter'),
 	/** A soft coo as a carrier pigeon lands with a note. */
-	coo: () => play('coo')
+	coo: () => play('coo'),
+	/** A cat purring: someone clicked the cat asleep on the armchair (an easter egg). */
+	purr: () => play('purr')
 };
