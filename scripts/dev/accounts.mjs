@@ -36,7 +36,7 @@ await page.fill('input[autocomplete="username"]', me);
 await page.fill('input[placeholder="What the table calls you"]', 'Komeil');
 await page.fill('input[autocomplete="new-password"] >> nth=0', 'secret12');
 await page.fill('input[autocomplete="new-password"] >> nth=1', 'secret12');
-await tap(page, '.picker button[title="Wizard"]');
+await tap(page, '.picker button[data-tip="Wizard"]');
 await shot(page, 'auth-register');
 await tap(page, 'button[type=submit]');
 await page.waitForSelector('.home .me');

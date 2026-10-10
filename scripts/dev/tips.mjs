@@ -78,8 +78,8 @@ async function shoot(page, name, around) {
 		return { x: r.x, y: r.y, w: r.width, h: r.height, text: t.innerText.replace(/\n+/g, ' | ') };
 	});
 	console.log(name, JSON.stringify(tip));
-	const native = await page.evaluate(() => document.querySelectorAll('[data-tip][title]').length);
-	if (native) errors.push(`${name}: ${native} element(s) kept their title while held`);
+	const native = await page.evaluate(() => document.querySelectorAll('[title]').length);
+	if (native) errors.push(`${name}: ${native} element(s) carry a title the browser would show`);
 	const vp = page.viewportSize();
 	const box = await page.locator(around).first().boundingBox();
 	const pad = 150;

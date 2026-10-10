@@ -36,23 +36,26 @@
 	);
 </script>
 
+<!-- Each half has its own tip, none on the plank: a title on both, one inside the other, showed
+     the browser's own tooltip over ours. -->
 <div
 	class="turn plaque"
-	title={tip}
 	aria-label={`${label ?? t('Round {round}', { round })}. ${goalTip}`}
 	role="status"
 >
-	{#if label}
-		<span class="word">{label}</span>
-	{:else}
-		{#each roundParts as part, j (j)}
-			{#if 'n' in part}
-				{#key part.n}<b class="n">{part.n}</b>{/key}
-			{:else}
-				<span class="word">{part.word}</span>
-			{/if}
-		{/each}
-	{/if}
+	<span class="count" title={tip}>
+		{#if label}
+			<span class="word">{label}</span>
+		{:else}
+			{#each roundParts as part, j (j)}
+				{#if 'n' in part}
+					{#key part.n}<b class="n">{part.n}</b>{/key}
+				{:else}
+					<span class="word">{part.word}</span>
+				{/if}
+			{/each}
+		{/if}
+	</span>
 	<span class="split" aria-hidden="true"></span>
 	<span class="goal" title={goalTip}
 		><img class="icon-px crown" src={PIXEL.crown} alt="" />{#key view.pointsToWin}<b class="n"
@@ -88,7 +91,8 @@
 		background: rgba(20, 10, 4, 0.55);
 		box-shadow: 1px 0 rgba(255, 220, 160, 0.18);
 	}
-	/* The goal: a crown, then how many points win. */
+	/* The round, and the goal: a crown, then how many points win. */
+	.count,
 	.goal {
 		display: inline-flex;
 		align-items: center;
@@ -129,6 +133,7 @@
 		.n {
 			font-size: 16px;
 		}
+		.count,
 		.goal {
 			gap: 3px;
 		}

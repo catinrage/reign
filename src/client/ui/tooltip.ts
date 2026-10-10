@@ -5,8 +5,9 @@ import { PIXEL } from './pixel';
 /**
  * The game's own tooltips: a small dark-wood plate with a gold rim and a pixel pointer, in
  * place of the browser's plain yellow box. Every element with a `title` gets one, so the
- * interface keeps writing ordinary `title`s; while ours shows, the title is held aside so the
- * browser's own tooltip stays away.
+ * interface keeps writing ordinary `title`s. The browser never gets to show its own: a title is
+ * stored as `data-tip` the moment it is written (see `adoptTitles`), so no element on the page
+ * ever carries one.
  *
  * Optional extras on the same element:
  * - `data-tip-head`: a heading over the text.
@@ -83,31 +84,70 @@ let placed = { transform: '', arrow: '', below: false };
 /** A long press showed a tooltip: swallow the click that ends it. */
 let swallowClick = false;
 const watcher = new MutationObserver(() => {
-	if (!target) return;
-	// The interface changed the title while it was held aside: take the new one.
-	if (target.hasAttribute('title')) hold(target);
-	if (shown) fill(target);
+	// The interface changed the text while it showed.
+	if (target && shown) fill(target);
 });
 
 function holder(from: EventTarget | null): Element | null {
 	if (!(from instanceof Element)) return null;
-	const el = from.closest('[title], [data-tip]');
+	const el = from.closest('[data-tip]');
 	if (!el || el === document.documentElement) return null;
 	return el;
 }
 
-/** Move the title aside so the browser keeps its own tooltip to itself. */
-function hold(el: Element) {
-	const t = el.getAttribute('title');
+// The browser's own, from before `adoptTitles` steers `title` to `data-tip`.
+const { setAttribute, removeAttribute, getAttribute } = Element.prototype;
+
+/** Store a title the page parsed as markup (a component's fixed `title="…"`) as `data-tip`. */
+function adopt(el: Element) {
+	const t = getAttribute.call(el, 'title');
 	if (t === null) return;
-	el.setAttribute('data-tip', t);
-	el.removeAttribute('title');
+	setAttribute.call(el, 'data-tip', t);
+	removeAttribute.call(el, 'title');
 }
 
-function release(el: Element) {
-	const t = el.getAttribute('data-tip');
-	el.removeAttribute('data-tip');
-	if (t !== null && !el.hasAttribute('title')) el.setAttribute('title', t);
+/**
+ * Keep every `title` off the page, so the browser has none to show its own tooltip for: one
+ * over ours, from a titled parent of what the pointer is on, or after ours hid while the pointer
+ * stayed. A title written from script (`setAttribute`, `removeAttribute`, `el.title`) goes to
+ * `data-tip` instead, removal included; one in parsed markup is moved as soon as it lands,
+ * before the page is drawn.
+ */
+function adoptTitles() {
+	const proto = Element.prototype;
+	const key = (name: string) => (name.toLowerCase() === 'title' ? 'data-tip' : name);
+	proto.setAttribute = function (name: string, value: string) {
+		setAttribute.call(this, key(name), value);
+	};
+	proto.removeAttribute = function (name: string) {
+		removeAttribute.call(this, key(name));
+	};
+	Object.defineProperty(HTMLElement.prototype, 'title', {
+		configurable: true,
+		get(this: HTMLElement) {
+			return getAttribute.call(this, 'data-tip') ?? '';
+		},
+		set(this: HTMLElement, value: string) {
+			setAttribute.call(this, 'data-tip', String(value));
+		}
+	});
+	const sweep = (node: Node) => {
+		if (!(node instanceof Element)) return;
+		adopt(node);
+		for (const el of node.querySelectorAll('[title]')) adopt(el);
+	};
+	new MutationObserver((records) => {
+		for (const r of records) {
+			if (r.type === 'attributes') adopt(r.target as Element);
+			else r.addedNodes.forEach(sweep);
+		}
+	}).observe(document.documentElement, {
+		subtree: true,
+		childList: true,
+		attributes: true,
+		attributeFilter: ['title']
+	});
+	sweep(document.documentElement);
 }
 
 function fill(el: Element): boolean {
@@ -173,11 +213,10 @@ function loop() {
 function show() {
 	timer = 0;
 	if (!target) return;
-	hold(target);
 	if (!fill(target)) return;
 	watcher.observe(target, {
 		attributes: true,
-		attributeFilter: ['title', 'data-tip-head', 'data-tip-note', 'data-tip-tone']
+		attributeFilter: ['data-tip', 'data-tip-head', 'data-tip-note', 'data-tip-tone']
 	});
 	shown = true;
 	tip.classList.add('on');
@@ -191,7 +230,6 @@ function hide() {
 	clearTimeout(touchHide);
 	timer = 0;
 	watcher.disconnect();
-	if (target) release(target);
 	if (shown) lastHidden = performance.now();
 	target = null;
 	shown = false;
@@ -239,6 +277,7 @@ let pointed: Element | null = null;
 export function installTooltips() {
 	if (installed) return;
 	installed = true;
+	adoptTitles();
 	// A new window size can change the tooltip's text wrap or the size of its art.
 	addEventListener('resize', () => (size = null));
 	const root = document.documentElement.style;
