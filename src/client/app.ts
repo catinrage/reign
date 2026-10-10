@@ -42,16 +42,9 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	if (new URLSearchParams(location.search).has('autoplay')) {
 		import('./autoplay').then((m) => m.startAutoplay());
 	}
-	// Draw the avatars and character portraits while nobody is waiting on them, so the lobby, the
-	// draft and the player list never do. Dev scripts drive a software renderer where each takes
-	// most of a second, so under automation they're drawn when something shows them, and a script
-	// that screenshots them awaits `__portraits()` first.
+	// Avatars and portraits draw in the background (see whenReady); a dev script that screenshots
+	// them awaits this first.
 	(window as any).__portraits = prewarmBusts;
-	if (!navigator.webdriver) {
-		if ('requestIdleCallback' in window)
-			requestIdleCallback(() => void prewarmBusts(), { timeout: 3000 });
-		else setTimeout(() => void prewarmBusts(), 2000);
-	}
 	(window as any).__ready = true;
 }
 
@@ -74,4 +67,12 @@ export async function whenReady(): Promise<void> {
 	// Two frames, so the menu and its title are drawn before the screen fades.
 	await nextPaint();
 	await nextPaint();
+	// Then draw the avatars and character portraits while nobody is waiting on them, so the lobby,
+	// the draft and the player list never do. Dev scripts drive a software renderer where each
+	// takes most of a second, so under automation they're only drawn when something shows them.
+	if (!navigator.webdriver) {
+		if ('requestIdleCallback' in window)
+			requestIdleCallback(() => void prewarmBusts(), { timeout: 3000 });
+		else setTimeout(() => void prewarmBusts(), 1000);
+	}
 }
