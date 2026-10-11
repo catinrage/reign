@@ -14,7 +14,8 @@
 	import { costOf, ownWorkshops, powerReady } from '../../../shared/rules/queries';
 	import { buildAvailable, buildNote, cardsText, countsList, extraStock, myTurn, openCities, pathAvailable, pathNote } from '../helpers';
 	import { PIXEL } from '../pixel';
-	import { ui } from './ui.svelte';
+	import { LIST_MIN_ZOOM, PLAQUE_STEP, ui } from './ui.svelte';
+	import { settings } from '../settings.svelte';
 	import { RESOURCE_LABEL } from '../../../shared/rules/config';
 	import { msg, t } from '../../i18n/index.svelte';
 	import { AUTO_ROLL_MS, autoRoll } from './autoRoll.svelte';
@@ -113,8 +114,26 @@
 
 	// Gone (the game is over), it leaves the player list the whole height again.
 	const shown = $derived(view.me >= 0 && view.phase !== 'ended');
+	/**
+	 * On a desktop screen the player list stands over the deck in the same corner. When a big table
+	 * would push the list past its smallest size into the deck (eight players at 1600x900, or the
+	 * HUD set large), the deck and its buttons shrink until they fit under it. The zoom goes by the
+	 * deck with room for its buttons, whether they show or not, so it doesn't change size between
+	 * turns or when the dice are rolled. The deck keeps its last height while trading hides it.
+	 */
+	let innerWidth = $state(window.innerWidth);
+	let innerHeight = $state(window.innerHeight);
+	let deckHeight = $state(0);
+	let height = $state(0);
+	const BUTTONS = 130;
+	const zoom = $derived.by(() => {
+		if (innerWidth <= 900 || !deckHeight) return 1;
+		const list = LIST_MIN_ZOOM * (view.players.length * PLAQUE_STEP - 8);
+		const room = innerHeight / settings.hudSize - 34 - list;
+		return Math.max(0.6, Math.min(1, room / (deckHeight + BUTTONS)));
+	});
 	$effect(() => {
-		if (!shown) ui.actionsHeight = 0;
+		ui.actionsHeight = shown ? height * zoom : 0;
 	});
 	$effect(() => () => (ui.actionsHeight = 0));
 
@@ -215,8 +234,10 @@
 	</button>
 {/snippet}
 
+<svelte:window bind:innerWidth bind:innerHeight />
+
 {#if shown}
-	<div class="actions" bind:clientHeight={ui.actionsHeight}>
+	<div class="actions" bind:clientHeight={height} style:zoom={zoom < 1 ? zoom.toFixed(3) : undefined} style:--z={zoom}>
 		{#if power && !client.presenting}
 			<button class="btn purple power" class:on={!!ui.power} title={t(power.text)} data-tip-head={t('Power: {power}', { power: t(power.name) })} onclick={onPower}>
 				<span class="gem"></span>{t(power.name)}
@@ -237,7 +258,7 @@
 			</button>
 		{/if}
 		{#if view.phase === 'main' && !ui.trade}
-			<div class="builds panel" class:closed={!open} style:--cols={cols}>
+			<div class="builds panel" class:closed={!open} style:--cols={cols} bind:offsetHeight={deckHeight}>
 				{#if ui.paths}
 					<div class="sep keep"><i></i><span>{t('City paths')}</span><i></i></div>
 					{#each paths as b (b.kind)}{@render plaque(b)}{/each}
@@ -273,10 +294,11 @@
 {/if}
 
 <style>
+	/* A zoom scales the corner gap with it: dividing by it keeps the deck 12px from the edges. */
 	.actions {
 		position: absolute;
-		right: 12px;
-		bottom: 12px;
+		right: calc(12px / var(--z, 1));
+		bottom: calc(12px / var(--z, 1));
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
