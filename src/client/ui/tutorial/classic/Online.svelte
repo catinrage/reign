@@ -31,6 +31,7 @@
 {#snippet kbdRightDrag()}<kbd>{t('Right drag')}</kbd>{/snippet}
 {#snippet kbdWheel()}<kbd>{t('Wheel')}</kbd>{/snippet}
 {#snippet kbdClick()}<kbd>{t('Click')}</kbd>{/snippet}
+{#snippet kbdAltClick()}<kbd>{t('Alt+click')}</kbd>{/snippet}
 
 <div class="ways">
 	{#each ways as w (w.name)}
@@ -127,6 +128,7 @@
 	<span><Rich text={t('{key} cancel, or open the menu')} slots={{ key: kbdEsc }} /></span>
 	<span><Rich text={t('{key} pause for everyone')} slots={{ key: kbdP }} /></span>
 	<span><Rich text={t('{key} a lit spot to build there')} slots={{ key: kbdClick }} /></span>
+	<span><Rich text={t('{key} or long press: point out a spot to everyone')} slots={{ key: kbdAltClick }} /></span>
 </div>
 
 <style>

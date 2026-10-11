@@ -11,6 +11,7 @@ import { builtKey } from '../../shared/rules/queries';
 import type { BuiltKind, GameEvent, GameView } from '../../shared/rules/types';
 import { Animator, ease } from './anim';
 import { BoardView } from './board/boardView';
+import { Beacons } from './board/beacons';
 import { RobberAim } from './board/robberAim';
 import { islandReach } from './board/terrain';
 import { bracketModel, cityModel, cloneModel, dieModel, resourceItemModel, roadModel, settlementModel, stoneRoadModel } from './board/models';
@@ -22,7 +23,7 @@ import { TAVERN_CHIMNEY, TAVERN_SIZE, animateTavern, tavernObject } from './boar
 import { WORKSHOP_SCALE, animateWorkshop, workshopChimney, workshopObject } from './board/workshops';
 import { DIE_HALF, Dice } from './dice';
 import { Particles } from './effects';
-import { HEX_R, PLAYER_RGB } from './layout';
+import { HEX_R, PLAYER_RGB, SEA_Y } from './layout';
 import { type Room, buildRoom } from './room/room';
 import { TABLE_HALF } from './room/table';
 import { ROOM_SCALE } from './room/util';
@@ -70,7 +71,15 @@ export interface SceneCallbacks {
 	onPieceHover?: (spot: BoardSpot | null, tap: boolean) => void;
 	/** The tile under the pointer changed while this player picks where the robber goes (null: none). */
 	onAim?: (hex: number | null) => void;
+	/**
+	 * This player Alt+clicked (or long-pressed) a spot on the map to light a beacon there; `x` and
+	 * `z` are in tile radii from the island's middle.
+	 */
+	onBeacon?: (x: number, z: number) => void;
 }
+
+/** How long a finger rests on the board, without moving, to light a beacon there. */
+const LONG_PRESS_MS = 550;
 
 /** An object and everything above it are visible. */
 function shown(o: THREE.Object3D | null): boolean {
@@ -162,6 +171,11 @@ export class GameScene {
 	private hovered: { id: number; obj: THREE.Object3D } | null = null;
 	/** Lights up the tile the robber is about to move to. */
 	private aim: RobberAim;
+	private beacons: Beacons;
+	/** A finger resting on the board, about to light a beacon, and whether this touch already did. */
+	private press: { id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null =
+		null;
+	private pressed = false;
 	/** The tile this player's pointer is on while they pick the robber's tile, as last reported. */
 	private myAim: number | null = null;
 	/** The tile another player is about to move the robber to, and their color. */
@@ -227,11 +241,14 @@ export class GameScene {
 		this.room = buildRoom(this.stage);
 		this.dice = new Dice(this.stage.scene, this.anim, this.particles);
 		this.aim = new RobberAim(this.stage.scene, this.particles);
+		this.beacons = new Beacons(this.stage.scene, this.particles);
 		this.stage.scene.add(this.ghosts);
 
 		this.stage.onFrame((dt, t) => this.frame(dt, t));
+		canvas.addEventListener('pointerdown', this.onPointerDown);
 		canvas.addEventListener('pointermove', this.onPointerMove);
 		canvas.addEventListener('pointerup', this.onPointerUp);
+		canvas.addEventListener('pointercancel', this.endPress);
 		canvas.addEventListener('pointerleave', this.onPointerLeave);
 		this.showMenuBoard();
 		this.stage.start();
@@ -295,6 +312,7 @@ export class GameScene {
 
 	private setBoard(board: Board, seed: number, plots = false) {
 		this.aim.clear(this.boardView);
+		this.beacons.clear();
 		if (this.boardView) {
 			this.stage.scene.remove(this.boardView.group);
 			this.boardView.dispose();
@@ -1361,11 +1379,78 @@ export class GameScene {
 		return this.ghostHits.map((g) => ({ id: g.id, ...this.project(g.mesh.position) }));
 	}
 
+	/** Light a beacon in `color` at this spot on the map (in tile radii), as someone at the table did. */
+	beacon(x: number, z: number, color: string) {
+		const bv = this.boardView;
+		if (!bv || this.mode !== 'game') return;
+		const wx = x * HEX_R;
+		const wz = z * HEX_R;
+		this.beacons.add(
+			wx,
+			Math.max(bv.build.surfaceY(wx, wz), SEA_Y),
+			wz,
+			PLAYER_RGB[color] ?? 0xffffff
+		);
+	}
+
+	/** Screen position of a spot on the map given in tile radii (used by browser tests). */
+	debugMapPoint(x: number, z: number): { x: number; y: number } | null {
+		const bv = this.boardView;
+		if (!bv) return null;
+		const wx = x * HEX_R;
+		const wz = z * HEX_R;
+		return this.project(new THREE.Vector3(wx, Math.max(bv.build.surfaceY(wx, wz), SEA_Y), wz));
+	}
+
+	/** The spot on the map under the pointer, in tile radii (null: the pointer is off the map). */
+	private mapAtPointer(): { x: number; z: number } | null {
+		if (!this.boardView || this.mode !== 'game') return null;
+		this.raycaster.setFromCamera(this.pointer, this.stage.camera);
+		const p = this.boardView.build.raycast(this.raycaster.ray);
+		return p ? { x: p.x / HEX_R, z: p.z / HEX_R } : null;
+	}
+
+	/** Light a beacon where the pointer is, if it is on the map. */
+	private beaconAtPointer(): boolean {
+		const at = this.mapAtPointer();
+		if (!at) return false;
+		this.callbacks.onBeacon?.(at.x, at.z);
+		return true;
+	}
+
+	private onPointerDown = (e: PointerEvent) => {
+		this.endPress();
+		this.pressed = false;
+		// One finger resting on the board without moving lights a beacon there.
+		if (e.pointerType !== 'touch' || !e.isPrimary || this.mode !== 'game') return;
+		const timer = setTimeout(() => {
+			if (!this.press || this.stage.rig.dragged) return;
+			const r = this.stage.box;
+			this.pointer.set(
+				((this.press.x - r.left) / r.width) * 2 - 1,
+				-((this.press.y - r.top) / r.height) * 2 + 1
+			);
+			this.press = null;
+			if (this.beaconAtPointer()) this.pressed = true;
+		}, LONG_PRESS_MS);
+		this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer };
+	};
+
+	/** The finger lifted, moved off or was joined by another: no beacon from this touch. */
+	private endPress = () => {
+		if (!this.press) return;
+		clearTimeout(this.press.timer);
+		this.press = null;
+	};
+
 	private onPointerMove = (e: PointerEvent) => {
 		const r = this.stage.box;
 		this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 		this.pointerType = e.pointerType;
 		this.pointerHeld = e.buttons !== 0;
+		const p = this.press;
+		if (p && (e.pointerId !== p.id || Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8))
+			this.endPress();
 	};
 
 	private onPointerLeave = () => {
@@ -1374,6 +1459,18 @@ export class GameScene {
 
 	private onPointerUp = (e: PointerEvent) => {
 		this.pointerHeld = false;
+		this.endPress();
+		// The touch that lit a beacon does nothing else.
+		if (this.pressed) {
+			this.pressed = false;
+			return;
+		}
+		// Alt+click lights a beacon on the map, and does nothing else.
+		if (e.button === 0 && e.altKey && !this.stage.rig.dragged && this.mode === 'game') {
+			this.onPointerMove(e);
+			this.beaconAtPointer();
+			return;
+		}
 		// A click or tap on the cat makes it purr, and does nothing else.
 		if (e.button === 0 && !this.stage.rig.dragged) {
 			this.onPointerMove(e);
@@ -1756,6 +1853,7 @@ export class GameScene {
 		const aim = this.pick?.kind === 'robber' || tile ? { hex: id, color: this.pick!.color } : this.theirAim;
 		this.aim.set(bv, aim?.hex ?? null, PLAYER_RGB[aim?.color ?? ''] ?? 0xffffff, !tile);
 		this.aim.update(dt, t, bv, this.stage.rig.azimuth);
+		this.beacons.update(dt, t);
 		const pulse = 0.5 + Math.sin(t * 4) * 0.5;
 		for (const m of ghostCache.values()) m.emissiveIntensity = 0.4 + pulse * 0.3;
 		for (const m of markerCache.values()) m.emissiveIntensity = 0.9 + pulse * 0.9;
@@ -1801,7 +1899,7 @@ function prewarmKit(): THREE.Group {
 	for (const path of ['castle', 'fortress', 'guildHall'] as const) add(pathObject(path, color));
 	for (const res of RESOURCES) add(workshopObject(res, color), resourceItemModel(res));
 	add(cornerBrackets(color, 0), new THREE.Mesh(MARKER_GEM, markerMaterial(color)), new THREE.Mesh(MARKER_RING, ringMaterial(color)));
-	add(new THREE.Mesh(BLESS_HALO, HALO_MAT));
+	add(new THREE.Mesh(BLESS_HALO, HALO_MAT), Beacons.prewarm());
 	const ghost = cloneModel(settlementModel(color));
 	ghost.traverse((o) => {
 		if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = ghostMaterial(color);

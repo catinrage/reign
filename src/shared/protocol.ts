@@ -115,6 +115,11 @@ export type ClientMessage =
 	| { t: 'pigeon'; to: string; text: string }
 	/** The tile under the pointer of the player moving the robber (null when it's on none). */
 	| { t: 'aim'; hex: number | null }
+	/**
+	 * Alt+click (a long press on touch): a beacon at this spot on the map for everyone at the table.
+	 * `x` and `z` are in tile radii from the island's middle, as the board is laid out for everyone.
+	 */
+	| { t: 'beacon'; x: number; z: number }
 	| { t: 'leave' }
 	/** Is the game at `code` still open, and does `token` still hold a seat there? */
 	| { t: 'peek'; code: string; token?: string }
@@ -138,6 +143,8 @@ export type ServerMessage =
 	| { t: 'pigeon'; note: PigeonNote }
 	/** The tile `player` is about to move the robber to, as they point at it (null: none now). */
 	| { t: 'aim'; player: number; hex: number | null }
+	/** `player` lit a beacon at this spot on the map (see the client message). */
+	| { t: 'beacon'; player: number; x: number; z: number }
 	/**
 	 * The answer to a peek: `open` when the game is still going and the token holds a seat in it,
 	 * with the names of the players still at the table.
@@ -163,5 +170,11 @@ export const CLASSIC_PLAYERS = 4;
 export const MIN_PLAYERS = 2;
 /** Turn time limits the host can pick, in seconds; 0 is unlimited. */
 export const TURN_TIMES = [0, 30, 60, 90, 120, 180];
+/** How long a beacon stays lit on the map. */
+export const BEACON_MS = 3000;
+/** The least time between two beacons from one player; any sooner are dropped. */
+export const BEACON_GAP_MS = 400;
+/** How far from the island's middle a beacon can be, in tile radii (the biggest islands reach about 20). */
+export const BEACON_REACH = 60;
 /** The longest note a pigeon carries. */
 export const PIGEON_MAX_CHARS = 240;

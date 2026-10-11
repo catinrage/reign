@@ -1,4 +1,4 @@
-import type { ClientMessage, LobbyInfo, PigeonNote, ServerMessage, TurnClock } from '../../shared/protocol';
+import { BEACON_GAP_MS, type ClientMessage, type LobbyInfo, type PigeonNote, type ServerMessage, type TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
 import type { Resource } from '../../shared/rules/config';
 import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
@@ -87,6 +87,14 @@ export interface Joining {
 	error: string | null;
 }
 
+/** A beacon someone lit on the map: where, in tile radii from the island's middle. */
+export interface Beacon {
+	id: number;
+	player: number;
+	x: number;
+	z: number;
+}
+
 export interface Toast {
 	id: number;
 	text: string;
@@ -161,6 +169,13 @@ class GameClient {
 	freshPigeon = $state.raw<PigeonNote | null>(null);
 	/** The tile another player moving the robber points at, as the server last said. */
 	aim = $state.raw<{ player: number; hex: number } | null>(null);
+	/**
+	 * Beacons lit on the map (Alt+click), this player's own included, newest last; `id` counts up
+	 * so the scene can tell which it hasn't shown yet. Only the last few are kept.
+	 */
+	beacons = $state.raw<Beacon[]>([]);
+	private beaconId = 0;
+	private lastBeacon = -Infinity;
 	/** A game this player left that is still going, with who is still at the table: they can rejoin. */
 	resumable = $state<{ code: string; players: string[] } | null>(null);
 
@@ -309,6 +324,9 @@ class GameClient {
 				break;
 			case 'aim':
 				this.aim = msg.hex === null ? null : { player: msg.player, hex: msg.hex };
+				break;
+			case 'beacon':
+				this.addBeacon(msg.player, msg.x, msg.z);
 				break;
 			case 'peek':
 				if (msg.open) this.resumable = { code: msg.code, players: msg.players };
@@ -541,12 +559,33 @@ class GameClient {
 	send(msg: ClientMessage) {
 		if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
 		// Where the pointer was is no use once the connection is back.
-		else if (msg.t !== 'ping' && msg.t !== 'aim') this.queue.push(msg);
+		else if (msg.t !== 'ping' && msg.t !== 'aim' && msg.t !== 'beacon') this.queue.push(msg);
 	}
 
 	/** Show the other players the tile this player is about to move the robber to (null: none). */
 	aimAt(hex: number | null) {
 		this.send({ t: 'aim', hex });
+	}
+
+	/**
+	 * Light a beacon at this spot on the map (in tile radii) for everyone at the table. It shows
+	 * here at once; false when the last one was too recent (the server would drop it).
+	 */
+	beacon(x: number, z: number): boolean {
+		const me = this.view?.me;
+		if (me === undefined || me < 0 || this.replaying) return false;
+		const now = performance.now();
+		if (now - this.lastBeacon < BEACON_GAP_MS) return false;
+		this.lastBeacon = now;
+		x = Math.round(x * 100) / 100;
+		z = Math.round(z * 100) / 100;
+		this.addBeacon(me, x, z);
+		this.send({ t: 'beacon', x, z });
+		return true;
+	}
+
+	private addBeacon(player: number, x: number, z: number) {
+		this.beacons = [...this.beacons.slice(-15), { id: ++this.beaconId, player, x, z }];
 	}
 
 	/** Pause the game for everyone at the table, or resume it. */
@@ -620,6 +659,7 @@ class GameClient {
 		this.pigeons = [];
 		this.freshPigeon = null;
 		this.aim = null;
+		this.beacons = [];
 		this.seat = null;
 		this.spectating = false;
 		this.code = null;
