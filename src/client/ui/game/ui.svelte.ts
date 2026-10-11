@@ -21,6 +21,8 @@ class UiState {
 	menu = $state(false);
 	/** The piece on the board whose tooltip shows: under the mouse, or tapped on a touch screen. */
 	piece = $state<{ spot: BoardSpot; tap: boolean } | null>(null);
+	/** How tall the build deck and its buttons stand in the corner, so the player list ends above them. */
+	actionsHeight = $state(0);
 }
 
 export const ui = new UiState();

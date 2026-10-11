@@ -511,7 +511,7 @@
 <!-- Alt is held to light beacons: letting go of it shouldn't open the browser's menu bar. -->
 <svelte:window onkeydown={onKey} onkeyup={(e) => e.key === 'Alt' && e.preventDefault()} />
 
-<div class="hud" class:flash={ui.flash} class:timed>
+<div class="hud" class:flash={ui.flash} class:timed style:--actions-h="{ui.actionsHeight}px">
 	<Prompt />
 	<Players />
 	<DiceBadge />

@@ -1583,5 +1583,8 @@ export default {
 	"Yours: you trade here.": "Ваша: вы торгуете здесь.",
 	"Traded at by: {players}": "Здесь торгуют: {players}",
 	"Closed this round by the Storm at Sea.": "Закрыта в этом раунде из-за шторма на море.",
-	"Your harbors": "Ваши гавани"
+	"Your harbors": "Ваши гавани",
+	"Not your turn: you can build on your turn, once the dice are rolled.": "Сейчас не ваш ход: строить можно в свой ход, после броска кубиков.",
+	"You can build once this step is done.": "Строить можно, когда закончится этот шаг.",
+	"Costs {cards}.": "Цена: {cards}."
 } satisfies Messages;
