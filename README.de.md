@@ -46,6 +46,7 @@ Form und Größe.
 - [Aufbau](#aufbau)
 - [Inhalte hinzufügen](#inhalte-hinzufügen)
 - [Tests](#tests)
+- [Lizenz](#lizenz)
 
 ## Höhepunkte
 
@@ -306,6 +307,22 @@ node scripts/e2e.mjs http://localhost:8787 test-results/e2e 300   # Browser-Smok
 ```
 
 Mit `TEST_DATABASE_URL` laufen die Konto-Tests zusätzlich gegen ein echtes Postgres.
+
+## Lizenz
+
+Reign ist **quelloffen zum Lesen**, aber keine Open-Source-Software im Sinne der OSI. Das Projekt
+steht unter der [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- ✅ Lies den Code, starte ihn und lerne daraus.
+- ✅ Forke das Projekt, eröffne Issues, melde Fehler und schicke Pull Requests.
+- ✅ Nutze es privat, als Hobby, für Forschung oder Unterricht.
+- ❌ Keine kommerzielle Nutzung: Du darfst es nicht verkaufen, kein Geld dafür verlangen und kein
+  kommerzielles Spiel und keinen kommerziellen Dienst darauf aufbauen.
+- ❌ Behalte die Copyright-Zeile `Required Notice` und die Lizenz in jeder Kopie bei und gib Reign
+  oder einen Fork davon nicht als dein eigenes Werk aus.
+
+Mit einem Pull Request stimmst du zu, dass dein Beitrag unter derselben Lizenz steht. Für alles, was
+die Lizenz nicht erlaubt, etwa kommerzielle Nutzung, frag zuerst den Autor.
 
 <div align="center">
 <sub>Gemacht aus Voxeln, Würfeln und sehr vielen Schafen. 🐑</sub>

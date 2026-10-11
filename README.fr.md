@@ -46,6 +46,7 @@ bâtiments et des îles de toutes formes et de toutes tailles.
 - [Architecture](#architecture)
 - [Ajouter du contenu](#ajouter-du-contenu)
 - [Tests](#tests)
+- [Licence](#licence)
 
 ## Points forts
 
@@ -313,6 +314,23 @@ node scripts/e2e.mjs http://localhost:8787 test-results/e2e 300   # test de fum�
 ```
 
 Définissez `TEST_DATABASE_URL` pour exécuter aussi les tests de comptes sur un vrai serveur Postgres.
+
+## Licence
+
+Le code de Reign est **ouvert à la lecture**, mais ce n'est pas un logiciel open source au sens de
+l'OSI. Il est publié sous la [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- ✅ Lisez le code, lancez-le et apprenez-en.
+- ✅ Forkez-le, ouvrez des issues, signalez des bugs et proposez des pull requests.
+- ✅ Utilisez-le à des fins personnelles, de loisir, de recherche ou d'enseignement.
+- ❌ Pas d'usage commercial : interdit de le vendre, de le faire payer ou d'en tirer un jeu ou un
+  service commercial.
+- ❌ Gardez la ligne de copyright `Required Notice` et la licence dans chaque copie, et ne présentez
+  pas Reign ni un fork comme votre propre œuvre.
+
+En ouvrant une pull request, vous acceptez que votre contribution soit diffusée sous la même
+licence. Pour tout ce que la licence n'autorise pas, comme un usage commercial, demandez d'abord à
+l'auteur.
 
 <div align="center">
 <sub>Fait de voxels, de dés et de beaucoup de moutons. 🐑</sub>

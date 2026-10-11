@@ -43,6 +43,7 @@ Reign 是一款多人在线游戏，重新演绎了经典的“开拓、交易�
 - [技术架构](#技术架构)
 - [添加内容](#添加内容)
 - [测试](#测试)
+- [许可证](#许可证)
 
 ## 亮点
 
@@ -270,6 +271,19 @@ node scripts/e2e.mjs http://localhost:8787 test-results/e2e 300   # 针对运行
 ```
 
 设置 `TEST_DATABASE_URL` 后，账号测试还会在真实的 Postgres 上运行。
+
+## 许可证
+
+Reign 是**源码公开**的项目：代码可以随意阅读，但它不是 OSI 意义上的开源软件。
+本项目采用 [PolyForm Noncommercial License 1.0.0](LICENSE) 许可证发布。
+
+- ✅ 阅读代码、运行它并从中学习。
+- ✅ Fork 项目、提交 issue、报告 bug 和发起 pull request。
+- ✅ 用于个人、爱好、研究或教学目的。
+- ❌ 禁止商业使用：不得出售、收费，或基于它制作商业游戏或服务。
+- ❌ 每份副本都必须保留 `Required Notice` 版权行和许可证，且不得把 Reign 或其分支冒充为自己的作品。
+
+提交 pull request 即表示你同意你的贡献以相同的许可证发布。许可证不允许的用途（例如商业使用）请先联系作者。
 
 <div align="center">
 <sub>用体素、骰子和许多羊打造。🐑</sub>
