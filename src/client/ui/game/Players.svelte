@@ -8,17 +8,20 @@
 	import { sceneRef } from '../sceneRef';
 	import { settings } from '../settings.svelte';
 	import TurnTab from './TurnTab.svelte';
+	import { ui } from './ui.svelte';
 	import { t, tx } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
 	const seats = $derived(client.lobby?.seats ?? []);
 	const playing = $derived(view.phase !== 'ended');
-	// Big tables shrink the list on desktop so it ends above the build panel in the corner. The
-	// HUD's own size (a player setting) makes the screen that many times shorter in its pixels.
+	// Big tables, and the tall Reign Extended build deck, shrink the list on desktop so it ends above
+	// the build panel in the corner. The HUD's own size (a player setting) makes the screen that many
+	// times shorter in its pixels.
 	let innerWidth = $state(window.innerWidth);
 	let innerHeight = $state(window.innerHeight);
+	const below = $derived(Math.max(290, ui.actionsHeight + 34));
 	const zoom = $derived(
-		innerWidth > 900 ? Math.max(0.6, Math.min(1, (innerHeight / settings.hudSize - 290) / (view.players.length * 82 - 8))) : 1
+		innerWidth > 900 ? Math.max(0.6, Math.min(1, (innerHeight / settings.hudSize - below) / (view.players.length * 82 - 8))) : 1
 	);
 	/** Resource cards in a hand. Cards dealt on the board count once they get there. */
 	function cardsIn(i: number) {

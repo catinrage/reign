@@ -195,7 +195,8 @@
 	}
 	@media (max-width: 900px) {
 		.wrap {
-			bottom: 250px;
+			/* Over the hand, which stands on the build deck. */
+			bottom: max(250px, calc(var(--actions-h, 0px) + 150px));
 		}
 	}
 </style>

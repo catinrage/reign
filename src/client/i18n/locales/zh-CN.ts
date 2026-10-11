@@ -1583,5 +1583,8 @@ export default {
 	"Yours: you trade here.": "你的：你可以在这里交易。",
 	"Traded at by: {players}": "在此交易：{players}",
 	"Closed this round by the Storm at Sea.": "本轮因海上风暴关闭。",
-	"Your harbors": "你的港口"
+	"Your harbors": "你的港口",
+	"Not your turn: you can build on your turn, once the dice are rolled.": "还没轮到你：轮到你并掷骰之后才能建造。",
+	"You can build once this step is done.": "完成这一步之后才能建造。",
+	"Costs {cards}.": "花费：{cards}。"
 } satisfies Messages;

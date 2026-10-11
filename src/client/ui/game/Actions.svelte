@@ -12,7 +12,7 @@
 	import { client } from '../../state/client.svelte';
 	import { POWER_INFO } from '../../../shared/rules/characters';
 	import { costOf, ownWorkshops, powerReady } from '../../../shared/rules/queries';
-	import { buildAvailable, buildNote, countsList, extraStock, myTurn, openCities, pathAvailable, pathNote } from '../helpers';
+	import { buildAvailable, buildNote, cardsText, countsList, extraStock, myTurn, openCities, pathAvailable, pathNote } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { ui } from './ui.svelte';
 	import { RESOURCE_LABEL } from '../../../shared/rules/config';
@@ -21,6 +21,21 @@
 
 	const view = $derived(client.view!);
 	const mine = $derived(myTurn(view));
+	/**
+	 * The builds can be pressed on your turn once the dice are rolled. The rest of the time the deck
+	 * stays up, dimmed, so everyone can read what each piece costs.
+	 */
+	const open = $derived(mine && view.step === 'main');
+	/** Why nothing can be built right now, while the deck is up but closed. */
+	const waitNote = $derived(
+		open
+			? ''
+			: !mine
+				? t('Not your turn: you can build on your turn, once the dice are rolled.')
+				: view.step === 'roll'
+					? t('Roll the dice first.')
+					: t('You can build once this step is done.')
+	);
 	const color = $derived(view.players[view.me]?.color ?? 'white');
 	const left = $derived(view.players[view.me]?.piecesLeft);
 	const icons = getIcons().urls;
@@ -96,6 +111,13 @@
 		};
 	});
 
+	// Gone (the game is over), it leaves the player list the whole height again.
+	const shown = $derived(view.me >= 0 && view.phase !== 'ended');
+	$effect(() => {
+		if (!shown) ui.actionsHeight = 0;
+	});
+	$effect(() => () => (ui.actionsHeight = 0));
+
 	function onPower() {
 		ui.build = null;
 		ui.trade = false;
@@ -115,17 +137,19 @@
 	{@const ok = buildAvailable(view, b.kind)}
 	{@const info = isExtraBuilding(b.kind) ? BUILDING_INFO[b.kind] : null}
 	{@const extra = !!info}
+	{@const tip = extra || !open}
 	<!-- Reign buildings are new to most players, so they explain themselves and why they can't
-	     be built yet (aria-disabled keeps that tooltip working, on phones too). -->
+	     be built yet, and off your turn every plaque says why (aria-disabled keeps that tooltip
+	     working, on phones too). -->
 	<button
 		class="build plaque"
 		class:active={ui.build === b.kind}
 		data-kind={b.kind}
-		disabled={!ok && !extra}
-		aria-disabled={extra ? !ok : undefined}
-		title={info ? t(info.text) : undefined}
-		data-tip-head={extra ? t(b.label) : undefined}
-		data-tip-note={extra && !ok ? buildNote(view, b.kind) : undefined}
+		disabled={!ok && !tip}
+		aria-disabled={tip ? !ok : undefined}
+		title={info ? t(info.text) : open ? undefined : t('Costs {cards}.', { cards: cardsText(costOf(view, view.me, b.kind)) })}
+		data-tip-head={tip ? t(b.label) : undefined}
+		data-tip-note={!open ? waitNote : extra && !ok ? buildNote(view, b.kind) : undefined}
 		onclick={() => ok && onBuild(b.kind)}
 	>
 		<img class="piece" class:icon-px={b.kind === 'devCard'} src={iconFor(b.kind)} alt="" />
@@ -144,13 +168,13 @@
 	{@const ok = pathAvailable(view)}
 	<!-- Opens the paths even when none can be taken yet: each says its price and why not. -->
 	<button
-		class="build plaque"
+		class="build plaque browse"
 		class:dim={!ok}
 		title={t(
 			'Take one of your cities down a path, for good: a castle worth 3 points, a guild hall that trades the goods you name at 2:1, or a fortress where your knights count double.'
 		)}
 		data-tip-head={t('City path')}
-		data-tip-note={ok ? undefined : pathNote(view)}
+		data-tip-note={ok ? undefined : open ? pathNote(view) : waitNote}
 		onclick={openPaths}
 	>
 		<span class="piece grown"
@@ -164,7 +188,7 @@
 {/snippet}
 
 {#snippet back()}
-	<button class="build plaque" title={t('Back to the other builds')} onclick={closePaths}>
+	<button class="build plaque browse" title={t('Back to the other builds')} onclick={closePaths}>
 		<span class="piece"><img class="icon-px return" src={PIXEL.play} alt="" /></span>
 		<span class="bname title">{t('Back')}</span>
 		<span class="cost hint">{t('Other builds')}</span>
@@ -175,9 +199,11 @@
 	<button
 		class="build plaque"
 		class:active={ui.build === 'tearDown'}
+		aria-disabled={!open}
 		title={t('Tear down one of your workshops to build it somewhere better. The bank gives you back a Lumber.')}
 		data-tip-head={t('Tear down')}
-		onclick={() => (ui.build = ui.build === 'tearDown' ? null : 'tearDown')}
+		data-tip-note={open ? undefined : waitNote}
+		onclick={() => open && (ui.build = ui.build === 'tearDown' ? null : 'tearDown')}
 	>
 		<span class="piece torn"><img src={icons[`workshop:${color}`]} alt="" /><img class="icon-px hammer" src={PIXEL.hammer} alt="" /></span>
 		<span class="bname title">{t('Tear down')}<small title={t('Your workshops')}>{owned.length}</small></span>
@@ -189,8 +215,8 @@
 	</button>
 {/snippet}
 
-{#if view.me >= 0 && view.phase !== 'ended'}
-	<div class="actions">
+{#if shown}
+	<div class="actions" bind:clientHeight={ui.actionsHeight}>
 		{#if power && !client.presenting}
 			<button class="btn purple power" class:on={!!ui.power} title={t(power.text)} data-tip-head={t('Power: {power}', { power: t(power.name) })} onclick={onPower}>
 				<span class="gem"></span>{t(power.name)}
@@ -210,24 +236,24 @@
 				{#if autoRolling}<span class="fuse" class:held={fuseHeld} aria-hidden="true"></span>{/if}
 			</button>
 		{/if}
-		{#if mine && view.step === 'main'}
-			{#if !ui.trade}
-				<div class="builds panel" style:--cols={cols}>
-					{#if ui.paths}
-						<div class="sep keep"><i></i><span>{t('City paths')}</span><i></i></div>
-						{#each paths as b (b.kind)}{@render plaque(b)}{/each}
-						{@render back()}
-					{:else}
-						{#each builds as b (b.kind)}{@render plaque(b)}{/each}
-						{#if reign.length || paths.length}
-							<div class="sep"><i></i><span>Reign</span><i></i></div>
-							{#each reign as b (b.kind)}{@render plaque(b)}{/each}
-							{#if paths.length}{@render cityPath()}{/if}
-							{#if owned.length}{@render tearDown()}{/if}
-						{/if}
+		{#if view.phase === 'main' && !ui.trade}
+			<div class="builds panel" class:closed={!open} style:--cols={cols}>
+				{#if ui.paths}
+					<div class="sep keep"><i></i><span>{t('City paths')}</span><i></i></div>
+					{#each paths as b (b.kind)}{@render plaque(b)}{/each}
+					{@render back()}
+				{:else}
+					{#each builds as b (b.kind)}{@render plaque(b)}{/each}
+					{#if reign.length || paths.length}
+						<div class="sep"><i></i><span>Reign</span><i></i></div>
+						{#each reign as b (b.kind)}{@render plaque(b)}{/each}
+						{#if paths.length}{@render cityPath()}{/if}
+						{#if owned.length}{@render tearDown()}{/if}
 					{/if}
-				</div>
-			{/if}
+				{/if}
+			</div>
+		{/if}
+		{#if open}
 			<div class="row">
 				<button class="btn wood" class:on={ui.trade} onclick={() => (ui.trade = !ui.trade)}>
 					<img class="icon-px" src={PIXEL.trade} alt="" /> {t('Trade')}
@@ -353,6 +379,19 @@
 	}
 	.build[aria-disabled='true']:hover {
 		transform: none;
+	}
+	/* Off your turn the deck stays up so the prices can be read: a little dimmed, nothing lifts or
+	   glows, and only the City path menu (to read its prices) still opens. */
+	.builds.closed .build {
+		cursor: not-allowed;
+		opacity: 0.8;
+		filter: saturate(0.7) brightness(0.92);
+	}
+	.builds.closed .build:hover {
+		transform: none;
+	}
+	.builds.closed .build.browse {
+		cursor: pointer;
 	}
 	/* The Reign buildings sit under a small heading of their own. */
 	.sep {

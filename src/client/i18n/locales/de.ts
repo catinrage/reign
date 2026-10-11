@@ -1583,5 +1583,8 @@ export default {
 	"Yours: you trade here.": "Deiner: Du handelst hier.",
 	"Traded at by: {players}": "Hier handeln: {players}",
 	"Closed this round by the Storm at Sea.": "In dieser Runde wegen Sturm auf See geschlossen.",
-	"Your harbors": "Deine Häfen"
+	"Your harbors": "Deine Häfen",
+	"Not your turn: you can build on your turn, once the dice are rolled.": "Nicht dein Zug: Bauen kannst du in deinem Zug, sobald gewürfelt ist.",
+	"You can build once this step is done.": "Bauen kannst du, sobald dieser Schritt erledigt ist.",
+	"Costs {cards}.": "Kostet {cards}."
 } satisfies Messages;

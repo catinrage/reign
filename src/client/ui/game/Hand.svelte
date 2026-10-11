@@ -7,7 +7,6 @@
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
 	import { dialogs } from './dialogs.svelte';
-	import { ui } from './ui.svelte';
 	import { msg, t } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
@@ -35,8 +34,6 @@
 			.filter((g) => g.total > 0)
 			.map((g) => ({ ...g, blocked: blocked(g.type, g.ready) }))
 	);
-	// On phones the build bar sits under the hand, so the hand moves up while it shows.
-	const raised = $derived(myTurn(view) && view.step === 'main' && !ui.trade);
 	// Why a card can't be played right now, or null when it can. The same checks the rules make,
 	// in the order a player would want to hear them.
 	const STEP_WAIT: Partial<Record<string, string>> = {
@@ -79,7 +76,7 @@
 </script>
 
 {#if res}
-	<div class="hand" class:raised>
+	<div class="hand">
 		<div class="tray panel">
 			<div class="cards">
 				{#each RESOURCES as r, i (r)}
@@ -232,11 +229,9 @@
 		.hand {
 			left: 6px;
 			right: 6px;
-			bottom: 64px;
+			/* On phones the build deck and its buttons sit under the hand, so the hand stands on them. */
+			bottom: max(64px, calc(var(--actions-h, 0px) + 16px));
 			gap: 30px 6px;
-		}
-		.hand.raised {
-			bottom: 156px;
 		}
 		.tray {
 			padding: 12px 6px 2px;
