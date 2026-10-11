@@ -8,7 +8,7 @@ import type {
 	ServerMessage,
 	TurnClock
 } from '../shared/protocol';
-import { MAX_PLAYERS, MIN_PLAYERS, PIGEON_MAX_CHARS, TURN_TIMES } from '../shared/protocol';
+import { BEACON_GAP_MS, BEACON_REACH, MAX_PLAYERS, MIN_PLAYERS, PIGEON_MAX_CHARS, TURN_TIMES } from '../shared/protocol';
 import { type CustomMap, type MapChoice, mapName, mapTiles, presetById, validateCustomMap } from '../shared/board/maps';
 import { cleanRandomOptions } from '../shared/board/random';
 import { randomSeed } from '../shared/rng';
@@ -46,6 +46,8 @@ interface Seat {
 	lastSeen: number;
 	/** When this seat last sent a pigeon (Date.now() time), to keep the sky from filling up. */
 	lastPigeon?: number;
+	/** When this seat last lit a beacon on the map (Date.now() time). */
+	lastBeacon?: number;
 	/** Pressed Leave during a game (rather than losing the connection). Cleared when they rejoin. */
 	left: boolean;
 	/** The account sitting here (null for bots and for tables without accounts, as in tests). */
@@ -498,6 +500,8 @@ export class Room {
 				if (hex !== null && (!Number.isInteger(hex) || !g.board.hexes[hex] || hex === g.robberHex)) return;
 				return this.setAim(player, hex, false);
 			}
+			case 'beacon':
+				return this.lightBeacon(seat, msg.x, msg.z, ws);
 			case 'cheat': {
 				if (!this.cheats) return send(ws, { t: 'error', message: 'Cheats only work on the dev server.' });
 				if (!this.game) return;
@@ -682,6 +686,33 @@ export class Room {
 		const lobby = this.lobbyInfo();
 		for (const s of this.seats) for (const ws of s.sockets) send(ws, { t: 'lobby', lobby });
 		for (const ws of this.spectators) send(ws, { t: 'lobby', lobby });
+	}
+
+	/**
+	 * A player lit a beacon on the map: everyone at the table and watching sees it, but the
+	 * connection it came from, which shows it already. Spectators can't light one (they have no seat).
+	 */
+	private lightBeacon(seat: Seat, x: unknown, z: unknown, from: WebSocket) {
+		if (!this.game || seat.left) return;
+		if (
+			typeof x !== 'number' ||
+			typeof z !== 'number' ||
+			!Number.isFinite(x) ||
+			!Number.isFinite(z)
+		)
+			return;
+		if (Math.hypot(x, z) > BEACON_REACH) return;
+		const now = Date.now();
+		if (seat.lastBeacon && now - seat.lastBeacon < BEACON_GAP_MS) return;
+		seat.lastBeacon = now;
+		const msg: ServerMessage = {
+			t: 'beacon',
+			player: this.seatIndex(seat),
+			x: Math.round(x * 100) / 100,
+			z: Math.round(z * 100) / 100
+		};
+		for (const s of this.seats) for (const ws of s.sockets) if (ws !== from) send(ws, msg);
+		for (const ws of this.spectators) send(ws, msg);
 	}
 
 	/** Tell everyone but the player aiming which tile the robber is aimed at (null: none). */

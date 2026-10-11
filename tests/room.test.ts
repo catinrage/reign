@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import type { ServerMessage } from '../src/shared/protocol';
+import { BEACON_GAP_MS, BEACON_REACH, type ServerMessage } from '../src/shared/protocol';
 import { BOT_OFFER_MS, EMPTY_GRACE_MS, Room } from '../src/server/room';
 import { randomMap } from '../src/shared/board/random';
 import { botAction } from '../src/shared/rules/bot';
@@ -963,6 +963,59 @@ describe('leaving a game', () => {
 		const { room } = twoPlayers();
 		expect(room.peek('not-a-token').open).toBe(false);
 		expect(room.peek().open).toBe(false);
+		room.dispose();
+	});
+});
+
+describe('map beacons', () => {
+	afterEach(() => vi.useRealTimers());
+
+	type Beacon = Extract<ServerMessage, { t: 'beacon' }>;
+	const beacons = (sent: ServerMessage[]) => sent.filter((m): m is Beacon => m.t === 'beacon');
+
+	it('shows a beacon to everyone at the table and watching, but the one who lit it', () => {
+		const { room, host, guest, a, b } = twoPlayers(0);
+		const fan = fakeSocket();
+		room.watch(fan.ws);
+		const p = room.seats.indexOf(guest);
+		room.handle(guest, { t: 'beacon', x: 1.234, z: -2.5 }, b.ws);
+		expect(beacons(a.sent)).toEqual([{ t: 'beacon', player: p, x: 1.23, z: -2.5 }]);
+		expect(beacons(fan.sent)).toEqual([{ t: 'beacon', player: p, x: 1.23, z: -2.5 }]);
+		expect(beacons(b.sent)).toEqual([]);
+
+		// One right after another from the same player is dropped; someone else's isn't.
+		room.handle(guest, { t: 'beacon', x: 0, z: 0 }, b.ws);
+		room.handle(host, { t: 'beacon', x: 0, z: 0 }, a.ws);
+		expect(beacons(a.sent)).toHaveLength(1);
+		expect(beacons(b.sent)).toHaveLength(1);
+		vi.advanceTimersByTime(BEACON_GAP_MS);
+		room.handle(guest, { t: 'beacon', x: 0, z: 0 }, b.ws);
+		expect(beacons(a.sent)).toHaveLength(2);
+
+		// Nothing off the map or not a number.
+		vi.advanceTimersByTime(BEACON_GAP_MS);
+		for (const [x, z] of [
+			[BEACON_REACH + 1, 0],
+			[NaN, 0],
+			[0, Infinity],
+			['1', 0]
+		] as [number, number][]) {
+			room.handle(host, { t: 'beacon', x, z }, a.ws);
+		}
+		expect(beacons(b.sent)).toHaveLength(1);
+		room.dispose();
+	});
+
+	it('lights none before the game starts', () => {
+		vi.useFakeTimers();
+		const room = new Room('BEACN');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(host, { t: 'beacon', x: 0, z: 0 }, a.ws);
+		expect(beacons(b.sent)).toEqual([]);
 		room.dispose();
 	});
 });

@@ -623,6 +623,14 @@ function tick() {
 	tone(2350, 0.035, 'square', 0.025);
 }
 
+/** A beacon lit on the map, synthesized: a bright little two-note chime with a soft knock under it. */
+function beacon() {
+	click(0, 0.18, 1.6);
+	tone(1568, 0.22, 'triangle', 0.12);
+	tone(2093, 0.32, 'triangle', 0.1, 0.07);
+	tone(4186, 0.12, 'sine', 0.02, 0.07);
+}
+
 export const sfx = {
 	dice: () => play('dice'),
 	build: () => play('build'),
@@ -657,5 +665,7 @@ export const sfx = {
 	/** A soft coo as a carrier pigeon lands with a note. */
 	coo: () => play('coo'),
 	/** A cat purring: someone clicked the cat asleep on the armchair (an easter egg). */
-	purr: () => play('purr')
+	purr: () => play('purr'),
+	/** A chime as someone lights a beacon on the map. */
+	beacon
 };

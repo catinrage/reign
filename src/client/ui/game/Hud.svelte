@@ -198,6 +198,21 @@
 		sceneRef.current?.setTheirAim(hex, color);
 	});
 
+	// Beacons lit on the map, this player's own and everyone else's, each shown once in its player's color.
+	let beaconsShown = 0;
+	$effect(() => {
+		const scene = sceneRef.current;
+		const players = client.latest?.players;
+		for (const b of client.beacons) {
+			if (b.id <= beaconsShown) continue;
+			beaconsShown = b.id;
+			const color = players?.[b.player]?.color;
+			if (!scene || !color) continue;
+			scene.beacon(b.x, b.z, color);
+			sfx.beacon();
+		}
+	});
+
 	/** Events new since the last call: none at first, nor when a new game starts the log over. */
 	function newEvents() {
 		let last = -1;
@@ -462,6 +477,8 @@
 				client.aimAt(hex);
 				if (hex !== null) sfx.hover();
 			},
+			// Alt+click (a long press on touch) on the map: a beacon there for the whole table.
+			onBeacon: (x, z) => client.beacon(x, z),
 			// A resource rose from its tile and flies to whoever got it: into your hand, or onto
 			// another player's plaque. It counts as it gets there.
 			onResourcePopped: (player, resource, screen) => {
@@ -491,7 +508,8 @@
 	void getTopology;
 </script>
 
-<svelte:window onkeydown={onKey} />
+<!-- Alt is held to light beacons: letting go of it shouldn't open the browser's menu bar. -->
+<svelte:window onkeydown={onKey} onkeyup={(e) => e.key === 'Alt' && e.preventDefault()} />
 
 <div class="hud" class:flash={ui.flash} class:timed>
 	<Prompt />
