@@ -51,7 +51,7 @@
 	const ended = $derived(view.phase === 'ended');
 </script>
 
-<div class="wrap">
+<div class="wrap" style:--corner="{ui.cornerWidth ? 14 + ui.cornerWidth + 12 : 290}px">
 	<div class="prompt">
 		<!-- The banner drops in anew with each prompt; the clock under it stays put. -->
 		<div class="banner">
@@ -76,20 +76,24 @@
 </div>
 
 <style>
+	/* The banner sits in the middle of the screen when it can. A long one beside a wide corner row
+	   (the round's event card at 1366x768) moves right until it clears the row, and never under
+	   the player list. */
 	.wrap {
 		position: absolute;
 		top: 14px;
 		left: 0;
 		right: 0;
-		display: flex;
-		justify-content: center;
+		display: grid;
+		grid-template-columns: minmax(var(--corner), 1fr) auto minmax(290px, 1fr);
 		pointer-events: none;
 	}
 	.prompt {
+		grid-column: 2;
+		min-width: 0;
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		max-width: calc(100vw / var(--ui-zoom) - 580px);
 	}
 	.banner {
 		position: relative;
@@ -125,6 +129,8 @@
 		/* Under the plaques, clear of the turn tab that hangs from one of them. */
 		.wrap {
 			top: 68px;
+			display: flex;
+			justify-content: center;
 		}
 		.prompt {
 			max-width: calc(100vw / var(--ui-zoom) - 32px);

@@ -8,7 +8,7 @@
 	import { sceneRef } from '../sceneRef';
 	import { settings } from '../settings.svelte';
 	import TurnTab from './TurnTab.svelte';
-	import { ui } from './ui.svelte';
+	import { LIST_MIN_ZOOM, PLAQUE_STEP, ui } from './ui.svelte';
 	import { t, tx } from '../../i18n/index.svelte';
 
 	const view = $derived(client.view!);
@@ -21,7 +21,9 @@
 	let innerHeight = $state(window.innerHeight);
 	const below = $derived(Math.max(290, ui.actionsHeight + 34));
 	const zoom = $derived(
-		innerWidth > 900 ? Math.max(0.6, Math.min(1, (innerHeight / settings.hudSize - below) / (view.players.length * 82 - 8))) : 1
+		innerWidth > 900
+			? Math.max(LIST_MIN_ZOOM, Math.min(1, (innerHeight / settings.hudSize - below) / (view.players.length * PLAQUE_STEP - 8)))
+			: 1
 	);
 	/** Resource cards in a hand. Cards dealt on the board count once they get there. */
 	function cardsIn(i: number) {

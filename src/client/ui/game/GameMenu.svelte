@@ -94,7 +94,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="corner">
+<div class="corner" bind:clientWidth={ui.cornerWidth}>
 	<button class="icon-btn gear" onclick={open} aria-label={t('Menu')} title={t('Menu (Esc)')}
 		><img src={PIXEL.gear} alt="" /></button
 	>

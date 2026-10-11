@@ -7,6 +7,13 @@ import type { BoardSpot } from '../../scene/gameScene';
  */
 export type PowerFlow = { stage: 'dialog' } | { stage: 'pick'; first?: number } | { stage: 'terrain'; hex: number };
 
+/**
+ * The desktop player list: each plaque takes this much height with the gap under it, and the list
+ * shrinks to no less than this zoom to end above the build deck in the corner.
+ */
+export const PLAQUE_STEP = 82;
+export const LIST_MIN_ZOOM = 0.6;
+
 /** Local interface state that isn't part of the game (open panels, build mode). */
 class UiState {
 	/** What a click on the board builds; 'tearDown' picks one of your workshops to tear down. */
@@ -21,8 +28,13 @@ class UiState {
 	menu = $state(false);
 	/** The piece on the board whose tooltip shows: under the mouse, or tapped on a touch screen. */
 	piece = $state<{ spot: BoardSpot; tap: boolean } | null>(null);
-	/** How tall the build deck and its buttons stand in the corner, so the player list ends above them. */
+	/**
+	 * How tall the build deck and its buttons stand in the corner, as drawn (smaller when the deck
+	 * shrinks to fit), so the player list ends above them.
+	 */
 	actionsHeight = $state(0);
+	/** How wide the row of buttons and plaques in the top left corner is, so the banner keeps clear of it. */
+	cornerWidth = $state(0);
 }
 
 export const ui = new UiState();
