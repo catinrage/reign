@@ -33,6 +33,10 @@ import {
 	harborUsers,
 	paveSpots,
 	pathSpots,
+	pointsBreakdown,
+	pointsOf,
+	POINT_VALUE,
+	type PointPart,
 	roadSpots,
 	settlementSpots,
 	storehouseOf,
@@ -364,6 +368,55 @@ export function myTurn(view: GameView | null): boolean {
 
 export function name(view: GameView, i: number): string {
 	return i === view.me ? t('You') : (view.players[i]?.name ?? '?');
+}
+
+/**
+ * Where a player's points come from, as far as this view shows: their victory point cards only
+ * when the view has their hand (your own, everyone's once the game is over or in a replay).
+ */
+export function pointParts(view: GameView, i: number): PointPart[] {
+	return pointsBreakdown(view, i, view.players[i]?.devCards);
+}
+
+/** One line of a points breakdown: "Cities: 3 × 2 = 6", "Longest Road: +2". */
+export function pointLine(part: PointPart): string {
+	const n = { n: part.count, each: POINT_VALUE[part.source], points: part.points };
+	switch (part.source) {
+		case 'settlement':
+			return t('Settlements: {n} × {each} = {points}', n);
+		case 'city':
+			return t('Cities: {n} × {each} = {points}', n);
+		case 'castle':
+			return t('Castles: {n} × {each} = {points}', n);
+		case 'longestRoad':
+			return t('Longest Road: +{points}', n);
+		case 'largestArmy':
+			return t('Largest Army: +{points}', n);
+		case 'victoryCard':
+			return t('Hidden victory point cards: {n} × {each} = {points}', n);
+	}
+}
+
+/**
+ * A player's points coin tooltip: the score against the goal, a line per source, and a note
+ * on what can't be seen: another player's development cards may hide victory points.
+ */
+export function pointsTip(view: GameView, i: number): { head: string; text: string; note: string } {
+	const parts = pointParts(view, i);
+	const p = view.players[i];
+	let note = '';
+	if (!p.devCards && p.devCardCount)
+		note = t(
+			'{n, plural, one {Their # development card could be a hidden victory point.} other {Their # development cards could hide victory points.}}',
+			{ n: p.devCardCount }
+		);
+	else if (i === view.me && view.phase !== 'ended' && parts.some((x) => x.source === 'victoryCard'))
+		note = t('Only you can see your hidden cards.');
+	return {
+		head: t('Victory points: {points} of {goal} to win', { points: pointsOf(parts), goal: view.pointsToWin }),
+		text: parts.length ? parts.map(pointLine).join('\n') : t('No points yet.'),
+		note
+	};
 }
 
 export function promptText(view: GameView): string {

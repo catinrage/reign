@@ -39,8 +39,9 @@ import {
 	longestRoadMin,
 	paymentFor,
 	playersOnHex,
+	pointsBreakdown,
+	pointsOf,
 	powerReady,
-	publicPoints,
 	roadSpots,
 	safeCards,
 	storehouseOf,
@@ -1354,8 +1355,9 @@ function updateLargestArmy(ctx: Ctx) {
 	}
 }
 
+/** A player's whole score, their hidden victory point cards included. */
 export function totalPoints(s: GameState, p: number): number {
-	return publicPoints(s, p) + s.players[p].devCards.filter((c) => c.type === 'victoryPoint').length;
+	return pointsOf(pointsBreakdown(s, p, s.players[p].devCards));
 }
 
 /** You can only win on your own turn, so only the current player is checked. */

@@ -3,7 +3,7 @@
 	import { armySize, discardLimit, fortressOf, powerWait, safeCards } from '../../../shared/rules/queries';
 	import { client } from '../../state/client.svelte';
 	import Portrait from '../extended/Portrait.svelte';
-	import { PLAYER_CSS } from '../helpers';
+	import { PLAYER_CSS, pointsTip } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { sceneRef } from '../sceneRef';
 	import { settings } from '../settings.svelte';
@@ -50,6 +50,7 @@
 	{#each view.players as p, i (i)}
 		{@const current = i === view.current && playing}
 		{@const pts = p.totalPoints ?? p.publicPoints}
+		{@const tip = pointsTip(view, i)}
 		{@const offline = seats[i] && !seats[i].connected}
 		{@const road = view.longestRoadHolder === i}
 		{@const army = view.largestArmyHolder === i}
@@ -131,11 +132,13 @@
 					>
 				</div>
 			</div>
+			<!-- Its tooltip shows where the points come from: hidden cards only for your own. -->
 			<span
 				class="coin vp"
-				title={p.totalPoints !== undefined && p.totalPoints !== p.publicPoints
-					? t('Victory points, with your hidden cards: {points} of {goal} to win', { points: pts, goal: view.pointsToWin })
-					: t('Victory points: {points} of {goal} to win', { points: pts, goal: view.pointsToWin })}>{pts}</span
+				title={tip.text}
+				data-tip-head={tip.head}
+				data-tip-note={tip.note || undefined}
+				data-tip-tone="secret">{pts}</span
 			>
 			{#if road || army || offline || hexed}
 				<div class="medals">

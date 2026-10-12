@@ -10,7 +10,7 @@
 	import { replay } from '../../state/replay.svelte';
 	import { getIcons } from '../../scene/icons';
 	import { t } from '../../i18n/index.svelte';
-	import { PLAYER_CSS, RES_BG } from '../helpers';
+	import { PLAYER_CSS, RES_BG, pointsTip } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { diceChart } from './postGame';
 	import { sceneRef } from '../sceneRef';
@@ -116,7 +116,7 @@
 				>
 					<div class="who">
 						<i class="swatch"></i><span class="nm">{p.name}</span>
-						<span class="vp" title={t('Victory points')}>{pointsOf(i)}</span>
+						<span class="vp" title={pointsTip(view, i).text} data-tip-head={pointsTip(view, i).head}>{pointsOf(i)}</span>
 					</div>
 					<div class="cards">
 						{#each RESOURCES as r (r)}
