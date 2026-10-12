@@ -1716,5 +1716,8 @@ export default {
 	"Out of time": "时间到",
 	"Try again": "再试一次",
 	"Next mission": "下一个任务",
-	"{player} took {res} as tribute": "{player} 拿走了 {res} 作为贡品"
+	"{player} took {res} as tribute": "{player} 拿走了 {res} 作为贡品",
+	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "从牌堆随机抽一张卡：可移动强盗的骑士、道路建设、丰收之年、垄断，或一张暗藏的胜利分。从你的下一回合起可以打出。",
+	"The deck is empty.": "牌堆已空。",
+	"Cards left in the deck": "牌堆剩余卡牌"
 } satisfies Messages;

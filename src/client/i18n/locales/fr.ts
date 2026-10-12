@@ -1716,5 +1716,8 @@ export default {
 	"Out of time": "Temps écoulé",
 	"Try again": "Réessayer",
 	"Next mission": "Mission suivante",
-	"{player} took {res} as tribute": "{player} a pris {res} en tribut"
+	"{player} took {res} as tribute": "{player} a pris {res} en tribut",
+	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "Piochez une carte au hasard : un Chevalier qui déplace le voleur, Construction de routes, Invention, Monopole ou un Point de victoire caché. Vous pourrez la jouer à partir de votre prochain tour.",
+	"The deck is empty.": "La pioche est vide.",
+	"Cards left in the deck": "Cartes restant dans la pioche"
 } satisfies Messages;

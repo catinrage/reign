@@ -1716,5 +1716,8 @@ export default {
 	"Out of time": "Время вышло",
 	"Try again": "Попробовать снова",
 	"Next mission": "Следующая миссия",
-	"{player} took {res} as tribute": "{player} берёт дань: {res}"
+	"{player} took {res} as tribute": "{player} берёт дань: {res}",
+	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "Вытяни случайную карту из колоды: Рыцаря, который переставляет разбойника, Строительство дорог, Изобилие, Монополию или скрытое Победное очко. Сыграть её можно со следующего хода.",
+	"The deck is empty.": "Колода пуста.",
+	"Cards left in the deck": "Карт осталось в колоде"
 } satisfies Messages;
