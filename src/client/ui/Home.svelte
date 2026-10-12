@@ -170,16 +170,16 @@
 				</button>
 			{/if}
 
-			<button class="btn big block shine" onclick={play} disabled={busy}>
-				<img src={PIXEL.play} alt="" />
-				<span class="stack"
-					>{t('Play vs bots')}<span class="sub">{t('Three rivals, start right away')}</span></span
-				>
-			</button>
 			<button class="btn purple block" onclick={openCampaign} disabled={busy}>
 				<img src={PIXEL.crown} alt="" />
 				<span class="stack"
 					>{t('Campaign')}<span class="sub">{t('The Shattered Crown: a story for one player')}</span></span
+				>
+			</button>
+			<button class="btn big block shine" onclick={play} disabled={busy}>
+				<img src={PIXEL.play} alt="" />
+				<span class="stack"
+					>{t('Play vs bots')}<span class="sub">{t('Three rivals, start right away')}</span></span
 				>
 			</button>
 			<button class="btn green block" onclick={create} disabled={busy}>
