@@ -143,6 +143,18 @@
 		ui.trade = false;
 		ui.power = ui.power ? null : { stage: 'dialog' };
 	}
+	/**
+	 * What buying a development card gets you. "Dev card" alone left new players guessing, so the
+	 * plaque always explains itself, like the Reign buildings.
+	 */
+	const DEV_TEXT = msg(
+		'Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.'
+	);
+	/** Why this plaque can't be pressed on your turn. */
+	function devNote(kind: BuildKind) {
+		if (kind === 'devCard' && view.devDeckCount === 0) return t('The deck is empty.');
+		return buildNote(view, kind);
+	}
 	function iconFor(kind: BuildKind) {
 		return kind === 'devCard' ? PIXEL.dev : icons[`${kind}:${color}`];
 	}
@@ -158,7 +170,8 @@
 	{@const info = isExtraBuilding(b.kind) ? BUILDING_INFO[b.kind] : null}
 	{@const extra = !!info}
 	{@const forbidden = b.kind === 'devCard' && banned(view, view.me, 'devCards')}
-	{@const tip = extra || !open || forbidden}
+	{@const dev = b.kind === 'devCard'}
+	{@const tip = extra || dev || !open || forbidden}
 	<!-- Reign buildings are new to most players, so they explain themselves and why they can't
 	     be built yet, and off your turn every plaque says why (aria-disabled keeps that tooltip
 	     working, on phones too). -->
@@ -169,14 +182,28 @@
 		data-kind={b.kind}
 		disabled={!ok && !tip}
 		aria-disabled={tip ? !ok : undefined}
-		title={info ? t(info.text) : open ? undefined : t('Costs {cards}.', { cards: cardsText(costOf(view, view.me, b.kind)) })}
-		data-tip-head={tip ? t(b.label) : undefined}
-		data-tip-note={forbidden ? t(BAN_TEXT.devCards.text) : !open ? waitNote : extra && !ok ? buildNote(view, b.kind) : undefined}
+		title={info
+			? t(info.text)
+			: dev
+				? t(DEV_TEXT)
+				: open
+					? undefined
+					: t('Costs {cards}.', { cards: cardsText(costOf(view, view.me, b.kind)) })}
+		data-tip-head={tip ? t(dev ? 'Development card' : b.label) : undefined}
+		data-tip-note={forbidden
+			? t(BAN_TEXT.devCards.text)
+			: !open
+				? waitNote
+				: (extra || dev) && !ok
+					? devNote(b.kind)
+					: undefined}
 		onclick={() => ok && onBuild(b.kind)}
 	>
 		<img class="piece" class:icon-px={b.kind === 'devCard'} src={iconFor(b.kind)} alt="" />
 		<span class="bname title"
-			>{t(b.label)}<small title={extra ? undefined : t('Left to build')}>{stock(b.kind)}</small></span
+			>{t(b.label)}<small title={extra ? undefined : b.kind === 'devCard' ? t('Cards left in the deck') : t('Left to build')}
+				>{stock(b.kind)}</small
+			></span
 		>
 		<span class="cost">
 			{#each countsList(costOf(view, view.me, b.kind)) as c (c.res)}

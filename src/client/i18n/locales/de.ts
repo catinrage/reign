@@ -1716,5 +1716,8 @@ export default {
 	"Out of time": "Zeit abgelaufen",
 	"Try again": "Nochmal versuchen",
 	"Next mission": "Nächste Mission",
-	"{player} took {res} as tribute": "{player} hat {res} als Tribut genommen"
+	"{player} took {res} as tribute": "{player} hat {res} als Tribut genommen",
+	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "Zieh eine zufällige Karte vom Stapel: einen Ritter, der den Räuber versetzt, Straßenbau, Erfindung, Monopol oder einen verdeckten Siegpunkt. Ausspielen kannst du sie ab deinem nächsten Zug.",
+	"The deck is empty.": "Der Stapel ist leer.",
+	"Cards left in the deck": "Karten im Stapel"
 } satisfies Messages;
