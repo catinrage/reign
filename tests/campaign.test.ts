@@ -105,6 +105,14 @@ describe('mission list', () => {
 		expect(missionOpen(b.id, () => false)).toBe(false);
 		expect(missionOpen(b.id, (id) => id === a.id)).toBe(true);
 		expect(missionOpen(c.id, (id) => id === a.id)).toBe(false);
+		// Every act can be started straight away.
+		for (const act of [2, 3]) {
+			const [first, second] = MISSIONS.filter((m) => m.act === act);
+			expect(missionOpen(first.id, () => false)).toBe(true);
+			expect(missionOpen(second.id, () => false)).toBe(false);
+			expect(missionOpen(second.id, (id) => id === first.id)).toBe(true);
+		}
+		expect(missionOpen('nope', () => true)).toBe(false);
 		expect(nextMission(a.id)?.id).toBe(b.id);
 		expect(nextMission(MISSIONS[MISSIONS.length - 1].id)).toBeUndefined();
 	});
