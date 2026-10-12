@@ -410,6 +410,69 @@ describe('client: following an invite link', () => {
 	});
 });
 
+describe('client: Play vs bots and missions skip the lobby', () => {
+	let sent: { t: string }[];
+	const msg = (m: object) => (client as any).onMessage(m);
+	const welcome = { t: 'welcome', code: 'ABCDE', seat: 's1', token: 'tok' };
+	const lobby = (started = false) => ({
+		t: 'lobby',
+		lobby: { code: 'ABCDE', started, clock: null }
+	});
+	const game = () => msg({ t: 'game', view: viewFor(createGame(players, 3), 0), clock: null });
+	beforeEach(() => {
+		vi.stubGlobal('location', new URL('http://localhost/'));
+		vi.stubGlobal('history', { replaceState() {} });
+		vi.stubGlobal('localStorage', { getItem: () => null, setItem() {} });
+		sent = [];
+		vi.spyOn(client, 'send').mockImplementation((m) => void sent.push(m));
+		client.leave();
+		sent.length = 0;
+	});
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it("keeps the menu up through the bot table's lobby until the game arrives", () => {
+		client.quickPlay(3);
+		expect(client.launching).toBe(true);
+		msg(welcome);
+		msg(lobby());
+		expect(sent.map((m) => m.t)).toEqual([
+			'create',
+			'offerWait',
+			'addBot',
+			'addBot',
+			'addBot',
+			'start'
+		]);
+		expect(client.launching).toBe(true);
+		msg(lobby(true));
+		expect(client.launching).toBe(true);
+		game();
+		expect(client.launching).toBe(false);
+	});
+
+	it('does the same for a campaign mission', () => {
+		client.playMission('first-landing');
+		msg(welcome);
+		msg(lobby());
+		expect(sent.at(-1)).toEqual({ t: 'mission', mission: 'first-landing' });
+		expect(client.launching).toBe(true);
+		game();
+		expect(client.launching).toBe(false);
+	});
+
+	it('shows the lobby when the table could not start on its own', () => {
+		client.quickPlay(3);
+		msg(welcome);
+		msg(lobby());
+		msg({ t: 'error', message: 'Waiting for Ada to be ready.' });
+		expect(client.launching).toBe(false);
+		expect(client.lobby?.code).toBe('ABCDE');
+	});
+});
+
 describe('client: event cards', () => {
 	let sent: unknown[];
 	beforeEach(() => {
