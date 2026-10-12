@@ -12,6 +12,7 @@
 	import { client } from '../../state/client.svelte';
 	import { POWER_INFO } from '../../../shared/rules/characters';
 	import { costOf, ownWorkshops, powerReady } from '../../../shared/rules/queries';
+	import { BAN_TEXT, banned } from '../../../shared/rules/campaign';
 	import { buildAvailable, buildNote, cardsText, countsList, extraStock, myTurn, openCities, pathAvailable, pathNote } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import { LIST_MIN_ZOOM, PLAQUE_STEP, ui } from './ui.svelte';
@@ -156,19 +157,21 @@
 	{@const ok = buildAvailable(view, b.kind)}
 	{@const info = isExtraBuilding(b.kind) ? BUILDING_INFO[b.kind] : null}
 	{@const extra = !!info}
-	{@const tip = extra || !open}
+	{@const forbidden = b.kind === 'devCard' && banned(view, view.me, 'devCards')}
+	{@const tip = extra || !open || forbidden}
 	<!-- Reign buildings are new to most players, so they explain themselves and why they can't
 	     be built yet, and off your turn every plaque says why (aria-disabled keeps that tooltip
 	     working, on phones too). -->
 	<button
 		class="build plaque"
 		class:active={ui.build === b.kind}
+		class:forbidden
 		data-kind={b.kind}
 		disabled={!ok && !tip}
 		aria-disabled={tip ? !ok : undefined}
 		title={info ? t(info.text) : open ? undefined : t('Costs {cards}.', { cards: cardsText(costOf(view, view.me, b.kind)) })}
 		data-tip-head={tip ? t(b.label) : undefined}
-		data-tip-note={!open ? waitNote : extra && !ok ? buildNote(view, b.kind) : undefined}
+		data-tip-note={forbidden ? t(BAN_TEXT.devCards.text) : !open ? waitNote : extra && !ok ? buildNote(view, b.kind) : undefined}
 		onclick={() => ok && onBuild(b.kind)}
 	>
 		<img class="piece" class:icon-px={b.kind === 'devCard'} src={iconFor(b.kind)} alt="" />

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { emptyResources, type Resource } from '../../../shared/rules/config';
 	import { tradeRatios } from '../../../shared/rules/queries';
+	import { BAN_TEXT, banned } from '../../../shared/rules/campaign';
 	import { client } from '../../state/client.svelte';
 	import { RESOURCES } from '../helpers';
 	import { PIXEL } from '../pixel';
@@ -20,7 +21,10 @@
 	const view = $derived(client.view!);
 	const mine = $derived(view.players[view.me].resources!);
 	const ratios = $derived(tradeRatios(view, view.me));
-	let tab = $state<'bank' | 'players'>('bank');
+	// A campaign mission can forbid one way of trading: the panel opens on the other.
+	const noBank = $derived(banned(view, view.me, 'bankTrade'));
+	const noPlayers = $derived(banned(view, view.me, 'playerTrade'));
+	let tab = $state<'bank' | 'players'>(banned(client.view!, client.view!.me, 'bankTrade') ? 'players' : 'bank');
 	let give = $state<Resource | null>(null);
 	let get = $state<Resource | null>(null);
 	let offerGive = $state(emptyResources());
@@ -68,7 +72,9 @@
 			>
 		</div>
 
-		{#if tab === 'bank'}
+		{#if (tab === 'bank' && noBank) || (tab === 'players' && noPlayers)}
+			<p class="forbidden"><img class="icon-px" src={PIXEL.lock} alt="" />{t(BAN_TEXT[tab === 'bank' ? 'bankTrade' : 'playerTrade'].text)}</p>
+		{:else if tab === 'bank'}
 			<div class="sec">
 				<div class="label">{t('Give')}</div>
 				<div class="row">
@@ -160,6 +166,18 @@
 </div>
 
 <style>
+	.forbidden {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin: 14px 6px 10px;
+		font-weight: 700;
+		color: var(--muted);
+	}
+	.forbidden img {
+		width: 22px;
+		height: 22px;
+	}
 	.trade {
 		position: absolute;
 		right: 12px;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { BAN_TEXT, banned } from '../../../shared/rules/campaign';
 	import { hasResources } from '../../../shared/rules/config';
 	import { client } from '../../state/client.svelte';
 	import { countsList } from '../helpers';
@@ -17,6 +18,8 @@
 			hasResources(view.players[me].resources!, offer.want as any)
 	);
 	const from = $derived(offer ? view.players[offer.from] : null);
+	/** A campaign mission can forbid you trading with players. */
+	const noTrading = $derived(!!client.view && banned(client.view, client.view.me, 'playerTrade'));
 </script>
 
 {#if offer && from && me >= 0}
@@ -84,10 +87,11 @@
 					>
 					<button
 						class="btn small green"
-						disabled={!canAccept}
+						disabled={!canAccept || noTrading}
+						title={noTrading ? t(BAN_TEXT.playerTrade.text) : undefined}
 						onclick={() => client.act({ type: 'respondTrade', offerId: offer.id, accept: true })}
 					>
-						{canAccept ? t('Accept') : t('Not enough cards')}
+						{noTrading ? t('Forbidden') : canAccept ? t('Accept') : t('Not enough cards')}
 					</button>
 				</div>
 			{:else}

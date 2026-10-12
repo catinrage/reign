@@ -1,6 +1,8 @@
 import type { AvatarId, Me, SavedMap } from '../../shared/accounts';
 import { AVATARS, NICKNAME_MAX, isAvatar, isDiceStyle } from '../../shared/accounts';
 import type { CustomMap } from '../../shared/board/maps';
+import { cleanProgress, withResult } from '../../shared/campaign/progress';
+import type { MissionResult } from '../../shared/rules/campaign';
 import { msg } from '../i18n/index.svelte';
 
 /**
@@ -10,6 +12,7 @@ import { msg } from '../i18n/index.svelte';
 
 const PROFILE_KEY = 'reign:offline:me';
 const MAPS_KEY = 'reign:offline:maps';
+const CAMPAIGN_KEY = 'reign:offline:campaign';
 
 function read<T>(key: string, fallback: T): T {
 	try {
@@ -44,6 +47,11 @@ function loadMe(): Me {
 	};
 }
 
+/** A campaign mission won offline goes on the campaign kept in this browser. */
+export function offlineMissionWon(mission: string, r: MissionResult) {
+	write(CAMPAIGN_KEY, withResult(cleanProgress(read(CAMPAIGN_KEY, {})), mission, r));
+}
+
 /** The one player of the offline build. The local server seats them under this name and face. */
 export const OFFLINE_USER: Me = loadMe();
 
@@ -62,6 +70,7 @@ export async function offlineApi<T>(path: string, method: string, body?: any): P
 		return { user: { ...OFFLINE_USER } } as T;
 	}
 	if (path === 'logout') return {} as T;
+	if (path === 'campaign') return { progress: cleanProgress(read(CAMPAIGN_KEY, {})) } as T;
 	if (path === 'maps') {
 		if (method === 'POST') {
 			const saved: SavedMap = { id: newId(), map: body.map as CustomMap };

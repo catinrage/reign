@@ -63,6 +63,8 @@ Form und Größe.
   Einladungen, Spielverlauf, Zuschauer, geheime Taubenpost und Wiedereinstieg in verlassene Partien.
 - 🤖 **Bots, die jede Regel beherrschen.** Sie füllen jeden freien Platz, handeln, bauen, setzen
   Charakterkräfte ein und reagieren auf Ereignisse.
+- 📖 **Eine Solo-Kampagne.** *Die zersplitterte Krone* ist eine Geschichte für eine Person über
+  handgebaute Inseln. Jede Mission hat eigene Rivalen, eine Regelwendung und drei Sterne zu holen.
 - 🛡️ **Der Server hat das Sagen.** Der Server führt die Regeln aus und schickt jedem Spieler nur,
   was er sehen darf. Fremde Hände, der Stapel und der Würfel-Seed bleiben geheim.
 - 🌍 **Fünf Sprachen.** Englisch, Russisch, vereinfachtes Chinesisch, Deutsch und Französisch,

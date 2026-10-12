@@ -49,6 +49,8 @@
 	import TimeWarning from './TimeWarning.svelte';
 	import TradePanel from './TradePanel.svelte';
 	import Victory from './Victory.svelte';
+	import MissionBrief from '../campaign/MissionBrief.svelte';
+	import StoryLine from '../campaign/StoryLine.svelte';
 	import { ui } from './ui.svelte';
 
 	const view = $derived(client.view!);
@@ -310,7 +312,12 @@
 				flyTraded(e.from, e.to, e.give, e.want);
 				break;
 			case 'gameOver':
-				sfx.win();
+				// A campaign mission lost (to a rival, or to the clock) is no fanfare.
+				if (!view.campaign || e.winner === view.campaign.hero) sfx.win();
+				break;
+			case 'tribute':
+				// A card of tribute rises off the bank's pile and flies to the rival who took it.
+				sceneRef.current?.tradeOut(e.resource, -1, e.player);
 				break;
 			case 'devCardBought':
 				sfx.card();
@@ -531,6 +538,7 @@
 		<PowerDialog />
 	{/if}
 	{#if view.events}<EventCard /><EventEffect />{/if}
+	{#if view.campaign}<StoryLine /><MissionBrief />{/if}
 	<Victory />
 	{#if view.phase === 'draft' && view.draft}<DraftPanel />{/if}
 	<Flyers />

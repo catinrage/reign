@@ -20,6 +20,7 @@ import {
 	type Resource,
 	type ResourceCounts
 } from '../../shared/rules/config';
+import { banned } from '../../shared/rules/campaign';
 import { CHARACTER_INFO, POWER_INFO } from '../../shared/rules/characters';
 import { EVENT_INFO } from '../../shared/rules/events';
 import {
@@ -106,7 +107,7 @@ export function buildAvailable(view: GameView, kind: BuildKind): boolean {
 		case 'city':
 			return p.piecesLeft.city > 0 && citySpots(view, view.me).length > 0;
 		case 'devCard':
-			return view.devDeckCount > 0;
+			return view.devDeckCount > 0 && !banned(view, view.me, 'devCards');
 		case 'workshop':
 			return workshopSpots(view, view.me).length > 0;
 		case 'stoneRoad':
@@ -533,6 +534,13 @@ export function eventParts(e: GameEvent, view: GameView): LogPart[] | null {
 			return tParts('{player}: {text}', { player: P(e.player), text: T(e.text) }, T);
 		case 'cheat':
 			return [T('[cheat] '), P(e.player), T(` ${e.text}`)];
+		case 'campaignLine': {
+			// The campaign's story: a rival speaks from their seat, the narrator from nowhere.
+			const who = e.speaker === null ? T(t(CHARACTER_INFO.steward.name)) : P(e.speaker);
+			return tParts('{player}: {text}', { player: who, text: T(t(e.line)) }, T);
+		}
+		case 'tribute':
+			return tParts('{player} took {res} as tribute', { player: P(e.player), res: R(e.resource) }, T);
 		case 'eventDrawn':
 			return e.by !== undefined
 				? tParts('{player} decreed {event}', { player: P(e.by) }, T, { event: t(EVENT_INFO[e.card].name) })

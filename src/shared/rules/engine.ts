@@ -30,6 +30,7 @@ import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules, isCi
 import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
 import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays, topUp } from './events';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
+import { campaignBan, campaignBeats, campaignNewRound } from './campaign';
 import { StatsTracker, newStats } from './stats';
 import {
 	armySize,
@@ -176,6 +177,7 @@ export function createGame(
 		largestArmyHolder: null,
 		winner: null,
 		stats: newStats(n),
+		campaign: null,
 		log: [],
 		nextEventSeq: 1
 	};
@@ -244,6 +246,7 @@ export function applyAction(state: GameState, player: number, action: Action): A
 	ctx.stats = new StatsTracker(s);
 	try {
 		dispatch(ctx, player, action);
+		if (s.campaign) campaignBeats(s, ctx.events, ctx.emitter);
 	} catch (e) {
 		if (e instanceof RuleError) return { ok: false, error: e.message };
 		throw e;
@@ -283,11 +286,14 @@ function dispatch(ctx: Ctx, p: number, a: Action) {
 
 	// Actions that other players may take out of turn.
 	if (a.type === 'discard') return discard(ctx, p, a.resources);
-	if (a.type === 'respondTrade') return respondTrade(ctx, p, a.offerId, a.accept);
 	if (a.type === 'takePick') return takePick(ctx, p, a.resource);
 	// Reign Extended events: the player in last place picks a Royal Decree, anyone takes their bounty.
 	if (a.type === 'chooseEvent') return check(s.step === 'eventChoice' && chooseEvent(s, ctx.emitter, p, a.card));
 	if (a.type === 'claimBounty') return check(s.phase === 'main' && claimBounty(s, ctx.emitter, p, a.resource));
+
+	// A campaign mission can forbid the hero some moves.
+	check(campaignBan(s, p, a));
+	if (a.type === 'respondTrade') return respondTrade(ctx, p, a.offerId, a.accept);
 
 	if (p !== s.current) fail("It's not your turn.");
 	if ((s.phase === 'draft') !== (a.type === 'pickCharacter')) {
@@ -1299,6 +1305,8 @@ function endTurn(ctx: Ctx, p: number) {
 	s.current = (p + 1) % s.players.length;
 	s.turn++;
 	s.step = 'roll';
+	// A campaign mission's new round: tribute, or the hero is out of rounds and the game ends.
+	if (s.current === 0 && s.campaign && campaignNewRound(s, ctx.emitter)) return;
 	ctx.emit({ type: 'turnStarted', player: s.current, turn: s.turn });
 	// A new round: Reign Extended flips its next event card.
 	if (s.current === 0) startRound(s, ctx.emitter);

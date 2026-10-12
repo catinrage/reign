@@ -7,6 +7,7 @@
 	import SpectatorBadge from './SpectatorBadge.svelte';
 	import TurnCounter from './TurnCounter.svelte';
 	import EventChip from './EventChip.svelte';
+	import MissionChip from '../campaign/MissionChip.svelte';
 	import RumorChip from './RumorChip.svelte';
 	import { sfx } from '../sound';
 	import Tutorial from '../tutorial/Tutorial.svelte';
@@ -42,8 +43,9 @@
 	);
 
 	// The table pauses while everyone has the menu open (always true in a game vs bots).
+	// A campaign mission's opening page holds the table the same way.
 	$effect(() => {
-		client.setMenuOpen(ui.menu);
+		client.setMenuOpen(ui.menu || ui.brief);
 	});
 	$effect(() => {
 		if (!ui.menu) {
@@ -139,7 +141,7 @@
 		data-tip-head={t('Night mode')}
 		><img src={PIXEL.moon} alt="" /><span class="tag">{settings.night ? t('On') : t('Off')}</span></button
 	>
-	<div class="turn-row"><TurnCounter /><span class="events"><EventChip /><RumorChip /></span></div>
+	<div class="turn-row"><TurnCounter /><span class="events"><MissionChip /><EventChip /><RumorChip /></span></div>
 	<SpectatorBadge />
 </div>
 

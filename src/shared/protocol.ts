@@ -60,6 +60,8 @@ export interface LobbyInfo {
 	clock: TurnClock | null;
 	/** How many people are watching the game without a seat. */
 	spectators: number;
+	/** The solo campaign mission this table plays, or null. */
+	mission: string | null;
 }
 
 /**
@@ -104,6 +106,8 @@ export type ClientMessage =
 	| { t: 'setEvents'; events: EventRules }
 	| { t: 'setReady'; ready: boolean }
 	| { t: 'start' }
+	/** Play a solo campaign mission at this table (alone with its rivals), or play it again. */
+	| { t: 'mission'; mission: string }
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }
 	/** The game menu opened or closed. */

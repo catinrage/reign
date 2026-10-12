@@ -31,6 +31,8 @@ import {
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
 import { Recorder } from '../shared/replay';
+import { missionById } from '../shared/campaign/missions';
+import { createMissionGame, missionSeats, missionSettings } from '../shared/campaign/start';
 import type { Action, GameState } from '../shared/rules/types';
 import { viewFor } from '../shared/rules/view';
 
@@ -105,6 +107,8 @@ export class Room {
 	turnTime = 0;
 	/** Mode, map and points to win. The host picks them in the lobby. */
 	settings: GameSettings = structuredClone(DEFAULT_SETTINGS);
+	/** The solo campaign mission played here, or null: the mission sets the table and its rules. */
+	mission: string | null = null;
 	private botTimer: NodeJS.Timeout | null = null;
 	/** The bot timer is only checking back later (not a move on its way), so news can cut it short. */
 	private botTimerIdle = false;
@@ -181,6 +185,7 @@ export class Room {
 			settings: this.settings,
 			clock: this.clockInfo(),
 			spectators: this.spectators.size,
+			mission: this.mission,
 			seats: this.seats.map(
 				(s): LobbySeat => ({
 					id: s.id,
@@ -430,8 +435,12 @@ export class Room {
 				if (this.lockedSettings || seat.isBot) return;
 				seat.ready = !!msg.ready;
 				return this.broadcastLobby();
+			case 'mission':
+				return this.startMission(seat, String(msg.mission ?? ''), ws);
 			case 'start':
 				if (!isHost || (this.game && this.game.phase !== 'ended')) return;
+				// Play again, on a campaign table: the same mission from the start.
+				if (this.mission) return this.startMission(seat, this.mission, ws);
 				if (this.seats.length < MIN_PLAYERS) {
 					return send(ws, { t: 'error', message: 'You need at least two players. Add a bot!' });
 				}
@@ -530,6 +539,51 @@ export class Room {
 				}
 				return this.disconnect(ws);
 		}
+	}
+
+	/**
+	 * Start a solo campaign mission: the player alone with the mission's rivals, on its island and
+	 * by its rules. Also how Play again and the next mission start, once a game here is over.
+	 */
+	private startMission(seat: Seat, id: string, ws: WebSocket) {
+		if (seat.id !== this.hostId || (this.game && this.game.phase !== 'ended')) return;
+		const m = missionById(id);
+		if (!m) return send(ws, { t: 'error', message: 'Unknown mission.' });
+		if (this.seats.some((s) => s !== seat && !s.isBot)) {
+			return send(ws, { t: 'error', message: 'The campaign is played alone: this table has other players.' });
+		}
+		this.mission = m.id;
+		this.settings = missionSettings(m);
+		this.turnTime = 0;
+		this.pausedBy.clear();
+		this.heldBy = null;
+		const table = missionSeats(m, { name: seat.name, color: seat.color }, PLAYER_COLORS);
+		this.seats = table.map((t) =>
+			t.isBot
+				? {
+						id: randomHex(6),
+						token: randomHex(16),
+						name: t.name,
+						color: t.color,
+						isBot: true,
+						ready: true,
+						sockets: new Set<WebSocket>(),
+						lastSeen: Date.now(),
+						left: false,
+						userId: null,
+						avatar: null,
+						dice: null
+					}
+				: seat
+		);
+		seat.ready = false;
+		this.game = createMissionGame(m, table, randomSeed());
+		this.endTold = false;
+		this.recorder = new Recorder(this.game);
+		this.listener?.gameStarted?.(this);
+		this.broadcastLobby();
+		this.broadcastGame();
+		this.scheduleBots();
 	}
 
 	/**

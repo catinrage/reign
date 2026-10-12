@@ -18,6 +18,8 @@
 	import { PIXEL } from './pixel';
 	import { isMuted, setMuted, sfx } from './sound';
 	import Tutorial from './tutorial/Tutorial.svelte';
+	import Campaign from './campaign/Campaign.svelte';
+	import { campaign } from '../state/campaign.svelte';
 	import { t } from '../i18n/index.svelte';
 
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
@@ -77,6 +79,14 @@
 		sfx.close();
 		sheet = null;
 	}
+	function openCampaign() {
+		sfx.open();
+		campaign.open = true;
+	}
+	function closeCampaign() {
+		sfx.close();
+		campaign.open = false;
+	}
 	function openTutorial() {
 		sfx.open();
 		reading = true;
@@ -91,6 +101,7 @@
 	}
 	function onKey(e: KeyboardEvent) {
 		if (reading && e.key === 'Escape') return closeTutorial();
+		if (campaign.open && e.key === 'Escape') return closeCampaign();
 		// N turns night mode on and off, as in a game, unless typing.
 		if (e.key.toLowerCase() !== 'n' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
 		if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
@@ -112,9 +123,19 @@
 				<Tutorial />
 			</div>
 		</div>
+	{:else if campaign.open}
+		<div class="book">
+			<div class="board panel">
+				<div class="ribbon">{t('The Shattered Crown')}</div>
+				<button class="icon-btn close" onclick={closeCampaign} aria-label={t('Back to the menu')} title={t('Back to the menu')}
+					><img src={PIXEL.close} alt="" /></button
+				>
+				<Campaign />
+			</div>
+		</div>
 	{/if}
 	<!-- Hidden rather than removed while the tutorial is open, so the 3D title keeps its canvas. -->
-	<div class="column" class:away={reading}>
+	<div class="column" class:away={reading || campaign.open}>
 		<header class="crest">
 			<div class="logo">
 				<canvas bind:this={canvas} aria-label="Reign"></canvas>
@@ -153,6 +174,12 @@
 				<img src={PIXEL.play} alt="" />
 				<span class="stack"
 					>{t('Play vs bots')}<span class="sub">{t('Three rivals, start right away')}</span></span
+				>
+			</button>
+			<button class="btn purple block" onclick={openCampaign} disabled={busy}>
+				<img src={PIXEL.crown} alt="" />
+				<span class="stack"
+					>{t('Campaign')}<span class="sub">{t('The Shattered Crown: a story for one player')}</span></span
 				>
 			</button>
 			<button class="btn green block" onclick={create} disabled={busy}>
@@ -506,6 +533,19 @@
 	@media (max-height: 760px) and (min-width: 701px) {
 		.logo {
 			width: min(560px, calc(80vw / var(--ui-zoom)));
+		}
+	}
+	/* Room for every button and the row under them on a laptop screen (1366x768). */
+	@media (max-height: 860px) and (min-width: 701px) {
+		.logo {
+			width: min(420px, calc(80vw / var(--ui-zoom)));
+		}
+		.column {
+			gap: 10px;
+			padding-bottom: 14px;
+		}
+		.sign {
+			gap: 10px;
 		}
 	}
 	@media (max-width: 700px) {
