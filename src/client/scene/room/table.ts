@@ -74,38 +74,43 @@ export function buildTable(half = 37): THREE.Group {
 	return table;
 }
 
-/** A high-backed wooden chair with a red plaid seat and back, facing +z. */
+/** A wooden chair with a red plaid seat and back, facing +z: a seat about as wide as it is deep, sized for a person. */
 export function buildChair(blanket = false): THREE.Group {
-	const g = new VoxelGrid(18, 53, 18, -9, 0, -9);
+	// Half the width in voxels: the seat runs from -H to H - 1 across, -9 to 8 front to back.
+	const H = 11;
+	const g = new VoxelGrid(2 * H, 46, 18, -H, 0, -9);
 	const wood = [hex('#6e3420'), hex('#7a3b22'), hex('#663019')];
 	const w = (x: number, y: number, z: number) => grain(pick(wood, hash3(x, 0, z, 1)), y, x + z, 4, 0.16);
+	const L = -H;
+	const R = H - 2;
 	// legs
-	for (const lx of [-8, 6]) for (const lz of [-8, 6]) g.box(lx, 0, lz, lx + 1, 12, lz + 1, w);
+	for (const lx of [L, R]) for (const lz of [-8, 6]) g.box(lx, 0, lz, lx + 1, 12, lz + 1, w);
 	// stretchers
-	g.box(-8, 4, -8, 7, 4, -8, w);
-	g.box(-8, 4, 6, 7, 4, 7, w);
+	g.box(L, 4, -8, R + 1, 4, -8, w);
+	g.box(L, 4, 6, R + 1, 4, 7, w);
 	// seat frame and cushion
-	g.box(-8, 13, -8, 7, 13, 7, (x, y, z) => grain(wood[1], x, z, 9));
-	g.box(-7, 14, -7, 6, 15, 6, (x, y, z) => (y === 15 ? tartan(x + 40, z + 40, RED_PLAID, 8) : shade(tartan(x + 40, y + 40, RED_PLAID, 8), 0.8)));
+	g.box(L, 13, -8, R + 1, 13, 7, (x, y, z) => grain(wood[1], x, z, 9));
+	g.box(L + 1, 14, -7, R, 15, 6, (x, y, z) => (y === 15 ? tartan(x + 40, z + 40, RED_PLAID, 8) : shade(tartan(x + 40, y + 40, RED_PLAID, 8), 0.8)));
 	// back posts with knobs
-	for (const px of [-8, 6]) {
-		g.box(px, 14, -8, px + 1, 49, -7, w);
-		g.box(px, 50, -8, px + 1, 51, -7, (x, y, z) => shade(wood[0], 1.1 + hash3(x, y, z) * 0.08));
+	for (const px of [L, R]) {
+		g.box(px, 14, -8, px + 1, 42, -7, w);
+		g.box(px, 43, -8, px + 1, 44, -7, (x, y, z) => shade(wood[0], 1.1 + hash3(x, y, z) * 0.08));
 	}
-	g.box(-8, 46, -8, 7, 48, -7, (x, y) => grain(wood[1], x, y, 12));
-	g.box(-8, 16, -8, 7, 17, -7, (x, y) => grain(wood[1], x, y, 13));
+	g.box(L, 39, -8, R + 1, 41, -7, (x, y) => grain(wood[1], x, y, 12));
+	g.box(L, 16, -8, R + 1, 17, -7, (x, y) => grain(wood[1], x, y, 13));
 	// upholstered back panel, padded a little to the front
-	g.box(-6, 18, -8, 5, 45, -7, (x, y) => tartan(x + 40, y + 40, RED_PLAID, 8));
-	g.box(-5, 20, -6, 4, 43, -6, (x, y) => shade(tartan(x + 40, y + 40, RED_PLAID, 8), 1.04));
+	g.box(L + 2, 18, -8, R - 1, 38, -7, (x, y) => tartan(x + 40, y + 40, RED_PLAID, 8));
+	g.box(L + 3, 20, -6, R - 2, 36, -6, (x, y) => shade(tartan(x + 40, y + 40, RED_PLAID, 8), 1.04));
 	if (blanket) {
 		// green plaid throw over the top of the back, longer on one side
 		const p = (x: number, y: number) => tartan(x + 7, y, GREEN_PLAID, 6);
-		g.box(-7, 52, -9, 5, 52, -6, (x, _y, z) => p(x, z + 60));
-		for (let x = -7; x <= 5; x++) {
-			const front = 38 - Math.round((x + 7) * 0.9) - ((x & 3) === 0 ? 1 : 0);
-			const back = 30 - Math.round((x + 7) * 0.5);
-			g.box(x, front, -6, x, 51, -6, (xx, y) => shade(p(xx, y), 1.05));
-			g.box(x, back, -9, x, 51, -9, (xx, y) => shade(p(xx, y), 0.9));
+		const top = 45;
+		g.box(L + 1, top, -9, R - 1, top, -6, (x, _y, z) => p(x, z + 60));
+		for (let x = L + 1; x <= R - 1; x++) {
+			const front = 31 - Math.round((x - L - 1) * 0.6) - ((x & 3) === 0 ? 1 : 0);
+			const back = 25 - Math.round((x - L - 1) * 0.35);
+			g.box(x, front, -6, x, top - 1, -6, (xx, y) => shade(p(xx, y), 1.05));
+			g.box(x, back, -9, x, top - 1, -9, (xx, y) => shade(p(xx, y), 0.9));
 		}
 	}
 	return voxels(g, CS, { jitter: 0.04, drop: (_x, y) => y < 0 });
