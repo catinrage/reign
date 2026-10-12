@@ -5,6 +5,8 @@
 	import { msg, t } from '../../i18n/index.svelte';
 	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
 	import { OFFLINE } from '../../offline/flag';
+	import { OFFER_WAITS } from '../../../shared/protocol';
+	import { client } from '../../state/client.svelte';
 
 	let muted = $state(isMuted());
 	function toggleMute(m: boolean) {
@@ -102,6 +104,37 @@
 			</p>
 			<button class="btn small" disabled={standard} onclick={resetSizes}>{t('Default')}</button>
 		</div>
+	</section>
+
+	<section>
+		<div class="divider"><i></i><span>{t('Trade offers')}</span><i></i></div>
+		<div class="row">
+			<span class="name">{t("Hide offers I can't accept")}</span>
+			<div class="seg">
+				<button class="btn small" class:on={!settings.hideOffers} onclick={() => client.setHideOffers(false)}
+					>{t('Off')}</button
+				>
+				<button class="btn small" class:on={settings.hideOffers} onclick={() => client.setHideOffers(true)}
+					>{t('On')}</button
+				>
+			</div>
+		</div>
+		<p class="hint">
+			{t("An offer you haven't the cards for is declined for you, and doesn't pop up.")}
+		</p>
+		<div class="row stack">
+			<span class="name">{t('Bots wait for me')}</span>
+			<div class="seg wrap">
+				{#each OFFER_WAITS as secs (secs)}
+					<button class="btn small" class:on={settings.offerWait === secs} onclick={() => client.setOfferWait(secs)}
+						>{secs ? t('{seconds}s', { seconds: secs }) : t('Until I answer')}</button
+					>
+				{/each}
+			</div>
+		</div>
+		<p class="hint">
+			{t('How long a bot keeps its trade offer open for your answer. It closes sooner once everyone has answered.')}
+		</p>
 	</section>
 
 	<section>
@@ -279,6 +312,11 @@
 		}
 		.name {
 			font-size: 15px;
+		}
+		/* Four choices leave no room beside the name: they go under it. */
+		.row.stack:has(.seg) {
+			grid-template-columns: 1fr;
+			gap: 6px;
 		}
 	}
 </style>

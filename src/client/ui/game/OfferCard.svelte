@@ -6,6 +6,7 @@
 	import { PIXEL } from '../pixel';
 	import ResCard from '../ResCard.svelte';
 	import { t } from '../../i18n/index.svelte';
+	import { settings } from '../settings.svelte';
 
 	const view = $derived(client.view!);
 	const offer = $derived(view.trade);
@@ -20,9 +21,14 @@
 	const from = $derived(offer ? view.players[offer.from] : null);
 	/** A campaign mission can forbid you trading with players. */
 	const noTrading = $derived(!!client.view && banned(client.view, client.view.me, 'playerTrade'));
+	/**
+	 * "Hide offers I can't accept": an offer this player hasn't the cards for never pops up (the
+	 * client declines it for them), unless they accepted it before their cards ran short.
+	 */
+	const hidden = $derived(settings.hideOffers && !mine && !canAccept && answer !== 'accept');
 </script>
 
-{#if offer && from && me >= 0}
+{#if offer && from && me >= 0 && !hidden}
 	<div class="wrap">
 		<div class="letter parch">
 			<span class="seal shield" style="--shield: var(--art-shield-{from.color})"

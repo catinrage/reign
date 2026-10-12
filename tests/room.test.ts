@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WebSocket } from 'ws';
-import { BEACON_GAP_MS, BEACON_REACH, type ServerMessage } from '../src/shared/protocol';
+import { BEACON_GAP_MS, BEACON_REACH, type ClientMessage, type ServerMessage } from '../src/shared/protocol';
 import { BOT_OFFER_MS, EMPTY_GRACE_MS, Room } from '../src/server/room';
 import { randomMap } from '../src/shared/board/random';
 import { botAction } from '../src/shared/rules/bot';
@@ -1128,19 +1128,29 @@ describe('random islands and balanced goals', () => {
 describe('bot trade offers', () => {
 	afterEach(() => vi.useRealTimers());
 
-	/** A person and a bot, past the setup: the bot one Ore short of a city, the person holding Ore. */
-	function table() {
+	/**
+	 * A person and a bot, past the setup: the bot one Ore short of a city, the person holding Ore.
+	 * With `guest`, a second person sits at the table too, also holding Ore.
+	 */
+	function table({ guest = false } = {}) {
 		vi.useFakeTimers();
 		const room = new Room('OFFER');
 		const me = fakeSocket();
 		const seat = room.join(me.ws, 'Komeil');
 		if (typeof seat === 'string') throw new Error(seat);
+		const other = fakeSocket();
+		if (guest) {
+			const g = room.join(other.ws, 'Bram');
+			if (typeof g === 'string') throw new Error(g);
+			room.handle(g, { t: 'setReady', ready: true }, other.ws);
+		}
 		room.handle(seat, { t: 'addBot' }, me.ws);
 		room.handle(seat, { t: 'start' }, me.ws);
 		// Hold the table while the bot is handed its turn.
 		room.handle(seat, { t: 'pauseGame', paused: true }, me.ws);
 		const bot = room.seats.findIndex((s) => s.isBot);
-		const person = 1 - bot;
+		const person = room.seats.indexOf(seat);
+		const guestSeat = guest ? room.seats.find((s) => !s.isBot && s !== seat)! : null;
 		let g = room.game!;
 		while (g.phase === 'setup') {
 			const r = applyAction(g, g.current, botAction(g, g.current)!);
@@ -1153,6 +1163,7 @@ describe('bot trade offers', () => {
 		const none = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
 		g.players[bot].resources = { ...none, wheat: 2, ore: 2, wood: 2 };
 		g.players[person].resources = { ...none, ore: 2 };
+		if (guestSeat) g.players[room.seats.indexOf(guestSeat)].resources = { ...none, ore: 2 };
 		for (const r of RESOURCES) g.bank[r] = BANK_PER_RESOURCE - g.players.reduce((n, p) => n + p.resources[r], 0);
 		g.log.push({ type: 'turnStarted', player: bot, turn: g.turn, seq: g.nextEventSeq++ } as GameEvent);
 		room.game = g;
@@ -1160,8 +1171,100 @@ describe('bot trade offers', () => {
 		// The bot asks for the Ore.
 		for (let ms = 0; ms < 5000 && !room.game.trade; ms += 50) vi.advanceTimersByTime(50);
 		expect(room.game.trade).toMatchObject({ from: bot, give: { wood: 1 }, want: { ore: 1 } });
-		return { room, seat, me, bot, person };
+		return { room, seat, me, bot, person, guest: guestSeat, other };
 	}
+
+	/** How long the open offer `id` stays open from now, to the nearest 100 ms (up to `max`). */
+	function openFor(room: Room, id: number, max = 120_000) {
+		let ms = 0;
+		while (ms < max && room.game!.trade?.id === id) {
+			vi.advanceTimersByTime(100);
+			ms += 100;
+		}
+		return ms;
+	}
+
+	const decline = (offerId: number): ClientMessage => ({ t: 'action', action: { type: 'respondTrade', offerId, accept: false } });
+
+	it('closes as soon as everyone has answered', () => {
+		const { room, seat, me } = table();
+		const id = room.game!.trade!.id;
+		vi.advanceTimersByTime(1000);
+		room.handle(seat, decline(id), me.ws);
+		// Withdrawn after the bot's usual pause, not the full wait.
+		expect(openFor(room, id)).toBeLessThan(2000);
+		expect(room.game!.log.some((e) => e.type === 'tradeCancelled')).toBe(true);
+		room.dispose();
+	});
+
+	it("keeps the offer open as long as the person asked for", () => {
+		const { room, seat, me } = table();
+		const id = room.game!.trade!.id;
+		room.handle(seat, { t: 'offerWait', seconds: 30 }, me.ws);
+		vi.advanceTimersByTime(BOT_OFFER_MS + 3000);
+		expect(room.game!.trade?.id).toBe(id);
+		// Withdrawn 30 seconds after it was made, after the bot's usual pause.
+		const left = openFor(room, id);
+		expect(left).toBeGreaterThan(30_000 - BOT_OFFER_MS - 3000 - 200);
+		expect(left).toBeLessThan(30_000 - BOT_OFFER_MS - 3000 + 2000);
+		room.dispose();
+	});
+
+	it('ignores waits nobody can pick', () => {
+		const { room, seat, me } = table();
+		const id = room.game!.trade!.id;
+		room.handle(seat, { t: 'offerWait', seconds: 3600 }, me.ws);
+		expect(openFor(room, id)).toBeLessThan(BOT_OFFER_MS + 2000);
+		room.dispose();
+	});
+
+	it('waits for the longest wait among the people still thinking', () => {
+		const { room, guest, other } = table({ guest: true });
+		const id = room.game!.trade!.id;
+		room.handle(guest!, { t: 'offerWait', seconds: 15 }, other.ws);
+		vi.advanceTimersByTime(BOT_OFFER_MS + 3000);
+		expect(room.game!.trade?.id).toBe(id);
+		// Once the one with the long wait answers, the other's short wait is long over.
+		room.handle(guest!, decline(id), other.ws);
+		expect(openFor(room, id)).toBeLessThan(2000);
+		room.dispose();
+	});
+
+	it('waits until the person answers, when they ask for that', () => {
+		const { room, seat, me } = table();
+		const id = room.game!.trade!.id;
+		room.handle(seat, { t: 'offerWait', seconds: 0 }, me.ws);
+		vi.advanceTimersByTime(5 * 60_000);
+		expect(room.game!.trade?.id).toBe(id);
+		room.handle(seat, decline(id), me.ws);
+		expect(openFor(room, id)).toBeLessThan(2000);
+		room.dispose();
+	});
+
+	it("doesn't wait on a person who lost their connection", () => {
+		const { room, seat, me, guest, other } = table({ guest: true });
+		const id = room.game!.trade!.id;
+		room.handle(guest!, { t: 'offerWait', seconds: 0 }, other.ws);
+		room.handle(seat, decline(id), me.ws);
+		vi.advanceTimersByTime(BOT_OFFER_MS + 3000);
+		expect(room.game!.trade?.id).toBe(id);
+		// The one it waits for drops: the standard wait is long over, so the bot goes on.
+		room.disconnect(other.ws);
+		expect(openFor(room, id)).toBeLessThan(2000);
+		room.dispose();
+	});
+
+	it('waits only the standard time on someone who drops before answering', () => {
+		const { room, me, guest, other, seat } = table({ guest: true });
+		const id = room.game!.trade!.id;
+		room.handle(guest!, { t: 'offerWait', seconds: 0 }, other.ws);
+		room.handle(seat, decline(id), me.ws);
+		room.disconnect(other.ws);
+		const open = openFor(room, id);
+		expect(open).toBeGreaterThan(BOT_OFFER_MS - 1000);
+		expect(open).toBeLessThan(BOT_OFFER_MS + 2000);
+		room.dispose();
+	});
 
 	it('waits a while for a person to answer, then withdraws the offer', () => {
 		const { room } = table();

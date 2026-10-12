@@ -6,6 +6,7 @@ import { DEFAULT_EVENT_RULES, EVENT_CARDS, EVENT_SHOW_MS } from '../src/shared/r
 import { applyAction, createGame } from '../src/shared/rules/engine';
 import type { Action, GameEvent, GameState, ResourceGain } from '../src/shared/rules/types';
 import { viewFor } from '../src/shared/rules/view';
+import { settings } from '../src/client/ui/settings.svelte';
 
 /**
  * The interface shows what a roll did only once the dice have landed, and counts the cards the
@@ -483,5 +484,81 @@ describe('client: event cards', () => {
 		vi.advanceTimersByTime(200);
 		expect(client.presenting).toBeNull();
 		expect(client.view).toBe(client.latest);
+	});
+});
+
+describe("client: hiding offers you can't accept", () => {
+	let sent: unknown[];
+	beforeEach(() => {
+		vi.stubGlobal('location', new URL('http://localhost/'));
+		vi.stubGlobal('history', { replaceState() {} });
+		sent = [];
+		vi.spyOn(client, 'send').mockImplementation((m) => void sent.push(m));
+		client.leave();
+		client.seat = 'p0';
+		sent.length = 0;
+	});
+	afterEach(() => {
+		settings.setHideOffers(false);
+		settings.setOfferWait(8);
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	const NONE = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
+
+	/** A game past its setup with player 1 asking the table for an Ore; player 0 holds `ore`. */
+	function offered(ore: number): GameState {
+		let s = createGame(players, 31);
+		while (s.phase === 'setup') s = (applyAction(s, s.current, botAction(s, s.current)!) as { state: GameState }).state;
+		s = structuredClone(s);
+		s.step = 'main';
+		s.current = 1;
+		s.players[0].resources = { ...NONE, ore, wood: 3 };
+		s.players[1].resources = { ...NONE, wood: 2 };
+		s.trade = { id: 1, from: 1, give: { wood: 1 }, want: { ore: 1 }, responses: {} };
+		return s;
+	}
+	const declines = () => sent.filter((m: any) => m.t === 'action' && m.action.type === 'respondTrade');
+
+	it('declines an offer you have no cards for, once', () => {
+		settings.setHideOffers(true);
+		const s = offered(0);
+		receive(s);
+		expect(declines()).toEqual([{ t: 'action', action: { type: 'respondTrade', offerId: 1, accept: false } }]);
+		// The same offer again, before the answer is back: not answered twice.
+		receive(s);
+		expect(declines()).toHaveLength(1);
+	});
+
+	it("leaves an offer you can accept, and every offer while it's off", () => {
+		settings.setHideOffers(true);
+		receive(offered(1));
+		expect(declines()).toEqual([]);
+		settings.setHideOffers(false);
+		receive(offered(0));
+		expect(declines()).toEqual([]);
+		// Turned on with the offer open: declined then.
+		client.setHideOffers(true);
+		expect(declines()).toHaveLength(1);
+	});
+
+	it("answers the next offer with the same number (the next game's) too", () => {
+		settings.setHideOffers(true);
+		receive(offered(0));
+		const closed = offered(0);
+		closed.trade = null;
+		receive(closed);
+		receive(offered(0));
+		expect(declines()).toHaveLength(2);
+	});
+
+	it('tells the table how long bots should wait, and only the waits there are', () => {
+		client.setOfferWait(0);
+		expect(sent).toEqual([{ t: 'offerWait', seconds: 0 }]);
+		client.setOfferWait(45);
+		expect(settings.offerWait).toBe(0);
+		client.setOfferWait(15);
+		expect(settings.offerWait).toBe(15);
 	});
 });

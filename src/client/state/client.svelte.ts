@@ -1,11 +1,12 @@
 import { BEACON_GAP_MS, type ClientMessage, type LobbyInfo, type PigeonNote, type ServerMessage, type TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
-import type { Resource } from '../../shared/rules/config';
+import { hasResources, type Resource } from '../../shared/rules/config';
 import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
 import type { Action, GameEvent, GameView } from '../../shared/rules/types';
 import { t, tx } from '../i18n/index.svelte';
 import { account } from './account.svelte';
 import { netStats } from './netStats.svelte';
+import { settings } from '../ui/settings.svelte';
 
 /**
  * The one connection to the game server plus everything the interface renders from.
@@ -193,6 +194,8 @@ class GameClient {
 	private autoMission: string | null = null;
 	/** The player backed out of a join the server is still answering: leave the room it seats us in. */
 	private dropJoin = false;
+	/** The trade offer last declined for this player because they hadn't the cards for it. */
+	private autoDeclined: number | null = null;
 
 	/** Stay connected (reconnect when the line drops). Off while signed out. */
 	private wanted = false;
@@ -283,6 +286,8 @@ class GameClient {
 				storage(`reign:token:${msg.code}`, msg.token);
 				this.setUrl(msg.code);
 				if (this.menuOpen) this.send({ t: 'pause', paused: true });
+				// How long this player wants bots' offers kept open: theirs to pick, the table's to honor.
+				this.send({ t: 'offerWait', seconds: settings.offerWait });
 				if (this.autoMission) {
 					this.send({ t: 'mission', mission: this.autoMission });
 					this.autoMission = null;
@@ -374,6 +379,7 @@ class GameClient {
 	private receive(view: GameView) {
 		const prev = this.latest;
 		this.latest = view;
+		this.declineUnaffordable(view);
 		if (view.step !== 'roll' || view.current !== view.me) this.rollAsked = false;
 		// The robber moved (or the turn went on): nobody is aiming it any more.
 		if (this.aim && (view.step !== 'moveRobber' || view.current !== this.aim.player)) this.aim = null;
@@ -392,6 +398,35 @@ class GameClient {
 			this.presentTimer = setTimeout(() => this.presented(drawn.seq), EVENT_SHOW_MS + 1500);
 		}
 		if (!this.tossing && this.presenting?.phase !== 'flip') this.show(view);
+	}
+
+	/**
+	 * With "Hide offers I can't accept" on, an offer this player hasn't the cards for is declined
+	 * for them straight away, as a normal answer (so whoever made it hears back and a bot needn't
+	 * wait), and its card never pops up. Answered from the newest state, which the server holds too.
+	 */
+	private declineUnaffordable(view: GameView | null) {
+		const offer = view?.trade;
+		// Offers count up from 1 again in the next game.
+		if (!offer) this.autoDeclined = null;
+		if (!view || !offer || !settings.hideOffers || this.replaying || view.me < 0 || offer.from === view.me) return;
+		if (offer.responses[view.me] !== undefined || this.autoDeclined === offer.id) return;
+		const hand = view.players[view.me]?.resources;
+		if (!hand || hasResources(hand, offer.want)) return;
+		this.autoDeclined = offer.id;
+		this.send({ t: 'action', action: { type: 'respondTrade', offerId: offer.id, accept: false } });
+	}
+
+	/** Hide (and decline) offers this player can't accept, or show them all again. */
+	setHideOffers(on: boolean) {
+		settings.setHideOffers(on);
+		this.declineUnaffordable(this.latest);
+	}
+
+	/** How long bots keep their offers open for this player, in seconds (0: until they answer). */
+	setOfferWait(seconds: number) {
+		settings.setOfferWait(seconds);
+		if (this.seat) this.send({ t: 'offerWait', seconds: settings.offerWait });
 	}
 
 	/**
@@ -672,6 +707,7 @@ class GameClient {
 		this.dealt = [];
 		this.rollAsked = false;
 		this.pigeons = [];
+		this.autoDeclined = null;
 		this.freshPigeon = null;
 		this.aim = null;
 		this.beacons = [];

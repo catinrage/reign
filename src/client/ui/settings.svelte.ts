@@ -2,11 +2,13 @@ import type { Quality } from '../scene/stage';
 import { sceneRef } from './sceneRef';
 import { getVolume, setVolume, type Channel } from './sound';
 import { msg } from '../i18n/index.svelte';
+import { OFFER_WAITS } from '../../shared/protocol';
 
 /**
  * Player preferences that live in this browser: volumes (owned by the sound module),
  * graphics quality (read by the scene at startup, so changing it reloads), island detail,
- * night mode, reduced motion, the size of the interface and the performance readout.
+ * night mode, reduced motion, the size of the interface, the performance readout and how this
+ * player takes trade offers.
  */
 
 function read(key: string): string | null {
@@ -34,6 +36,12 @@ function readSize(key: string): number {
 }
 function clampSize(v: number): number {
 	return Math.round(Math.min(SIZE_MAX, Math.max(SIZE_MIN, v)) * 100) / 100;
+}
+
+/** The saved wait for bots' trade offers, in seconds (0: until answered); the standard one if none. */
+function readOfferWait(): number {
+	const v = read('reign:offerWait');
+	return v !== null && OFFER_WAITS.includes(Number(v)) ? Number(v) : OFFER_WAITS[0];
 }
 
 const QUALITIES: Quality[] = ['high', 'medium', 'low'];
@@ -81,6 +89,13 @@ class Settings {
 	 */
 	hudSize = $state(readSize('reign:hudSize'));
 	menuSize = $state(readSize('reign:menuSize'));
+	/** Offers this player hasn't the cards for are declined for them, and never pop up. */
+	hideOffers = $state(read('reign:hideOffers') === '1');
+	/**
+	 * How long bots keep a trade offer open for this player to answer, in seconds, one of
+	 * OFFER_WAITS (0: until they answer). The server is told (see client.setOfferWait).
+	 */
+	offerWait = $state(readOfferWait());
 	volumes = $state<Record<Channel, number>>({
 		master: getVolume('master'),
 		sfx: getVolume('sfx'),
@@ -129,6 +144,17 @@ class Settings {
 	setShowStats(on: boolean) {
 		this.showStats = on;
 		write('reign:stats', on ? '1' : '0');
+	}
+
+	setHideOffers(on: boolean) {
+		this.hideOffers = on;
+		write('reign:hideOffers', on ? '1' : '0');
+	}
+
+	setOfferWait(seconds: number) {
+		if (!OFFER_WAITS.includes(seconds)) return;
+		this.offerWait = seconds;
+		write('reign:offerWait', String(seconds));
 	}
 
 	setReduceMotion(on: boolean) {
