@@ -624,8 +624,12 @@ export function nextMission(id: string): Mission | undefined {
 	return i >= 0 ? MISSIONS[i + 1] : undefined;
 }
 
-/** A mission is open once the one before it has been won (the first always is). */
+/**
+ * A mission is open once the one before it has been won. The first mission of every act always
+ * is, so a player can start any act straight away and play its missions in order.
+ */
 export function missionOpen(id: string, won: (id: string) => boolean): boolean {
 	const i = MISSIONS.findIndex((m) => m.id === id);
-	return i === 0 || (i > 0 && won(MISSIONS[i - 1].id));
+	if (i < 0) return false;
+	return i === 0 || MISSIONS[i - 1].act !== MISSIONS[i].act || won(MISSIONS[i - 1].id);
 }
