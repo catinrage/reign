@@ -6,7 +6,7 @@ import { cleanProgress, withResult } from '../src/shared/campaign/progress';
 import { createMissionGame, missionSeats } from '../src/shared/campaign/start';
 import type { ServerMessage } from '../src/shared/protocol';
 import { botAction, closeOffer } from '../src/shared/rules/bot';
-import { campaignRound, missionResult } from '../src/shared/rules/campaign';
+import { campaignRound, goalMet, missionResult } from '../src/shared/rules/campaign';
 import { BANK_PER_RESOURCE, RESOURCES, totalResources } from '../src/shared/rules/config';
 import { applyAction } from '../src/shared/rules/engine';
 import type { Action, GameEvent, GameState } from '../src/shared/rules/types';
@@ -260,6 +260,19 @@ describe('mission result', () => {
 		expect(missionResult(s)).toMatchObject({ won: true, goals: [true, false], stars: 2 });
 		s.winner = c.boss;
 		expect(missionResult(s)).toMatchObject({ won: false, goals: [false, false], stars: 0 });
+	});
+
+	it("shows the hero how a cards-lost goal stands before the end, and nobody else", () => {
+		const s = structuredClone(heroMain('witchs-shard'));
+		const c = s.campaign!;
+		const goal = c.goals.find((g) => g.kind === 'lostAtMost')!;
+		s.stats!.players[c.hero].lost = goal.n;
+		expect(viewFor(s, c.hero).tally).toEqual({ lost: goal.n, discarded: s.stats!.players[c.hero].discarded });
+		expect(viewFor(s, c.hero).stats).toBeUndefined();
+		expect(viewFor(s, c.boss).tally).toBeUndefined();
+		expect(goalMet(viewFor(s, c.hero), c.hero, goal)).toBe(true);
+		s.stats!.players[c.hero].lost = goal.n + 1;
+		expect(goalMet(viewFor(s, c.hero), c.hero, goal)).toBe(false);
 	});
 
 	it('every mission plays to an end with bots in every seat', () => {

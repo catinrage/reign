@@ -1870,5 +1870,10 @@ export default {
 	"More: {what}": "Plus : {what}",
 	"{points}, unless the host picks another goal.": "{points}, sauf si l'hôte choisit un autre objectif.",
 	"Discard half above {limit} cards, unless the host changes it in House rules.": "Défausse de la moitié au-delà de {limit} cartes, sauf si l'hôte la change dans les règles maison.",
-	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "{bank} de chaque ressource, {cards} cartes, sauf si l'hôte les change dans les règles maison."
+	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "{bank} de chaque ressource, {cards} cartes, sauf si l'hôte les change dans les règles maison.",
+	"Round {n} of {limit}": "Manche {n} sur {limit}",
+	"On track": "En bonne voie",
+	"Not yet": "Pas encore",
+	"Goals only count if you win the mission.": "Les objectifs ne comptent que si vous gagnez la mission.",
+	"Read the story again": "Relire l’histoire"
 } satisfies Messages;

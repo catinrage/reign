@@ -1870,5 +1870,10 @@ export default {
 	"More: {what}": "增加：{what}",
 	"{points}, unless the host picks another goal.": "{points}，除非房主另选目标。",
 	"Discard half above {limit} cards, unless the host changes it in House rules.": "手牌超过 {limit} 张时弃掉一半，房主可在房规中更改。",
-	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "每种资源 {bank} 张，发展卡 {cards} 张，房主可在房规中更改。"
+	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "每种资源 {bank} 张，发展卡 {cards} 张，房主可在房规中更改。",
+	"Round {n} of {limit}": "第 {n} / {limit} 轮",
+	"On track": "达成中",
+	"Not yet": "尚未",
+	"Goals only count if you win the mission.": "只有赢下任务，目标才算数。",
+	"Read the story again": "重温故事"
 } satisfies Messages;

@@ -220,7 +220,7 @@ export function missionResult(s: GameState | GameView): MissionResult | null {
 
 /** Whether the hero has met a goal (judged at the end of the game, or as it goes for the HUD). */
 export function goalMet(s: GameState | GameView, hero: number, g: CampaignGoal, round = campaignRound(s)): boolean {
-	const stats = 'stats' in s ? s.stats?.players[hero] : undefined;
+	const stats = ('stats' in s ? s.stats?.players[hero] : undefined) ?? ('tally' in s && s.me === hero ? s.tally : undefined);
 	switch (g.kind) {
 		case 'rounds':
 			return round <= g.max;
