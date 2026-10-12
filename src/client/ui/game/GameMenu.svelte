@@ -177,7 +177,7 @@
 		style:--ui-zoom={settings.menuSize}
 		onclick={(e) => e.target === e.currentTarget && close()}
 	>
-		<div class="drop" class:wide={page === 'help'}>
+		<div class="drop" class:wide={page === 'help'} class:roomy={page === 'settings'}>
 			<div class="board panel hanging">
 				<div class="ribbon" style="--rib: var(--art-ribbon-crimson)">{title}</div>
 				{#if page === 'main'}
@@ -358,6 +358,10 @@
 		width: min(400px, calc(100vw / var(--ui-zoom) - 24px));
 		padding-top: 70px;
 		animation: drop-in 0.55s cubic-bezier(0.2, 1.25, 0.4, 1) both;
+	}
+	/* Settings' four tabs need more room across than the menu's buttons. */
+	.drop.roomy {
+		width: min(600px, calc(100vw / var(--ui-zoom) - 24px));
 	}
 	.drop.wide {
 		width: min(1100px, calc(100vw / var(--ui-zoom) - 24px));

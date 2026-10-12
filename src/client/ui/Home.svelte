@@ -247,7 +247,7 @@
 </div>
 
 {#if sheet === 'settings'}
-	<Modal title={t('Settings')} width={460} onclose={closeSheet}><Settings /></Modal>
+	<Modal title={t('Settings')} width={600} onclose={closeSheet}><Settings /></Modal>
 {:else if sheet === 'profile'}
 	<Modal title={t('Your profile')} width={640} onclose={closeSheet}><Profile onclose={closeSheet} /></Modal>
 {:else if sheet === 'friends'}
