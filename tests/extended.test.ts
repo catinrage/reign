@@ -58,7 +58,7 @@ function playOut(s: GameState, limit = 30000) {
 describe('modes', () => {
 	it('Classic ignores characters and map choices and plays exactly as before', () => {
 		const a = createGame(players(['rogue', 'veteran']), 1234);
-		const b = createGame(players([null, null]), 1234, undefined, { mode: 'classic', map: { preset: 'realm' }, pointsToWin: 14 });
+		const b = createGame(players([null, null]), 1234, undefined, { mode: 'classic', map: { preset: 'realm' } });
 		expect(a.board).toEqual(generateStandardBoard({ rng: 1234 }));
 		expect(b.board).toEqual(a.board);
 		expect(a.players.map((p) => p.character)).toEqual([null, null]);
@@ -425,7 +425,8 @@ describe('character draft', () => {
 describe('hand limit', () => {
 	it('lets the host change the hand limit on a 7, and the Steward holds three more', () => {
 		expect(createGame(players([null, null]), 1).handLimit).toBe(7);
-		expect(createGame(players([null, null]), 1, undefined, { mode: 'classic', handLimit: 12 } as never).handLimit).toBe(7);
+		// A house rule in Classic too.
+		expect(createGame(players([null, null]), 1, undefined, { mode: 'classic', handLimit: 12 }).handLimit).toBe(12);
 		let g = createGame(players(['steward', null, null]), 3, undefined, { ...extended(), handLimit: 4 });
 		expect(g.handLimit).toBe(4);
 		expect(discardLimit(g, 0)).toBe(7);

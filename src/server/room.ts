@@ -16,6 +16,7 @@ import { botAction, closeOffer } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
 import { EVENT_SHOW_MS, cleanEventRules } from '../shared/rules/events';
+import { cleanHouseRules } from '../shared/rules/house';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
 import {
 	DEFAULT_SETTINGS,
@@ -380,7 +381,7 @@ export class Room {
 				if (msg.points > this.pointsCap) {
 					return send(ws, {
 						t: 'error',
-						message: `${mapName(this.settings.map)} with ${this.seats.length} players plays to at most ${this.pointsCap} points.`
+						message: `${mapName(this.settings.mode === 'extended' ? this.settings.map : { preset: 'classic' })} with ${this.seats.length} players plays to at most ${this.pointsCap} points.`
 					});
 				}
 				if (this.settings.pointsToWin !== msg.points) this.unready();
@@ -401,6 +402,14 @@ export class Room {
 				const events = cleanEventRules(msg.events);
 				if (JSON.stringify(events) !== JSON.stringify(this.settings.events)) this.unready();
 				this.settings.events = events;
+				return this.broadcastLobby();
+			}
+			case 'setHouseRules': {
+				if (!isHost || this.lockedSettings) return;
+				const house = cleanHouseRules(msg.house);
+				if (typeof house === 'string') return send(ws, { t: 'error', message: house });
+				if (JSON.stringify(house) !== JSON.stringify(this.settings.house)) this.unready();
+				this.settings.house = house;
 				return this.broadcastLobby();
 			}
 			case 'setCharacters':
@@ -730,13 +739,10 @@ export class Room {
 		return PLAYER_COLORS.find((c) => !this.seats.some((s) => s.color === c)) ?? 'white';
 	}
 
-	/**
-	 * The highest goal this island and table can reach (Reign Extended only; Classic always plays
-	 * to 10). See maxPointsFor.
-	 */
+	/** The highest goal this island and table can reach (Classic: the 19-tile isle). See maxPointsFor. */
 	get pointsCap() {
-		if (this.settings.mode !== 'extended') return Infinity;
-		return maxPointsFor(mapTiles(this.settings.map)?.length ?? 19, this.seats.length);
+		const tiles = this.settings.mode === 'extended' ? mapTiles(this.settings.map)?.length : null;
+		return maxPointsFor(tiles ?? 19, this.seats.length);
 	}
 
 	/** A smaller island or a fuller table lowers the goal to what it can still reach. */

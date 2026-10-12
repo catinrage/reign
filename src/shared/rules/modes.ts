@@ -3,6 +3,7 @@ import { CHARACTERS, type CharacterId } from './characters';
 import { DISCARD_THRESHOLD } from './config';
 import { allBuildings, type BuildingRules } from './buildings';
 import { DEFAULT_EVENT_RULES, type EventRules } from './events';
+import { STANDARD_HOUSE_RULES, type HouseRules } from './house';
 
 /**
  * Reign has two modes. Classic is the standard game on the standard island, exactly as before.
@@ -16,7 +17,7 @@ export const MODE_INFO: Record<GameMode, { name: string; text: string }> = {
 	extended: { name: 'Reign Extended', text: 'Characters with traits, bigger and custom maps.' }
 };
 
-/** Quick picks for the victory points to play to in Reign Extended. Classic is always 10. */
+/** Quick picks for the victory points to play to, in either mode. The standard game plays to 10. */
 export const POINT_GOALS = [8, 10, 12, 14];
 /** The host can also type any whole number in this range. */
 export const POINTS_MIN = 3;
@@ -65,8 +66,9 @@ export interface GameSettings {
 	mode: GameMode;
 	/** Ignored in Classic, which always deals the standard island. */
 	map: MapChoice;
+	/** In both modes; Classic's standard is 10. */
 	pointsToWin: number;
-	/** Reign Extended: cards a player can hold on a 7 without discarding. Classic is always 7. */
+	/** Cards a player can hold on a 7 without discarding, in both modes (a house rule; standard 7). */
 	handLimit: number;
 	/** Reign Extended: whether players draft characters when the game starts. */
 	characters: boolean;
@@ -82,6 +84,8 @@ export interface GameSettings {
 	buildings: BuildingRules;
 	/** Reign Extended: the Events deck, a card flipped each round. Ignored in Classic. */
 	events: EventRules;
+	/** House rules for both modes: the bank's size and the development deck's mix. */
+	house: HouseRules;
 }
 
 /** The characters players can draft with these settings. */
@@ -107,7 +111,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
 	powers: true,
 	powerRecharge: 0,
 	buildings: allBuildings(),
-	events: DEFAULT_EVENT_RULES
+	events: DEFAULT_EVENT_RULES,
+	house: STANDARD_HOUSE_RULES
 };
 
 /** The host's choices for how often powers come back: once per game, or every so many rounds. */
