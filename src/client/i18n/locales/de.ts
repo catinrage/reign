@@ -1870,5 +1870,10 @@ export default {
 	"More: {what}": "Mehr: {what}",
 	"{points}, unless the host picks another goal.": "{points}, außer der Gastgeber wählt ein anderes Ziel.",
 	"Discard half above {limit} cards, unless the host changes it in House rules.": "Über {limit} Karten die Hälfte abwerfen, außer der Gastgeber ändert es in den Hausregeln.",
-	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "{bank} von jedem Rohstoff, {cards} Karten, außer der Gastgeber ändert sie in den Hausregeln."
+	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "{bank} von jedem Rohstoff, {cards} Karten, außer der Gastgeber ändert sie in den Hausregeln.",
+	"Round {n} of {limit}": "Runde {n} von {limit}",
+	"On track": "Auf Kurs",
+	"Not yet": "Noch nicht",
+	"Goals only count if you win the mission.": "Ziele zählen nur, wenn du die Mission gewinnst.",
+	"Read the story again": "Geschichte erneut lesen"
 } satisfies Messages;

@@ -16,6 +16,9 @@ export function viewFor(s: GameState, me: number, revealAll = false): GameView {
 		board: s.board,
 		devDeckCount: devDeck.length,
 		...(reveal && stats ? { stats: structuredClone(stats) } : {}),
+		...(!reveal && stats && s.campaign?.hero === me
+			? { tally: { lost: stats.players[me].lost, discarded: stats.players[me].discarded } }
+			: {}),
 		// The event deck's order stays secret: players see this round's card and what's left, and
 		// a player with a tavern the next card's rumor.
 		events: events && (({ deck, ...ev }) => ({ ...structuredClone(ev), deckCount: deck.length, rumor: rumorFor(s, me) }))(events),

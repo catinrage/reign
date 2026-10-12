@@ -358,6 +358,8 @@ export interface GameView
 	devDeckCount: number;
 	/** Only once the game is over: they tell who stole what. */
 	stats?: GameStats;
+	/** A campaign mission's hero sees their own cards lost to thieves and discarded, for the goals. */
+	tally?: { lost: number; discarded: number };
 	events: EventsView | null;
 	players: PlayerView[];
 	log: GameEvent[];

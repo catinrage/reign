@@ -1870,5 +1870,10 @@ export default {
 	"More: {what}": "Больше: {what}",
 	"{points}, unless the host picks another goal.": "{points}, если хост не выберет другую цель.",
 	"Discard half above {limit} cards, unless the host changes it in House rules.": "Сброс половины, если карт больше {limit}; хост может изменить это в домашних правилах.",
-	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "{bank} каждого ресурса, {cards, plural, one {# карта} few {# карты} many {# карт} other {# карты}}; хост может изменить это в домашних правилах."
+	"{bank} of each resource, {cards} cards, unless the host changes them in House rules.": "{bank} каждого ресурса, {cards, plural, one {# карта} few {# карты} many {# карт} other {# карты}}; хост может изменить это в домашних правилах.",
+	"Round {n} of {limit}": "Раунд {n} из {limit}",
+	"On track": "Получается",
+	"Not yet": "Пока нет",
+	"Goals only count if you win the mission.": "Цели засчитываются, только если вы выиграете миссию.",
+	"Read the story again": "Перечитать историю"
 } satisfies Messages;
