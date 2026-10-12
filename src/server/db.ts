@@ -138,7 +138,15 @@ const MIGRATIONS = [
 		data bytea not null,
 		created_at timestamptz not null default now()
 	);`,
-	`alter table users add column dice text not null default 'classic';`
+	`alter table users add column dice text not null default 'classic';`,
+	`create table campaign_progress (
+		user_id bigint not null references users(id) on delete cascade,
+		mission text not null,
+		stars int not null,
+		best_round int not null,
+		won_at timestamptz not null default now(),
+		primary key (user_id, mission)
+	);`
 ];
 
 async function migrate(db: Db) {

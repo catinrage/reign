@@ -197,6 +197,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, accou
 			return (json(res, 200, await accounts.history(id)), true);
 		}
 
+		if (path === 'campaign' && method === 'GET') {
+			return (json(res, 200, { progress: await accounts.campaign(me.id) }), true);
+		}
+
 		const replay = /^replays\/(\d+)$/.exec(path);
 		if (replay && method === 'GET') {
 			const gz = await accounts.replay(me.id, replay[1]);

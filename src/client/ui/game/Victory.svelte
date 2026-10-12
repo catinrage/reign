@@ -7,6 +7,10 @@
 	import { PIXEL } from '../pixel';
 	import { t } from '../../i18n/index.svelte';
 	import { diceChart, gatherLeaders, honors, luck, type Honor } from './postGame';
+	import { missionResult } from '../../../shared/rules/campaign';
+	import { nextMission } from '../../../shared/campaign/missions';
+	import { campaign } from '../../state/campaign.svelte';
+	import MissionResult from '../campaign/MissionResult.svelte';
 
 	const view = $derived(client.view!);
 	let hidden = $state(false);
@@ -31,6 +35,24 @@
 		hidden = false;
 	});
 	const winner = $derived(view.winner !== null ? view.players[view.winner] : null);
+	// A campaign mission: how it went, and where the story goes from here.
+	const mission = $derived(missionResult(view));
+	const next = $derived(view.campaign && mission?.won ? nextMission(view.campaign.mission) : undefined);
+	const playing = $derived(!!view.campaign && !client.replaying && !client.spectating);
+	let counted = '';
+	$effect(() => {
+		// Counted once a game, as it ends (the server keeps it on the account as well).
+		if (!playing || !mission || !view.campaign) return;
+		const key = `${client.code}:${view.campaign.mission}:${view.log[view.log.length - 1]?.seq}`;
+		if (key === counted) return;
+		counted = key;
+		campaign.record(view.campaign.mission, mission);
+	});
+	function toCampaign() {
+		campaign.picked = next?.id ?? view.campaign?.mission ?? null;
+		campaign.open = true;
+		client.leave();
+	}
 	const MEDAL = ['gold', 'silver', 'bronze', 'iron'];
 	// A rematch needs everyone ready again, just like the first game.
 	const seats = $derived(client.lobby?.seats ?? []);
@@ -166,7 +188,7 @@
 
 {#if show && !hidden && winner}
 	<div class="modal-backdrop victory">
-		<Embers count={34} />
+		{#if !mission || mission.won}<Embers count={34} />{/if}
 		<div
 			class="stage"
 			class:wide={!!stats}
@@ -174,10 +196,16 @@
 			class:narrow
 			bind:clientWidth={width}
 		>
-			<div class="rays"></div>
-			<img class="crown icon-px" src={PIXEL.crown} alt="" />
-			<div class="ribbon big">
-				{view.winner === view.me ? t('Victory!') : t('{player} wins!', { player: winner.name })}
+			{#if !mission || mission.won}
+				<div class="rays"></div>
+				<img class="crown icon-px" src={PIXEL.crown} alt="" />
+			{/if}
+			<div class="ribbon big" class:lost={mission && !mission.won}>
+				{#if mission}
+					{mission.won ? t('Mission won!') : mission.outOfTime ? t('Out of time') : t('{player} wins!', { player: winner.name })}
+				{:else}
+					{view.winner === view.me ? t('Victory!') : t('{player} wins!', { player: winner.name })}
+				{/if}
 			</div>
 			<div class="board panel">
 				{#if stats && narrow}
@@ -193,6 +221,7 @@
 						{/each}
 					</div>
 				{/if}
+				{#if mission}<MissionResult />{/if}
 				<div class="body">
 					{#if !stats || !narrow || tab === 'standings'}
 						<section class="standings">
@@ -328,6 +357,14 @@
 						<button class="btn red" onclick={() => replay.close()}>{t('Close replay')}</button>
 					{:else if client.spectating}
 						<button class="btn red" onclick={() => client.leave()}>{t('Stop watching')}</button>
+					{:else if playing}
+						<button class="btn purple" onclick={toCampaign}>{t('Campaign')}</button>
+						{#if next}
+							<button class="btn" onclick={() => client.send({ t: 'start' })}>{t('Try again')}</button>
+							<button class="btn green shine" onclick={() => client.playMission(next.id)}>{t('Next mission')}</button>
+						{:else}
+							<button class="btn green shine" onclick={() => client.send({ t: 'start' })}>{t('Try again')}</button>
+						{/if}
 					{:else if client.isHost}
 						<button
 							class="btn green shine"
@@ -421,6 +458,9 @@
 		margin: 6px 0 calc(var(--s) * -9);
 		padding-left: calc(var(--s) * 7);
 		padding-right: calc(var(--s) * 7);
+	}
+	.ribbon.big.lost {
+		--rib: var(--art-ribbon-crimson);
 	}
 	.board {
 		width: 100%;

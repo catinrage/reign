@@ -189,6 +189,8 @@ class GameClient {
 	private presentTimer: ReturnType<typeof setTimeout> | undefined;
 	private dealBatch = 0;
 	private autoBots = 0;
+	/** A campaign mission to start as soon as the new table seats us. */
+	private autoMission: string | null = null;
 	/** The player backed out of a join the server is still answering: leave the room it seats us in. */
 	private dropJoin = false;
 
@@ -281,7 +283,10 @@ class GameClient {
 				storage(`reign:token:${msg.code}`, msg.token);
 				this.setUrl(msg.code);
 				if (this.menuOpen) this.send({ t: 'pause', paused: true });
-				if (this.autoBots) {
+				if (this.autoMission) {
+					this.send({ t: 'mission', mission: this.autoMission });
+					this.autoMission = null;
+				} else if (this.autoBots) {
 					for (let i = 0; i < this.autoBots; i++) this.send({ t: 'addBot' });
 					this.autoBots = 0;
 					this.send({ t: 'start' });
@@ -612,6 +617,16 @@ class GameClient {
 	/** Create a table, fill it with bots and start right away. */
 	quickPlay(bots = 3) {
 		this.autoBots = bots;
+		this.create();
+	}
+
+	/**
+	 * Play a campaign mission: at a new table of its own, or (the next mission, or the same one
+	 * again, once a game is over) at the campaign table we are at.
+	 */
+	playMission(id: string) {
+		if (this.seat && this.lobby?.mission) return this.send({ t: 'mission', mission: id });
+		this.autoMission = id;
 		this.create();
 	}
 

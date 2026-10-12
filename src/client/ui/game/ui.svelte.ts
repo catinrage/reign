@@ -26,6 +26,8 @@ class UiState {
 	logOpen = $state(typeof window === 'undefined' || window.innerWidth > 900);
 	/** The in-game menu (pauses a game vs bots). */
 	menu = $state(false);
+	/** A campaign mission's opening page is up (it pauses the table like the menu). */
+	brief = $state(false);
 	/** The piece on the board whose tooltip shows: under the mouse, or tapped on a touch screen. */
 	piece = $state<{ spot: BoardSpot; tap: boolean } | null>(null);
 	/**

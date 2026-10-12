@@ -65,6 +65,8 @@ bâtiments et des îles de toutes formes et de toutes tailles.
   que vous avez quittée.
 - 🤖 **Des bots qui appliquent toutes les règles.** Ils occupent n'importe quel siège libre,
   échangent, construisent, utilisent les pouvoirs des personnages et réagissent aux événements.
+- 📖 **Une campagne en solo.** *La Couronne brisée* est une histoire pour un joueur seul à travers
+  des îles faites à la main. Chaque mission a ses rivaux, ses règles particulières et trois étoiles à gagner.
 - 🛡️ **Le serveur fait autorité.** Le serveur applique les règles et n'envoie à chaque joueur que ce
   qu'il a le droit de voir : les mains, la pioche et la graine des dés restent secrètes.
 - 🌍 **Cinq langues.** Anglais, russe, chinois simplifié, allemand et français ; la langue suit celle

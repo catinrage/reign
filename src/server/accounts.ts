@@ -19,6 +19,8 @@ import {
 	usernameProblem
 } from '../shared/accounts';
 import { type CustomMap, validateCustomMap } from '../shared/board/maps';
+import { cleanProgress, type CampaignProgress } from '../shared/campaign/progress';
+import type { MissionResult } from '../shared/rules/campaign';
 import type { CharacterId } from '../shared/rules/characters';
 import type { PlayerColor } from '../shared/rules/config';
 import type { Db } from './db';
@@ -570,5 +572,28 @@ export class Accounts {
 		if (!allowed?.ok) return null;
 		const [row] = await this.db.query<{ data: Uint8Array }>('select data from match_replays where match_id = $1', [matchId]);
 		return row?.data ?? null;
+	}
+
+	// ------------------------------------------------------------ campaign
+
+	/** The player's solo campaign: their best on every mission they have won. */
+	async campaign(userId: string): Promise<CampaignProgress> {
+		const rows = await this.db.query<{ mission: string; stars: number; best_round: number }>(
+			'select mission, stars, best_round from campaign_progress where user_id = $1',
+			[userId]
+		);
+		return cleanProgress(Object.fromEntries(rows.map((r) => [r.mission, { stars: r.stars, bestRound: r.best_round }])));
+	}
+
+	/** A mission the player won: keep their most stars and fewest rounds. */
+	async missionWon(userId: string, mission: string, r: MissionResult) {
+		if (!r.won) return;
+		await this.db.query(
+			`insert into campaign_progress (user_id, mission, stars, best_round) values ($1, $2, $3, $4)
+			 on conflict (user_id, mission) do update set
+				stars = greatest(campaign_progress.stars, excluded.stars),
+				best_round = least(campaign_progress.best_round, excluded.best_round)`,
+			[userId, mission, r.stars, r.round]
+		);
 	}
 }

@@ -276,7 +276,8 @@ function lobbyFor(match: Match, start: GameState): LobbyInfo {
 			handLimit: start.handLimit
 		},
 		clock: null,
-		spectators: 0
+		spectators: 0,
+		mission: start.campaign?.mission ?? null
 	};
 }
 

@@ -2,7 +2,8 @@ import type { WebSocket as ServerSocket } from 'ws';
 import type { ClientMessage } from '../../shared/protocol';
 import { Room, send } from '../../server/room';
 import { msg } from '../i18n/index.svelte';
-import { OFFLINE_USER } from './api';
+import { missionResult } from '../../shared/rules/campaign';
+import { OFFLINE_USER, offlineMissionWon } from './api';
 
 /**
  * The game server, run inside the page for the offline build (play against bots, no accounts).
@@ -106,6 +107,15 @@ export class LocalSocket {
 			if (msg.t === 'create') {
 				room = new Room(newCode());
 				rooms.set(room.code, room);
+				// A campaign mission won goes on the campaign kept in this browser.
+				room.listener = {
+					gameEnded(r) {
+						const g = r.game!;
+						const result = missionResult(g);
+						const seat = g.campaign ? r.seats[g.campaign.hero] : undefined;
+						if (result?.won && seat && !seat.left) offlineMissionWon(g.campaign!.mission, result);
+					}
+				};
 			} else {
 				room = rooms.get(String(msg.code ?? '').toUpperCase()) ?? null;
 				if (!room) {

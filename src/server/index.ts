@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { Me } from '../shared/accounts';
 import type { ClientMessage } from '../shared/protocol';
 import type { Recorder } from '../shared/replay';
+import { missionResult } from '../shared/rules/campaign';
 import { totalPoints } from '../shared/rules/engine';
 import { Accounts } from './accounts';
 import { SESSION_COOKIE, handleApi, readCookie } from './api';
@@ -143,6 +144,11 @@ function openRoom(): Room {
 				})
 				.catch(failed);
 			match = null;
+			// A campaign mission won goes on the player's campaign (not one a bot finished for them).
+			const result = missionResult(g);
+			const seat = g.campaign ? r.seats[g.campaign.hero] : undefined;
+			const hero = seat && !seat.left ? seat.userId : null;
+			if (result?.won && hero) accounts.missionWon(hero, g.campaign!.mission, result).catch(failed);
 			void hub.roomChanged(r);
 		},
 		disposed(r) {

@@ -42,6 +42,7 @@ import {
 	vertexValue,
 	workshopSpots
 } from './queries';
+import { banned } from './campaign';
 import type { Action, GameState } from './types';
 
 /**
@@ -61,7 +62,7 @@ export function botAction(s: GameState, me: number, actionsThisTurn = 0): Action
 		if (r) return { type: 'takePick', resource: r };
 	}
 	if (s.trade && s.trade.from !== me && s.trade.responses[me] === undefined) {
-		return { type: 'respondTrade', offerId: s.trade.id, accept: wantsTrade(s, me) };
+		return { type: 'respondTrade', offerId: s.trade.id, accept: !banned(s, me, 'playerTrade') && wantsTrade(s, me) };
 	}
 	// Reign Extended events: the Royal Decree's pick, and the Bountiful Year's free card.
 	if (s.step === 'eventChoice' && s.events?.choice?.player === me) {
@@ -184,7 +185,7 @@ function mainTurn(s: GameState, me: number, actions: number): Action | null {
 	// Reign Extended: a storehouse, once there's a hand worth keeping safe.
 	const store = bestStorehouse(s, me);
 	if (store !== null && canPay(s, me, 'storehouse', res)) return { type: 'buildStorehouse', vertex: store };
-	if (canPay(s, me, 'devCard', res) && s.devDeck.length > 0) {
+	if (canPay(s, me, 'devCard', res) && s.devDeck.length > 0 && !banned(s, me, 'devCards')) {
 		const keepForCity = citySpots(s, me).length > 0 && res.ore < 4;
 		// With the rats on their way (heard at its tavern), a card bought now is one they can't eat.
 		const rats = comingEvent(s, me) === 'plagueOfRats' && totalResources(res) - safeCards(s, me) > PLAGUE_LIMIT;
@@ -518,7 +519,7 @@ function buildGoals(s: GameState, me: number): Partial<ResourceCounts>[] {
 	if (bestFortress(s, me) !== null) goals.push(costOf(s, me, 'fortress'));
 	if (bestCastle(s, me) !== null) goals.push(costOf(s, me, 'castle'));
 	if (bestGuildHall(s, me) !== null) goals.push(costOf(s, me, 'guildHall'));
-	goals.push(costOf(s, me, 'devCard'));
+	if (!banned(s, me, 'devCards')) goals.push(costOf(s, me, 'devCard'));
 	return goals;
 }
 
@@ -531,7 +532,7 @@ function buildGoals(s: GameState, me: number): Partial<ResourceCounts>[] {
  * every build and development card too wins no more and makes an offer almost every turn.
  */
 function tradeOffer(s: GameState, me: number): Action | null {
-	if (offeredThisTurn(s, me)) return null;
+	if (offeredThisTurn(s, me) || banned(s, me, 'playerTrade')) return null;
 	if (!s.players.some((p, i) => i !== me && totalResources(p.resources) > 0)) return null;
 	const res = s.players[me].resources;
 	for (const goal of townGoals(s, me)) {
@@ -578,6 +579,7 @@ export function closeOffer(s: GameState, me: number): Action {
 }
 
 function bankTradeTowards(s: GameState, me: number): Action | null {
+	if (banned(s, me, 'bankTrade')) return null;
 	const res = s.players[me].resources;
 	const ratios = tradeRatios(s, me);
 	// A Traveling Fair on its way (heard at its tavern): next round every trade is 2:1, so it waits.

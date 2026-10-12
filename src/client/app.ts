@@ -1,3 +1,4 @@
+import { campaign } from './state/campaign.svelte';
 import { mount } from 'svelte';
 import './styles/ui.css';
 import { prewarmBusts } from './scene/avatars';
@@ -39,6 +40,7 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	(window as any).__account = account;
 	(window as any).__client = client;
 	(window as any).__replay = replay;
+	(window as any).__campaign = campaign;
 	if (new URLSearchParams(location.search).has('autoplay')) {
 		import('./autoplay').then((m) => m.startAutoplay());
 	}

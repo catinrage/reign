@@ -57,6 +57,8 @@ of any shape and size.
   match history, spectators, private pigeon post and rejoining a game you left.
 - 🤖 **Bots that play every rule.** Fill any empty seat; bots trade, build, use character powers and
   answer events.
+- 📖 **A solo campaign.** *The Shattered Crown* is a story for one player across hand-made
+  islands. Each mission has its own rivals, a twist on the rules and three stars to earn.
 - 🛡️ **Server-authoritative.** The server runs the rules and sends each player only what they may
   see, so hands, the deck and the dice seed stay secret.
 - 🌍 **Five languages.** English, Russian, Simplified Chinese, German and French, picked from your

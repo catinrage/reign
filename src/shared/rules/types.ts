@@ -1,5 +1,6 @@
 import type { Board } from '../board/topology';
 import type { BuildingRules, CityPath } from './buildings';
+import type { CampaignState } from './campaign';
 import type { CharacterId } from './characters';
 import type { DevCardType, PlayerColor, Resource, ResourceCounts, Terrain } from './config';
 import type { EventCard, EventsState, EventsView } from './events';
@@ -150,6 +151,8 @@ export interface GameState {
 	winner: number | null;
 	/** Numbers for the end-of-game window, kept from the start; players see them once it's over. */
 	stats: GameStats;
+	/** A solo campaign mission's rules and story, or null in any other game. */
+	campaign: CampaignState | null;
 	log: GameEvent[];
 	nextEventSeq: number;
 }
@@ -249,6 +252,10 @@ export type GameEvent =
 	| Ev<'eventCards', { card: EventCard; moves: EventMove[]; hex?: number; champion?: number }>
 	/** Two tiles swapped number tokens. */
 	| Ev<'earthquake', { hexes: [number, number] }>
+	/** The solo campaign: a line of the story, said by a seat's rival or (null) the narrator. */
+	| Ev<'campaignLine', { speaker: number | null; line: string }>
+	/** The solo campaign: a rival took a card of tribute from the bank as a round began. */
+	| Ev<'tribute', { player: number; resource: Resource }>
 	/** A dev cheat was used (only possible on the local dev server). */
 	| Ev<'cheat', { player: number; text: string }>;
 
