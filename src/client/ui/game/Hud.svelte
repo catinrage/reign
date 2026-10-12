@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getTopology } from '../../../shared/board/topology';
 	import { isCityPath } from '../../../shared/rules/buildings';
-	import { RESOURCES, RESOURCE_LABEL, type Resource, type ResourceCounts } from '../../../shared/rules/config';
+	import { RESOURCES, RESOURCE_LABEL, emptyResources, hasResources, type Resource, type ResourceCounts } from '../../../shared/rules/config';
 	import {
 		roadSpots,
 		settlementSpots,
@@ -23,6 +23,7 @@
 	import { POWER_INFO } from '../../../shared/rules/characters';
 	import { t } from '../../i18n/index.svelte';
 	import { sceneRef } from '../sceneRef';
+	import { settings } from '../settings.svelte';
 	import { sfx } from '../sound';
 	import Actions from './Actions.svelte';
 	import BoardTip from './BoardTip.svelte';
@@ -260,8 +261,11 @@
 				}
 				break;
 			case 'tradeOffered':
-				// A bell for everyone at the table but the player who made the offer.
-				if (e.offer.from !== me) sfx.trade();
+				// A bell for everyone at the table but the player who made the offer, and but a player
+				// who hides offers they can't accept when they can't accept this one (see OfferCard).
+				if (e.offer.from === me) break;
+				if (settings.hideOffers && me >= 0 && !hasResources(view.players[me].resources ?? emptyResources(), e.offer.want)) break;
+				sfx.trade();
 				break;
 			case 'turnTimedOut':
 				if (e.player === me) client.toast(t("Time's up! Your turn is over."), 'error');

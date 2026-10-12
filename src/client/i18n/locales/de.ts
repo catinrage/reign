@@ -1719,5 +1719,11 @@ export default {
 	"{player} took {res} as tribute": "{player} hat {res} als Tribut genommen",
 	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "Zieh eine zufällige Karte vom Stapel: einen Ritter, der den Räuber versetzt, Straßenbau, Erfindung, Monopol oder einen verdeckten Siegpunkt. Ausspielen kannst du sie ab deinem nächsten Zug.",
 	"The deck is empty.": "Der Stapel ist leer.",
-	"Cards left in the deck": "Karten im Stapel"
+	"Cards left in the deck": "Karten im Stapel",
+	"Trade offers": "Handelsangebote",
+	"Hide offers I can't accept": "Unbezahlbare Angebote ausblenden",
+	"An offer you haven't the cards for is declined for you, and doesn't pop up.": "Ein Angebot, für das dir die Karten fehlen, wird für dich abgelehnt und erscheint gar nicht erst.",
+	"Bots wait for me": "Bots warten auf mich",
+	"Until I answer": "Bis ich antworte",
+	"How long a bot keeps its trade offer open for your answer. It closes sooner once everyone has answered.": "Wie lange ein Bot sein Handelsangebot für deine Antwort offen hält. Es schließt früher, sobald alle geantwortet haben."
 } satisfies Messages;

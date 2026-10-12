@@ -1719,5 +1719,11 @@ export default {
 	"{player} took {res} as tribute": "{player} a pris {res} en tribut",
 	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "Piochez une carte au hasard : un Chevalier qui déplace le voleur, Construction de routes, Invention, Monopole ou un Point de victoire caché. Vous pourrez la jouer à partir de votre prochain tour.",
 	"The deck is empty.": "La pioche est vide.",
-	"Cards left in the deck": "Cartes restant dans la pioche"
+	"Cards left in the deck": "Cartes restant dans la pioche",
+	"Trade offers": "Offres d'échange",
+	"Hide offers I can't accept": "Masquer les offres hors de portée",
+	"An offer you haven't the cards for is declined for you, and doesn't pop up.": "Une offre pour laquelle il vous manque des cartes est refusée pour vous et ne s'affiche pas.",
+	"Bots wait for me": "Les bots m'attendent",
+	"Until I answer": "Jusqu'à ma réponse",
+	"How long a bot keeps its trade offer open for your answer. It closes sooner once everyone has answered.": "Combien de temps un bot garde son offre d'échange ouverte pour votre réponse. Elle se ferme plus tôt dès que tout le monde a répondu."
 } satisfies Messages;

@@ -8,7 +8,7 @@ import type {
 	ServerMessage,
 	TurnClock
 } from '../shared/protocol';
-import { BEACON_GAP_MS, BEACON_REACH, MAX_PLAYERS, MIN_PLAYERS, PIGEON_MAX_CHARS, TURN_TIMES } from '../shared/protocol';
+import { BEACON_GAP_MS, BEACON_REACH, MAX_PLAYERS, MIN_PLAYERS, OFFER_WAITS, PIGEON_MAX_CHARS, TURN_TIMES } from '../shared/protocol';
 import { type CustomMap, type MapChoice, mapName, mapTiles, presetById, validateCustomMap } from '../shared/board/maps';
 import { cleanRandomOptions } from '../shared/board/random';
 import { randomSeed } from '../shared/rng';
@@ -57,6 +57,11 @@ interface Seat {
 	avatar: AvatarId | null;
 	/** The dice this player throws (null for bots: the classic dice). */
 	dice: DiceStyleId | null;
+	/**
+	 * How long a bot's trade offer stays open for this player to answer, in ms (Infinity: until
+	 * they answer), as they picked in their Settings. BOT_OFFER_MS until they say.
+	 */
+	offerWait?: number;
 }
 
 /** The signed-in player taking a seat. */
@@ -92,11 +97,12 @@ const PIGEON_GAP_MS = 600;
 /** How long a bot points at the robber's new tile before the robber jumps there. */
 const BOT_AIM_MS = 900;
 /**
- * How long a bot's trade offer stays open for answers before it takes the best one it has, so a
- * person gets a fair chance to accept before another bot does, and someone who never answers
- * can't hold up the turn.
+ * How long a bot's trade offer stays open for a person's answer before it takes the best one it
+ * has, so they get a fair chance to accept before another bot does, and someone who never answers
+ * can't hold up the turn. Each player can pick a longer wait in their Settings (OFFER_WAITS); this
+ * is the standard one, and the most a player who lost their connection holds an offer open.
  */
-export const BOT_OFFER_MS = 8000;
+export const BOT_OFFER_MS = OFFER_WAITS[0] * 1000;
 
 export class Room {
 	seats: Seat[] = [];
@@ -493,6 +499,12 @@ export class Room {
 				else this.pausedBy.delete(seat.id);
 				if (this.paused === was) return;
 				return this.pauseChanged();
+			}
+			case 'offerWait': {
+				if (!OFFER_WAITS.includes(msg.seconds)) return;
+				seat.offerWait = msg.seconds ? msg.seconds * 1000 : Infinity;
+				// A bot waiting on this player's answer may now close its offer sooner, or later.
+				return this.scheduleBots();
 			}
 			case 'pauseGame': {
 				if (!this.game || this.game.phase === 'ended') return;
@@ -894,9 +906,9 @@ export class Room {
 			// A bot waiting on answers to its offer closes it once its time is up; and someone may go
 			// AFK later. Check back.
 			const g = this.game;
-			const offer = g.trade && this.offerSeen && this.controlled(g.trade.from) ? this.offerSeen : null;
-			const wait = offer ? Math.max(50, offer.at + BOT_OFFER_MS - Date.now()) : 5000;
-			if (offer || this.seats.some((s) => !s.isBot && s.sockets.size === 0)) {
+			const closes = g.trade && this.offerSeen && this.controlled(g.trade.from) ? this.offerCloses(g, this.offerSeen.at) : null;
+			const wait = closes !== null ? Math.max(50, closes - Date.now()) : 5000;
+			if (closes !== null || this.seats.some((s) => !s.isBot && s.sockets.size === 0)) {
 				this.botTimerIdle = true;
 				this.botTimer = setTimeout(() => {
 					this.botTimer = null;
@@ -974,11 +986,31 @@ export class Room {
 		if (this.controlled(g.current)) {
 			const action = botAction(g, g.current, this.botActionsThisTurn);
 			if (action) return { player: g.current, action };
-			// Its own offer, still short of answers: once its time is up it takes the best it has.
-			const waited = this.offerSeen && Date.now() - this.offerSeen.at >= (this.fastBots ? 0 : BOT_OFFER_MS);
-			if (g.trade?.from === g.current && waited) return { player: g.current, action: closeOffer(g, g.current) };
+			// Its own offer: once everyone has answered, or their time is up, it takes the best it has.
+			if (g.trade?.from === g.current && this.offerSeen && Date.now() >= this.offerCloses(g, this.offerSeen.at)) {
+				return { player: g.current, action: closeOffer(g, g.current) };
+			}
 		}
 		return null;
+	}
+
+	/**
+	 * When a bot's open offer (made at `at`) closes: as soon as everyone has answered, or once each
+	 * person still thinking it over has had the wait they picked (the longest of theirs; Infinity
+	 * while one waits until they answer). Seats bot logic plays answer on their own and hold
+	 * nothing open, and a person who lost their connection holds it no longer than the standard
+	 * wait, so a stalled offer can't freeze the table.
+	 */
+	private offerCloses(g: GameState, at: number): number {
+		const t = g.trade!;
+		if (this.fastBots) return at;
+		let wait = 0;
+		this.seats.forEach((s, i) => {
+			if (i === t.from || t.responses[i] !== undefined || this.controlled(i)) return;
+			const theirs = s.offerWait ?? BOT_OFFER_MS;
+			wait = Math.max(wait, s.sockets.size ? theirs : Math.min(theirs, BOT_OFFER_MS));
+		});
+		return at + wait;
 	}
 
 	/** Whether bot logic plays a seat: a bot, a player who left, or one away long enough. */

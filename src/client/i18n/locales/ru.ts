@@ -1719,5 +1719,11 @@ export default {
 	"{player} took {res} as tribute": "{player} берёт дань: {res}",
 	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "Вытяни случайную карту из колоды: Рыцаря, который переставляет разбойника, Строительство дорог, Изобилие, Монополию или скрытое Победное очко. Сыграть её можно со следующего хода.",
 	"The deck is empty.": "Колода пуста.",
-	"Cards left in the deck": "Карт осталось в колоде"
+	"Cards left in the deck": "Карт осталось в колоде",
+	"Trade offers": "Предложения обмена",
+	"Hide offers I can't accept": "Скрывать недоступные предложения",
+	"An offer you haven't the cards for is declined for you, and doesn't pop up.": "Предложение, на которое у вас не хватает карт, отклоняется за вас и не всплывает.",
+	"Bots wait for me": "Боты ждут меня",
+	"Until I answer": "Пока не отвечу",
+	"How long a bot keeps its trade offer open for your answer. It closes sooner once everyone has answered.": "Сколько бот держит своё предложение обмена открытым для вашего ответа. Оно закрывается раньше, как только все ответят."
 } satisfies Messages;

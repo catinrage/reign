@@ -1719,5 +1719,11 @@ export default {
 	"{player} took {res} as tribute": "{player} 拿走了 {res} 作为贡品",
 	"Draw a random card from the deck: a Knight that moves the robber, Road Building, Year of Plenty, Monopoly, or a hidden Victory Point. You can play it from your next turn.": "从牌堆随机抽一张卡：可移动强盗的骑士、道路建设、丰收之年、垄断，或一张暗藏的胜利分。从你的下一回合起可以打出。",
 	"The deck is empty.": "牌堆已空。",
-	"Cards left in the deck": "牌堆剩余卡牌"
+	"Cards left in the deck": "牌堆剩余卡牌",
+	"Trade offers": "交易报价",
+	"Hide offers I can't accept": "隐藏无法接受的报价",
+	"An offer you haven't the cards for is declined for you, and doesn't pop up.": "你的牌不够的报价会自动替你拒绝，也不会弹出。",
+	"Bots wait for me": "机器人等我",
+	"Until I answer": "直到我回答",
+	"How long a bot keeps its trade offer open for your answer. It closes sooner once everyone has answered.": "机器人的交易报价为你的回答保持多久。所有人都回答后会提前关闭。"
 } satisfies Messages;

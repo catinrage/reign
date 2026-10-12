@@ -130,6 +130,11 @@ export type ClientMessage =
 	/** Invite a friend (by account id) to this table. */
 	| { t: 'invite'; user: string }
 	| { t: 'declineInvite'; id: string }
+	/**
+	 * This player's own setting: how long a bot keeps its trade offer open for them to answer, in
+	 * seconds, one of OFFER_WAITS (0: until they answer). Sent on every join and whenever it changes.
+	 */
+	| { t: 'offerWait'; seconds: number }
 	/** Keeps the line open; `n` asks for a pong carrying it back, to time the round trip. */
 	| { t: 'ping'; n?: number };
 
@@ -174,6 +179,11 @@ export const CLASSIC_PLAYERS = 4;
 export const MIN_PLAYERS = 2;
 /** Turn time limits the host can pick, in seconds; 0 is unlimited. */
 export const TURN_TIMES = [0, 30, 60, 90, 120, 180];
+/**
+ * How long a bot's trade offer stays open for a person to answer, in seconds, as each player
+ * picks in their own Settings; 0 waits until they answer. The first is the default.
+ */
+export const OFFER_WAITS = [8, 15, 30, 0];
 /** How long a beacon stays lit on the map. */
 export const BEACON_MS = 3000;
 /** The least time between two beacons from one player; any sooner are dropped. */
