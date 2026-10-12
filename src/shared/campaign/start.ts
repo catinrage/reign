@@ -55,7 +55,7 @@ export function missionSettings(m: Mission): GameSettings {
 
 /** Whether characters bring their traits (and powers) to the game, rather than only their faces. */
 export function missionTraits(m: Mission): boolean {
-	return m.mode === 'extended' && !!m.hero?.character;
+	return m.mode === 'extended' && (m.traits ?? !!m.hero?.character);
 }
 
 /**
@@ -73,7 +73,7 @@ export function createMissionGame(m: Mission, seats: MissionSeat[], seed: number
 		name: s.name,
 		color: s.color,
 		isBot: s.isBot,
-		character: traits ? (s.isBot ? s.cast : m.hero!.character!) : null
+		character: traits ? (s.isBot ? s.cast : (m.hero?.character ?? null)) : null
 	}));
 	const g = createGame(players, seed, board, settings);
 	// Classic missions play to their own goal too, with the pieces to reach it.

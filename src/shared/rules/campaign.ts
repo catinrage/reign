@@ -178,6 +178,12 @@ function beatMoment(s: GameState, beat: Beat, events: GameEvent[]): number | nul
 			return s.buildings.some((b) => b?.owner === c.hero && b.kind === 'city') ? null : undefined;
 		case 'tribute':
 			return events.some((e) => e.type === 'tribute') ? (c.boss ?? null) : undefined;
+		case 'event':
+			return events.some((e) => e.type === 'eventDrawn') ? null : undefined;
+		case 'power': {
+			const e = events.find((e) => e.type === 'powerUsed' && (w.who === 'hero') === (e.player === c.hero));
+			return e?.type === 'powerUsed' ? e.player : undefined;
+		}
 		case 'end':
 			return s.phase === 'ended' && (w.won === undefined || w.won === (s.winner === c.hero)) ? null : undefined;
 	}

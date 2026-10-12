@@ -86,7 +86,17 @@ describe('mission list', () => {
 			expect(m.rivals.filter((r) => r.boss).length).toBeLessThanOrEqual(1);
 			expect(m.goals.length).toBe(2);
 			expect(m.intro.length).toBeGreaterThan(0);
+			// Every line has someone at the table to say it, and nobody sits there twice.
+			const cast = m.rivals.map((r) => r.character);
+			expect(new Set(cast).size, m.id).toBe(cast.length);
+			if (m.hero?.character) expect(cast, m.id).not.toContain(m.hero.character);
+			for (const b of m.beats) if (!['narrator', 'boss', 'them'].includes(b.speaker)) expect(cast, `${m.id}: ${b.line}`).toContain(b.speaker);
+			if (m.mode === 'classic') expect(m.hero?.character, m.id).toBeUndefined();
 		}
+	});
+
+	it('fills all three acts', () => {
+		for (const act of [1, 2, 3]) expect(MISSIONS.filter((m) => m.act === act).length).toBe(4);
 	});
 
 	it('opens one mission after another', () => {
@@ -123,6 +133,28 @@ describe('dealing a mission', () => {
 		// Starting cards come out of the bank.
 		const held = a.players.reduce((n, p) => n + totalResources(p.resources), 0);
 		expect(RESOURCES.reduce((n, r) => n + a.bank[r], 0) + held).toBe(BANK_PER_RESOURCE * RESOURCES.length);
+	});
+
+	it('gives characters their traits only where the mission says', () => {
+		const company = deal('company-you-keep');
+		const c = company.campaign!;
+		expect(company.players[c.hero].character).toBe('explorer');
+		expect(company.players[c.boss!].character).toBe('cartographer');
+		expect(company.powers).toBe(true);
+		const guilds = deal('greywater-guilds');
+		expect(guilds.players.every((p) => p.character === null)).toBe(true);
+		expect(guilds.buildingRules).toMatchObject({ workshop: true, storehouse: true, castle: false });
+		expect(guilds.events).toBeNull();
+		expect(deal('omens-lagoon').events).not.toBeNull();
+	});
+
+	it('deals a mission on a grown island the same way every time', () => {
+		const a = deal('isles-of-ash', 1);
+		const b = deal('isles-of-ash', 2);
+		expect(a.board.hexes).toEqual(b.board.hexes);
+		expect(a.mapName).toBe('The Ash Isles');
+		expect(a.pointsToWin).toBe(12);
+		expect(a.players[0].piecesLeft.settlement).toBeGreaterThan(5);
 	});
 
 	it('sends the campaign to the player in the view', () => {
@@ -222,7 +254,7 @@ describe('mission result', () => {
 		expect(missionResult(s)).toMatchObject({ won: false, goals: [false, false], stars: 0 });
 	});
 
-	it('every Act I mission plays to an end with bots in every seat', () => {
+	it('every mission plays to an end with bots in every seat', () => {
 		for (const m of MISSIONS) {
 			const s = playUntil(deal(m.id, 3), () => false);
 			expect(s.phase, m.id).toBe('ended');
@@ -287,5 +319,18 @@ describe('room', () => {
 		room.handle(seat, { t: 'mission', mission: 'washed-ashore' }, me.ws);
 		expect(room.game).toBeNull();
 		room.dispose();
+	});
+});
+
+describe('Extended beats', () => {
+	it('speaks up when an Event card turns and when a power is used', () => {
+		let s = deal('jesters-crown', 5);
+		s = playUntil(s, (s) => campaignRound(s) > 8);
+		const said = lines().map((e) => e.line);
+		const beats = mission('jesters-crown').beats;
+		const line = (on: string) => beats.find((b) => b.when.on === on)!.line;
+		expect(said).toContain(line('event'));
+		expect(heard.some((e) => e.type === 'powerUsed' && e.player !== s.campaign!.hero)).toBe(true);
+		expect(said).toContain(line('power'));
 	});
 });

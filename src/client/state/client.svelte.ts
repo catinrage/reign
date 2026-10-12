@@ -3,6 +3,7 @@ import type { Cheat } from '../../shared/rules/cheats';
 import { hasResources, type Resource } from '../../shared/rules/config';
 import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
 import type { Action, GameEvent, GameView } from '../../shared/rules/types';
+import { CHARACTER_INFO } from '../../shared/rules/characters';
 import { t, tx } from '../i18n/index.svelte';
 import { account } from './account.svelte';
 import { netStats } from './netStats.svelte';
@@ -377,6 +378,7 @@ class GameClient {
 	 * state when they land.
 	 */
 	private receive(view: GameView) {
+		view = castNames(view);
 		const prev = this.latest;
 		this.latest = view;
 		this.declineUnaffordable(view);
@@ -478,6 +480,7 @@ class GameClient {
 		this.tossing = null;
 		this.presenting = null;
 		this.dealt = [];
+		view = castNames(view);
 		this.latest = view;
 		this.view = view;
 		this.lastRoll = newestRoll(view.log);
@@ -770,3 +773,19 @@ class GameClient {
 }
 
 export const client = new GameClient();
+
+/**
+ * A campaign's rivals sit under their characters' names, which the server sends in English: show
+ * them in the player's language, as the story does.
+ */
+function castNames(view: GameView): GameView {
+	const cast = view.campaign?.cast;
+	if (!cast?.some((c, i) => c && view.players[i]?.name === CHARACTER_INFO[c].name)) return view;
+	return {
+		...view,
+		players: view.players.map((p, i) => {
+			const c = cast[i];
+			return c && p.name === CHARACTER_INFO[c].name ? { ...p, name: t(p.name) } : p;
+		})
+	};
+}

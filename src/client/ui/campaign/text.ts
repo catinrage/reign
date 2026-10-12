@@ -1,6 +1,7 @@
-import { presetById, type MapChoice } from '../../../shared/board/maps';
+import { presetById } from '../../../shared/board/maps';
 import { ACTS, type CampaignGoal, type Mission } from '../../../shared/campaign/missions';
 import { BAN_TEXT } from '../../../shared/rules/campaign';
+import { missionTraits } from '../../../shared/campaign/start';
 import { CHARACTER_INFO, type CharacterId } from '../../../shared/rules/characters';
 import { BUILDING_INFO, EXTRA_BUILDINGS } from '../../../shared/rules/buildings';
 import { t } from '../../i18n/index.svelte';
@@ -23,9 +24,11 @@ export function rivalName(c: CharacterId): string {
 	return t('{character} {epithet}', { character: t(info.name), epithet: t(info.title) });
 }
 
-function mapLabel(map: MapChoice | undefined): string {
+/** The island a mission plays on: a preset's name, or the story's name for an island of its own. */
+function mapLabel(m: Mission): string {
+	const map = m.map;
 	if (map && 'preset' in map) return t(presetById(map.preset)?.name ?? 'Great Isle');
-	if (map && 'custom' in map) return t(map.custom.name);
+	if (map && 'custom' in map) return t(m.place);
 	return t('Great Isle');
 }
 
@@ -54,10 +57,16 @@ export function missionRules(m: Mission): { icon: string; text: string; hard?: b
 	const out: { icon: string; text: string; hard?: boolean }[] = [];
 	if (m.mode === 'classic') out.push({ icon: PIXEL.book, text: t('Classic rules on the standard island') });
 	else {
-		out.push({ icon: PIXEL.book, text: t('Reign Extended on {map}', { map: mapLabel(m.map) }) });
+		out.push({ icon: PIXEL.book, text: t('Reign Extended on {map}', { map: mapLabel(m) }) });
 		const built = EXTRA_BUILDINGS.filter((b) => m.settings?.buildings?.[b]).map((b) => t(BUILDING_INFO[b].label));
 		if (built.length) out.push({ icon: PIXEL.hammer, text: t('Buildings: {list}', { list: built.join(', ') }) });
 		if (m.settings?.events?.on) out.push({ icon: PIXEL.raincloud, text: m.settings.events.wild ? t('The Events deck, wild cards included') : t('The Events deck, gentle cards only') });
+		if (missionTraits(m)) {
+			out.push({
+				icon: PIXEL.crown,
+				text: m.settings?.powers === false ? t('Every rival plays their character, with traits') : t('Every rival plays their character, with traits and powers')
+			});
+		}
 		if (m.hero?.character) {
 			out.push({
 				icon: PIXEL.crown,
