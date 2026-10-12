@@ -7,7 +7,6 @@ import { meshGrid } from '../voxel/mesher';
 /** Round cream tokens: number discs on tiles and harbor discs on the piers. */
 
 export const TOKEN_RADIUS = 4.4;
-const FONT = '"Pixelify Sans", "Nunito Variable", system-ui, sans-serif';
 
 let discGroup: THREE.Group | null = null;
 
