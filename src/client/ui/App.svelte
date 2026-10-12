@@ -22,6 +22,8 @@
 				? 'joining'
 			: client.view && client.lobby?.started
 				? 'game'
+				: client.launching
+					? 'launching'
 				: client.lobby
 					? 'lobby'
 					: 'home'
@@ -58,11 +60,11 @@
 		hovered = el;
 	}
 
-	// A horn call for everyone at the table as the lobby closes and the game begins (a rejoin
-	// comes in from the menu, so it stays quiet).
+	// A horn call for everyone at the table as the lobby closes and the game begins, or as a bot
+	// game or mission sets off from the menu (a rejoin comes in from the menu, so it stays quiet).
 	let lastScreen: typeof screen | null = null;
 	$effect(() => {
-		if (screen === 'game' && lastScreen === 'lobby') sfx.horn();
+		if (screen === 'game' && (lastScreen === 'lobby' || lastScreen === 'launching')) sfx.horn();
 		lastScreen = screen;
 	});
 
@@ -82,7 +84,8 @@
 <div class="ui" style:zoom={size === 1 ? undefined : size} style:--ui-zoom={size}>
 	{#if screen === 'auth'}
 		{#if account.status === 'out'}<Auth />{/if}
-	{:else if screen === 'home'}
+	{:else if screen === 'home' || screen === 'launching'}
+		<!-- Play vs bots and missions keep the menu up while their table is set up. -->
 		<Home />
 	{:else if screen === 'joining'}
 		<Joining />

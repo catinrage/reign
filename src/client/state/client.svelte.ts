@@ -148,6 +148,11 @@ class GameClient {
 	 * the interface shows a loading screen instead of the main menu. Cleared once the table is in.
 	 */
 	joining = $state<Joining | null>(null);
+	/**
+	 * Set while Play vs bots or a campaign mission sets up its table, so the menu stays up until
+	 * the game is in: that lobby is only a step on the way, nobody gets to use it.
+	 */
+	launching = $state(false);
 	/** Whether this player has the game menu open (the table pauses when everyone does). */
 	menuOpen = $state(false);
 	/** The current turn's clock, with `until` on this browser's clock; null when turns are unlimited. */
@@ -234,6 +239,8 @@ class GameClient {
 			if (this.ws !== ws) return;
 			this.status = 'offline';
 			this.ws = null;
+			// A table left half set up shows its lobby once we are back, rather than an empty menu.
+			this.launching = false;
 			netStats.dropped();
 			if (!this.wanted) return;
 			const delay = Math.min(8000, 400 * 2 ** this.retry++);
@@ -323,6 +330,7 @@ class GameClient {
 				this.receive(msg.view);
 				this.setClock(msg.clock);
 				this.joining = null;
+				this.launching = false;
 				if (this.code) storage(LAST_GAME, this.code);
 				break;
 			case 'pigeons':
@@ -349,6 +357,8 @@ class GameClient {
 			case 'error':
 				this.pendingJoin = false;
 				this.rollAsked = false;
+				// The table couldn't start on its own: its lobby shows, to see why and carry on from.
+				this.launching = false;
 				if (this.dropJoin) {
 					this.dropJoin = false;
 					break;
@@ -655,6 +665,7 @@ class GameClient {
 	/** Create a table, fill it with bots and start right away. */
 	quickPlay(bots = 3) {
 		this.autoBots = bots;
+		this.launching = true;
 		this.create();
 	}
 
@@ -665,6 +676,7 @@ class GameClient {
 	playMission(id: string) {
 		if (this.seat && this.lobby?.mission) return this.send({ t: 'mission', mission: id });
 		this.autoMission = id;
+		this.launching = true;
 		this.create();
 	}
 
@@ -718,6 +730,7 @@ class GameClient {
 		this.spectating = false;
 		this.code = null;
 		this.joining = null;
+		this.launching = false;
 		this.setClock(null);
 		this.setUrl(null);
 		// While anyone else is still playing, the menu offers the way back in.

@@ -28,7 +28,7 @@
 	const open = $derived(campaign.isOpen(mission.id));
 	const record = $derived(campaign.progress[mission.id]);
 	const before = $derived(MISSIONS[index - 1]);
-	const busy = $derived(client.pendingJoin || client.status !== 'online');
+	const busy = $derived(client.pendingJoin || client.launching || client.status !== 'online');
 	const stars = $derived(campaign.stars);
 
 	function pick(id: string) {

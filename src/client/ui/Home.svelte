@@ -31,7 +31,7 @@
 	const me = $derived(account.me!);
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let logoOk = $state(true);
-	const busy = $derived(client.pendingJoin || client.status !== 'online');
+	const busy = $derived(client.pendingJoin || client.launching || client.status !== 'online');
 
 	// A bigger menu column pushes the island further over.
 	$effect(() => {
