@@ -8,6 +8,7 @@ import {
 	RESOURCES,
 	TERRAIN_RESOURCE,
 	type BuildKind,
+	type DevCardType,
 	type Resource,
 	type ResourceCounts,
 	pips
@@ -311,15 +312,6 @@ export function harborUsers(s: Shared, port: number): number[] {
 	return s.players.map((_, i) => i).filter((i) => tradesAtHarbor(s, i, port));
 }
 
-/** Points from a player's buildings: 1 a settlement, 2 a city, 3 a castle. */
-export function buildingPoints(s: Shared, player: number): number {
-	let p = 0;
-	s.buildings.forEach((b, v) => {
-		if (b?.owner === player) p += b.kind !== 'city' ? 1 : s.cityPaths?.[v] === 'castle' ? CASTLE_POINTS : 2;
-	});
-	return p;
-}
-
 // ---------------------------------------------------------------- city paths (Reign Extended)
 
 /**
@@ -367,12 +359,56 @@ export function guildGoodsFor(s: Shared, player: number): Resource[] {
 	return RESOURCES.filter((r) => harbors[r] > 2 && !guilds.includes(r));
 }
 
+// ---------------------------------------------------------------- points
+
+/** Everything that scores, in the order a breakdown lists it. */
+export const POINT_SOURCES = ['settlement', 'city', 'castle', 'longestRoad', 'largestArmy', 'victoryCard'] as const;
+export type PointSource = (typeof POINT_SOURCES)[number];
+/** What one of each is worth. A castle is a city that took the castle path (Reign Extended). */
+export const POINT_VALUE: Record<PointSource, number> = {
+	settlement: 1,
+	city: 2,
+	castle: CASTLE_POINTS,
+	longestRoad: 2,
+	largestArmy: 2,
+	victoryCard: 1
+};
+
+/** One source of a player's points: how many of it they have and what those are worth together. */
+export interface PointPart {
+	source: PointSource;
+	count: number;
+	points: number;
+}
+
+/**
+ * Where a player's points come from: the sources they score on, in `POINT_SOURCES` order. Victory
+ * point cards count only from `cards`, the player's development cards: leave them out for the
+ * points everyone can see. Every score in the game is the sum of these parts (`pointsOf`).
+ */
+export function pointsBreakdown(s: Shared, player: number, cards?: readonly { type: DevCardType }[]): PointPart[] {
+	const count: Record<PointSource, number> = {
+		settlement: 0,
+		city: 0,
+		castle: 0,
+		longestRoad: s.longestRoadHolder === player ? 1 : 0,
+		largestArmy: s.largestArmyHolder === player ? 1 : 0,
+		victoryCard: cards?.filter((c) => c.type === 'victoryPoint').length ?? 0
+	};
+	s.buildings.forEach((b, v) => {
+		if (b?.owner === player) count[b.kind !== 'city' ? 'settlement' : s.cityPaths?.[v] === 'castle' ? 'castle' : 'city']++;
+	});
+	return POINT_SOURCES.filter((k) => count[k] > 0).map((k) => ({ source: k, count: count[k], points: count[k] * POINT_VALUE[k] }));
+}
+
+/** The score a breakdown adds up to. */
+export function pointsOf(parts: readonly PointPart[]): number {
+	return parts.reduce((n, p) => n + p.points, 0);
+}
+
+/** The points everyone can see: buildings, Longest Road and Largest Army, without hidden cards. */
 export function publicPoints(s: Shared, player: number): number {
-	return (
-		buildingPoints(s, player) +
-		(s.longestRoadHolder === player ? 2 : 0) +
-		(s.largestArmyHolder === player ? 2 : 0)
-	);
+	return pointsOf(pointsBreakdown(s, player));
 }
 
 /**

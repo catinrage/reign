@@ -3,7 +3,9 @@
 	import { replay } from '../../state/replay.svelte';
 	import { getIcons } from '../../scene/icons';
 	import Embers from '../menu/Embers.svelte';
-	import { RESOURCES, RESOURCE_LABEL } from '../helpers';
+	import { RESOURCES, RESOURCE_LABEL, pointLine, pointParts, pointsTip } from '../helpers';
+	import type { PointSource } from '../../../shared/rules/queries';
+	import type { PlayerColor } from '../../../shared/rules/config';
 	import { PIXEL } from '../pixel';
 	import { t } from '../../i18n/index.svelte';
 	import { diceChart, gatherLeaders, honors, luck, type Honor } from './postGame';
@@ -21,7 +23,9 @@
 				name: p.name,
 				color: p.color,
 				pts: p.totalPoints ?? p.publicPoints,
-				vp: p.devCards?.filter((c) => c.type === 'victoryPoint').length ?? 0
+				// Everyone's cards are on the table now, hidden victory points too.
+				parts: pointParts(view, i),
+				tip: pointsTip(view, i)
 			}))
 			.sort((a, b) => b.pts - a.pts)
 	);
@@ -66,7 +70,14 @@
 	const chart = $derived(stats ? diceChart(stats) : []);
 	const chartMax = $derived(Math.max(1, ...chart.map((c) => Math.max(c.count, c.expected))));
 	const rolls = $derived(chart.reduce((n, c) => n + c.count, 0));
-	const icons = $derived(stats ? getIcons().urls : null);
+	const icons = getIcons().urls;
+	/** The little picture beside each source of points: the piece in the player's color, or the award. */
+	function partIcon(source: PointSource, color: PlayerColor): { src: string; px: boolean } {
+		if (source === 'longestRoad') return { src: PIXEL.road, px: true };
+		if (source === 'largestArmy') return { src: PIXEL.army, px: true };
+		if (source === 'victoryCard') return { src: PIXEL.victoryPoint, px: true };
+		return { src: icons[`${source}:${color}`], px: false };
+	}
 	// On a narrow screen the sections take turns behind tabs.
 	let width = $state(1000);
 	const narrow = $derived(!!stats && width < 700);
@@ -225,7 +236,7 @@
 				<div class="body">
 					{#if !stats || !narrow || tab === 'standings'}
 						<section class="standings">
-							{#if stats && icons}
+							{#if stats}
 								<div class="row head">
 									<span
 										class="gathered label"
@@ -256,9 +267,15 @@
 										>{r.name.slice(0, 1).toUpperCase()}</span
 									>
 									<span class="nm">{narrow ? r.name : nameOf(r.i)}</span>
-									{#if r.vp}<span class="vpc" title={t('Hidden victory point cards')}
-											><img class="icon-px" src={PIXEL.victoryPoint} alt="" />{r.vp}</span
-										>{/if}
+									<!-- Where the points came from, each worth what its number says. -->
+									<span class="parts">
+										{#each r.parts as part (part.source)}
+											{@const ic = partIcon(part.source, r.color)}
+											<span class="part" title={pointLine(part)}
+												><img class:icon-px={ic.px} src={ic.src} alt="" />{part.points}</span
+											>
+										{/each}
+									</span>
 									{#if stats && leaders}
 										{#each RESOURCES as res (res)}
 											{@const lead = leaders[res].includes(r.i)}
@@ -271,7 +288,9 @@
 											>
 										{/each}
 									{/if}
-									<span class="pts title">{r.pts}<small>{t('VP')}</small></span>
+									<span class="pts title" title={r.tip.text} data-tip-head={r.tip.head}
+										>{r.pts}<small>{t('VP')}</small></span
+									>
 								</div>
 							{/each}
 						</section>
@@ -564,10 +583,6 @@
 		text-align: right;
 		font-size: 11px;
 	}
-	/* Rows without a hidden-points badge keep the columns lined up. */
-	.row.cols:not(:has(.vpc)) .nm {
-		grid-column: 3 / 5;
-	}
 	.wide .rank,
 	.wide .row.head {
 		--s: 2px;
@@ -637,17 +652,34 @@
 	.me .nm {
 		color: #ffe08a;
 	}
-	.vpc {
+	/* Where the points came from: small pictures with the points each brought. */
+	.parts {
 		display: flex;
 		align-items: center;
-		gap: 2px;
-		font-size: 13px;
-		font-weight: 800;
-		color: var(--muted);
+		justify-content: flex-end;
+		gap: 5px;
 	}
-	.vpc img {
-		width: 16px;
-		height: 16px;
+	.part {
+		display: flex;
+		align-items: center;
+		gap: 1px;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 13px;
+		color: #e9d2b0;
+		cursor: help;
+	}
+	.part img {
+		width: 20px;
+		height: 20px;
+		filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5));
+	}
+	.part img.icon-px {
+		width: 14px;
+		height: 14px;
+	}
+	.pts {
+		cursor: help;
 	}
 	.cell {
 		display: grid;
@@ -906,10 +938,31 @@
 	.narrow .nm {
 		font-size: 14px;
 	}
-	/* Rows are in rank order and your row is gold already; hidden points show in the total. */
-	.narrow .medal,
-	.narrow .vpc {
+	/* Rows are in rank order and your row is gold already. Where the points came from goes on a
+	   line of its own under the name. */
+	.narrow .medal {
 		display: none;
+	}
+	.narrow .row.cols {
+		row-gap: 0;
+	}
+	.narrow .row.cols .parts {
+		grid-row: 2;
+		grid-column: 2 / -1;
+		justify-content: flex-start;
+		gap: 7px;
+		margin: -3px 0 1px;
+	}
+	.narrow .part {
+		font-size: 12px;
+	}
+	.narrow .part img {
+		width: 17px;
+		height: 17px;
+	}
+	.narrow .part img.icon-px {
+		width: 12px;
+		height: 12px;
 	}
 	.narrow .pts {
 		font-size: 17px;

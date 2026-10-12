@@ -60,6 +60,10 @@
 	background: rgba(40, 92, 24, 0.55);
 	color: #c4f2a6;
 }
+.tip-note.secret {
+	background: rgba(64, 44, 92, 0.6);
+	color: #e2d4ff;
+}
 .tip-note.time {
 	background: rgba(112, 78, 26, 0.55);
 	color: #f6dc9a;
