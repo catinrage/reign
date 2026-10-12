@@ -543,6 +543,30 @@ export const PIXEL = {
 		],
 		{ k: '#5a3010', y: '#f2a52c', h: '#ffd27a', w: '#fffaf0' }
 	),
+	/** A gold speaker with cream sound waves, bright enough for a dark tab; struck out when muted. */
+	volume: svg(
+		['.....k......', '....kk...c..', 'kkkkyk.c..c.', 'kyyyyk..c.c.', 'kyyyyk..c.c.', 'kkkkyk.c..c.', '....kk...c..', '.....k......'],
+		{ k: '#2a1a10', y: '#f2c14e', c: '#fff2d2' }
+	),
+	volumeOff: svg(
+		['.....k......', '....kk......', 'kkkkyk.r...r', 'kyyyyk..r.r.', 'kyyyyk...r..', 'kkkkyk..r.r.', '....kk.r...r', '.....k......'],
+		{ k: '#2a1a10', y: '#f2c14e', r: '#ff5a3c' }
+	),
+	/** A little window with a gold title bar: the interface's own settings. */
+	window: svg(
+		[
+			'kkkkkkkkkkkk',
+			'kyyyyyyyyyyk',
+			'kkkkkkkkkkkk',
+			'kwwwwwwwwwwk',
+			'kwssssswwwwk',
+			'kwwwwwwwwwwk',
+			'kwsssswwwwwk',
+			'kwwwwwwwwwwk',
+			'kkkkkkkkkkkk'
+		],
+		{ k: '#2a1a10', y: '#f2c14e', w: '#fff6e0', s: '#a88a64' }
+	),
 	eye: svg(
 		[
 			'....kkkkkk....',

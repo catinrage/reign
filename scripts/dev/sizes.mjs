@@ -60,7 +60,7 @@ await shot('hud140-settings');
 // Move the HUD slider (the first of the interface sizes) from the in-game settings.
 const hudSlider = async (v) => {
 	await page.evaluate((v) => {
-		const s = document.querySelectorAll('.settings input.slider')[4];
+		const s = document.querySelectorAll('.settings input.slider')[0];
 		s.value = String(v);
 		s.dispatchEvent(new Event('input', { bubbles: true }));
 		s.dispatchEvent(new Event('change', { bubbles: true }));

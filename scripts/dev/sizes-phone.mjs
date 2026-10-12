@@ -21,7 +21,7 @@ await page.waitForTimeout(600);
 await page.screenshot({ path: `${dir}/phone-settings.png` });
 // Let go of the menu slider at 120%: the menu grows.
 await page.evaluate(() => {
-	const s = document.querySelectorAll('.settings input.slider')[5];
+	const s = document.querySelectorAll('.settings input.slider')[1];
 	s.value = '1.2';
 	s.dispatchEvent(new Event('input', { bubbles: true }));
 	s.dispatchEvent(new Event('change', { bubbles: true }));
