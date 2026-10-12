@@ -3,21 +3,22 @@
  * cloth ribbons and chunky pixel buttons, all drawn as pixel art (see ui/art.ts) and
  * scaled in whole pixels so they stay crisp next to the voxel world.
  */
-/* Pixelify Sans's C with a wider mouth, so outlined text doesn't read "Copy" as "Oopy"
- * (built by scripts/fonts/open-c.py). It holds the C alone; everything else is Pixelify. */
+/* A few glyphs drawn ahead of Pixelify Sans (built by scripts/fonts/reign-px.py; OFL, see
+ * fonts/OFL.txt): its C with a wider mouth, so outlined text doesn't read "Copy" as "Oopy", and
+ * Jersey 10's digits, since Pixelify's 5 looks like an S and its small 3 like an 8. */
 @font-face {
 	font-family: 'Reign Px';
 	font-weight: 500;
 	font-display: swap;
 	src: url('./fonts/reign-px-500.woff2') format('woff2');
-	unicode-range: U+0043;
+	unicode-range: U+0030-0039, U+0043;
 }
 @font-face {
 	font-family: 'Reign Px';
 	font-weight: 700;
 	font-display: swap;
 	src: url('./fonts/reign-px-700.woff2') format('woff2');
-	unicode-range: U+0043;
+	unicode-range: U+0030-0039, U+0043;
 }
 :root {
 	--wood-0: #140904;

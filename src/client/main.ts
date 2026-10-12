@@ -9,7 +9,7 @@ async function boot() {
 	bootStep(0.12, 0.3);
 	await Promise.all([
 		document.fonts.load('700 40px "Pixelify Sans"'),
-		document.fonts.load('700 40px "Reign Px"', 'C'),
+		document.fonts.load('700 40px "Reign Px"', 'C0'),
 		document.fonts.load('900 40px "Nunito Variable"'),
 		initLanguage()
 	]).catch(() => {});
