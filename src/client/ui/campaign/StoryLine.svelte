@@ -73,7 +73,7 @@
 		transform: translateX(-50%);
 		z-index: 6;
 		box-sizing: border-box;
-		width: min(560px, calc(100vw / var(--ui-zoom) - 600px));
+		width: min(460px, calc(100vw / var(--ui-zoom) - 640px));
 		min-width: min(360px, calc(100vw / var(--ui-zoom) - 24px));
 		display: flex;
 		align-items: center;
