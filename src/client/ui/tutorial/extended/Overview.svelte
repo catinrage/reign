@@ -67,7 +67,7 @@
 		{
 			icon: PIXEL.crown,
 			name: t('Points to win'),
-			classic: t('Always {points}.', { points: VICTORY_POINTS_TO_WIN }),
+			classic: t('{points}, unless the host picks another goal.', { points: VICTORY_POINTS_TO_WIN }),
 			extended: t('The host picks {goals}, or any number from {min} to {max}.', {
 				goals: POINT_GOALS.map(num).join(', '),
 				min: POINTS_MIN,
@@ -83,7 +83,7 @@
 		{
 			icon: PIXEL.cards,
 			name: t('Hand limit on a 7'),
-			classic: t('Discard half above {limit} cards.', { limit: DISCARD_THRESHOLD }),
+			classic: t('Discard half above {limit} cards, unless the host changes it in House rules.', { limit: DISCARD_THRESHOLD }),
 			extended: t('The host sets it, from {min} to {max} ({limit} unless changed).', {
 				min: HAND_LIMIT_MIN,
 				max: HAND_LIMIT_MAX,
@@ -93,7 +93,7 @@
 		{
 			icon: PIXEL.cards,
 			name: t('Bank and deck'),
-			classic: t('{bank} of each resource, {cards} cards.', { bank: BANK_PER_RESOURCE, cards: deck(DEV_DECK) }),
+			classic: t('{bank} of each resource, {cards} cards, unless the host changes them in House rules.', { bank: BANK_PER_RESOURCE, cards: deck(DEV_DECK) }),
 			extended: t('With 5 or 6 players: {bank} of each, {cards} cards. With 7 or 8: {bankHuge} of each, {cardsHuge} cards.', {
 				bank: BANK_PER_RESOURCE_LARGE,
 				cards: deck(DEV_DECK_LARGE),

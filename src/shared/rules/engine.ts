@@ -3,19 +3,10 @@ import { mapName, mapTiles } from '../board/maps';
 import { type Board, getTopology, retile } from '../board/topology';
 import { nextRandom, randomInt, shuffle } from '../rng';
 import {
-	BANK_PER_RESOURCE,
-	BANK_PER_RESOURCE_HUGE,
-	BANK_PER_RESOURCE_LARGE,
 	DEV_CARDS,
-	DEV_DECK,
-	DEV_DECK_HUGE,
-	DEV_DECK_LARGE,
-	DISCARD_THRESHOLD,
 	LARGEST_ARMY_MIN,
-	PIECE_LIMITS,
 	RESOURCES,
 	TERRAIN_RESOURCE,
-	VICTORY_POINTS_TO_WIN,
 	emptyResources,
 	hasResources,
 	totalResources,
@@ -29,6 +20,7 @@ import {
 import { WORKSHOP_LIMIT, WORKSHOP_REFUND, allBuildings, cleanBuildingRules, isCityPath, type CityPath } from './buildings';
 import { BLESSINGS, FORESIGHT_ROLLS, HEX_ROLLS, MARKET_DAY_CARDS, POWER_INFO, TITHE_CAP, type CharacterId } from './characters';
 import { chooseEvent, claimBounty, cleanEventRules, eventYield, newEvents, randomCard, startRound, tilePays, topUp } from './events';
+import { bankFor, deckFor } from './house';
 import { DEFAULT_SETTINGS, characterPool, pieceLimits, type GameSettings } from './modes';
 import { campaignBan, campaignBeats, campaignNewRound } from './campaign';
 import { StatsTracker, newStats } from './stats';
@@ -76,8 +68,9 @@ export interface NewPlayer {
 export const LOG_LIMIT = 80;
 
 /**
- * Deal a new game. Classic always plays the standard island to 10 points with no characters.
- * Reign Extended deals the chosen map (unless a board is given) and opens the character draft,
+ * Deal a new game. Classic always plays the standard island with no characters; the points to
+ * win, hand limit, bank and deck follow the host's house rules in both modes (standard: 10
+ * points, 7 cards, and the bank and deck for the table's size). Reign Extended deals the chosen map (unless a board is given) and opens the character draft,
  * unless the host turned characters off or the players come with characters already (tests and
  * dev tools).
  */
@@ -94,10 +87,10 @@ export function createGame(
 	const b = board ?? (tiles ? generateBoard(tiles, rngHolder) : generateStandardBoard(rngHolder));
 	const topo = getTopology(b);
 	// Five or six players share a bigger bank and deck, as in the 5-6 player extension, and
-	// seven or eight a bigger one still.
+	// seven or eight a bigger one still, unless the host's house rules say otherwise.
 	const n = players.length;
-	const counts = n > 6 ? DEV_DECK_HUGE : n > 4 ? DEV_DECK_LARGE : DEV_DECK;
-	const bank = n > 6 ? BANK_PER_RESOURCE_HUGE : n > 4 ? BANK_PER_RESOURCE_LARGE : BANK_PER_RESOURCE;
+	const counts = deckFor(opts.house, n);
+	const bank = bankFor(opts.house, n);
 	const deck: DevCardType[] = [];
 	for (const c of DEV_CARDS) for (let i = 0; i < counts[c]; i++) deck.push(c);
 	shuffle(rngHolder, deck);
@@ -115,8 +108,8 @@ export function createGame(
 		version: 0,
 		rng: rngHolder.rng,
 		mode: opts.mode,
-		pointsToWin: extended ? opts.pointsToWin : VICTORY_POINTS_TO_WIN,
-		handLimit: extended ? opts.handLimit : DISCARD_THRESHOLD,
+		pointsToWin: opts.pointsToWin,
+		handLimit: opts.handLimit,
 		mapName: tiles ? mapName(opts.map) : 'Classic Isle',
 		board: b,
 		players: players.map(
@@ -128,7 +121,7 @@ export function createGame(
 				resources: emptyResources(),
 				devCards: [],
 				knightsPlayed: 0,
-				piecesLeft: extended ? pieceLimits(opts.pointsToWin) : { ...PIECE_LIMITS },
+				piecesLeft: pieceLimits(opts.pointsToWin),
 				longestRoad: 0,
 				powerUsed: null
 			})

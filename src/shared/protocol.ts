@@ -3,6 +3,7 @@ import type { MapChoice } from './board/maps';
 import type { ExtraBuilding } from './rules/buildings';
 import type { Cheat } from './rules/cheats';
 import type { EventRules } from './rules/events';
+import type { HouseRules } from './rules/house';
 import type { CharacterId } from './rules/characters';
 import type { PlayerColor } from './rules/config';
 import type { GameMode, GameSettings } from './rules/modes';
@@ -87,8 +88,9 @@ export type ClientMessage =
 	| { t: 'setTurnTime'; seconds: number }
 	| { t: 'setMode'; mode: GameMode }
 	| { t: 'setMap'; map: MapChoice }
+	/** Host: the points to win, in either mode. */
 	| { t: 'setPointsToWin'; points: number }
-	/** Host: Reign Extended's hand limit on a 7. */
+	/** Host: the hand limit on a 7, in either mode (a house rule). */
 	| { t: 'setHandLimit'; cards: number }
 	/** Host: Reign Extended players draft characters when the game starts, or play without. */
 	| { t: 'setCharacters'; on: boolean }
@@ -104,6 +106,8 @@ export type ClientMessage =
 	| { t: 'setBuilding'; building: ExtraBuilding; on: boolean }
 	/** Host: Reign Extended's Events deck (on or off, how often, gentle or wild, cards pulled). */
 	| { t: 'setEvents'; events: EventRules }
+	/** Host: house rules for either mode, the bank's size and the development deck's mix. */
+	| { t: 'setHouseRules'; house: HouseRules }
 	| { t: 'setReady'; ready: boolean }
 	| { t: 'start' }
 	/** Play a solo campaign mission at this table (alone with its rivals), or play it again. */

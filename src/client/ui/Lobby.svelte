@@ -1,19 +1,9 @@
 <script lang="ts">
 	import { MAP_PRESETS, presetById, type MapChoice } from '../../shared/board/maps';
-	import { CHARACTER_INFO, CHARACTERS, STEWARD_EXTRA } from '../../shared/rules/characters';
-	import { DISCARD_THRESHOLD, PLAYER_COLORS, VICTORY_POINTS_TO_WIN, type PlayerColor } from '../../shared/rules/config';
+	import { CHARACTERS } from '../../shared/rules/characters';
+	import { PLAYER_COLORS, type PlayerColor } from '../../shared/rules/config';
 	import { RANDOM_SHAPE_INFO } from '../../shared/board/random';
-	import {
-		GAME_MODES,
-		HAND_LIMIT_MAX,
-		HAND_LIMIT_MIN,
-		MODE_INFO,
-		POINT_GOALS,
-		POINTS_MIN,
-		characterPool,
-		maxPointsFor,
-		suggestedPoints
-	} from '../../shared/rules/modes';
+	import { GAME_MODES, MODE_INFO, characterPool } from '../../shared/rules/modes';
 	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
 	import { OFFLINE } from '../offline/flag';
 	import { account } from '../state/account.svelte';
@@ -27,6 +17,8 @@
 	import MapPicker from './extended/MapPicker.svelte';
 	import MapPreview from './extended/MapPreview.svelte';
 	import { generateIsland } from './extended/randomIsland';
+	import HouseRules from './house/HouseRules.svelte';
+	import PointsGoal from './house/PointsGoal.svelte';
 	import Portrait from './extended/Portrait.svelte';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
@@ -76,17 +68,6 @@
 		const shape = text.charAt(0).toLocaleLowerCase(i18n.lang) + text.slice(1);
 		return random.lakes ? t('A random island: {shape}, with lakes.', { shape }) : t('A random island: {shape}.', { shape });
 	});
-	// Island size, players and points go together: a small island with a big table can't
-	// reach a big goal, so the server caps it and the picks above the cap are greyed out.
-	const pointsCap = $derived(maxPointsFor(mapTiles.length, lobby.seats.length));
-	const pointsTip = $derived(
-		t('{tiles, plural, one {# tile} other {# tiles}} and {players, plural, one {# player} other {# players}}: about {suggested} plays well, {max} at most', {
-			tiles: mapTiles.length,
-			players: lobby.seats.length,
-			suggested: suggestedPoints(mapTiles.length, lobby.seats.length),
-			max: pointsCap
-		})
-	);
 	let picking = $state<'character' | 'map' | null>(null);
 	const CLASSIC_TILES = MAP_PRESETS[0].tiles;
 	// The table shows the island that will be played. Building it takes a moment, so it waits
@@ -113,18 +94,6 @@
 		const w = window.innerWidth;
 		const right = Math.max(24 * size, w * 0.04) + 880 * size;
 		return Math.min(0.36, right / (2 * w));
-	}
-	/** Any whole number of points in range; anything else snaps back to the current goal. */
-	function otherGoal(e: Event) {
-		const input = e.currentTarget as HTMLInputElement;
-		const n = Math.round(Number(input.value));
-		if (input.value.trim() && Number.isFinite(n)) {
-			const points = Math.max(POINTS_MIN, Math.min(pointsCap, n));
-			client.send({ t: 'setPointsToWin', points });
-			if (points !== n) input.value = String(points);
-		} else {
-			input.value = POINT_GOALS.includes(settings.pointsToWin) ? '' : String(settings.pointsToWin);
-		}
 	}
 	function names(seats: { name: string }[]) {
 		const n = seats.map((s) => s.name);
@@ -381,76 +350,8 @@
 									>
 								{/if}
 							</div>
-							<div class="goal">
-								<span class="goal-head">
-									<span class="label">{t('Points to win')}</span>
-									<span class="cap" title={pointsTip}>{t('At most {max} here', { max: pointsCap })}</span>
-								</span>
-								{#if client.isHost}
-									<div class="seg">
-										{#each POINT_GOALS as g (g)}
-											<button
-												class="btn small"
-												class:on={settings.pointsToWin === g}
-												disabled={g > pointsCap}
-												title={g > pointsCap ? t('Too many for this island: {why}.', { why: pointsTip }) : undefined}
-												onclick={() => client.send({ t: 'setPointsToWin', points: g })}>{g}</button
-											>
-										{/each}
-										<input
-											class="input other"
-											class:on={!POINT_GOALS.includes(settings.pointsToWin)}
-											type="number"
-											inputmode="numeric"
-											min={POINTS_MIN}
-											max={pointsCap}
-											placeholder={t('Other')}
-											aria-label={t('Other points to win, {min} to {max}', { min: POINTS_MIN, max: pointsCap })}
-											title={t('Any number from {min} to {max}. {why}.', { min: POINTS_MIN, max: pointsCap, why: pointsTip })}
-											value={POINT_GOALS.includes(settings.pointsToWin) ? '' : settings.pointsToWin}
-											onchange={otherGoal}
-											onkeydown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-										/>
-									</div>
-								{:else}
-									<span class="chosen">{settings.pointsToWin}</span>
-								{/if}
-							</div>
-							<div class="goal">
-								<span class="goal-head">
-									<span class="label">{t('Hand limit on a 7')}</span>
-									<span class="cap"
-										>{settings.characters && pool.includes('steward')
-											? t('{name} {title}: {limit}', {
-												name: t(CHARACTER_INFO.steward.name),
-												title: t(CHARACTER_INFO.steward.title),
-												limit: settings.handLimit + STEWARD_EXTRA
-											})
-											: t('More cards than this: discard half')}</span
-									>
-								</span>
-								{#if client.isHost}
-									<div class="seg stepper">
-										<button
-											class="btn small"
-											aria-label={t('Lower the hand limit')}
-											disabled={settings.handLimit <= HAND_LIMIT_MIN}
-											onclick={() => client.send({ t: 'setHandLimit', cards: settings.handLimit - 1 })}>−</button
-										>
-										<span class="chosen" title={t('Players holding more than this many cards discard half when a 7 is rolled')}
-											>{t('{cards, plural, one {# card} other {# cards}}', { cards: settings.handLimit })}</span
-										>
-										<button
-											class="btn small"
-											aria-label={t('Raise the hand limit')}
-											disabled={settings.handLimit >= HAND_LIMIT_MAX}
-											onclick={() => client.send({ t: 'setHandLimit', cards: settings.handLimit + 1 })}>+</button
-										>
-									</div>
-								{:else}
-									<span class="chosen">{t('{cards, plural, one {# card} other {# cards}}', { cards: settings.handLimit })}</span>
-								{/if}
-							</div>
+							<PointsGoal />
+							<HouseRules />
 							<div class="duo">
 								<BuildingRules />
 								<EventRules />
@@ -465,12 +366,14 @@
 								<span class="pick-name title">{t('Classic Isle')} <small>{t('{tiles, plural, one {# tile} other {# tiles}}', { tiles: CLASSIC_TILES.length })}</small></span>
 								<span class="trait"
 									>{t('Terrains, numbers and harbors dealt fresh each game. First to {points} points wins, and a 7 makes anyone holding more than {cards} cards discard half.', {
-										points: VICTORY_POINTS_TO_WIN,
-										cards: DISCARD_THRESHOLD
+										points: settings.pointsToWin,
+										cards: settings.handLimit
 									})}</span
 								>
 							</span>
 						</div>
+						<PointsGoal />
+						<HouseRules />
 					{/if}
 
 					<div class="timer">
@@ -562,10 +465,6 @@
 	@media (max-width: 520px) {
 		.duo {
 			grid-template-columns: 1fr;
-		}
-		/* Phones: the points buttons drop under their label rather than past the frame. */
-		.goal {
-			flex-wrap: wrap;
 		}
 	}
 	.lobby {
@@ -971,12 +870,6 @@
 		background: radial-gradient(ellipse, #2f6f98, #1d4664);
 		background-clip: padding-box;
 	}
-	.goal {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-	}
 	.cast {
 		display: grid;
 		grid-template-columns: repeat(4, 16px);
@@ -1000,52 +893,6 @@
 		position: absolute;
 		right: 8px;
 		bottom: 8px;
-	}
-	.goal-head {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-	}
-	.cap {
-		font-size: 12px;
-		color: var(--muted);
-		white-space: nowrap;
-	}
-	.stepper .chosen {
-		min-width: 84px;
-		justify-content: center;
-	}
-	.goal .seg .btn {
-		min-width: 44px;
-	}
-	.goal .seg {
-		display: flex;
-		gap: 4px;
-		align-items: center;
-	}
-	.other {
-		width: 66px;
-		height: calc(var(--s) * 11);
-		padding: 0 2px;
-		box-sizing: border-box;
-		text-align: center;
-		font-family: var(--px);
-		font-weight: 700;
-		font-size: 14px;
-		-moz-appearance: textfield;
-		appearance: textfield;
-	}
-	.other::-webkit-inner-spin-button,
-	.other::-webkit-outer-spin-button {
-		-webkit-appearance: none;
-		margin: 0;
-	}
-	.other::placeholder {
-		font-size: 12px;
-	}
-	.other.on {
-		outline: 3px solid #ffd45a;
-		outline-offset: 0;
 	}
 	.cols {
 		display: flex;
