@@ -29,7 +29,7 @@ const BORDER_TOP = G - 1;
 /** Water columns fill y = 0..SEA_TOP-1, a step below the wet sand. */
 const SEA_TOP = Math.round(SEA_Y / VOXEL);
 
-const C = {
+export const C = {
 	border: [hex('#f3e2b8'), hex('#eedaa9'), hex('#f7e8c4'), hex('#e9d3a0')],
 	sand: [hex('#f4d48e'), hex('#efca7c'), hex('#f8dc9e'), hex('#e9c071')],
 	wetSand: [hex('#d9b26c'), hex('#cfa760'), hex('#dcb874')],
@@ -497,7 +497,7 @@ const WATER_DECK = G - 3;
 /** World y of the top of a pier deck. */
 export const DECK_TOP = (WATER_DECK + 1) * VOXEL;
 
-function distanceField(land: Uint8Array, W: number, D: number) {
+export function distanceField(land: Uint8Array, W: number, D: number) {
 	const dist = new Float32Array(W * D).fill(1e9);
 	for (let i = 0; i < W * D; i++) if (land[i]) dist[i] = 0;
 	const relax = (i: number, j: number, w: number) => {
@@ -675,7 +675,7 @@ function terrainColumn(grid: VoxelGrid, terrain: Terrain, x: number, z: number, 
 
 // ---------------------------------------------------------------- features
 
-type Raise = (x: number, z: number, y: number) => void;
+export type Raise = (x: number, z: number, y: number) => void;
 
 function scatter(seed: number, count: number, minDist: number, ok: (x: number, z: number) => boolean) {
 	const out: [number, number][] = [];
@@ -689,7 +689,7 @@ function scatter(seed: number, count: number, minDist: number, ok: (x: number, z
 	return out;
 }
 
-function put(g: VoxelGrid, raise: Raise, x: number, y: number, z: number, c: number, mat: Mat = Mat.Solid) {
+export function put(g: VoxelGrid, raise: Raise, x: number, y: number, z: number, c: number, mat: Mat = Mat.Solid) {
 	g.set(x, y, z, c, mat);
 	raise(x, z, y);
 }
@@ -698,7 +698,7 @@ function put(g: VoxelGrid, raise: Raise, x: number, y: number, z: number, c: num
  * The features are drawn at any detail S: `x`, `y`, `z` are grid voxels, while sizes and
  * distances are in VOXEL units (divide grid offsets by S), so finer grids round them off.
  */
-function pineTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+export function pineTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	const tall = hash3(s, 1, 1);
 	const trunkH = (1 + (tall > 0.5 ? 1 : 0)) * S;
 	for (let k = 0; k < trunkH; k++) put(g, raise, x, y + k, z, pick(C.trunk, hash3(x, y + k, z, s)));
@@ -724,7 +724,7 @@ function pineTree(g: VoxelGrid, x: number, y: number, z: number, s: number, rais
 	put(g, raise, x, yy, z, pick(C.pineHi, hash3(s, 3, 3)));
 }
 
-function roundTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+export function roundTree(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	const trunkH = 2 * S;
 	for (let k = 0; k < trunkH; k++) put(g, raise, x, y + k, z, pick(C.trunk, hash3(x, y + k, z, s)));
 	const rad = 2.1 + hash3(s, 2, 2) * 0.6;
@@ -743,7 +743,7 @@ function roundTree(g: VoxelGrid, x: number, y: number, z: number, s: number, rai
 			}
 }
 
-function bush(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+export function bush(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	if (S > 1) {
 		// Small voxels round the bush off into a lumpy mound, lighter on top.
 		const lump = (dx: number, dz: number) => 0.25 * (hash3(Math.round((dx * 2) / S), Math.round((dz * 2) / S), 4, s) - 0.5);
@@ -770,7 +770,7 @@ function bush(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: R
  * Draws a VOXEL-sized block of a feature at (dx, dy, dz) VOXEL units from (x, y, z): one voxel
  * at detail 1, S×S×S smaller ones above that, each colored on its own for a finer grain.
  */
-function block(g: VoxelGrid, raise: Raise, S: number, x: number, y: number, z: number, dx: number, dy: number, dz: number, color: (x: number, y: number, z: number) => number) {
+export function block(g: VoxelGrid, raise: Raise, S: number, x: number, y: number, z: number, dx: number, dy: number, dz: number, color: (x: number, y: number, z: number) => number) {
 	for (let j = 0; j < S; j++)
 		for (let k = 0; k < S; k++)
 			for (let i = 0; i < S; i++) {
@@ -781,7 +781,7 @@ function block(g: VoxelGrid, raise: Raise, S: number, x: number, y: number, z: n
 			}
 }
 
-function hayBale(g: VoxelGrid, x: number, y: number, z: number, raise: Raise, S: number) {
+export function hayBale(g: VoxelGrid, x: number, y: number, z: number, raise: Raise, S: number) {
 	for (let dz = 0; dz <= 2; dz++)
 		for (let dx = 0; dx <= 3; dx++)
 			for (let dy = 0; dy <= 2; dy++) {
@@ -803,7 +803,7 @@ function brickStack(g: VoxelGrid, x: number, y: number, z: number, s: number, ra
 			}
 }
 
-function cactus(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+export function cactus(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	const h = 4 + Math.floor(hash3(s, 1, 5) * 3);
 	const at = (dx: number, dy: number, color: (x: number, y: number, z: number) => number) => block(g, raise, S, x, y, z, dx, dy, 0, color);
 	for (let k = 0; k < h; k++) at(0, k, (vx, vy, vz) => pick(C.cactus, hash3(vx, vy, vz, s)));
@@ -818,7 +818,7 @@ function cactus(g: VoxelGrid, x: number, y: number, z: number, s: number, raise:
 	at(0, h, () => hex('#ff8fb4'));
 }
 
-function pebble(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
+export function pebble(g: VoxelGrid, x: number, y: number, z: number, s: number, raise: Raise, S: number) {
 	block(g, raise, S, x, y, z, 0, 0, 0, () => pick(C.rock, hash3(s, 1, 1)));
 	if (hash3(s, 2, 2) > 0.5) block(g, raise, S, x, y, z, 1, 0, 0, () => pick(C.rockDark, hash3(s, 3, 3)));
 }

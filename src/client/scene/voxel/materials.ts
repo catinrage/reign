@@ -66,6 +66,59 @@ export const FRAG_OUTPUT = /* glsl */ `
 #include <colorspace_fragment>
 `;
 
+/**
+ * Conquest's board (see scene/conquest): which territory each column of the map is and how far
+ * it lies from a border, and per territory its owner's color and how it is lit up right now.
+ * The land's shader reads them, so ownership and highlights change without rebuilding the map.
+ */
+export const realmUniforms = {
+	/** RGBA8, one texel per map column: r = territory + 1 (0 for water), g = voxels to the nearest border (0 on it). */
+	uRealmMap: { value: null as THREE.Texture | null },
+	/**
+	 * RGBA8, a column per territory. Row 0: the owner's color, a = 1 while held. Row 1: r = how
+	 * much the whole territory lights up, g = how much its border band glows, b = hover, a = how
+	 * much it fades back. Row 2: the color it lights up in, a = how much the light pulses.
+	 */
+	uRealmState: { value: null as THREE.Texture | null },
+	/** The map's first column (world voxels) and its size in columns: (x0, z0, nx, nz). */
+	uRealmGrid: { value: new THREE.Vector4(0, 0, 1, 1) },
+	/** 0..1, worked out on the CPU (see uAimWave for why): how far the highlights' pulse is. */
+	uRealmPulse: { value: 0 }
+};
+
+/**
+ * Conquest's territories in their owners' colors: a band inside each border, so who holds what
+ * reads at a glance, and highlights for the turn (territories to pick, the one picked, targets).
+ * Each voxel takes one value, so the color keeps to the blocks.
+ */
+const FRAG_REALM = /* glsl */ `
+vec3 realmLight = vec3(0.0);
+{
+	ivec2 ij = ivec2(floor(vVox - vVoxN * 0.5).xz - uRealmGrid.xy);
+	if (ij.x >= 0 && ij.y >= 0 && ij.x < int(uRealmGrid.z) && ij.y < int(uRealmGrid.w)) {
+		vec4 m = texelFetch(uRealmMap, ij, 0);
+		int id = int(m.r * 255.0 + 0.5) - 1;
+		if (id >= 0) {
+			vec4 own = texelFetch(uRealmState, ivec2(id, 0), 0);
+			vec4 st = texelFetch(uRealmState, ivec2(id, 1), 0);
+			vec4 hl = texelFetch(uRealmState, ivec2(id, 2), 0);
+			float bd = m.g * 255.0;
+			// The band in the owner's color, inside the border line (which keeps its own color).
+			float band = bd < 0.5 ? 0.0 : 1.0 - smoothstep(2.5, 4.5, bd);
+			float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+			vec3 tint = own.rgb * (0.55 + 0.6 * l);
+			diffuseColor.rgb = mix(diffuseColor.rgb, tint, band * own.a * 0.85);
+			float pulse = mix(1.0, 0.55 + 0.45 * uRealmPulse, hl.a);
+			// Lit up as a whole (picked, a target), and its band glowing.
+			diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.7 + hl.rgb * 0.45, st.r * 0.45);
+			realmLight += hl.rgb * (st.r * 0.22 + band * st.g * 0.9) * pulse;
+			diffuseColor.rgb *= 1.0 + st.b * 0.22;
+			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l * 0.62), st.a * 0.55);
+		}
+	}
+}
+`;
+
 export interface VoxelMaterialOptions {
 	roughness?: number;
 	metalness?: number;
@@ -101,6 +154,8 @@ export interface VoxelMaterialOptions {
 	 * a fire in a brazier). Meshes of these should not cast shadows.
 	 */
 	night?: boolean;
+	/** Conquest's land: owner colors and highlights by territory (see `realmUniforms`). */
+	realm?: boolean;
 }
 
 const VERT_HEAD = /* glsl */ `
@@ -335,6 +390,15 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_GRAY}\n${FRAG_AIM}`);
 			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += aimLight;');
 		}
+		if (opts.realm) {
+			Object.assign(shader.uniforms, realmUniforms);
+			fs = fs.replace(
+				'#include <common>',
+				'#include <common>\nuniform sampler2D uRealmMap;\nuniform sampler2D uRealmState;\nuniform vec4 uRealmGrid;\nuniform float uRealmPulse;'
+			);
+			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_REALM}`);
+			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += realmLight;');
+		}
 		if (kind === Mat.Water) {
 			fs = fs.replace(
 				'#include <color_fragment>',
@@ -385,7 +449,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		shader.fragmentShader = fs;
 	};
 	material.customProgramCacheKey = () =>
-		`voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}${opts.lift ? '-lift' : ''}${opts.lamps ? '-lamps' : ''}${opts.night ? '-night' : ''}`;
+		`voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}${opts.lift ? '-lift' : ''}${opts.lamps ? '-lamps' : ''}${opts.night ? '-night' : ''}${opts.realm ? '-realm' : ''}`;
 	return material;
 }
 
