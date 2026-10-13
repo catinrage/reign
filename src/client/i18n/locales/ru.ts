@@ -2162,5 +2162,6 @@ export default {
 	"Take at least one territory in a turn to earn a card at its end.": "Захватите за ход хотя бы одну территорию, чтобы в конце хода получить карту.",
 	"3. Fortify": "3. Укрепление",
 	"Press End attacks, then move armies once from one territory to another joined to it through your own territories. The way they march lights up. Moving ends your turn; so does End turn.": "Нажмите «Конец атак», затем один раз переместите армии с одной территории на другую, связанную с ней через ваши территории. Путь марша подсветится. Перемещение завершает ход, как и кнопка «Завершить ход».",
-	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "Нажмите на пустое место или Esc, чтобы снять выбор. Enter нажимает главную кнопку, а в бою бросает кубики."
+	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "Нажмите на пустое место или Esc, чтобы снять выбор. Enter нажимает главную кнопку, а в бою бросает кубики.",
+	"With two players, whoever goes second starts with {n} more armies, to make up for moving second.": "Если игроков двое, второй начинает с дополнительными армиями ({n}), чтобы уравнять шансы."
 } satisfies Messages;

@@ -59,6 +59,13 @@ function newDeck(map: RealmMap): ConquestCard[] {
 }
 
 /**
+ * Two at the table: whoever moves second starts with this many more armies, as the first move is
+ * worth about that much (bot simulations: 75% wins for the first player without it, about even
+ * with it under the Conquest rule).
+ */
+export const SECOND_PLAYER_BONUS = 6;
+
+/**
  * Start a game: the territories are dealt out one at a time in a shuffled order, one army on
  * each, and the rest of everyone's starting armies wait in their reserve. With placed deployment
  * everyone puts them down at once before the first turn; with random deployment they are spread
@@ -127,7 +134,9 @@ export function createConquest(
 	s.deck = shuffle(s, newDeck(map));
 	for (let p = 0; p < n; p++) {
 		const held = territoriesOf(s, p).length;
-		s.reserve[p] = start - held;
+		const extra = n === 2 && p === 1 ? SECOND_PLAYER_BONUS : 0;
+		s.reserve[p] = start - held + extra;
+		s.stats.players[p].armies += extra;
 		s.stats.players[p].peak = held;
 		s.stats.held[p].push(held);
 	}

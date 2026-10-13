@@ -17,6 +17,7 @@ import {
 import { REALM } from '../src/shared/conquest/realm';
 import {
 	CQ_LOG_LIMIT,
+	SECOND_PLAYER_BONUS,
 	addConquestChat,
 	applyConquest,
 	conquestView,
@@ -126,7 +127,8 @@ describe('setting up', () => {
 			// The first player gets the first territory dealt, so never fewer than anyone.
 			expect(held[0]).toBe(Math.max(...held));
 			expect(s.armies.every((a) => a === 1)).toBe(true);
-			expect(s.reserve).toEqual(held.map((h) => startingArmies(n) - h));
+			// With two at the table, the second player gets the second-move bonus.
+			expect(s.reserve).toEqual(held.map((h, p) => startingArmies(n) - h + (n === 2 && p === 1 ? SECOND_PLAYER_BONUS : 0)));
 			expect(s.phase).toBe('deploy');
 			expect(s.turn).toBe(0);
 			expect(s.log.map((e) => e.type)).toEqual(['gameStarted', 'dealt']);
