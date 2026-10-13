@@ -4,7 +4,6 @@ import '@fontsource-variable/nunito';
 import './styles/global.css';
 import { bootDone, bootLabel, bootStep, nextPaint } from './boot';
 import { initLanguage, t } from './i18n/index.svelte';
-import { inject } from '@vercel/analytics';
 
 async function boot() {
 	bootStep(0.12, 0.3);
@@ -32,9 +31,6 @@ async function boot() {
 }
 // Whatever happens, the loading screen doesn't stay up over the page.
 boot().finally(bootDone);
-
-// Inject Vercel Web Analytics
-inject();
 
 // Installs as an app and opens from the stored copy (see pwa/sw.js). Built versions only: the dev
 // server's files change on every save.
