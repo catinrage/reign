@@ -216,8 +216,6 @@ function dispatch(ctx: Ctx, p: number, a: CqAction) {
 	}
 }
 
-const armiesText = (n: number) => (n === 1 ? '1 army' : `${n} armies`);
-
 function isTerritory(s: CqState, t: unknown): t is number {
 	return Number.isInteger(t) && (t as number) >= 0 && (t as number) < s.owner.length;
 }
@@ -244,18 +242,12 @@ function place(ctx: Ctx, p: number, t: number, count: number) {
 	if (!isTerritory(s, t)) fail('Unknown territory.');
 	if (s.owner[t] !== p) fail("That territory isn't yours.");
 	if (!Number.isInteger(count) || count === 0) fail('Place at least one army.');
-	if (count > s.reserve[p])
-		fail(
-			s.reserve[p]
-				? `You have only ${armiesText(s.reserve[p])} to place.`
-				: 'You have no armies left to place.'
-		);
-	if (-count > s.placed[t])
-		fail(
-			s.placed[t]
-				? `You can take back only ${armiesText(s.placed[t])} there.`
-				: 'You placed no armies there to take back.'
-		);
+	const left = s.reserve[p];
+	if (count > left)
+		fail(left === 1 ? 'You have only 1 army to place.' : left ? `You have only ${left} armies to place.` : 'You have no armies left to place.');
+	const back = s.placed[t];
+	if (-count > back)
+		fail(back === 1 ? 'You can take back only 1 army there.' : back ? `You can take back only ${back} armies there.` : 'You placed no armies there to take back.');
 	s.armies[t] += count;
 	s.reserve[p] -= count;
 	s.placed[t] += count;
@@ -447,9 +439,7 @@ function occupy(ctx: Ctx, p: number, count: number) {
 	if (s.step !== 'occupy' || !o) fail('There is no territory to move into.');
 	if (!Number.isInteger(count) || count < o.min || count > o.max) {
 		fail(
-			o.min === o.max
-				? `Move ${armiesText(o.min)} in.`
-				: `Move between ${o.min} and ${o.max} armies in.`
+			o.min !== o.max ? `Move between ${o.min} and ${o.max} armies in.` : o.min === 1 ? 'Move 1 army in.' : `Move ${o.min} armies in.`
 		);
 	}
 	moveIn(ctx, p, o.from, o.to, count);

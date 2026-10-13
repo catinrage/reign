@@ -355,7 +355,8 @@ export class ConquestScene {
 		// Wide enough for the map across, deep enough for it from front to back.
 		const across = halfX / (tan * aspect * (portrait ? 0.98 : 0.84));
 		const deep = (halfZ * Math.cos(polar) + halfZ * Math.sin(polar) * 0.25) / (tan * 0.86);
-		return { radius: Math.max(across, deep), polar, azimuth: 0, target: new THREE.Vector3(0, 0, portrait ? 8 : 6) };
+		// On a phone held upright the map sits low, in the gap between the plaques and the action bar.
+		return { radius: Math.max(across, deep), polar, azimuth: 0, target: new THREE.Vector3(0, 0, portrait ? -26 : 6) };
 	}
 
 	frame(dt: number, t: number) {
