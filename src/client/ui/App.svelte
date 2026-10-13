@@ -4,6 +4,7 @@
 	import Auth from './account/Auth.svelte';
 	import Invites from './account/Invites.svelte';
 	import Hud from './game/Hud.svelte';
+	import ConquestHud from './conquest/ConquestHud.svelte';
 	import Home from './Home.svelte';
 	import Joining from './Joining.svelte';
 	import Lobby from './Lobby.svelte';
@@ -20,7 +21,7 @@
 			? 'auth'
 			: client.joining
 				? 'joining'
-			: client.view && client.lobby?.started
+			: (client.view || client.cq) && client.lobby?.started
 				? 'game'
 				: client.launching
 					? 'launching'
@@ -91,6 +92,8 @@
 		<Joining />
 	{:else if screen === 'lobby'}
 		<Lobby />
+	{:else if client.lobby?.game === 'conquest'}
+		<ConquestHud />
 	{:else}
 		<Hud />
 	{/if}

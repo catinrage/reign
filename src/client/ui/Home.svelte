@@ -21,6 +21,9 @@
 	import Campaign from './campaign/Campaign.svelte';
 	import { campaign } from '../state/campaign.svelte';
 	import { t } from '../i18n/index.svelte';
+	import { gamePick } from './menu/gamePick.svelte';
+	import { sceneRef } from './sceneRef';
+	import { CQ_PIXEL } from './conquest/icons';
 
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let muted = $state(isMuted());
@@ -57,11 +60,24 @@
 	});
 
 	function play() {
-		client.quickPlay(3);
+		client.quickPlay(3, gamePick.game);
 	}
 	function create() {
-		client.create();
+		client.create(gamePick.game);
 	}
+	function pick(g: typeof gamePick.game) {
+		if (g === gamePick.game) return;
+		sfx.open();
+		gamePick.set(g);
+	}
+	const conquest = $derived(gamePick.game === 'conquest');
+	// The table shows the game picked: the island, or the Realm.
+	$effect(() => {
+		const scene = sceneRef.current;
+		if (!scene || client.launching) return;
+		if (conquest) scene.showConquestTable();
+		else if (scene.conquest) scene.showMenuBoard();
+	});
 	function join() {
 		if (code.length !== 5 || busy) return;
 		client.join(code);
@@ -141,7 +157,11 @@
 				<canvas bind:this={canvas} aria-label="Reign"></canvas>
 				{#if !logoOk}<h1 class="title">REIGN</h1>{/if}
 			</div>
-			<div class="ribbon tagline">{t('Settle')} <i>·</i> {t('Trade')} <i>·</i> {t('Build')}</div>
+			{#if conquest}
+				<div class="ribbon tagline">{t('Muster')} <i>·</i> {t('Attack')} <i>·</i> {t('Conquer')}</div>
+			{:else}
+				<div class="ribbon tagline">{t('Settle')} <i>·</i> {t('Trade')} <i>·</i> {t('Build')}</div>
+			{/if}
 		</header>
 
 		<div class="sign panel">
@@ -170,22 +190,51 @@
 				</button>
 			{/if}
 
-			<button class="btn purple block" onclick={openCampaign} disabled={busy}>
-				<img src={PIXEL.crown} alt="" />
-				<span class="stack"
-					>{t('Campaign')}<span class="sub">{t('The Shattered Crown: a story for one player')}</span></span
+			<div class="games" role="tablist" aria-label={t('Game')}>
+				<button
+					class="game"
+					class:on={!conquest}
+					role="tab"
+					aria-selected={!conquest}
+					onclick={() => pick('settlement')}
+					title={t('Settle an island, trade and build. Classic, Reign Extended and the campaign.')}
 				>
-			</button>
+					<img class="icon-px" src={PIXEL.house} alt="" />
+					<span class="stack"><b>{t('Settlement')}</b><small>{t('Settle · Trade · Build')}</small></span>
+				</button>
+				<button
+					class="game"
+					class:on={conquest}
+					role="tab"
+					aria-selected={conquest}
+					onclick={() => pick('conquest')}
+					title={t('A war for the Realm: take territories with armies and dice, region by region.')}
+				>
+					<img class="icon-px" src={PIXEL.sword} alt="" />
+					<span class="stack"><b>{t('Conquest')}</b><small>{t('Muster · Attack · Conquer')}</small></span>
+				</button>
+			</div>
+
+			{#if !conquest}
+				<button class="btn purple block" onclick={openCampaign} disabled={busy}>
+					<img src={PIXEL.crown} alt="" />
+					<span class="stack"
+						>{t('Campaign')}<span class="sub">{t('The Shattered Crown: a story for one player')}</span></span
+					>
+				</button>
+			{/if}
 			<button class="btn big block shine" onclick={play} disabled={busy}>
 				<img src={PIXEL.play} alt="" />
 				<span class="stack"
-					>{t('Play vs bots')}<span class="sub">{t('Three rivals, start right away')}</span></span
+					>{t('Play vs bots')}<span class="sub">{conquest ? t('Three rivals for the Realm, start right away') : t('Three rivals, start right away')}</span></span
 				>
 			</button>
 			<button class="btn green block" onclick={create} disabled={busy}>
-				<img src={PIXEL.house} alt="" />
+				<img src={conquest ? CQ_PIXEL.flag : PIXEL.house} alt="" />
 				<span class="stack"
-					>{t('Create a room')}<span class="sub">{OFFLINE ? t('Pick the mode, map and bots') : t('Invite friends with a code')}</span></span
+					>{t('Create a room')}<span class="sub"
+						>{OFFLINE ? (conquest ? t('Pick the rules and bots') : t('Pick the mode, map and bots')) : t('Invite friends with a code')}</span
+					></span
 				>
 			</button>
 
@@ -293,6 +342,66 @@
 	}
 	.away {
 		display: none;
+	}
+	/* The two games, side by side above the buttons: the one picked lit in gold. */
+	.games {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 6px;
+	}
+	.game {
+		all: unset;
+		box-sizing: border-box;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 8px;
+		cursor: pointer;
+		background: rgba(0, 0, 0, 0.28);
+		box-shadow:
+			inset 0 0 0 2px rgba(255, 220, 160, 0.14),
+			0 3px 0 rgba(0, 0, 0, 0.35);
+		color: var(--muted);
+		transition:
+			background 0.15s,
+			transform 0.1s;
+	}
+	.game:hover {
+		background: rgba(255, 212, 90, 0.08);
+	}
+	.game.on {
+		background: linear-gradient(rgba(255, 212, 90, 0.26), rgba(184, 116, 15, 0.22));
+		box-shadow:
+			inset 0 0 0 2px var(--gold),
+			0 3px 0 rgba(0, 0, 0, 0.35);
+		color: #fff2d2;
+	}
+	.game img {
+		width: 28px;
+		height: 28px;
+		flex: none;
+	}
+	.game .stack {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.1;
+		min-width: 0;
+	}
+	.game b {
+		font-family: var(--px);
+		font-size: 18px;
+		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+	}
+	.game.on b {
+		color: var(--gold);
+	}
+	.game small {
+		font-size: 11px;
+		font-weight: 700;
+		opacity: 0.85;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.book {
 		position: relative;

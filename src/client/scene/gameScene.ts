@@ -30,7 +30,7 @@ import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
 import type { CqView } from '../../shared/conquest/types';
-import { ConquestScene } from './conquest/conquestScene';
+import { ConquestScene, type CqSceneCallbacks } from './conquest/conquestScene';
 
 /**
  * `stoneRoad` picks one of your roads to pave, `storehouse` and `tavern` one of your buildings to
@@ -233,6 +233,8 @@ export class GameScene {
 	conquest: ConquestScene | null = null;
 	/** Names for the Realm's board (translated), set by the interface before it is shown. */
 	conquestNames: ConstructorParameters<typeof ConquestScene>[3] = undefined;
+	/** What the Conquest board tells the interface (see ConquestHud), kept for each board made. */
+	conquestCallbacks: CqSceneCallbacks = {};
 	private catHoverAt = new THREE.Vector2(-9, -9);
 
 	constructor(
@@ -301,6 +303,7 @@ export class GameScene {
 		this.dice.setShown(false);
 		for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = false;
 		const cq = new ConquestScene(this.stage, this.anim, this.particles, this.conquestNames);
+		cq.callbacks = this.conquestCallbacks;
 		this.conquest = cq;
 		const r = cq.board.realm;
 		this.room.fitTable((Math.max(r.halfX, r.halfZ) * 1.12) / (TABLE_HALF * ROOM_SCALE));

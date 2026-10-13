@@ -101,10 +101,10 @@ export class RealmBoard {
 			this.group.add(lane.group);
 		});
 		this.legend = new RegionLegend(map, names.regions, names.legend);
-		this.legend.group.position.set(-88, 0, 68);
+		this.legend.group.position.set(88, 0, 70);
 		this.group.add(this.legend.group);
 		const rose = compassRose();
-		rose.position.set(97, 2.4, 84);
+		rose.position.set(-96, 2.4, 82);
 		this.group.add(rose);
 		this.writeState();
 	}

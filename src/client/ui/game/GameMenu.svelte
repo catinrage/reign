@@ -6,6 +6,7 @@
 	import PigeonButton from './PigeonButton.svelte';
 	import SpectatorBadge from './SpectatorBadge.svelte';
 	import TurnCounter from './TurnCounter.svelte';
+	import CqTurnCounter from '../conquest/CqTurnCounter.svelte';
 	import EventChip from './EventChip.svelte';
 	import MissionChip from '../campaign/MissionChip.svelte';
 	import MissionPanel from '../campaign/MissionPanel.svelte';
@@ -31,7 +32,8 @@
 	/** A campaign mission shows its stars and rules beside the menu's buttons. */
 	const mission = $derived(page === 'main' && !!client.view?.campaign);
 	/** A spectator can't pause the table, only watch it. */
-	const playing = $derived(!!client.view && client.view.phase !== 'ended' && !client.spectating);
+	const game = $derived(client.view ?? client.cq);
+	const playing = $derived(!!game && game.phase !== 'ended' && !client.spectating);
 	const others = $derived(
 		(lobby?.seats ?? []).filter((s) => !s.isBot && s.id !== client.seat && s.connected).length
 	);
@@ -112,7 +114,7 @@
 			title={t('Pause the game for everyone (P)')}><img src={PIXEL.pause} alt="" /></button
 		>
 	{/if}
-	{#if playing}
+	{#if playing && client.view}
 		<button
 			class="icon-btn auto-roll"
 			class:on={autoRoll.on}
@@ -144,7 +146,11 @@
 		data-tip-head={t('Night mode')}
 		><img src={PIXEL.moon} alt="" /><span class="tag">{settings.night ? t('On') : t('Off')}</span></button
 	>
-	<div class="turn-row"><TurnCounter /><span class="events"><MissionChip /><EventChip /><RumorChip /></span></div>
+	{#if client.view}
+		<div class="turn-row"><TurnCounter /><span class="events"><MissionChip /><EventChip /><RumorChip /></span></div>
+	{:else if client.cq}
+		<div class="turn-row"><CqTurnCounter /></div>
+	{/if}
 	<SpectatorBadge />
 </div>
 
@@ -268,7 +274,7 @@
 				{:else}
 					<button class="btn small wood back" onclick={() => go('main')}>‹ {t('Back')}</button>
 					{#if page === 'help'}
-						<Tutorial mode={client.view?.mode} />
+						<Tutorial mode={client.cq ? 'conquest' : client.view?.mode} />
 					{:else}
 						<div class="page"><Settings /></div>
 					{/if}

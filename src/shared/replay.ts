@@ -182,18 +182,21 @@ function newestSeq(g: { log: { seq: number }[] }) {
  * Every state of a replay, from the deal (index 0) to after its last step, each with the log as
  * the table had it then.
  */
-export function replayStates(r: Replay): GameState[] {
-	const out: GameState[] = [];
-	let state = r.start;
-	let log: GameEvent[] = r.startEvents ?? [];
-	out.push({ ...state, log, rng: 0 } as GameState);
+export function replayStates<S extends RecordedState = GameState>(
+	r: Replay<Omit<S, 'log' | 'rng'>, S['log'][number]> | Replay,
+	logLimit = LOG_LIMIT
+): S[] {
+	const out: S[] = [];
+	let state = r.start as Omit<S, 'log' | 'rng'>;
+	let log = (r.startEvents ?? []) as S['log'][number][];
+	out.push({ ...state, log, rng: 0 } as unknown as S);
 	for (const step of r.steps) {
 		state = applyPatch(state, step.patch);
 		if (step.events.length) {
-			log = [...log, ...step.events];
-			if (log.length > LOG_LIMIT) log = log.slice(log.length - LOG_LIMIT);
+			log = [...log, ...(step.events as S['log'][number][])];
+			if (log.length > logLimit) log = log.slice(log.length - logLimit);
 		}
-		out.push({ ...state, log, rng: 0 } as GameState);
+		out.push({ ...state, log, rng: 0 } as unknown as S);
 	}
 	return out;
 }

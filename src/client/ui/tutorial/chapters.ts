@@ -1,5 +1,10 @@
 import type { Component } from 'svelte';
 import type { GameMode } from '../../../shared/rules/modes';
+import { CQ_PIXEL } from '../conquest/icons';
+import CqBattle from './conquest/Battle.svelte';
+import CqCards from './conquest/Cards.svelte';
+import CqRealm from './conquest/Realm.svelte';
+import CqTurn from './conquest/Turn.svelte';
 import { msg } from '../../i18n/index.svelte';
 import { PIXEL } from '../pixel';
 import Bonus from './classic/Bonus.svelte';
@@ -25,9 +30,18 @@ import { TUT_ICON } from './icons';
  * the chapter list, the page frame and the next/back buttons. To explain a new Reign Extended
  * feature, write a page in ./extended and add one line here.
  */
+/** The tutorial's books: Settlement's two modes, and Conquest. */
+export const TUTORIAL_MODES = ['classic', 'extended', 'conquest'] as const;
+export type TutorialMode = GameMode | 'conquest';
+export const TUTORIAL_MODE_NAME: Record<TutorialMode, string> = {
+	classic: msg('Classic'),
+	extended: msg('Reign Extended'),
+	conquest: msg('Conquest')
+};
+
 export interface Chapter {
 	id: string;
-	mode: GameMode;
+	mode: TutorialMode;
 	/** Marked with msg(); shown through t(). */
 	title: string;
 	/** One line under the title, saying what the chapter covers. Marked with msg(); shown through t(). */
@@ -164,9 +178,41 @@ export const CHAPTERS: Chapter[] = [
 		lede: msg('Draw your own island, save it and share it with a code.'),
 		icon: TUT_ICON.pen,
 		page: MapMaker
+	},
+	{
+		id: 'cq-realm',
+		mode: 'conquest',
+		title: msg('The Realm'),
+		lede: msg('Six regions, borders and sea lanes, and how a war is won.'),
+		icon: CQ_PIXEL.flag,
+		page: CqRealm
+	},
+	{
+		id: 'cq-turn',
+		mode: 'conquest',
+		title: msg('Your turn'),
+		lede: msg('Reinforce, attack, fortify, all with clicks on the board.'),
+		icon: CQ_PIXEL.troops,
+		page: CqTurn
+	},
+	{
+		id: 'cq-battle',
+		mode: 'conquest',
+		title: msg('Battles'),
+		lede: msg('Dice against dice, and the defender wins ties.'),
+		icon: PIXEL.sword,
+		page: CqBattle
+	},
+	{
+		id: 'cq-cards',
+		mode: 'conquest',
+		title: msg('Cards'),
+		lede: msg('Earn a card each turn you conquer, and trade sets for armies.'),
+		icon: PIXEL.cards,
+		page: CqCards
 	}
 ];
 
-export function chaptersOf(mode: GameMode): Chapter[] {
+export function chaptersOf(mode: TutorialMode): Chapter[] {
 	return CHAPTERS.filter((c) => c.mode === mode);
 }
