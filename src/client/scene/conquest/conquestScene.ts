@@ -90,6 +90,9 @@ export class ConquestScene {
 	 * territories taken); `quiet` shows it at once (a rejoin, a replay jumping about).
 	 */
 	setView(view: CqView, quiet = false) {
+		// A new game at the same table (a rematch) starts its log over: show it as it is.
+		const newest = view.log.length ? view.log[view.log.length - 1].seq : 0;
+		if (this.view && newest < this.lastSeq) return this.jumpTo(view);
 		const first = !this.view;
 		this.holders = view.players.map((p) => ({ color: PLAYER_RGB[p.color] ?? 0xffffff, sigil: SIGIL_OF[p.color] }));
 		const fresh = view.log.filter((e) => e.seq > this.lastSeq);
@@ -123,7 +126,35 @@ export class ConquestScene {
 
 	private async play() {
 		this.playing = true;
+		try {
+			await this.playQueue();
+		} catch (err) {
+			// Whatever went wrong showing an event, the board still catches up with the game.
+			console.error(err);
+			this.queue = [];
+		}
+		if (this.view) this.apply(this.view);
+		this.striking = false;
+		this.syncArrow();
+		this.playing = false;
+		if (this.view) this.callbacks.onSettled?.(this.view);
+	}
+
+	/**
+	 * Wait `seconds` while the board plays something out: by the frame clock, or the wall clock
+	 * when frames are slow (a weak device), so the board never falls behind the game for long.
+	 */
+	private hold(seconds: number) {
+		return Promise.race([this.anim.wait(seconds), new Promise<void>((done) => setTimeout(done, seconds * 1000))]);
+	}
+
+	private async playQueue() {
 		while (this.queue.length) {
+			// Far behind (a tab left in the background): catch up at once.
+			if (this.queue.length > 40 || document.hidden) {
+				this.queue = [];
+				return;
+			}
 			const e = this.queue.shift()!;
 			const battlesLeft = this.queue.filter((q) => q.type === 'battle').length;
 			const fast = battlesLeft >= 2;
@@ -135,7 +166,7 @@ export class ConquestScene {
 					this.arrow.set(from, to, this.holders[e.player]?.color ?? 0xffffff, 'attack');
 					this.arrow.strike();
 					this.callbacks.onBattle?.(e, fast);
-					await this.anim.wait(fast ? BATTLE_ROLL_FAST : BATTLE_ROLL);
+					await this.hold(fast ? BATTLE_ROLL_FAST : BATTLE_ROLL);
 					this.armies[e.from] = Math.max(0, this.armies[e.from] - e.attackerLoss);
 					this.armies[e.to] = Math.max(0, this.armies[e.to] - e.defenderLoss);
 					this.board.setHolders(this.owner, this.armies, this.holders);
@@ -146,7 +177,7 @@ export class ConquestScene {
 					};
 					hit(e.from, e.attackerLoss);
 					hit(e.to, e.defenderLoss);
-					await this.anim.wait(fast ? 0.1 : 0.32);
+					await this.hold(fast ? 0.1 : 0.32);
 					break;
 				}
 				case 'captured': {
@@ -168,7 +199,7 @@ export class ConquestScene {
 						this.striking = true;
 						this.arrow.set(this.board.realm.anchors[e.from], this.board.realm.anchors[e.to], this.holders[e.player]?.color ?? 0xffffff, 'move');
 						this.particles.dust(this.board.realm.anchors[e.to].clone().add(new THREE.Vector3(0, 1, 0)), 10);
-						await this.anim.wait(0.7);
+						await this.hold(0.7);
 					}
 					break;
 				}
@@ -196,9 +227,6 @@ export class ConquestScene {
 			this.striking = false;
 			this.syncArrow();
 		}
-		if (this.view) this.apply(this.view);
-		this.playing = false;
-		if (this.view) this.callbacks.onSettled?.(this.view);
 	}
 
 	/** The board is still playing out what happened (a battle, a capture). */

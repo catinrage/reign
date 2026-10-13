@@ -28,6 +28,7 @@
 	import { PIXEL } from './pixel';
 	import { sceneRef } from './sceneRef';
 	import { i18n, msg, t, tx } from '../i18n/index.svelte';
+	import CqLobby from './conquest/CqLobby.svelte';
 
 	const COLOR_LABEL: Record<PlayerColor, string> = {
 		red: msg('red'),
@@ -51,6 +52,8 @@
 	let copied = $state(false);
 	let inviting = $state(false);
 	const settings = $derived(lobby.settings);
+	/** A Conquest table: its own rules instead of Settlement's modes and island. */
+	const conquest = $derived(lobby.game === 'conquest');
 	const extended = $derived(settings.mode === 'extended');
 	const pool = $derived(characterPool({ ...settings, characters: true }));
 	const mapTiles = $derived(
@@ -74,8 +77,14 @@
 	// until the new settings have painted.
 	$effect(() => {
 		const tiles = extended ? mapTiles : null;
+		const realm = conquest;
 		let timer = 0;
-		const frame = requestAnimationFrame(() => (timer = window.setTimeout(() => sceneRef.current?.showMenuMap(tiles))));
+		const frame = requestAnimationFrame(
+			() =>
+				(timer = window.setTimeout(() =>
+					realm ? sceneRef.current?.showConquestTable() : sceneRef.current?.showMenuMap(tiles)
+				))
+		);
 		return () => {
 			cancelAnimationFrame(frame);
 			clearTimeout(timer);
@@ -176,7 +185,11 @@
 
 
 					<div class="divider">
-						<i></i><span>{t('Settlers {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })}</span><i></i>
+						<i></i><span
+							>{conquest
+								? t('Commanders {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })
+								: t('Settlers {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })}</span
+						><i></i>
 					</div>
 
 					<div class="seats" class:many>
@@ -273,6 +286,7 @@
 					</div>
 				</div>
 				<div class="col">
+					{#if conquest}<CqLobby />{:else}
 					<div class="modes" role="radiogroup" aria-label={t('Game mode')}>
 						{#each GAME_MODES as m (m)}
 							<button
@@ -294,6 +308,8 @@
 						{/each}
 					</div>
 
+					{/if}
+
 					{#if mySeat}
 						<div class="colors">
 							<span class="label">{t('Your banner')}</span>
@@ -314,7 +330,9 @@
 						</div>
 					{/if}
 
-					{#if extended}
+					{#if conquest}
+						<!-- Conquest's rules are above. -->
+					{:else if extended}
 						<div class="extended">
 							<button class="pick plaque" onclick={() => (picking = 'character')}>
 								<span class="map-well well cast" class:off={!settings.characters}>

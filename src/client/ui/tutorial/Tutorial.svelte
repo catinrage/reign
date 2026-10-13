@@ -1,14 +1,13 @@
 <script lang="ts">
-	import { GAME_MODES, MODE_INFO, type GameMode } from '../../../shared/rules/modes';
-	import { t } from '../../i18n/index.svelte';
+		import { t } from '../../i18n/index.svelte';
 	import { sfx } from '../sound';
-	import { CHAPTERS, chaptersOf, type Chapter } from './chapters';
+	import { CHAPTERS, TUTORIAL_MODES, TUTORIAL_MODE_NAME, chaptersOf, type Chapter, type TutorialMode } from './chapters';
 
 	/**
 	 * The rules of both modes as a small book: chapters down the side, one page at a time.
 	 * Used full screen from the main menu and inside the in-game menu.
 	 */
-	let { mode = undefined }: { mode?: GameMode } = $props();
+	let { mode = undefined }: { mode?: TutorialMode } = $props();
 
 	const KEY = 'reign:tutorial';
 	function remembered(): Chapter | undefined {
@@ -62,13 +61,13 @@
 <div class="tutorial">
 	<nav class="side">
 		<div class="seg modes" role="tablist" aria-label={t('Game mode')}>
-			{#each GAME_MODES as m (m)}
+			{#each TUTORIAL_MODES as m (m)}
 				<button
 					class="btn small"
 					class:on={current.mode === m}
 					role="tab"
 					aria-selected={current.mode === m}
-					onclick={() => open(chaptersOf(m)[0])}>{t(MODE_INFO[m].name)}</button
+					onclick={() => open(chaptersOf(m)[0])}>{t(TUTORIAL_MODE_NAME[m])}</button
 				>
 			{/each}
 		</div>
@@ -97,7 +96,7 @@
 				<header>
 					<span class="label"
 						>{t('{mode} · Chapter {n} of {total}', {
-							mode: t(MODE_INFO[current.mode].name),
+							mode: t(TUTORIAL_MODE_NAME[current.mode]),
 							n: index + 1,
 							total: list.length
 						})}</span
@@ -118,7 +117,7 @@
 							class:green={next.mode === current.mode}
 							class:purple={next.mode !== current.mode}
 							onclick={() => open(next)}
-							>{next.mode !== current.mode ? t(MODE_INFO[next.mode].name) : t(next.title)} ›</button
+							>{next.mode !== current.mode ? t(TUTORIAL_MODE_NAME[next.mode]) : t(next.title)} ›</button
 						>
 					{/if}
 				</footer>

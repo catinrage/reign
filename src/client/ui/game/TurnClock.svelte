@@ -8,9 +8,10 @@
 	 * banner, in the color of the player whose turn it is, with a bar along its bottom that drains.
 	 */
 	let { color }: { color: PlayerColor } = $props();
-	const view = $derived(client.view!);
+	// Either game's table: Settlement's or Conquest's.
+	const ended = $derived((client.view ?? client.cq)?.phase === 'ended');
 	const total = $derived((client.lobby?.turnTime ?? 0) * 1000);
-	const left = $derived(view.phase === 'ended' || !total ? null : client.timeLeft);
+	const left = $derived(ended || !total ? null : client.timeLeft);
 	const secs = $derived(Math.ceil((left ?? 0) / 1000));
 	const running = $derived(!!client.clock?.running);
 </script>

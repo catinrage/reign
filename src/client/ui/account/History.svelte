@@ -5,6 +5,7 @@
 	import { i18n, t, tx } from '../../i18n/index.svelte';
 	import { account } from '../../state/account.svelte';
 	import { replay } from '../../state/replay.svelte';
+	import { cqReplay } from '../../state/cqReplay.svelte';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import Avatar from './Avatar.svelte';
@@ -94,8 +95,12 @@
 								{#if r.kind === 'win'}<img class="icon-px" src={ACCOUNT_ICONS.trophy} alt="" />{/if}{r.text}
 							</span>
 							<span class="what">
-								{#if m.mode === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}
-								{MODE_INFO[m.mode] ? t(MODE_INFO[m.mode].name) : m.mode}{m.mode === 'extended' ? ` · ${tx(m.mapName)}` : ''}
+								{#if m.mode === 'conquest'}
+									<img class="icon-px" src={PIXEL.sword} alt="" />{t('Conquest')} · {tx(m.mapName)}
+								{:else}
+									{#if m.mode === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}
+									{MODE_INFO[m.mode] ? t(MODE_INFO[m.mode].name) : m.mode}{m.mode === 'extended' ? ` · ${tx(m.mapName)}` : ''}
+								{/if}
 							</span>
 							<span class="when">{when(m.startedAt)}</span>
 						</div>
@@ -116,7 +121,9 @@
 												alt={t('winner')}
 											/>{/if}</span>
 										<small
-											>{t('{points} pts', { points: p.points })}{#if p.character}
+											>{m.mode === 'conquest'
+												? t('{n, plural, one {# territory} other {# territories}}', { n: p.points })
+												: t('{points} pts', { points: p.points })}{#if p.character}
 												· {t(CHARACTER_INFO[p.character]?.name ?? '')}{/if}</small
 										>
 									</span>
@@ -126,14 +133,18 @@
 						<div class="meta">
 							{#if length(m)}<span>{length(m)}</span>{/if}
 							{#if m.turns}<span>{t('{n, plural, one {# turn} other {# turns}}', { n: m.turns })}</span>{/if}
-							<span>{t('to {n, plural, one {# point} other {# points}}', { n: m.pointsToWin })}</span>
+							<span
+								>{m.mode === 'conquest'
+									? t('to {n, plural, one {# territory} other {# territories}}', { n: m.pointsToWin })
+									: t('to {n, plural, one {# point} other {# points}}', { n: m.pointsToWin })}</span
+							>
 							{#if m.replay}
 								<button
 									class="btn small green watch"
-									disabled={replay.loading !== null}
-									onclick={() => replay.watch(m)}
+									disabled={replay.loading !== null || cqReplay.loading !== null}
+									onclick={() => (m.mode === 'conquest' ? cqReplay.watch(m) : replay.watch(m))}
 									title={t('Watch this game again, move by move')}
-									><img src={replay.loading === m.id ? PIXEL.hourglass : PIXEL.play} alt="" />{t('Watch replay')}</button
+									><img src={replay.loading === m.id || cqReplay.loading === m.id ? PIXEL.hourglass : PIXEL.play} alt="" />{t('Watch replay')}</button
 								>
 							{:else if m.status !== 'playing'}
 								<span class="no-replay" title={t("Games played before replays were added weren't recorded, so they can't be watched.")}

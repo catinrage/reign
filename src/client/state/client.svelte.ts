@@ -490,6 +490,17 @@ class GameClient {
 		this.setReplayView(view, true);
 	}
 
+	/** Watch a recorded game of Conquest: the table as a spectator who sees every hand. */
+	startCqReplay(lobby: LobbyInfo, view: CqView) {
+		if (this.code) this.leave();
+		this.replaying = true;
+		this.spectating = true;
+		this.lobby = lobby;
+		this.latest = null;
+		this.view = null;
+		this.cq = view;
+	}
+
 	/**
 	 * The replay moved on to `view`: one step forward plays like a live game (dice, cards flying),
 	 * a jump (scrubbing, skipping) shows the new state at once.

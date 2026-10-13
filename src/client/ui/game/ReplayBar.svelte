@@ -153,7 +153,7 @@
 		<div class="row">
 			<div class="about">
 				<span class="what title"
-					>{match && MODE_INFO[match.mode] ? t(MODE_INFO[match.mode].name) : ''}{match?.mode ===
+					>{match && match.mode !== 'conquest' ? t(MODE_INFO[match.mode].name) : ''}{match?.mode ===
 					'extended'
 						? ` · ${tx(match.mapName)}`
 						: ''}</span
