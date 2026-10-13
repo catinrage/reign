@@ -80,9 +80,7 @@ export class RealmBoard {
 		this.stateTex.magFilter = THREE.NearestFilter;
 		this.stateTex.minFilter = THREE.NearestFilter;
 		this.stateTex.generateMipmaps = false;
-		realmUniforms.uRealmMap.value = this.realm.mapTexture;
-		realmUniforms.uRealmState.value = this.stateTex;
-		realmUniforms.uRealmGrid.value.copy(this.realm.gridInfo);
+		this.bindUniforms();
 		this.looks = map.territories.map(() => ({}));
 		this.shown = map.territories.map(() => ({ fill: 0, glow: 0, hover: 0, dim: 0, pulse: 0, color: 0xffffff }));
 		map.territories.forEach((t, i) => {
@@ -161,6 +159,9 @@ export class RealmBoard {
 
 	update(dt: number, t: number, view: BoardCamera) {
 		this.time = t;
+		// The board on show owns the land's shader inputs, even when another board (the menu
+		// table's) was made or thrown away since.
+		if (realmUniforms.uRealmState.value !== this.stateTex) this.bindUniforms();
 		realmUniforms.uRealmPulse.value = 0.5 + 0.5 * Math.sin(t * 4.2);
 		const k = 1 - Math.exp(-dt * 12);
 		let changed = false;
@@ -189,10 +190,12 @@ export class RealmBoard {
 		const cam = view.camera;
 		const ppu1 = view.height / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
 		const at = new THREE.Vector3();
-		for (const a of this.armies) {
+		this.armies.forEach((a, i) => {
 			const d = at.copy(a.anchor).applyMatrix4(cam.matrixWorldInverse).z;
 			a.update(dt, t, view, ppu1 / Math.max(1, -d));
-		}
+			const s = this.shown[i];
+			a.setHalo(Math.max(s.glow!, s.fill!) * (1 - s.dim!), s.color ?? 0xffffff, s.pulse!, t);
+		});
 		this.labels.forEach((l, i) => {
 			const d = at.copy(l.position).applyMatrix4(cam.matrixWorldInverse).z;
 			const ppu = ppu1 / Math.max(1, -d);
@@ -211,6 +214,12 @@ export class RealmBoard {
 			l.visible = m.opacity > 0.02;
 		});
 		for (const l of this.lanes) l.update(dt, t);
+	}
+
+	private bindUniforms() {
+		realmUniforms.uRealmMap.value = this.realm.mapTexture;
+		realmUniforms.uRealmState.value = this.stateTex;
+		realmUniforms.uRealmGrid.value.copy(this.realm.gridInfo);
 	}
 
 	private writeState() {
@@ -279,6 +288,25 @@ function faceCanvas() {
 	return c;
 }
 
+/** A white ring with a soft glow outside it, tinted per medallion: what a click there does. */
+let haloTex: THREE.CanvasTexture | null = null;
+function haloTexture() {
+	if (haloTex) return haloTex;
+	const c = document.createElement('canvas');
+	c.width = c.height = 128;
+	const ctx = c.getContext('2d')!;
+	const g = ctx.createRadialGradient(64, 64, 30, 64, 64, 64);
+	g.addColorStop(0, 'rgba(255,255,255,0)');
+	g.addColorStop(0.05, 'rgba(255,255,255,1)');
+	g.addColorStop(0.32, 'rgba(255,255,255,1)');
+	g.addColorStop(0.4, 'rgba(255,255,255,0.55)');
+	g.addColorStop(1, 'rgba(255,255,255,0)');
+	ctx.fillStyle = g;
+	ctx.fillRect(0, 0, 128, 128);
+	haloTex = new THREE.CanvasTexture(c);
+	return haloTex;
+}
+
 /** One territory's armies: a medallion with the count, the holder's band and sigil, facing the camera. */
 export class ArmyToken {
 	readonly group = new THREE.Group();
@@ -295,6 +323,18 @@ export class ArmyToken {
 	private bump = 0;
 	/** Lifted while picked. */
 	lift = 0;
+	private readonly halo: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+
+	/** Ring the medallion in a highlight's color (0 = none), pulsing when `pulse` is set. */
+	setHalo(strength: number, color: number, pulse: number, t: number) {
+		const wave = 0.5 + 0.5 * Math.sin(t * 4.2);
+		const o = strength * (1 - pulse * 0.45 * (1 - wave));
+		this.halo.visible = o > 0.02;
+		if (!this.halo.visible) return;
+		this.halo.material.opacity = Math.min(1, o);
+		this.halo.material.color.setHex(color);
+		this.halo.scale.setScalar(1 + pulse * 0.06 * wave);
+	}
 	private shownLift = 0;
 
 	constructor(
@@ -316,6 +356,13 @@ export class ArmyToken {
 		);
 		this.face.position.z = 2 * VS + 0.02;
 		this.medal.add(this.face);
+		this.halo = new THREE.Mesh(
+			new THREE.PlaneGeometry(MEDAL_R * 3.3, MEDAL_R * 3.3),
+			new THREE.MeshBasicMaterial({ map: haloTexture(), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 })
+		);
+		this.halo.position.z = VS;
+		this.halo.visible = false;
+		this.medal.add(this.halo);
 		this.hitbox = new THREE.Mesh(new THREE.CircleGeometry(MEDAL_R * 1.05, 20), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
 		this.hitbox.visible = false;
 		this.medal.add(this.hitbox);
@@ -358,14 +405,14 @@ export class ArmyToken {
 		ctx.fill();
 		if (this.holder) {
 			const c = `#${this.holder.color.toString(16).padStart(6, '0')}`;
-			drawSigil(ctx, this.holder.sigil, s / 2, s * 0.2, s * 0.12, c, '#2b1a10', 3);
+			drawSigil(ctx, this.holder.sigil, s / 2, s * 0.17, s * 0.1, c, '#2b1a10', 3);
 		}
 		ctx.fillStyle = '#3a2416';
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
 		const text = String(Math.max(0, this.count));
-		ctx.font = `900 ${text.length >= 3 ? 50 : text.length === 2 ? 62 : 70}px "Nunito Variable", system-ui, sans-serif`;
-		ctx.fillText(text, s / 2, s * 0.6);
+		ctx.font = `900 ${text.length >= 3 ? 56 : text.length === 2 ? 72 : 82}px "Nunito Variable", system-ui, sans-serif`;
+		ctx.fillText(text, s / 2, s * 0.62);
 		this.tex.needsUpdate = true;
 	}
 
@@ -378,7 +425,7 @@ export class ArmyToken {
 		this.shownLift += (this.lift - this.shownLift) * (1 - Math.exp(-dt * 14));
 		const pop = 1 + Math.sin(this.bump * Math.PI) * 0.22;
 		// Never smaller than about 30 pixels across, so the count reads from the whole-map view.
-		const grow = Math.min(1.8, Math.max(1, 30 / (2 * MEDAL_R * ppu)));
+		const grow = Math.min(2.4, Math.max(1, 34 / (2 * MEDAL_R * ppu)));
 		const scale = grow * pop * (1 + this.shownLift * 0.12);
 		this.group.scale.setScalar(grow);
 		this.medal.scale.setScalar(scale / grow);
@@ -390,6 +437,8 @@ export class ArmyToken {
 		this.face.geometry.dispose();
 		(this.face.material as THREE.Material).dispose();
 		this.hitbox.geometry.dispose();
+		this.halo.geometry.dispose();
+		this.halo.material.dispose();
 	}
 }
 

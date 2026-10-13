@@ -342,13 +342,13 @@ class CqPlay {
 		if (this.placing) {
 			for (let t = 0; t < n; t++) {
 				if (v.owner[t] === me) {
-					looks[t] = { glow: 0.8, color: PICK_GLOW, pulse: 0.6 };
+					looks[t] = { glow: 0.9, fill: 0.3, color: PICK_GLOW, pulse: 0.6 };
 					clickable.add(t);
-				} else looks[t] = { dim: 0.6 };
+				} else looks[t] = { dim: 0.75 };
 			}
 		} else if (this.occupying) {
 			const o = v.occupy!;
-			for (let t = 0; t < n; t++) looks[t] = { dim: 0.7 };
+			for (let t = 0; t < n; t++) looks[t] = { dim: 0.8 };
 			looks[o.from] = { fill: 0.6, glow: 0.6, color: PICK_GLOW };
 			looks[o.to] = { fill: 0.9, glow: 1, color: MARCH_GLOW, pulse: 0.8 };
 			clickable.add(o.to);
@@ -359,13 +359,13 @@ class CqPlay {
 			if (s === null) {
 				for (let t = 0; t < n; t++) {
 					if (v.owner[t] === me && canAttackFrom(v, me, t)) {
-						looks[t] = { glow: 0.8, color: PICK_GLOW, pulse: 0.5 };
+						looks[t] = { glow: 0.9, fill: 0.25, color: PICK_GLOW, pulse: 0.5 };
 						clickable.add(t);
 					} else if (v.owner[t] !== me) clickable.add(t);
 				}
 			} else {
 				const targets = attackTargets(v, s);
-				for (let t = 0; t < n; t++) looks[t] = { dim: 0.72 };
+				for (let t = 0; t < n; t++) looks[t] = { dim: 0.8 };
 				looks[s] = { fill: 0.8, glow: 1, color: PICK_GLOW };
 				for (const t of targets) {
 					const aimed = t === this.target || t === this.hover;
@@ -384,13 +384,13 @@ class CqPlay {
 			if (s === null) {
 				for (let t = 0; t < n; t++) {
 					if (v.owner[t] === me && v.armies[t] >= 2 && fortifyTargets(v, t).length) {
-						looks[t] = { glow: 0.8, color: PICK_GLOW, pulse: 0.5 };
+						looks[t] = { glow: 0.9, fill: 0.25, color: PICK_GLOW, pulse: 0.5 };
 						clickable.add(t);
 					}
 				}
 			} else {
 				const reach = fortifyTargets(v, s);
-				for (let t = 0; t < n; t++) looks[t] = { dim: 0.72 };
+				for (let t = 0; t < n; t++) looks[t] = { dim: 0.8 };
 				looks[s] = { fill: 0.8, glow: 1, color: PICK_GLOW };
 				for (const t of reach) {
 					looks[t] = { glow: 0.85, color: MARCH_GLOW, pulse: 0.6 };

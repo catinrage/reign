@@ -111,13 +111,13 @@ vec3 realmLight = vec3(0.0);
 			float pulse = mix(1.0, 0.5 + 0.5 * uRealmPulse, hl.a);
 			// Lit up as a whole (picked, a target), and a wide band glowing inside its border, the
 			// border line too, so it reads at Low graphics without any bloom.
-			float glowBand = 1.0 - smoothstep(3.0, 7.5, bd);
-			diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.55 + hl.rgb * 0.6, st.r * 0.6);
-			diffuseColor.rgb = mix(diffuseColor.rgb, hl.rgb * (0.75 + 0.35 * l), glowBand * st.g * 0.75 * pulse);
-			realmLight += hl.rgb * (st.r * 0.18 + glowBand * st.g * 0.55) * pulse;
-			diffuseColor.rgb *= 1.0 + st.b * 0.25;
+			float glowBand = 1.0 - smoothstep(4.0, 11.0, bd);
+			diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.5 + hl.rgb * 0.65, st.r * 0.7);
+			diffuseColor.rgb = mix(diffuseColor.rgb, hl.rgb * (0.8 + 0.3 * l), glowBand * st.g * 0.85 * pulse);
+			realmLight += hl.rgb * (st.r * 0.22 + glowBand * st.g * 0.6) * pulse;
+			diffuseColor.rgb *= 1.0 + st.b * 0.3;
 			// Faded back: greyed and darkened, so what is lit stands out.
-			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l * 0.5), st.a * 0.8);
+			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l * 0.38), st.a);
 		}
 	}
 }

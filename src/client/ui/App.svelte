@@ -8,6 +8,7 @@
 	import Home from './Home.svelte';
 	import Joining from './Joining.svelte';
 	import Lobby from './Lobby.svelte';
+	import { gamePick } from './menu/gamePick.svelte';
 	import NetReadout from './NetReadout.svelte';
 	import Toasts from './Toasts.svelte';
 	import { PIXEL } from './pixel';
@@ -74,7 +75,10 @@
 		if (screen === 'game') wasGame = true;
 		else if (wasGame) {
 			wasGame = false;
-			sceneRef.current?.showMenuBoard();
+			// Back to the table the menu (or the lobby) is about: the Realm for Conquest.
+			const realm = client.lobby ? client.lobby.game === 'conquest' : gamePick.game === 'conquest';
+			if (realm) sceneRef.current?.showConquestTable();
+			else sceneRef.current?.showMenuBoard();
 		}
 	});
 </script>

@@ -30,7 +30,7 @@
 	/** Picking a target or a way to march: a short card, so it hides less of the map. */
 	const compact = $derived((p.attacking || p.fortifying) && p.selected !== null);
 	// A fight open or a note up says enough on its own.
-	const quiet = $derived((p.attacking && p.target !== null) || !!p.note);
+	const quiet = $derived((p.attacking && p.target !== null) || p.occupying || !!p.note);
 	const at = $derived(tapped ?? (mouse.touch || !rested || quiet ? null : p.hover));
 	const spot = $derived.by(() => {
 		if (at === null) return null;
