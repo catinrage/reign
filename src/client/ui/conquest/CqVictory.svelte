@@ -277,11 +277,25 @@
 			width: auto;
 		}
 		table {
+			width: 100%;
+			table-layout: fixed;
 			font-size: 12px;
 		}
+		th:first-child {
+			width: 30%;
+		}
+		/* Headings stand on end so whole words (and longer translations) fit narrow columns. */
 		th {
 			font-size: 9px;
-			padding: 0 2px 4px;
+			letter-spacing: 0;
+			padding: 0 1px 6px;
+			vertical-align: bottom;
+		}
+		th:not(:first-child) {
+			writing-mode: vertical-rl;
+			transform: rotate(180deg);
+			text-align: left;
+			white-space: nowrap;
 		}
 		td {
 			padding: 3px 2px;
