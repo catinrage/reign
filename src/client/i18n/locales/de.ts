@@ -2162,5 +2162,6 @@ export default {
 	"Take at least one territory in a turn to earn a card at its end.": "Erobere in einem Zug mindestens ein Gebiet, um an dessen Ende eine Karte zu bekommen.",
 	"3. Fortify": "3. Befestigen",
 	"Press End attacks, then move armies once from one territory to another joined to it through your own territories. The way they march lights up. Moving ends your turn; so does End turn.": "Drück Angriffe beenden und verschiebe dann einmal Armeen von einem Gebiet in ein anderes, das über deine eigenen Gebiete damit verbunden ist. Ihr Marschweg leuchtet auf. Das Verschieben beendet deinen Zug, ebenso Zug beenden.",
-	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "Klicke auf leeren Boden oder drück Esc, um eine Auswahl aufzuheben. Enter drückt den Hauptknopf und würfelt im Kampf."
+	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "Klicke auf leeren Boden oder drück Esc, um eine Auswahl aufzuheben. Enter drückt den Hauptknopf und würfelt im Kampf.",
+	"With two players, whoever goes second starts with {n} more armies, to make up for moving second.": "Zu zweit startet, wer als Zweites zieht, mit {n} Armeen mehr, als Ausgleich für den zweiten Zug."
 } satisfies Messages;

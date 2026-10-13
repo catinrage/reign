@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { SECOND_PLAYER_BONUS } from '../../../../shared/conquest/rules';
 	import { t } from '../../../i18n/index.svelte';
 	import { PIXEL } from '../../pixel';
 	import { CQ_PIXEL } from '../../conquest/icons';
 </script>
 
 <p>{t('Before the first turn everyone places their starting armies at once, a click at a time. Then turns go round the table, each in three steps.')}</p>
+<p>{t('With two players, whoever goes second starts with {n} more armies, to make up for moving second.', { n: SECOND_PLAYER_BONUS })}</p>
 
 <h3>{t('1. Reinforce')}</h3>
 <ul class="rows">

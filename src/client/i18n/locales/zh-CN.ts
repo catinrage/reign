@@ -2162,5 +2162,6 @@ export default {
 	"Take at least one territory in a turn to earn a card at its end.": "一个回合内至少攻下一块领地，回合结束时即可获得一张牌。",
 	"3. Fortify": "3. 调防",
 	"Press End attacks, then move armies once from one territory to another joined to it through your own territories. The way they march lights up. Moving ends your turn; so does End turn.": "按下结束进攻，然后将军队从一块领地调往另一块通过你的领地与之相连的领地，只能调一次。行军路线会亮起。调动后回合结束；按结束回合也一样。",
-	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "点击空地或按 Esc 取消选择。按 Enter 相当于按主按钮，战斗中则是掷骰。"
+	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "点击空地或按 Esc 取消选择。按 Enter 相当于按主按钮，战斗中则是掷骰。",
+	"With two players, whoever goes second starts with {n} more armies, to make up for moving second.": "两人对战时，后手玩家开局多 {n} 支军队，以弥补后手劣势。"
 } satisfies Messages;

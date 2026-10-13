@@ -2162,5 +2162,6 @@ export default {
 	"Take at least one territory in a turn to earn a card at its end.": "Prenez au moins un territoire pendant un tour pour gagner une carte à la fin.",
 	"3. Fortify": "3. Fortifier",
 	"Press End attacks, then move armies once from one territory to another joined to it through your own territories. The way they march lights up. Moving ends your turn; so does End turn.": "Appuyez sur Fin des attaques, puis déplacez une fois des armées d'un territoire vers un autre qui lui est relié par vos propres territoires. Leur chemin s'illumine. Déplacer termine votre tour, tout comme Finir le tour.",
-	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "Cliquez sur un espace vide ou appuyez sur Échap pour annuler une sélection. Entrée appuie sur le bouton principal, et en combat lance les dés."
+	"Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.": "Cliquez sur un espace vide ou appuyez sur Échap pour annuler une sélection. Entrée appuie sur le bouton principal, et en combat lance les dés.",
+	"With two players, whoever goes second starts with {n} more armies, to make up for moving second.": "À deux, le joueur qui commence en second reçoit {n} armées de plus pour compenser."
 } satisfies Messages;
