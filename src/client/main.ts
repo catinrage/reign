@@ -33,8 +33,8 @@ async function boot() {
 // Whatever happens, the loading screen doesn't stay up over the page.
 boot().finally(bootDone);
 
-// Inject Vercel Web Analytics
-inject();
+// Inject Vercel Web Analytics with proper mode detection
+inject({ mode: import.meta.env.DEV ? 'development' : 'production' });
 
 // Installs as an app and opens from the stored copy (see pwa/sw.js). Built versions only: the dev
 // server's files change on every save.
