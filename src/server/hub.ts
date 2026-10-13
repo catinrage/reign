@@ -73,7 +73,7 @@ export class Hub {
 		let best: Whereabouts = 'offline';
 		for (const c of this.conns.values()) {
 			if (c.user.id !== userId) continue;
-			const here: Whereabouts = !c.room ? 'menu' : c.room.started && c.room.game?.phase !== 'ended' ? 'game' : 'lobby';
+			const here: Whereabouts = !c.room ? 'menu' : c.room.playing ? 'game' : 'lobby';
 			if (rank(here) > rank(best)) best = here;
 		}
 		return best;

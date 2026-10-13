@@ -36,6 +36,11 @@ import { missionById } from '../shared/campaign/missions';
 import { createMissionGame, missionSeats, missionSettings } from '../shared/campaign/start';
 import type { Action, GameState } from '../shared/rules/types';
 import { viewFor } from '../shared/rules/view';
+import { CONQUEST_MAX_PLAYERS, DEFAULT_CONQUEST_SETTINGS, type ConquestSettings, type CqState } from '../shared/conquest/types';
+import { addConquestChat, applyConquest, conquestView, createConquest, timeOutConquest } from '../shared/conquest/rules';
+import { conquestBot } from '../shared/conquest/bot';
+import { cleanConquestSettings } from '../shared/conquest/settings';
+import type { GameKind } from '../shared/games';
 
 interface Seat {
 	id: string;
@@ -116,6 +121,9 @@ export class Room {
 	settings: GameSettings = structuredClone(DEFAULT_SETTINGS);
 	/** The solo campaign mission played here, or null: the mission sets the table and its rules. */
 	mission: string | null = null;
+	/** Conquest tables: the game being played (null before the first), and the host's settings. */
+	cq: CqState | null = null;
+	conquest: ConquestSettings = structuredClone(DEFAULT_CONQUEST_SETTINGS);
 	private botTimer: NodeJS.Timeout | null = null;
 	/** The bot timer is only checking back later (not a move on its way), so news can cut it short. */
 	private botTimerIdle = false;
@@ -154,18 +162,25 @@ export class Room {
 	private lobbyLeft = false;
 	listener: RoomListener | null = null;
 	/** Writes the current game down step by step, for watching it again once it's over. */
-	recorder: Recorder | null = null;
+	recorder: Recorder<GameState | CqState> | null = null;
 	/** The listener has heard that the current game ended. */
 	private endTold = false;
 
 	/** `cheats` lets players use dev cheats; only the local dev server turns it on. */
 	constructor(
 		public code: string,
-		public cheats = false
+		public cheats = false,
+		/** The game this table plays: Settlement or Conquest. Fixed when the table opens. */
+		readonly kind: GameKind = 'settlement'
 	) {}
 
 	get started() {
-		return this.game !== null;
+		return this.game !== null || this.cq !== null;
+	}
+
+	/** A game is under way here (started and not over). */
+	get playing() {
+		return this.kind === 'conquest' ? !!this.cq && this.cq.phase !== 'ended' : !!this.game && this.game.phase !== 'ended';
 	}
 
 	/**
@@ -173,7 +188,7 @@ export class Room {
 	 * has the menu open (a solo game vs bots), or when nobody is connected at all.
 	 */
 	get paused() {
-		if (!this.game || this.game.phase === 'ended') return false;
+		if (!this.playing) return false;
 		if (this.heldBy) return true;
 		const humans = this.seats.filter((s) => !s.isBot && s.sockets.size > 0);
 		// Nobody is at the table: it waits for them instead of the bots playing it out.
@@ -184,6 +199,8 @@ export class Room {
 	lobbyInfo(): LobbyInfo {
 		return {
 			code: this.code,
+			game: this.kind,
+			conquest: this.conquest,
 			started: this.started,
 			maxPlayers: this.maxPlayers,
 			paused: this.paused,
@@ -224,6 +241,7 @@ export class Room {
 		this.spectators.add(ws);
 		send(ws, { t: 'watching', code: this.code });
 		this.broadcastLobby();
+		if (this.cq) return send(ws, { t: 'cqGame', view: conquestView(this.cq, -1), clock: this.clockInfo() });
 		if (!this.game) return;
 		send(ws, { t: 'game', view: viewFor(this.game, -1), clock: this.clockInfo() });
 		if (this.aim) send(ws, { t: 'aim', player: this.aim.player, hex: this.aim.hex });
@@ -279,6 +297,10 @@ export class Room {
 		});
 		send(ws, { t: 'pigeons', notes: this.pigeons.filter((n) => n.from === seat!.id || n.to === seat!.id) });
 		this.broadcastLobby();
+		if (this.cq) {
+			send(ws, { t: 'cqGame', view: conquestView(this.cq, this.seatIndex(seat)), clock: this.clockInfo() });
+			this.scheduleBots();
+		}
 		if (this.game) {
 			send(ws, {
 				t: 'game',
@@ -315,10 +337,11 @@ export class Room {
 
 	handle(seat: Seat, msg: ClientMessage, ws: WebSocket) {
 		const isHost = seat.id === this.hostId;
+		if (this.kind === 'conquest' ? SETTLEMENT_ONLY.has(msg.t) : CONQUEST_ONLY.has(msg.t)) return;
 		switch (msg.t) {
 			case 'setName':
 				// Signed-in players go by their nickname, changed on their profile.
-				if (seat.userId || (this.started && this.game!.phase !== 'ended')) return;
+				if (seat.userId || this.playing) return;
 				seat.name = cleanName(msg.name) || seat.name;
 				return this.broadcastLobby();
 			case 'setColor':
@@ -446,6 +469,22 @@ export class Room {
 				this.settings.leftOut = leftOut;
 				return this.broadcastLobby();
 			}
+			case 'setConquest': {
+				if (!isHost || this.lockedSettings) return;
+				const next = cleanConquestSettings({ ...this.conquest, ...(msg.settings ?? {}) });
+				if (JSON.stringify(next) !== JSON.stringify(this.conquest)) this.unready();
+				this.conquest = next;
+				return this.broadcastLobby();
+			}
+			case 'cqAction': {
+				if (!this.cq) return;
+				if (this.heldBy) return send(ws, { t: 'error', message: 'The game is paused.' });
+				const res = applyConquest(this.cq, this.seatIndex(seat), msg.action);
+				if (!res.ok) return send(ws, { t: 'error', message: res.error });
+				this.cq = res.state;
+				this.broadcastGame();
+				return this.scheduleBots();
+			}
 			case 'setReady':
 				if (this.lockedSettings || seat.isBot) return;
 				seat.ready = !!msg.ready;
@@ -453,7 +492,7 @@ export class Room {
 			case 'mission':
 				return this.startMission(seat, String(msg.mission ?? ''), ws);
 			case 'start':
-				if (!isHost || (this.game && this.game.phase !== 'ended')) return;
+				if (!isHost || this.playing) return;
 				// Play again, on a campaign table: the same mission from the start.
 				if (this.mission) return this.startMission(seat, this.mission, ws);
 				if (this.seats.length < MIN_PLAYERS) {
@@ -475,6 +514,7 @@ export class Room {
 				this.heldBy = null;
 				// Random seating order makes the first player fair.
 				this.seats.sort(() => Math.random() - 0.5);
+				if (this.kind === 'conquest') return this.startConquest();
 				this.game = createGame(
 					this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot })),
 					randomSeed(),
@@ -498,8 +538,10 @@ export class Room {
 			}
 			case 'chat': {
 				const text = String(msg.text ?? '').trim();
-				if (!text || !this.game) return;
-				this.game = addChat(this.game, this.seatIndex(seat), text);
+				if (!text) return;
+				if (this.cq) this.cq = addConquestChat(this.cq, this.seatIndex(seat), text);
+				else if (this.game) this.game = addChat(this.game, this.seatIndex(seat), text);
+				else return;
 				return this.broadcastGame();
 			}
 			case 'pause': {
@@ -516,7 +558,7 @@ export class Room {
 				return this.scheduleBots();
 			}
 			case 'pauseGame': {
-				if (!this.game || this.game.phase === 'ended') return;
+				if (!this.playing) return;
 				const held = msg.paused ? (this.heldBy ?? seat.id) : null;
 				if (held === this.heldBy) return;
 				this.heldBy = held;
@@ -566,8 +608,23 @@ export class Room {
 	 * Start a solo campaign mission: the player alone with the mission's rivals, on its island and
 	 * by its rules. Also how Play again and the next mission start, once a game here is over.
 	 */
+	/** Deal a game of Conquest to the table as it sits (already shuffled). */
+	private startConquest() {
+		this.cq = createConquest(
+			this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot })),
+			randomSeed(),
+			this.conquest
+		);
+		this.endTold = false;
+		this.recorder = new Recorder(this.cq);
+		this.listener?.gameStarted?.(this);
+		this.broadcastLobby();
+		this.broadcastGame();
+		this.scheduleBots();
+	}
+
 	private startMission(seat: Seat, id: string, ws: WebSocket) {
-		if (seat.id !== this.hostId || (this.game && this.game.phase !== 'ended')) return;
+		if (seat.id !== this.hostId || this.playing) return;
 		const m = missionById(id);
 		if (!m) return send(ws, { t: 'error', message: 'Unknown mission.' });
 		if (this.seats.some((s) => s !== seat && !s.isBot)) {
@@ -692,11 +749,12 @@ export class Room {
 
 	/** Lobby settings can change before the first game and between games, never during one. */
 	private get lockedSettings() {
-		return !!this.game && this.game.phase !== 'ended';
+		return this.playing;
 	}
 
-	/** How many players the chosen mode and island seat. */
+	/** How many players the chosen mode and island seat (Conquest: always six). */
 	get maxPlayers() {
+		if (this.kind === 'conquest') return CONQUEST_MAX_PLAYERS;
 		return Math.min(MAX_PLAYERS, seatsFor(this.settings));
 	}
 
@@ -747,7 +805,7 @@ export class Room {
 
 	/** A smaller island or a fuller table lowers the goal to what it can still reach. */
 	private fitPoints() {
-		if (this.lockedSettings || this.settings.pointsToWin <= this.pointsCap) return;
+		if (this.kind !== 'settlement' || this.lockedSettings || this.settings.pointsToWin <= this.pointsCap) return;
 		this.settings.pointsToWin = this.pointsCap;
 		this.unready();
 	}
@@ -765,7 +823,7 @@ export class Room {
 	 * connection it came from, which shows it already. Spectators can't light one (they have no seat).
 	 */
 	private lightBeacon(seat: Seat, x: unknown, z: unknown, from: WebSocket) {
-		if (!this.game || seat.left) return;
+		if (!this.started || seat.left) return;
 		if (
 			typeof x !== 'number' ||
 			typeof z !== 'number' ||
@@ -800,6 +858,7 @@ export class Room {
 	}
 
 	private broadcastGame() {
+		if (this.cq) return this.broadcastConquest();
 		if (!this.game) return;
 		// Once the robber has moved (or the turn moved on), nobody is aiming it.
 		const g = this.game;
@@ -827,6 +886,25 @@ export class Room {
 		for (const ws of this.spectators) send(ws, { t: 'game', view, clock });
 	}
 
+	private broadcastConquest() {
+		const g = this.cq!;
+		this.recorder?.record(g);
+		if (g.phase === 'ended' && !this.endTold) {
+			this.endTold = true;
+			this.listener?.gameEnded?.(this);
+		}
+		this.syncClock();
+		const clock = this.clockInfo();
+		this.seats.forEach((s, i) => {
+			if (!s.sockets.size) return;
+			const view = conquestView(g, i);
+			for (const ws of s.sockets) send(ws, { t: 'cqGame', view, clock });
+		});
+		if (!this.spectators.size) return;
+		const view = conquestView(g, -1);
+		for (const ws of this.spectators) send(ws, { t: 'cqGame', view, clock });
+	}
+
 	/** What players are told: the time left, not a deadline, since their clocks differ from ours. */
 	private clockInfo(): TurnClock | null {
 		const c = this.clock;
@@ -842,8 +920,7 @@ export class Room {
 	 */
 	private syncClock() {
 		const c = this.clock;
-		const g = this.game;
-		const turn = this.turnTime && g && g.phase !== 'ended' ? clockTurn(g) : '';
+		const turn = this.turnTime && this.playing ? this.clockTurn() : '';
 		if (turn !== c.turn) {
 			this.stopClock();
 			c.turn = turn;
@@ -876,8 +953,14 @@ export class Room {
 		c.timer = null;
 		c.ends = 0;
 		c.left = 0;
-		if (!this.game || this.game.phase === 'ended') return;
-		let g = timeOut(this.game);
+		if (!this.playing) return;
+		if (this.cq) {
+			this.cq = timeOutConquest(this.cq);
+			if (this.clockTurn() === c.turn) c.turn = '';
+			this.broadcastGame();
+			return this.scheduleBots();
+		}
+		let g = timeOut(this.game!);
 		for (let i = 0; i < 20 && g.phase !== 'ended' && clockTurn(g) === c.turn; i++) {
 			const move = forcedMove(g);
 			const res = move && applyAction(g, move.player, move.action);
@@ -906,12 +989,13 @@ export class Room {
 			clearTimeout(this.botTimer);
 			this.botTimer = null;
 		}
-		if (this.botTimer || !this.game || this.game.phase === 'ended' || this.paused) return;
+		if (this.botTimer || !this.playing || this.paused) return;
+		if (this.cq) return this.scheduleConquestBots();
 		const next = this.nextBotMove();
 		if (!next) {
 			// A bot waiting on answers to its offer closes it once its time is up; and someone may go
 			// AFK later. Check back.
-			const g = this.game;
+			const g = this.game!;
 			const closes = g.trade && this.offerSeen && this.controlled(g.trade.from) ? this.offerCloses(g, this.offerSeen.at) : null;
 			const wait = closes !== null ? Math.max(50, closes - Date.now()) : 5000;
 			if (closes !== null || this.seats.some((s) => !s.isBot && s.sockets.size === 0)) {
@@ -924,7 +1008,8 @@ export class Room {
 			return;
 		}
 		this.botTimerIdle = false;
-		const last = this.game.log[this.game.log.length - 1];
+		const log = this.game!.log;
+		const last = log[log.length - 1];
 		let delay = 650 + Math.random() * 500;
 		// After a roll, whatever it ended with, bots give the dice time to land before moving on.
 		if (last && ROLL_ENDS.has(last.type)) delay += 1300;
@@ -965,6 +1050,69 @@ export class Room {
 			}
 			this.scheduleBots();
 		}, delay);
+	}
+
+	/** What the turn clock times: Settlement's turns and setup steps, or Conquest's deployment and turns. */
+	private clockTurn(): string {
+		if (this.cq) return this.cq.phase === 'deploy' ? 'deploy' : `${this.cq.turn}:${this.cq.current}`;
+		return clockTurn(this.game!);
+	}
+
+	/**
+	 * Conquest's bots, and stand-ins for players who left or went away, one move at a time. They
+	 * pause like a person would, longer after a battle so everyone sees the dice; during deployment
+	 * every seat places its armies at once.
+	 */
+	private scheduleConquestBots() {
+		const g = this.cq!;
+		const next = this.nextConquestMove();
+		if (!next) {
+			// Someone may go away later and need a stand-in: check back.
+			if (this.seats.some((s) => !s.isBot && s.sockets.size === 0)) {
+				this.botTimerIdle = true;
+				this.botTimer = setTimeout(() => {
+					this.botTimer = null;
+					this.scheduleBots();
+				}, 5000);
+			}
+			return;
+		}
+		this.botTimerIdle = false;
+		const last = g.log[g.log.length - 1];
+		let delay = 520 + Math.random() * 360;
+		if (last?.type === 'battle') delay += 700;
+		if (last?.type === 'captured') delay += 500;
+		if (last?.type === 'turnStarted') delay += 500;
+		if (g.phase === 'deploy') delay = 260 + Math.random() * 300;
+		if (this.fastBots) delay = 40;
+		this.botTimer = setTimeout(() => {
+			this.botTimer = null;
+			if (!this.cq || this.paused || !this.playing) return;
+			const move = this.nextConquestMove();
+			if (move) {
+				const res = applyConquest(this.cq, move.player, move.action);
+				if (res.ok) this.cq = res.state;
+				else {
+					// A bot should never get stuck: end its attacks, then its turn.
+					const fallback = applyConquest(this.cq, move.player, this.cq.step === 'attack' ? { type: 'endAttack' } : { type: 'endTurn' });
+					if (fallback.ok) this.cq = fallback.state;
+					else console.warn(`[room ${this.code}] conquest bot failed: ${res.error}`);
+				}
+				this.broadcastGame();
+			}
+			this.scheduleBots();
+		}, delay);
+	}
+
+	private nextConquestMove() {
+		const g = this.cq!;
+		const seats = g.phase === 'deploy' ? this.seats.map((_, i) => i) : [g.current];
+		for (const i of seats) {
+			if (!this.controlled(i)) continue;
+			const action = conquestBot(conquestView(g, i));
+			if (action) return { player: i, action };
+		}
+		return null;
 	}
 
 	/** The tile a bot moving the robber has pointed at, if it still can move it there. */
@@ -1080,3 +1228,24 @@ function cleanName(name: unknown): string {
 		.trim()
 		.slice(0, 18);
 }
+
+/** Messages only a Settlement table takes, and only a Conquest table. */
+const SETTLEMENT_ONLY = new Set<ClientMessage['t']>([
+	'setMode',
+	'setMap',
+	'setPointsToWin',
+	'setHandLimit',
+	'setCharacters',
+	'setPowers',
+	'setRecharge',
+	'setRepeatPicks',
+	'leaveOut',
+	'setBuilding',
+	'setEvents',
+	'setHouseRules',
+	'mission',
+	'action',
+	'aim',
+	'cheat'
+]);
+const CONQUEST_ONLY = new Set<ClientMessage['t']>(['setConquest', 'cqAction']);

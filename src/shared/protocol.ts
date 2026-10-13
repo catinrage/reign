@@ -8,6 +8,8 @@ import type { CharacterId } from './rules/characters';
 import type { PlayerColor } from './rules/config';
 import type { GameMode, GameSettings } from './rules/modes';
 import type { Action, GameView } from './rules/types';
+import type { ConquestSettings, CqAction, CqView } from './conquest/types';
+import type { GameKind } from './games';
 
 export interface LobbySeat {
 	id: string;
@@ -43,6 +45,8 @@ export interface TurnClock {
 
 export interface LobbyInfo {
 	code: string;
+	/** The game this table plays, picked when it was opened. */
+	game: GameKind;
 	seats: LobbySeat[];
 	started: boolean;
 	maxPlayers: number;
@@ -55,8 +59,10 @@ export interface LobbyInfo {
 	pausedBy: string | null;
 	/** Seconds each turn may last (0 = no limit), picked by the host before the game starts. */
 	turnTime: number;
-	/** Mode, map and points to win, picked by the host before the game starts. */
+	/** Settlement: mode, map and points to win, picked by the host before the game starts. */
 	settings: GameSettings;
+	/** Conquest: the cards' worth, how to win and how armies are deployed. */
+	conquest: ConquestSettings;
 	/** The current turn's clock, or null when turns are unlimited or no game is running. */
 	clock: TurnClock | null;
 	/** How many people are watching the game without a seat. */
@@ -79,7 +85,8 @@ export interface PigeonNote {
 }
 
 export type ClientMessage =
-	| { t: 'create'; name: string; token?: string }
+	/** Open a table for `game` (Settlement when left out). */
+	| { t: 'create'; name: string; token?: string; game?: GameKind }
 	| { t: 'join'; code: string; name: string; token?: string }
 	| { t: 'setName'; name: string }
 	| { t: 'setColor'; color: PlayerColor }
@@ -113,6 +120,10 @@ export type ClientMessage =
 	/** Play a solo campaign mission at this table (alone with its rivals), or play it again. */
 	| { t: 'mission'; mission: string }
 	| { t: 'action'; action: Action }
+	/** Host, at a Conquest table: change some of its settings. */
+	| { t: 'setConquest'; settings: Partial<ConquestSettings> }
+	/** A move in a game of Conquest. */
+	| { t: 'cqAction'; action: CqAction }
 	| { t: 'chat'; text: string }
 	/** The game menu opened or closed. */
 	| { t: 'pause'; paused: boolean }
@@ -147,6 +158,8 @@ export type ServerMessage =
 	| { t: 'welcome'; code: string; seat: string; token: string; cheats?: boolean }
 	| { t: 'lobby'; lobby: LobbyInfo }
 	| { t: 'game'; view: GameView; clock: TurnClock | null }
+	/** The game of Conquest at this table, as this player (or a spectator) may see it. */
+	| { t: 'cqGame'; view: CqView; clock: TurnClock | null }
 	/** The game had already started, so this connection watches it without a seat (no hands shown). */
 	| { t: 'watching'; code: string }
 	| { t: 'error'; message: string }

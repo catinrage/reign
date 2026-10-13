@@ -47,6 +47,11 @@ export class Dice {
 		}
 	}
 
+	/** Show the dice on the table or put them away (Conquest rolls its own in the interface). */
+	setShown(on: boolean) {
+		for (const d of this.dice) d.visible = on;
+	}
+
 	/** Put the dice down at rest, without a toss. */
 	place(ends: [THREE.Vector3, THREE.Vector3]) {
 		if (this.rolling) return;
