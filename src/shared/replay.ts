@@ -16,25 +16,31 @@ export const REPLAY_MAX_STEPS = 8000;
 /** The state of the table without its log (the events travel with each step) and the rng. */
 export type ReplayState = Omit<GameState, 'log' | 'rng'>;
 
+/** What any of Reign's games keeps as its state, as far as recording it goes. */
+export interface RecordedState {
+	rng: number;
+	log: { seq: number; type: string }[];
+}
+
 /** A key path into the state and what's there now; a path alone means it was removed. */
 export type PatchOp = [path: (string | number)[], value: unknown] | [path: (string | number)[]];
 
-export interface ReplayStep {
+export interface ReplayStep<E = GameEvent> {
 	/** Milliseconds since the game started. */
 	t: number;
 	/** What happened in this step, in order (chat left out). */
-	events: GameEvent[];
+	events: E[];
 	/** From the state before this step to the state after it. */
 	patch: PatchOp[];
 }
 
-export interface Replay {
+export interface Replay<S = ReplayState, E = GameEvent> {
 	v: number;
 	/** The table as the game started (dealt, before anyone moved). */
-	start: ReplayState;
+	start: S;
 	/** The log at the start (the game began, the first turn or the draft). */
-	startEvents: GameEvent[];
-	steps: ReplayStep[];
+	startEvents: E[];
+	steps: ReplayStep<E>[];
 	/** The game went on past REPLAY_MAX_STEPS, and the recording stops there. */
 	cut?: boolean;
 }
@@ -110,22 +116,25 @@ export function applyPatch<T>(state: T, ops: PatchOp[]): T {
 }
 
 /** What is kept of a state: everything but the log and the rng, copied so later moves can't change it. */
-function keep(s: GameState): ReplayState {
+function keep<S extends RecordedState>(s: S): Omit<S, 'log' | 'rng'> {
 	const { log: _log, rng: _rng, ...rest } = s;
 	return structuredClone(rest);
 }
 
-/** Writes a game down as it is played. The room hands it every state it sends out. */
-export class Recorder {
-	private steps: ReplayStep[] = [];
-	private start: ReplayState;
-	private startEvents: GameEvent[];
-	private last: ReplayState;
+/**
+ * Writes a game down as it is played. The room hands it every state it sends out. Any of Reign's
+ * games records the same way (Settlement's by default).
+ */
+export class Recorder<S extends RecordedState = GameState> {
+	private steps: ReplayStep<S['log'][number]>[] = [];
+	private start: Omit<S, 'log' | 'rng'>;
+	private startEvents: S['log'][number][];
+	private last: Omit<S, 'log' | 'rng'>;
 	private lastSeq: number;
 	private began: number;
 	private cut = false;
 
-	constructor(game: GameState, now = Date.now()) {
+	constructor(game: S, now = Date.now()) {
 		this.began = now;
 		this.start = keep(game);
 		this.startEvents = structuredClone(game.log.filter((e) => e.type !== 'chat'));
@@ -134,7 +143,7 @@ export class Recorder {
 	}
 
 	/** The table changed (or might have): note what's new since the last state. */
-	record(game: GameState, now = Date.now()) {
+	record(game: S, now = Date.now()) {
 		const events = game.log.filter((e) => e.seq > this.lastSeq);
 		this.lastSeq = Math.max(this.lastSeq, newestSeq(game));
 		const next = keep(game);
@@ -154,7 +163,7 @@ export class Recorder {
 		return this.steps.length;
 	}
 
-	replay(): Replay {
+	replay(): Replay<Omit<S, 'log' | 'rng'>, S['log'][number]> {
 		return {
 			v: REPLAY_VERSION,
 			start: this.start,
@@ -165,7 +174,7 @@ export class Recorder {
 	}
 }
 
-function newestSeq(g: { log: GameEvent[] }) {
+function newestSeq(g: { log: { seq: number }[] }) {
 	return g.log.length ? g.log[g.log.length - 1].seq : 0;
 }
 

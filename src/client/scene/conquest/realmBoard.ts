@@ -59,6 +59,8 @@ export class RealmBoard {
 	private looks: TerritoryLook[];
 	private shown: TerritoryLook[];
 	private time = 0;
+	/** Territories whose names show however crowded the view is (picked, hovered, targets). */
+	emphasis = new Set<number>();
 
 	readonly legend: RegionLegend;
 
@@ -199,6 +201,14 @@ export class RealmBoard {
 			const h = px / ppu;
 			l.scale.set(h * l.userData.aspect, h, 1);
 			l.position.y = this.realm.anchors[i].y + 0.3;
+			// Names only where they fit inside their territory, so a far-off view doesn't drown in them.
+			const e = this.realm.extents[i];
+			const room = (e.maxX - e.minX) * ppu * 1.15;
+			const fits = room >= px * l.userData.aspect;
+			const goal = fits || this.emphasis.has(i) ? 1 : 0;
+			const m = l.material;
+			m.opacity += (goal - m.opacity) * (1 - Math.exp(-dt * 10));
+			l.visible = m.opacity > 0.02;
 		});
 		for (const l of this.lanes) l.update(dt, t);
 	}
@@ -309,6 +319,16 @@ export class ArmyToken {
 		this.hitbox = new THREE.Mesh(new THREE.CircleGeometry(MEDAL_R * 1.05, 20), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
 		this.hitbox.visible = false;
 		this.medal.add(this.hitbox);
+	}
+
+	/** A little jump (the territory changed hands). */
+	pop() {
+		this.bump = 1;
+	}
+
+	/** The medallion's middle, in the world. */
+	medalWorld(): THREE.Vector3 {
+		return this.medal.getWorldPosition(new THREE.Vector3());
 	}
 
 	set(count: number, holder: Holder | null) {

@@ -1,3 +1,4 @@
+import { DEFAULT_CONQUEST_SETTINGS } from '../../shared/conquest/types';
 import type { Match } from '../../shared/accounts';
 import type { LobbyInfo } from '../../shared/protocol';
 import { REPLAY_VERSION, replayStates, type Replay, type ReplayStep } from '../../shared/replay';
@@ -248,6 +249,8 @@ class ReplayPlayer {
 function lobbyFor(match: Match, start: GameState): LobbyInfo {
 	return {
 		code: '',
+		game: 'settlement',
+		conquest: DEFAULT_CONQUEST_SETTINGS,
 		seats: start.players.map((p, i) => {
 			const m = match.players[i];
 			return {

@@ -1,3 +1,5 @@
+import type { ConquestSettings, CqAction, CqView } from '../../shared/conquest/types';
+import type { GameKind } from '../../shared/games';
 import { BEACON_GAP_MS, type ClientMessage, type LobbyInfo, type PigeonNote, type ServerMessage, type TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
 import { hasResources, type Resource } from '../../shared/rules/config';
@@ -108,6 +110,8 @@ class GameClient {
 	lobby = $state<LobbyInfo | null>(null);
 	/** The newest state from the server. The 3D scene plays it the moment it arrives. */
 	latest = $state.raw<GameView | null>(null);
+	/** At a Conquest table: the game as this player may see it, newest first. */
+	cq = $state.raw<CqView | null>(null);
 	/**
 	 * The state the interface shows. While dice are in the air it keeps the state from before the
 	 * roll, so the hand, the plaques, the log, the prompt and the dialogs never give the result
@@ -323,7 +327,15 @@ class GameClient {
 				this.lobby = msg.lobby;
 				this.setClock(msg.lobby.clock);
 				// A game in progress stays behind the loading screen until its state arrives.
-				if (!msg.lobby.started || this.view) this.joining = null;
+				if (!msg.lobby.started || this.view || this.cq) this.joining = null;
+				break;
+			case 'cqGame':
+				if (!this.seat && !this.spectating) break;
+				this.cq = msg.view;
+				this.setClock(msg.clock);
+				this.joining = null;
+				this.launching = false;
+				if (this.code) storage(LAST_GAME, this.code);
 				break;
 			case 'game':
 				if (!this.seat && !this.spectating) break;
@@ -625,7 +637,7 @@ class GameClient {
 	 * here at once; false when the last one was too recent (the server would drop it).
 	 */
 	beacon(x: number, z: number): boolean {
-		const me = this.view?.me;
+		const me = this.view?.me ?? this.cq?.me;
 		if (me === undefined || me < 0 || this.replaying) return false;
 		const now = performance.now();
 		if (now - this.lastBeacon < BEACON_GAP_MS) return false;
@@ -657,16 +669,27 @@ class GameClient {
 		return account.me?.nickname ?? (this.name || 'Player');
 	}
 
-	create() {
+	/** Open a new table for `game`. */
+	create(game: GameKind = 'settlement') {
 		this.pendingJoin = true;
-		this.send({ t: 'create', name: this.joinName });
+		this.send({ t: 'create', name: this.joinName, game });
 	}
 
-	/** Create a table, fill it with bots and start right away. */
-	quickPlay(bots = 3) {
+	/** Create a table for `game`, fill it with bots and start right away. */
+	quickPlay(bots = 3, game: GameKind = 'settlement') {
 		this.autoBots = bots;
 		this.launching = true;
-		this.create();
+		this.create(game);
+	}
+
+	/** A move in this table's game of Conquest. */
+	cqAct(action: CqAction) {
+		this.send({ t: 'cqAction', action });
+	}
+
+	/** Host: change the Conquest table's settings. */
+	setConquest(settings: Partial<ConquestSettings>) {
+		this.send({ t: 'setConquest', settings });
 	}
 
 	/**
@@ -701,7 +724,7 @@ class GameClient {
 	setMenuOpen(open: boolean) {
 		if (open === this.menuOpen) return;
 		this.menuOpen = open;
-		if (this.view && !this.replaying) this.send({ t: 'pause', paused: open });
+		if ((this.view || this.cq) && !this.replaying) this.send({ t: 'pause', paused: open });
 	}
 
 	leave() {
@@ -714,6 +737,7 @@ class GameClient {
 		this.lobby = null;
 		this.latest = null;
 		this.view = null;
+		this.cq = null;
 		clearTimeout(this.tossTimer);
 		this.tossing = null;
 		clearTimeout(this.presentTimer);
@@ -764,7 +788,7 @@ class GameClient {
 	}
 
 	get me(): number {
-		return this.view?.me ?? -1;
+		return this.view?.me ?? this.cq?.me ?? -1;
 	}
 
 	get isHost(): boolean {

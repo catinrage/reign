@@ -29,6 +29,8 @@ import { TABLE_HALF } from './room/table';
 import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
+import type { CqView } from '../../shared/conquest/types';
+import { ConquestScene } from './conquest/conquestScene';
 
 /**
  * `stoneRoad` picks one of your roads to pave, `storehouse` and `tavern` one of your buildings to
@@ -227,6 +229,10 @@ export class GameScene {
 	private purredAt = -Infinity;
 	/** The mouse is over the cat. */
 	private catHovered = false;
+	/** At a Conquest table: the Realm on the table instead of the island (see showConquest). */
+	conquest: ConquestScene | null = null;
+	/** Names for the Realm's board (translated), set by the interface before it is shown. */
+	conquestNames: ConstructorParameters<typeof ConquestScene>[3] = undefined;
 	private catHoverAt = new THREE.Vector2(-9, -9);
 
 	constructor(
@@ -279,7 +285,70 @@ export class GameScene {
 		this.stage.setLensShift(x);
 	}
 
+	// ------------------------------------------------------------ Conquest
+
+	/**
+	 * Put the Realm on the table in place of the island: for a Conquest table's lobby (empty,
+	 * turning slowly) and its game (see showConquest).
+	 */
+	private enterConquest(): ConquestScene {
+		if (this.conquest) return this.conquest;
+		this.setPick(null);
+		this.clearPieces();
+		this.aim.clear(this.boardView);
+		this.beacons.clear();
+		if (this.boardView) this.boardView.group.visible = false;
+		this.dice.setShown(false);
+		for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = false;
+		const cq = new ConquestScene(this.stage, this.anim, this.particles, this.conquestNames);
+		this.conquest = cq;
+		const r = cq.board.realm;
+		this.room.fitTable((Math.max(r.halfX, r.halfZ) * 1.12) / (TABLE_HALF * ROOM_SCALE));
+		return cq;
+	}
+
+	/** Back to Settlement's island on the table. */
+	private leaveConquest() {
+		if (!this.conquest) return;
+		this.conquest.dispose();
+		this.conquest = null;
+		if (this.boardView) this.boardView.group.visible = true;
+		this.dice.setShown(this.diceDown);
+		for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = true;
+		this.room.fitTable((this.reach + 50) / (TABLE_HALF * ROOM_SCALE));
+	}
+
+	/** A Conquest table's lobby: the Realm, empty, turning slowly. */
+	showConquestTable() {
+		const cq = this.enterConquest();
+		this.mode = 'menu';
+		this.view = null;
+		cq.showEmpty();
+		this.stage.rig.autoRotate = 0.04;
+		this.stage.rig.set({ radius: this.menuRadius(118, 0.8), polar: 0.8 });
+	}
+
+	/** A game of Conquest: what happened since the last view plays out on the board. */
+	showConquest(view: CqView, quiet = false) {
+		const fresh = !this.conquest || this.mode !== 'game';
+		const cq = this.enterConquest();
+		if (fresh) {
+			this.mode = 'game';
+			this.stage.rig.autoRotate = 0;
+			this.stage.rig.set(cq.framing());
+			cq.jumpTo(view);
+			return;
+		}
+		cq.setView(view, quiet);
+	}
+
+	/** Frame the whole Realm again (the view's Home button). */
+	frameConquest() {
+		if (this.conquest) this.stage.rig.set(this.conquest.framing());
+	}
+
 	showMenuBoard() {
+		this.leaveConquest();
 		this.mode = 'menu';
 		this.boardKey = '';
 		this.view = null;
@@ -301,6 +370,7 @@ export class GameScene {
 	 */
 	showMenuMap(tiles: MapTile[] | null) {
 		if (this.mode !== 'menu') return;
+		if (this.conquest) this.showMenuBoard();
 		const key = tiles ? JSON.stringify(tiles) : '';
 		if (key === this.menuMap) return;
 		this.menuMap = key;
@@ -1418,7 +1488,14 @@ export class GameScene {
 		return true;
 	}
 
+	/** The pointer's spot in the canvas, -1..1 each way. */
+	private ndc(e: PointerEvent) {
+		const r = this.stage.box;
+		return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+	}
+
 	private onPointerDown = (e: PointerEvent) => {
+		if (this.conquest && this.mode === 'game') return this.conquest.pointerDown(e, this.ndc(e));
 		this.endPress();
 		this.pressed = false;
 		// One finger resting on the board without moving lights a beacon there.
@@ -1444,6 +1521,7 @@ export class GameScene {
 	};
 
 	private onPointerMove = (e: PointerEvent) => {
+		if (this.conquest) this.conquest.pointerMove(this.ndc(e));
 		const r = this.stage.box;
 		this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 		this.pointerType = e.pointerType;
@@ -1454,10 +1532,19 @@ export class GameScene {
 	};
 
 	private onPointerLeave = () => {
+		this.conquest?.pointerLeave();
 		this.pointer.set(-9, -9);
 	};
 
 	private onPointerUp = (e: PointerEvent) => {
+		if (this.conquest && this.mode === 'game') {
+			// The cat purrs at Conquest tables too.
+			if (e.button === 0 && !this.stage.rig.dragged && this.conquest.dragFrom === null) {
+				this.onPointerMove(e);
+				if (this.catAtPointer()) return this.petCat();
+			}
+			return this.conquest.pointerUp(e, this.ndc(e));
+		}
 		this.pointerHeld = false;
 		this.endPress();
 		// The touch that lit a beacon does nothing else.
@@ -1789,6 +1876,12 @@ export class GameScene {
 		this.nightLights.update(dt);
 		this.fireflies(dt);
 		this.room.update(dt, t);
+		if (this.conquest) {
+			this.conquest.frame(dt, t);
+			const cursor = this.conquest.hovering && this.mode === 'game' ? 'pointer' : this.hoverCat() ? 'pointer' : '';
+			if (cursor !== this.cursor) this.stage.canvas.style.cursor = this.cursor = cursor;
+			return;
+		}
 		if (!this.diceDown && this.room.ready && this.boardView) {
 			this.diceDown = true;
 			this.dice.place(this.diceSpots().ends);

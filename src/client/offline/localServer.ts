@@ -105,12 +105,13 @@ export class LocalSocket {
 			if (this.room) this.leaveRoom();
 			let room: Room | null;
 			if (msg.t === 'create') {
-				room = new Room(newCode());
+				room = new Room(newCode(), false, msg.game === 'conquest' ? 'conquest' : 'settlement');
 				rooms.set(room.code, room);
 				// A campaign mission won goes on the campaign kept in this browser.
 				room.listener = {
 					gameEnded(r) {
-						const g = r.game!;
+						const g = r.game;
+						if (!g) return;
 						const result = missionResult(g);
 						const seat = g.campaign ? r.seats[g.campaign.hero] : undefined;
 						if (result?.won && seat && !seat.left) offlineMissionWon(g.campaign!.mission, result);
