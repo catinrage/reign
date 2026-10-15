@@ -317,7 +317,8 @@ export class GameScene {
 		cq.callbacks = this.conquestCallbacks;
 		this.conquest = cq;
 		const r = cq.board.realm;
-		this.room.fitTable((Math.max(r.halfX, r.halfZ) * 1.12) / (TABLE_HALF * ROOM_SCALE));
+		// A rim of table round the board, and the mug, the lantern and the plant standing off its corners.
+		this.room.fitTable(Math.max((Math.max(r.halfX, r.halfZ) * 1.12) / (TABLE_HALF * ROOM_SCALE), this.room.clearScale(r.halfX, r.halfZ)));
 		return cq;
 	}
 

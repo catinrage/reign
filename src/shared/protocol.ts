@@ -2,6 +2,7 @@ import type { AvatarId, DiceStyleId, FriendsInfo, RoomInvite, Whereabouts } from
 import type { MapChoice } from './board/maps';
 import type { ExtraBuilding } from './rules/buildings';
 import type { Cheat } from './rules/cheats';
+import type { ConquestCheat } from './conquest/cheats';
 import type { EventRules } from './rules/events';
 import type { HouseRules } from './rules/house';
 import type { CharacterId } from './rules/characters';
@@ -124,6 +125,8 @@ export type ClientMessage =
 	| { t: 'setConquest'; settings: Partial<ConquestSettings> }
 	/** A move in a game of Conquest. */
 	| { t: 'cqAction'; action: CqAction }
+	/** A Conquest dev cheat (only the local dev server takes them, see `welcome.cheats`). */
+	| { t: 'cqCheat'; cheat: ConquestCheat }
 	| { t: 'chat'; text: string }
 	/** The game menu opened or closed. */
 	| { t: 'pause'; paused: boolean }

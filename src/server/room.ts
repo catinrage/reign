@@ -15,6 +15,7 @@ import { randomSeed } from '../shared/rng';
 import { botAction, closeOffer } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
+import { applyConquestCheat } from '../shared/conquest/cheats';
 import { EVENT_SHOW_MS, cleanEventRules } from '../shared/rules/events';
 import { cleanHouseRules } from '../shared/rules/house';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
@@ -36,7 +37,7 @@ import { missionById } from '../shared/campaign/missions';
 import { createMissionGame, missionSeats, missionSettings } from '../shared/campaign/start';
 import type { Action, GameState } from '../shared/rules/types';
 import { viewFor } from '../shared/rules/view';
-import { CONQUEST_MAX_PLAYERS, DEFAULT_CONQUEST_SETTINGS, MISSION_MIN_PLAYERS, type ConquestSettings, type CqState } from '../shared/conquest/types';
+import { CONQUEST_MAX_PLAYERS, DEFAULT_CONQUEST_SETTINGS, MISSION_MIN_PLAYERS, type ConquestSettings, type CqEvent, type CqState } from '../shared/conquest/types';
 import { addConquestChat, applyConquest, conquestView, createConquest, timeOutConquest } from '../shared/conquest/rules';
 import { conquestBot } from '../shared/conquest/bot';
 import { cleanConquestSettings } from '../shared/conquest/settings';
@@ -125,6 +126,8 @@ export class Room {
 	cq: CqState | null = null;
 	/** The last omen the bots waited on. */
 	private omenSeen = 0;
+	/** How long the last Conquest move takes to play out on the board, before a bot moves (see cqPause). */
+	private cqPauseMs = 0;
 	conquest: ConquestSettings = structuredClone(DEFAULT_CONQUEST_SETTINGS);
 	private botTimer: NodeJS.Timeout | null = null;
 	/** The bot timer is only checking back later (not a move on its way), so news can cut it short. */
@@ -484,6 +487,7 @@ export class Room {
 				const res = applyConquest(this.cq, this.seatIndex(seat), msg.action);
 				if (!res.ok) return send(ws, { t: 'error', message: res.error });
 				this.cq = res.state;
+				this.cqPauseMs = cqPause(res.events);
 				this.broadcastGame();
 				return this.scheduleBots();
 			}
@@ -579,6 +583,21 @@ export class Room {
 			}
 			case 'beacon':
 				return this.lightBeacon(seat, msg.x, msg.z, ws);
+			case 'cqCheat': {
+				if (!this.cheats) return send(ws, { t: 'error', message: 'Cheats only work on the dev server.' });
+				if (!this.cq) return;
+				const res = applyConquestCheat(this.cq, this.seatIndex(seat), msg.cheat);
+				if (!res.ok) return send(ws, { t: 'error', message: res.error });
+				if (msg.cheat.type === 'fastBots') this.fastBots = !!msg.cheat.on;
+				this.cq = res.state;
+				if (this.botTimer) {
+					// The war changed under a bot that was about to move: let it look again.
+					clearTimeout(this.botTimer);
+					this.botTimer = null;
+				}
+				this.broadcastGame();
+				return this.scheduleBots();
+			}
 			case 'cheat': {
 				if (!this.cheats) return send(ws, { t: 'error', message: 'Cheats only work on the dev server.' });
 				if (!this.game) return;
@@ -622,6 +641,7 @@ export class Room {
 		);
 		this.endTold = false;
 		this.omenSeen = 0;
+		this.cqPauseMs = 0;
 		this.recorder = new Recorder(this.cq);
 		this.listener?.gameStarted?.(this);
 		this.broadcastLobby();
@@ -962,6 +982,7 @@ export class Room {
 		if (!this.playing) return;
 		if (this.cq) {
 			this.cq = timeOutConquest(this.cq);
+			this.cqPauseMs = CQ_BOT_AFTER_MS.turnStarted ?? 0;
 			if (this.clockTurn() === c.turn) c.turn = '';
 			this.broadcastGame();
 			return this.scheduleBots();
@@ -1071,8 +1092,8 @@ export class Room {
 
 	/**
 	 * Conquest's bots, and stand-ins for players who left or went away, one move at a time. They
-	 * pause like a person would, longer after a battle so everyone sees the dice; during deployment
-	 * every seat places its armies at once.
+	 * pause like a person would, long enough for everyone to follow: the dice of each battle, a
+	 * territory taken, armies marching in. During deployment every seat places its armies at once.
 	 */
 	private scheduleConquestBots() {
 		const g = this.cq!;
@@ -1089,11 +1110,7 @@ export class Room {
 			return;
 		}
 		this.botTimerIdle = false;
-		const last = g.log[g.log.length - 1];
-		let delay = 520 + Math.random() * 360;
-		if (last?.type === 'battle') delay += 700;
-		if (last?.type === 'captured') delay += 500;
-		if (last?.type === 'turnStarted') delay += 500;
+		let delay = CQ_BOT_MS + Math.random() * CQ_BOT_SPREAD_MS + this.cqPauseMs;
 		// A new omen gets a moment on the table before the round goes on.
 		for (let i = g.log.length - 1; i >= 0 && g.log[i].seq > this.omenSeen; i--) {
 			if (g.log[i].type !== 'omen') continue;
@@ -1109,6 +1126,7 @@ export class Room {
 			const move = this.nextConquestMove();
 			if (move) {
 				const res = applyConquest(this.cq, move.player, move.action);
+				this.cqPauseMs = res.ok ? cqPause(res.events) : 0;
 				if (res.ok) this.cq = res.state;
 				else {
 					// A bot should never get stuck: end its attacks, then its turn.
@@ -1250,6 +1268,34 @@ function cleanName(name: unknown): string {
 
 /** How long the bots let a new omen show before they play on. */
 const CQ_OMEN_SHOW_MS = 2600;
+/** A Conquest bot's pause before each move, give or take up to CQ_BOT_SPREAD_MS more. */
+const CQ_BOT_MS = 950;
+const CQ_BOT_SPREAD_MS = 450;
+/** Longer after these, for the board to play them out and everyone to take them in. */
+const CQ_BOT_AFTER_MS: Partial<Record<CqEvent['type'], number>> = {
+	turnStarted: 900,
+	battle: 1400,
+	captured: 900,
+	occupied: 700,
+	fortified: 900,
+	eliminated: 1500
+};
+/** And this much more for each battle after the first in a blitz. */
+const CQ_BOT_BLITZ_MS = 700;
+
+/**
+ * How long a Conquest move takes to play out on the board: as long as the slowest thing it did
+ * (a battle, a territory taken, a march), and a blitz's every battle after the first.
+ */
+function cqPause(events: CqEvent[]): number {
+	let most = 0;
+	let battles = 0;
+	for (const e of events) {
+		most = Math.max(most, CQ_BOT_AFTER_MS[e.type] ?? 0);
+		if (e.type === 'battle') battles++;
+	}
+	return most + Math.max(0, battles - 1) * CQ_BOT_BLITZ_MS;
+}
 
 /** Messages only a Settlement table takes, and only a Conquest table. */
 const SETTLEMENT_ONLY = new Set<ClientMessage['t']>([
@@ -1270,4 +1316,4 @@ const SETTLEMENT_ONLY = new Set<ClientMessage['t']>([
 	'aim',
 	'cheat'
 ]);
-const CONQUEST_ONLY = new Set<ClientMessage['t']>(['setConquest', 'cqAction']);
+const CONQUEST_ONLY = new Set<ClientMessage['t']>(['setConquest', 'cqAction', 'cqCheat']);

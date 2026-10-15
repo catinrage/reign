@@ -1340,3 +1340,67 @@ describe('beacons at a Conquest table', () => {
 		room.dispose();
 	});
 });
+
+describe('Conquest dev cheats and bot pace', () => {
+	afterEach(() => vi.useRealTimers());
+
+	function war(cheats: boolean) {
+		vi.useFakeTimers();
+		const room = new Room('CHEAT', cheats, 'conquest');
+		const me = fakeSocket();
+		const seat = room.join(me.ws, 'Komeil');
+		if (typeof seat === 'string') throw new Error(seat);
+		room.handle(seat, { t: 'setConquest', settings: { warlords: false, omens: 'off' } }, me.ws);
+		for (let i = 0; i < 3; i++) room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		return { room, seat, me, mine: room.seats.indexOf(seat) };
+	}
+
+	/** Play my turn through: everything on one territory, no attacks, no moves. */
+	function passTurn(room: Room, seat: Parameters<Room['handle']>[0], ws: WebSocket, mine: number) {
+		const s = room.cq!;
+		if (s.reserve[mine] > 0) room.handle(seat, { t: 'cqAction', action: { type: 'place', territory: s.owner.indexOf(mine), count: s.reserve[mine] } }, ws);
+		room.handle(seat, { t: 'cqAction', action: { type: 'endAttack' } }, ws);
+		room.handle(seat, { t: 'cqAction', action: { type: 'endTurn' } }, ws);
+	}
+
+	/** The shortest wait between two bot moves while the bots play, in ms (steps of 20). */
+	function shortestBotGap(room: Room, mine: number) {
+		let last = room.cq!.version;
+		let at = -1;
+		let shortest = Infinity;
+		for (let t = 0; t < 120_000 && room.cq!.phase === 'play' && room.cq!.current !== mine; t += 20) {
+			vi.advanceTimersByTime(20);
+			if (room.cq!.version === last) continue;
+			if (at >= 0) shortest = Math.min(shortest, t - at);
+			at = t;
+			last = room.cq!.version;
+		}
+		return shortest;
+	}
+
+	it('are refused unless the room runs as the local dev server', () => {
+		const { room, seat, me } = war(false);
+		const t = room.cq!.owner.indexOf(1);
+		const before = room.cq!.armies[t];
+		room.handle(seat, { t: 'cqCheat', cheat: { type: 'armies', territory: t, count: 5 } }, me.ws);
+		expect(me.sent.at(-1)).toEqual({ t: 'error', message: 'Cheats only work on the dev server.' });
+		expect(room.cq!.armies[t]).toBe(before);
+		room.dispose();
+	});
+
+	it('work on the dev server, and Fast bots is the only way bots hurry', () => {
+		const { room, seat, me, mine } = war(true);
+		room.handle(seat, { t: 'cqCheat', cheat: { type: 'finishDeploy' } }, me.ws);
+		expect(room.cq!.phase).toBe('play');
+		// The bots take their time: long enough to follow every move.
+		if (room.cq!.current === mine) passTurn(room, seat, me.ws, mine);
+		expect(shortestBotGap(room, mine)).toBeGreaterThanOrEqual(950);
+		// Fast bots: barely a pause.
+		room.handle(seat, { t: 'cqCheat', cheat: { type: 'fastBots', on: true } }, me.ws);
+		expect(room.cq!.log.at(-1)).toMatchObject({ type: 'cheat', text: 'made the bots play fast' });
+		if (room.cq!.current === mine) passTurn(room, seat, me.ws, mine);
+		expect(shortestBotGap(room, mine)).toBeLessThan(100);
+		room.dispose();
+	});
+});

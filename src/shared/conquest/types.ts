@@ -315,7 +315,9 @@ export type CqEvent =
 	/** A calamity struck: armies lost from territories. */
 	| Ev<'omenStruck', { omen: OmenId; losses: { territory: number; armies: number }[] }>
 	| Ev<'gameOver', { winner: number; reason: WinReason }>
-	| Ev<'chat', { player: number; text: string }>;
+	| Ev<'chat', { player: number; text: string }>
+	/** A dev cheat was used (only on the local dev server). */
+	| Ev<'cheat', { player: number; text: string }>;
 
 export type CqAction =
 	/** Put armies down on a territory of yours (a negative count takes back ones placed this step). */

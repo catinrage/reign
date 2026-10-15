@@ -78,12 +78,15 @@ export const realmUniforms = {
 	 * RGBA8, a column per territory. Row 0: the owner's color, a = 1 while held. Row 1: r = how
 	 * much the whole territory lights up, g = how much its border band glows, b = hover, a = how
 	 * much it fades back. Row 2: the color it lights up in, a = how much the light pulses.
+	 * Row 3: r = how deep in the fog of war it lies.
 	 */
 	uRealmState: { value: null as THREE.Texture | null },
 	/** The map's first column (world voxels) and its size in columns: (x0, z0, nx, nz). */
 	uRealmGrid: { value: new THREE.Vector4(0, 0, 1, 1) },
 	/** 0..1, worked out on the CPU (see uAimWave for why): how far the highlights' pulse is. */
-	uRealmPulse: { value: 0 }
+	uRealmPulse: { value: 0 },
+	/** How far (voxels) the fog's shadows have drifted, kept small on the CPU for the same reason. */
+	uRealmDrift: { value: new THREE.Vector2() }
 };
 
 /**
@@ -118,6 +121,26 @@ vec3 realmLight = vec3(0.0);
 			diffuseColor.rgb *= 1.0 + st.b * 0.3;
 			// Faded back: greyed and darkened, so what is lit stands out.
 			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l * 0.38), st.a);
+			// The fog of war: darker and colder under slow-drifting shadows, a voxel at a time.
+			float fog = texelFetch(uRealmState, ivec2(id, 3), 0).r;
+			if (fog > 0.0) {
+				// Cells of 9 voxels, repeating every 100 so the drift can start over unseen.
+				vec2 q = (vec2(ij) + uRealmDrift) / 9.0;
+				vec2 c = floor(q);
+				vec2 f = fract(q);
+				f = f * f * (3.0 - 2.0 * f);
+				vec2 c0 = mod(c, 100.0);
+				vec2 c1 = mod(c + 1.0, 100.0);
+				float n = mix(
+					mix(voxHash(vec3(c0.x, c0.y, 5.0)), voxHash(vec3(c1.x, c0.y, 5.0)), f.x),
+					mix(voxHash(vec3(c0.x, c1.y, 5.0)), voxHash(vec3(c1.x, c1.y, 5.0)), f.x),
+					f.y
+				);
+				// Less over land already faded back, so it doesn't sink to black.
+				float shade = fog * (0.75 + 0.25 * n) * (1.0 - 0.4 * st.a);
+				diffuseColor.rgb *= mix(vec3(1.0), vec3(0.3, 0.34, 0.44), shade);
+				realmLight *= 1.0 - 0.6 * fog;
+			}
 		}
 	}
 }
@@ -398,7 +421,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 			Object.assign(shader.uniforms, realmUniforms);
 			fs = fs.replace(
 				'#include <common>',
-				'#include <common>\nuniform sampler2D uRealmMap;\nuniform sampler2D uRealmState;\nuniform vec4 uRealmGrid;\nuniform float uRealmPulse;'
+				'#include <common>\nuniform sampler2D uRealmMap;\nuniform sampler2D uRealmState;\nuniform vec4 uRealmGrid;\nuniform float uRealmPulse;\nuniform vec2 uRealmDrift;'
 			);
 			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_REALM}`);
 			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += realmLight;');

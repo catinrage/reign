@@ -27,6 +27,10 @@ export interface TerritoryLook {
 	color?: number;
 	/** How much the light breathes. */
 	pulse?: number;
+	/** In the fog of war: in drifting shadow, its armies unseen. */
+	fog?: number;
+	/** Its medallion ringed in `color`, however little the land is lit (it rings as much as it glows or fills anyway). */
+	ring?: number;
 }
 
 /** What the board needs of the camera to face it and stay readable. */
@@ -57,6 +61,10 @@ const STATE_W = 128;
 /** Voxels across the medallion's radius. */
 const MEDAL_V = 6.6;
 const VS = MEDAL_R / MEDAL_V;
+/** The fog's drift (voxels) starts over after this far, where its shadows repeat (100 cells of 9), so unseen. */
+const FOG_DRIFT_WRAP = 900;
+/** The halo's square, across, in medallion radii. */
+const HALO_SIZE = 3.3;
 
 export class RealmBoard {
 	readonly group = new THREE.Group();
@@ -64,7 +72,7 @@ export class RealmBoard {
 	readonly armies: ArmyToken[] = [];
 	readonly labels: THREE.Sprite[] = [];
 	readonly lanes: SeaLane[] = [];
-	private readonly stateData = new Uint8Array(STATE_W * 3 * 4);
+	private readonly stateData = new Uint8Array(STATE_W * 4 * 4);
 	private readonly stateTex: THREE.DataTexture;
 	private looks: TerritoryLook[];
 	private shown: TerritoryLook[];
@@ -87,13 +95,13 @@ export class RealmBoard {
 		this.realm = buildRealm(map);
 		this.group.name = 'conquest-board';
 		this.group.add(this.realm.group);
-		this.stateTex = new THREE.DataTexture(this.stateData, STATE_W, 3, THREE.RGBAFormat, THREE.UnsignedByteType);
+		this.stateTex = new THREE.DataTexture(this.stateData, STATE_W, 4, THREE.RGBAFormat, THREE.UnsignedByteType);
 		this.stateTex.magFilter = THREE.NearestFilter;
 		this.stateTex.minFilter = THREE.NearestFilter;
 		this.stateTex.generateMipmaps = false;
 		this.bindUniforms();
 		this.looks = map.territories.map(() => ({}));
-		this.shown = map.territories.map(() => ({ fill: 0, glow: 0, hover: 0, dim: 0, pulse: 0, color: 0xffffff }));
+		this.shown = map.territories.map(() => ({ fill: 0, glow: 0, hover: 0, dim: 0, pulse: 0, fog: 0, ring: 0, color: 0xffffff }));
 		map.territories.forEach((t, i) => {
 			const a = new ArmyToken(i, this.realm.anchors[i]);
 			this.armies.push(a);
@@ -194,11 +202,13 @@ export class RealmBoard {
 		// table's) was made or thrown away since.
 		if (realmUniforms.uRealmState.value !== this.stateTex) this.bindUniforms();
 		realmUniforms.uRealmPulse.value = 0.5 + 0.5 * Math.sin(t * 4.2);
+		// The fog's shadows drift slowly across the land (kept small: see uRealmDrift).
+		realmUniforms.uRealmDrift.value.set((t * 0.9) % FOG_DRIFT_WRAP, (t * 0.55) % FOG_DRIFT_WRAP);
 		const k = 1 - Math.exp(-dt * 12);
 		let changed = false;
 		this.looks.forEach((look, i) => {
 			const s = this.shown[i];
-			for (const key of ['fill', 'glow', 'hover', 'dim', 'pulse'] as const) {
+			for (const key of ['fill', 'glow', 'hover', 'dim', 'pulse', 'fog', 'ring'] as const) {
 				const goal = look[key] ?? 0;
 				const v = s[key]!;
 				if (Math.abs(goal - v) < 0.002) {
@@ -225,7 +235,7 @@ export class RealmBoard {
 			const d = at.copy(a.anchor).applyMatrix4(cam.matrixWorldInverse).z;
 			a.update(dt, t, view, ppu1 / Math.max(1, -d));
 			const s = this.shown[i];
-			a.setHalo(Math.max(s.glow!, s.fill!) * (1 - s.dim!), s.color ?? 0xffffff, s.pulse!, t);
+			a.setHalo(Math.max(s.glow!, s.fill!, s.ring!) * (1 - s.dim!), s.color ?? 0xffffff, s.pulse!, t);
 		});
 		this.labels.forEach((l, i) => {
 			const d = at.copy(l.position).applyMatrix4(cam.matrixWorldInverse).z;
@@ -267,6 +277,7 @@ export class RealmBoard {
 			d[o2 + 1] = (c >> 8) & 255;
 			d[o2 + 2] = c & 255;
 			d[o2 + 3] = Math.round(s.pulse! * 255);
+			d[(STATE_W * 3 + i) * 4] = Math.round(s.fog! * 255);
 		});
 		this.stateTex.needsUpdate = true;
 	}
@@ -319,18 +330,22 @@ function faceCanvas() {
 	return c;
 }
 
-/** A white ring with a soft glow outside it, tinted per medallion: what a click there does. */
+/**
+ * A white ring with a soft glow outside it, tinted per medallion: what a click there does. It
+ * hangs just behind the medallion, so the ring shows round its rim and never over its band.
+ */
 let haloTex: THREE.CanvasTexture | null = null;
 function haloTexture() {
 	if (haloTex) return haloTex;
 	const c = document.createElement('canvas');
 	c.width = c.height = 128;
 	const ctx = c.getContext('2d')!;
-	const g = ctx.createRadialGradient(64, 64, 30, 64, 64, 64);
+	// From 34 pixels out to the edge: the medallion's rim is at 128 / HALO_SIZE (about 39).
+	const g = ctx.createRadialGradient(64, 64, 34, 64, 64, 64);
 	g.addColorStop(0, 'rgba(255,255,255,0)');
-	g.addColorStop(0.05, 'rgba(255,255,255,1)');
-	g.addColorStop(0.32, 'rgba(255,255,255,1)');
-	g.addColorStop(0.4, 'rgba(255,255,255,0.55)');
+	g.addColorStop(0.1, 'rgba(255,255,255,1)');
+	g.addColorStop(0.42, 'rgba(255,255,255,1)');
+	g.addColorStop(0.55, 'rgba(255,255,255,0.5)');
 	g.addColorStop(1, 'rgba(255,255,255,0)');
 	ctx.fillStyle = g;
 	ctx.fillRect(0, 0, 128, 128);
@@ -357,15 +372,15 @@ export class ArmyToken {
 	lift = 0;
 	private readonly halo: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 
-	/** Ring the medallion in a highlight's color (0 = none), pulsing when `pulse` is set. */
+	/** Ring the medallion in a highlight's color (0 = none), breathing gently when `pulse` is set. */
 	setHalo(strength: number, color: number, pulse: number, t: number) {
 		const wave = 0.5 + 0.5 * Math.sin(t * 4.2);
-		const o = strength * (1 - pulse * 0.45 * (1 - wave));
+		const o = strength * (1 - pulse * 0.3 * (1 - wave));
 		this.halo.visible = o > 0.02;
 		if (!this.halo.visible) return;
 		this.halo.material.opacity = Math.min(1, o);
 		this.halo.material.color.setHex(color);
-		this.halo.scale.setScalar(1 + pulse * 0.06 * wave);
+		this.halo.scale.setScalar(1 + pulse * 0.05 * wave);
 	}
 	private shownLift = 0;
 
@@ -389,10 +404,12 @@ export class ArmyToken {
 		this.face.position.z = 2 * VS + 0.02;
 		this.medal.add(this.face);
 		this.halo = new THREE.Mesh(
-			new THREE.PlaneGeometry(MEDAL_R * 3.3, MEDAL_R * 3.3),
-			new THREE.MeshBasicMaterial({ map: haloTexture(), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 })
+			new THREE.PlaneGeometry(MEDAL_R * HALO_SIZE, MEDAL_R * HALO_SIZE),
+			new THREE.MeshBasicMaterial({ map: haloTexture(), transparent: true, depthWrite: false, opacity: 0 })
 		);
-		this.halo.position.z = VS;
+		// Behind the back (whose faces are at plus and minus VS), never in a plane with it: sharing
+		// one, the two took turns showing through and the ring shimmered.
+		this.halo.position.z = -1.25 * VS;
 		this.halo.visible = false;
 		this.medal.add(this.halo);
 		this.hitbox = new THREE.Mesh(new THREE.CircleGeometry(MEDAL_R * 1.05, 20), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));

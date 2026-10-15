@@ -11,6 +11,7 @@
 	import { sfx } from '../sound';
 	import CqActions from './CqActions.svelte';
 	import CqCards from './CqCards.svelte';
+	import CqCheatPanel from './CqCheatPanel.svelte';
 	import CqCombat from './CqCombat.svelte';
 	import CqLog from './CqLog.svelte';
 	import CqMissionCard from './CqMissionCard.svelte';
@@ -42,7 +43,7 @@
 			onClick: (tr, touch) => cqPlay.clicked(tr, touch),
 			onDragStart: (from) => cqPlay.dragStart(from),
 			onDrop: (from, to) => cqPlay.dropped(from, to),
-			onBattle: (b, fast) => cqPlay.fought(b, fast),
+			onBattle: (b, roll) => cqPlay.fought(b, roll),
 			onCaptured: (e) => cqPlay.captured(e),
 			onSettled: (v) => cqPlay.settle(v),
 			// Alt+click (a long press on touch) on the map: a beacon there for the whole table.
@@ -174,6 +175,7 @@
 		<CqVictory />
 	{/if}
 	<GameMenu />
+	{#if client.cheats && cqPlay.view && !client.spectating && !client.replaying}<CqCheatPanel />{/if}
 	{#if !client.spectating}
 		<PigeonLoft />
 		<TimeWarning />

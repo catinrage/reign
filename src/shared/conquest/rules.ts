@@ -273,7 +273,8 @@ function fail(msg: string): never {
 
 type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 
-class Ctx {
+/** A state being changed, and the events the change makes (also for the dev cheats, see cheats.ts). */
+export class Ctx {
 	events: CqEvent[] = [];
 	constructor(public s: CqState) {}
 	emit(e: DistributiveOmit<CqEvent, 'seq'>) {
@@ -627,7 +628,7 @@ function checkMission(ctx: Ctx, p: number): boolean {
 	return true;
 }
 
-function gameOver(ctx: Ctx, winner: number, reason: WinReason) {
+export function gameOver(ctx: Ctx, winner: number, reason: WinReason) {
 	const s = ctx.s;
 	s.phase = 'ended';
 	s.winner = winner;
@@ -695,12 +696,14 @@ function endTurn(ctx: Ctx) {
  * A new round's omen: Snowbound picks a region, Mercenaries and the Truce the smallest realm (the
  * fewest territories, then the fewest armies), and a calamity strikes at once.
  */
-function drawOmen(ctx: Ctx) {
+/** A new round's omen, off the top of the deck (or `forced`, a dev cheat: taken out of the deck if it's there). */
+export function drawOmen(ctx: Ctx, forced?: OmenId) {
 	const s = ctx.s;
 	const o = s.omens;
 	if (!o || !o.pool.length) return;
 	if (!o.deck.length) o.deck = shuffle(s, [...o.pool]);
-	const omen = o.deck.pop()!;
+	const at = forced ? o.deck.lastIndexOf(forced) : -1;
+	const omen = forced ? (at >= 0 ? o.deck.splice(at, 1)[0] : forced) : o.deck.pop()!;
 	o.current = omen;
 	o.region = null;
 	o.target = null;

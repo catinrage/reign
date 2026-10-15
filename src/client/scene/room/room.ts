@@ -41,15 +41,26 @@ export interface Room {
 	 * camera still has room to stand back.
 	 */
 	fitTable(scale: number): void;
+	/**
+	 * The table scale (as for `fitTable`) that keeps the mug, the lantern and the plant on the rim
+	 * clear of a rectangular board of these half extents (world units) in the middle.
+	 */
+	clearScale(halfX: number, halfZ: number): number;
 	/** The cat asleep on the armchair, once it is built (it purrs when clicked). */
 	readonly cat: Cat | null;
 	update(dt: number, t: number): void;
 }
 
 const N = <T extends THREE.Object3D>(o: T, name: string) => ((o.name = name), o);
-/** Table-top layout in room units: everything sits on the rim outside the board's sea. */
-const MUG = { x: -104, z: -126 };
-const LANTERN = { x: -128, z: -100 };
+/**
+ * Table-top layout in room units: everything sits on the rim outside the board's sea. `r` is how
+ * far each reaches from its middle (it doesn't grow with the table, only its place moves out).
+ */
+const MUG = { x: -104, z: -126, r: 12 };
+const LANTERN = { x: -128, z: -100, r: 7 };
+const PLANT = { x: 124, z: -124, r: 13 };
+/** Room units kept between a board's edge and what stands beside it. */
+const BOARD_GAP = 6;
 const SIDES: Side[] = ['nx', 'px', 'nz', 'pz'];
 /**
  * The camera keeps this far (room units) from the walls, clear of the bookcases and the mantel,
@@ -293,7 +304,7 @@ export function buildRoom(stage: Stage): Room {
 		onTable.add(N(place(lantern, LANTERN.x, 0, LANTERN.z, 0.3), 'tableLantern'));
 		const mug = buildMug();
 		onTable.add(N(place(mug, MUG.x, 0, MUG.z, -0.25), 'mug'));
-		onTable.add(N(place(buildPlant('bush', 41, 1), 124, 0, -124), 'tablePlant'));
+		onTable.add(N(place(buildPlant('bush', 41, 1), PLANT.x, 0, PLANT.z), 'tablePlant'));
 		const trays: [number, number, number, number][] = [
 			[hex('#d8352a'), 60, -128, 0],
 			[hex('#f2c12e'), -128, 60, Math.PI / 2],
@@ -371,6 +382,13 @@ export function buildRoom(stage: Stage): Room {
 		},
 		get cat() {
 			return cat;
+		},
+		clearScale(halfX: number, halfZ: number) {
+			// Each stands clear past the board's side or past its end, whichever comes sooner as the table grows.
+			const need = (along: number, half: number, r: number) => (half / K + BOARD_GAP + r) / Math.abs(along);
+			const most = Math.max(...[MUG, LANTERN, PLANT].map((p) => Math.min(need(p.x, halfX, p.r), need(p.z, halfZ, p.r))));
+			// Half a voxel more, for the table's size being rounded to whole voxels.
+			return most + 0.5 / 37;
 		},
 		fitTable(scale: number) {
 			const half = Math.round(37 * Math.max(1, scale));

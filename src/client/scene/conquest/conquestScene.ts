@@ -27,8 +27,8 @@ export interface CqSceneCallbacks {
 	onDragStart?(from: number): boolean;
 	/** A drag let go over `to` (null: nowhere). */
 	onDrop?(from: number, to: number | null): void;
-	/** A battle is being fought on the board right now: the interface rolls its dice. */
-	onBattle?(b: Battle, fast: boolean): void;
+	/** A battle is being fought on the board right now: the interface rolls its dice for `roll` seconds. */
+	onBattle?(b: Battle, roll: number): void;
 	/** A territory just fell (after its battle played out). */
 	onCaptured?(e: Extract<CqEvent, { type: 'captured' }>): void;
 	/** The board has played out everything up to this state. */
@@ -37,9 +37,16 @@ export interface CqSceneCallbacks {
 	onBeacon?(x: number, z: number): void;
 }
 
-/** How long a battle's dice roll before the losses show, in seconds (a quick one when many follow). */
+/**
+ * How long a battle's dice roll before the losses show, in seconds: your own, someone else's
+ * (longer, for everyone to follow it), and a quick one when the board is far behind (fast bots,
+ * a long blitz).
+ */
 export const BATTLE_ROLL = 0.62;
-const BATTLE_ROLL_FAST = 0.3;
+export const BATTLE_ROLL_WATCHED = 1.15;
+export const BATTLE_ROLL_FAST = 0.3;
+/** Battles still to show after this one that make the board hurry. */
+const BEHIND = 3;
 
 export class ConquestScene {
 	readonly board: RealmBoard;
@@ -181,17 +188,23 @@ export class ConquestScene {
 			}
 			const e = this.queue.shift()!;
 			const battlesLeft = this.queue.filter((q) => q.type === 'battle').length;
-			const fast = battlesLeft >= 2;
+			const fast = battlesLeft >= BEHIND;
 			switch (e.type) {
 				case 'battle': {
 					const from = this.board.realm.anchors[e.from];
 					const to = this.board.realm.anchors[e.to];
+					// Someone else's battle on its own rolls longest; one of a blitz, or your own, quicker.
+					const watched = !battlesLeft && e.player !== this.view?.me;
+					const roll = fast ? BATTLE_ROLL_FAST : watched ? BATTLE_ROLL_WATCHED : BATTLE_ROLL;
+					const clash = fast ? BATTLE_ROLL_FAST : BATTLE_ROLL;
 					this.striking = true;
 					this.arrow.set(from, to, this.holders[e.player]?.color ?? 0xffffff, 'attack');
+					this.callbacks.onBattle?.(e, roll);
+					// The dice tumble a while first: the arrow strikes and the front ranks lunge to land with them.
+					if (roll > clash) await this.hold(roll - clash);
 					this.arrow.strike();
 					this.troops.attack(e.from, e.to, e.attack.length, fast);
-					this.callbacks.onBattle?.(e, fast);
-					await this.hold(fast ? BATTLE_ROLL_FAST : BATTLE_ROLL);
+					await this.hold(clash);
 					this.add(e.from, -e.attackerLoss);
 					this.add(e.to, -e.defenderLoss);
 					this.board.setHolders(this.owner, this.armies, this.holders);
@@ -204,7 +217,7 @@ export class ConquestScene {
 					};
 					hit(e.from, e.attackerLoss);
 					hit(e.to, e.defenderLoss);
-					await this.hold(fast ? 0.1 : 0.32);
+					await this.hold(fast ? 0.1 : watched ? 0.5 : 0.32);
 					break;
 				}
 				case 'captured': {

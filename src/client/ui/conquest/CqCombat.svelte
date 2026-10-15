@@ -3,7 +3,7 @@
 	import type { Battle } from '../../../shared/conquest/types';
 	import { t } from '../../i18n/index.svelte';
 	import { client } from '../../state/client.svelte';
-	import { BATTLE_ROLL } from '../../scene/conquest/conquestScene';
+	import { BATTLE_ROLL_FAST } from '../../scene/conquest/conquestScene';
 	import { SIGIL_OF, sigilUrl } from '../../scene/conquest/sigils';
 	import { dieFace } from '../art';
 	import { CQ_PIXEL } from './icons';
@@ -41,9 +41,10 @@
 				clearInterval(spin);
 				rolling = false;
 			},
-			(b.fast ? 0.3 : BATTLE_ROLL) * 1000 - 40
+			b.roll * 1000 - 40
 		);
-		const gone = setTimeout(() => (lingering = false), b.fast ? 900 : 2200);
+		// The throw stays up a while once the dice land (briefly, when the board is hurrying).
+		const gone = setTimeout(() => (lingering = false), (b.roll + (b.roll <= BATTLE_ROLL_FAST ? 0.6 : 1.6)) * 1000);
 		return () => {
 			clearInterval(spin);
 			clearTimeout(stop);

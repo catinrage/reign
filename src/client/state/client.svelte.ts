@@ -2,6 +2,7 @@ import type { ConquestSettings, CqAction, CqView } from '../../shared/conquest/t
 import type { GameKind } from '../../shared/games';
 import { BEACON_GAP_MS, type ClientMessage, type LobbyInfo, type PigeonNote, type ServerMessage, type TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
+import type { ConquestCheat } from '../../shared/conquest/cheats';
 import { hasResources, type Resource } from '../../shared/rules/config';
 import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
 import type { Action, GameEvent, GameView } from '../../shared/rules/types';
@@ -786,6 +787,10 @@ class GameClient {
 			this.rollAsked = true;
 		}
 		this.send({ t: 'action', action });
+	}
+
+	cqCheat(cheat: ConquestCheat) {
+		this.send({ t: 'cqCheat', cheat });
 	}
 
 	cheat(cheat: Cheat) {

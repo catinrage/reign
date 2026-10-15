@@ -34,13 +34,16 @@ class CqPlay {
 	hover = $state<number | null>(null);
 	/** Tapped on a touch screen, for its information card (or clicked where nothing else happens). */
 	info = $state<number | null>(null);
+	/** Dev cheats (the dev server only): the next click on the map picks `cheatTarget` instead of playing. */
+	cheatPick = $state(false);
+	cheatTarget = $state<number | null>(null);
 	placeStep = $state<PlaceStep>(1);
 	/** The dice to roll in an attack (null: as many as allowed). */
 	dice = $state<number | null>(null);
 	/** Armies to move (fortifying, or into a territory just taken). */
 	move = $state(1);
 	/** The battle the board is showing now, for the dice in the combat panel. */
-	battle = $state.raw<{ b: Battle; fast: boolean; id: number } | null>(null);
+	battle = $state.raw<{ b: Battle; roll: number; id: number } | null>(null);
 	/** The last battle fought from the current selection, kept up once its dice have landed. */
 	lastBattle = $state.raw<Battle | null>(null);
 	/** Cards panel open. */
@@ -156,6 +159,11 @@ class CqPlay {
 	clicked(ter: number | null, touch: boolean) {
 		const v = this.view;
 		if (!v) return;
+		if (this.cheatPick) {
+			this.cheatPick = false;
+			if (ter !== null) this.cheatTarget = ter;
+			return;
+		}
 		if (ter === null) {
 			// A click off the map lets go of what was picked.
 			this.info = null;
@@ -323,9 +331,9 @@ class CqPlay {
 
 	// ------------------------------------------------------------ the board shows
 
-	/** A battle being fought on the board: its dice roll in the combat panel. */
-	fought(b: Battle, fast: boolean) {
-		this.battle = { b, fast, id: ++this.battleId };
+	/** A battle being fought on the board: its dice roll in the combat panel for `roll` seconds. */
+	fought(b: Battle, roll: number) {
+		this.battle = { b, roll, id: ++this.battleId };
 		if (b.player === this.me) this.lastBattle = b;
 		sfx.dice();
 	}
@@ -363,11 +371,14 @@ class CqPlay {
 		const emphasis: number[] = [];
 		const lanes = new Set<string>();
 		if (this.placing) {
+			// Every territory of yours, for as long as the placing takes: its medallion ringed and a
+			// faint line along its border, the land in its own colors, the rest a little faded. Lit
+			// any brighter, set against the rest faded further, the whole map looked over-contrasted.
 			for (let t = 0; t < n; t++) {
 				if (v.owner[t] === me) {
-					looks[t] = { glow: 0.9, fill: 0.3, color: PICK_GLOW, pulse: 0.6 };
+					looks[t] = { glow: 0.28, ring: 0.9, color: PICK_GLOW };
 					clickable.add(t);
-				} else looks[t] = { dim: 0.75 };
+				} else looks[t] = { dim: 0.3 };
 			}
 		} else if (this.occupying) {
 			const o = v.occupy!;
@@ -436,8 +447,8 @@ class CqPlay {
 			const c = PLAYER_RGB[v.players[v.current]?.color] ?? 0xffffff;
 			for (let t = 0; t < n; t++) if (v.owner[t] === v.current) looks[t] = { glow: 0.3, color: c };
 		}
-		// The fog of war: what can't be seen lies dim.
-		if (v.fogged) for (let t = 0; t < n; t++) if (v.armies[t] < 0 && !looks[t]) looks[t] = { dim: 0.45 };
+		// The fog of war: what can't be seen lies in shadow, whatever else is lit.
+		if (v.fogged) for (let t = 0; t < n; t++) if (v.armies[t] < 0) looks[t] = { ...looks[t], fog: 1 };
 		if (this.spotlight !== null && v.players[this.spotlight]) {
 			const c = PLAYER_RGB[v.players[this.spotlight].color] ?? 0xffffff;
 			for (let t = 0; t < n; t++) if (v.owner[t] === this.spotlight) looks[t] = { ...looks[t], glow: 0.9, color: c, dim: 0 };
