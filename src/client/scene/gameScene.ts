@@ -1474,10 +1474,15 @@ export class GameScene {
 
 	/** Light a beacon in `color` at this spot on the map (in tile radii), as someone at the table did. */
 	beacon(x: number, z: number, color: string) {
-		const bv = this.boardView;
-		if (!bv || this.mode !== 'game') return;
+		if (this.mode !== 'game') return;
 		const wx = x * HEX_R;
 		const wz = z * HEX_R;
+		if (this.conquest) {
+			this.beacons.add(wx, Math.max(this.conquest.board.realm.surfaceY(wx, wz), SEA_Y), wz, PLAYER_RGB[color] ?? 0xffffff);
+			return;
+		}
+		const bv = this.boardView;
+		if (!bv) return;
 		this.beacons.add(
 			wx,
 			Math.max(bv.build.surfaceY(wx, wz), SEA_Y),
@@ -1497,9 +1502,12 @@ export class GameScene {
 
 	/** The spot on the map under the pointer, in tile radii (null: the pointer is off the map). */
 	private mapAtPointer(): { x: number; z: number } | null {
-		if (!this.boardView || this.mode !== 'game') return null;
+		if (this.mode !== 'game') return null;
 		this.raycaster.setFromCamera(this.pointer, this.stage.camera);
-		const p = this.boardView.build.raycast(this.raycaster.ray);
+		// Conquest's board, land or sea, counts as the map as Settlement's island does.
+		const board = this.conquest ? this.conquest.board.realm : this.boardView?.build;
+		if (!board) return null;
+		const p = board.raycast(this.raycaster.ray);
 		return p ? { x: p.x / HEX_R, z: p.z / HEX_R } : null;
 	}
 
@@ -1507,7 +1515,8 @@ export class GameScene {
 	private beaconAtPointer(): boolean {
 		const at = this.mapAtPointer();
 		if (!at) return false;
-		this.callbacks.onBeacon?.(at.x, at.z);
+		if (this.conquest) this.conquestCallbacks.onBeacon?.(at.x, at.z);
+		else this.callbacks.onBeacon?.(at.x, at.z);
 		return true;
 	}
 
@@ -1518,9 +1527,10 @@ export class GameScene {
 	}
 
 	private onPointerDown = (e: PointerEvent) => {
-		if (this.conquest && this.mode === 'game') return this.conquest.pointerDown(e, this.ndc(e));
 		this.endPress();
 		this.pressed = false;
+		// Alt+click on Conquest's board is for a beacon, not to start dragging armies.
+		if (this.conquest && this.mode === 'game' && !e.altKey) this.conquest.pointerDown(e, this.ndc(e));
 		// One finger resting on the board without moving lights a beacon there.
 		if (e.pointerType !== 'touch' || !e.isPrimary || this.mode !== 'game') return;
 		const timer = setTimeout(() => {
@@ -1531,7 +1541,11 @@ export class GameScene {
 				-((this.press.y - r.top) / r.height) * 2 + 1
 			);
 			this.press = null;
-			if (this.beaconAtPointer()) this.pressed = true;
+			if (this.beaconAtPointer()) {
+				this.pressed = true;
+				// The finger was resting to point, not to drag armies off.
+				this.conquest?.cancelDrag();
+			}
 		}, LONG_PRESS_MS);
 		this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer };
 	};
@@ -1567,6 +1581,19 @@ export class GameScene {
 
 	private onPointerUp = (e: PointerEvent) => {
 		if (this.conquest && this.mode === 'game') {
+			this.endPress();
+			// The touch that lit a beacon does nothing else.
+			if (this.pressed) {
+				this.pressed = false;
+				this.conquest.pointerCancel(e);
+				return;
+			}
+			// Alt+click lights a beacon on the map, and does nothing else.
+			if (e.button === 0 && e.altKey && !this.stage.rig.dragged) {
+				this.onPointerMove(e);
+				this.beaconAtPointer();
+				return;
+			}
 			// The cat purrs at Conquest tables too.
 			if (e.button === 0 && !this.stage.rig.dragged && this.conquest.dragFrom === null) {
 				this.onPointerMove(e);
@@ -1907,6 +1934,8 @@ export class GameScene {
 		this.room.update(dt, t);
 		if (this.conquest) {
 			this.conquest.frame(dt, t);
+			// Beacons light Conquest's board too.
+			this.beacons.update(dt, t);
 			const cursor = this.conquest.hovering && this.mode === 'game' ? 'pointer' : this.hoverCat() ? 'pointer' : '';
 			if (cursor !== this.cursor) this.stage.canvas.style.cursor = this.cursor = cursor;
 			return;

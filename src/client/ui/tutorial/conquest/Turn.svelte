@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { SECOND_PLAYER_BONUS } from '../../../../shared/conquest/rules';
 	import { t } from '../../../i18n/index.svelte';
+	import Rich from '../../../i18n/Rich.svelte';
 	import { PIXEL } from '../../pixel';
 	import { CQ_PIXEL } from '../../conquest/icons';
 </script>
+
+{#snippet kbdAltClick()}<kbd>{t('Alt+click')}</kbd>{/snippet}
 
 <p>{t('Before the first turn everyone places their starting armies at once, a click at a time. Then turns go round the table, each in three steps.')}</p>
 <p>{t('With two players, whoever goes second starts with {n} more armies, to make up for moving second.', { n: SECOND_PLAYER_BONUS })}</p>
@@ -31,4 +34,7 @@
 	<img class="icon-px" src={PIXEL.star} alt="" /><span
 		>{t('Click empty ground or press Esc to drop a selection. Enter presses the main button, and in a fight it rolls the dice.')}</span
 	>
+</p>
+<p class="tip">
+	<img class="icon-px" src={PIXEL.pointer} alt="" /><span><Rich text={t('{key} or long press: point out a spot to everyone')} slots={{ key: kbdAltClick }} /></span>
 </p>

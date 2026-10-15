@@ -44,9 +44,26 @@
 			onDrop: (from, to) => cqPlay.dropped(from, to),
 			onBattle: (b, fast) => cqPlay.fought(b, fast),
 			onCaptured: (e) => cqPlay.captured(e),
-			onSettled: (v) => cqPlay.settle(v)
+			onSettled: (v) => cqPlay.settle(v),
+			// Alt+click (a long press on touch) on the map: a beacon there for the whole table.
+			onBeacon: (x, z) => client.beacon(x, z)
 		};
 		if (scene.conquest) scene.conquest.callbacks = scene.conquestCallbacks;
+	});
+
+	// Beacons lit on the map, this player's own and everyone else's, each shown once in its player's color.
+	let beaconsShown = 0;
+	$effect(() => {
+		const scene = sceneRef.current;
+		const players = client.cq?.players;
+		for (const b of client.beacons) {
+			if (b.id <= beaconsShown) continue;
+			beaconsShown = b.id;
+			const color = players?.[b.player]?.color;
+			if (!scene || !color) continue;
+			scene.beacon(b.x, b.z, color);
+			sfx.beacon();
+		}
 	});
 
 	// Each state from the server goes to the board, which plays it out and then settles it here.

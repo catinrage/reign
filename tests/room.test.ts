@@ -1316,3 +1316,27 @@ describe('Conquest secret missions', () => {
 		room.dispose();
 	});
 });
+
+describe('beacons at a Conquest table', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('reach the other players once the war is on, as at a Settlement table', () => {
+		vi.useFakeTimers();
+		const room = new Room('PQRST', false, 'conquest');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		// Not before the war begins.
+		room.handle(host, { t: 'beacon', x: 2, z: 3 }, a.ws);
+		expect(b.sent.some((m) => m.t === 'beacon')).toBe(false);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.cq).not.toBeNull();
+		room.handle(host, { t: 'beacon', x: 2, z: 3 }, a.ws);
+		expect(b.sent.filter((m) => m.t === 'beacon')).toEqual([{ t: 'beacon', player: room.seats.indexOf(host), x: 2, z: 3 }]);
+		expect(a.sent.some((m) => m.t === 'beacon')).toBe(false);
+		room.dispose();
+	});
+});

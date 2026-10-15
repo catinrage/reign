@@ -33,6 +33,8 @@ export interface CqSceneCallbacks {
 	onCaptured?(e: Extract<CqEvent, { type: 'captured' }>): void;
 	/** The board has played out everything up to this state. */
 	onSettled?(view: CqView): void;
+	/** Alt+click (a long press on touch) on the map: a beacon at this spot (in tile radii) for the whole table. */
+	onBeacon?(x: number, z: number): void;
 }
 
 /** How long a battle's dice roll before the losses show, in seconds (a quick one when many follow). */
@@ -357,6 +359,11 @@ export class ConquestScene {
 	/** The pointer was taken away mid-drag (the browser cancelled it, or lost it): the drag is off. */
 	pointerCancel(e: PointerEvent) {
 		if (this.drag?.id === e.pointerId) this.endDrag();
+	}
+
+	/** Whatever drag is under way is off (a long press lit a beacon instead). */
+	cancelDrag() {
+		this.endDrag();
 	}
 
 	private endDrag() {
