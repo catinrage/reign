@@ -5,6 +5,7 @@ import { Mat, hash3, hex, pick, shade } from '../voxel/grid';
 import { realmUniforms } from '../voxel/materials';
 import { type RealmBuild, buildRealm } from './realmTerrain';
 import { type Sigil, drawSigil } from './sigils';
+import { troopGrowth } from './troops';
 
 /**
  * Conquest's board on the table: the Realm's terrain (see realmTerrain.ts) with every territory's
@@ -37,6 +38,13 @@ export interface BoardCamera {
 	height: number;
 }
 
+/** Names to show (translated): territories and regions in the map's order, and the legend's title. */
+export interface BoardNames {
+	territories: string[];
+	regions: string[];
+	legend: string;
+}
+
 export interface Holder {
 	/** The player's color (rgb) and sigil. */
 	color: number;
@@ -63,16 +71,17 @@ export class RealmBoard {
 	emphasis = new Set<number>();
 
 	readonly legend: RegionLegend;
+	private names: BoardNames;
 
 	constructor(
 		readonly map: RealmMap,
-		/** Names to show (translated): territories and regions in the map's order, and the legend's title. */
-		names: { territories: string[]; regions: string[]; legend: string } = {
+		names: BoardNames = {
 			territories: map.territories.map((t) => t.name),
 			regions: map.regions.map((r) => r.name),
 			legend: 'Regions'
 		}
 	) {
+		this.names = names;
 		this.realm = buildRealm(map);
 		this.group.name = 'conquest-board';
 		this.group.add(this.realm.group);
@@ -105,6 +114,24 @@ export class RealmBoard {
 		rose.position.set(-96, 2.4, 82);
 		this.group.add(rose);
 		this.writeState();
+	}
+
+	/** Show the names in another language: the ribbons and the legend are drawn again. */
+	setNames(names: BoardNames) {
+		if (JSON.stringify(names) === JSON.stringify(this.names)) return;
+		this.names = names;
+		this.labels.forEach((old, i) => {
+			const label = nameLabel(names.territories[i]);
+			label.position.copy(old.position);
+			label.material.opacity = old.material.opacity;
+			label.visible = old.visible;
+			this.group.remove(old);
+			old.material.map?.dispose();
+			old.material.dispose();
+			this.labels[i] = label;
+			this.group.add(label);
+		});
+		this.legend.setNames(names.regions, names.legend);
 	}
 
 	/** Who holds each territory (an index into `holders`, -1 for nobody) and the armies on it. */
@@ -313,6 +340,7 @@ export class ArmyToken {
 	/** A disc to pick the medallion by. */
 	readonly hitbox: THREE.Mesh;
 	private readonly medal = new THREE.Group();
+	private readonly post: THREE.Group;
 	private back: THREE.Group | null = null;
 	private readonly canvas = faceCanvas();
 	private readonly tex: THREE.CanvasTexture;
@@ -342,8 +370,8 @@ export class ArmyToken {
 		readonly anchor: THREE.Vector3
 	) {
 		this.group.position.copy(anchor);
-		const post = medalPost().clone(true);
-		this.group.add(post);
+		this.post = medalPost().clone(true);
+		this.group.add(this.post);
 		this.medal.position.y = 1.6 + MEDAL_R;
 		this.medal.rotation.order = 'YXZ';
 		this.group.add(this.medal);
@@ -429,7 +457,10 @@ export class ArmyToken {
 		const scale = grow * pop * (1 + this.shownLift * 0.12);
 		this.group.scale.setScalar(grow);
 		this.medal.scale.setScalar(scale / grow);
-		this.medal.position.y = 1.6 + MEDAL_R + this.shownLift * 1.1;
+		// From afar the troops grow (see troops.ts): the standard rises on a longer pole to stay over them.
+		const raise = ((troopGrowth(ppu) - 1) * 8) / grow;
+		this.post.scale.y = 1 + raise / 1.8;
+		this.medal.position.y = 1.6 + MEDAL_R + raise + this.shownLift * 1.1;
 	}
 
 	dispose() {
@@ -503,7 +534,8 @@ export class SeaLane {
 	private lit = 0;
 	private shownLit = 0;
 	private readonly ship: THREE.Group;
-	private readonly path: THREE.QuadraticBezierCurve3;
+	/** The lane's course over the water, from its first territory's shore to its second's. */
+	readonly path: THREE.QuadraticBezierCurve3;
 
 	constructor(
 		readonly a: number,
@@ -588,8 +620,8 @@ export class RegionLegend {
 
 	constructor(
 		readonly map: RealmMap,
-		readonly names: string[],
-		readonly title: string
+		private names: string[],
+		private title: string
 	) {
 		const rows = map.regions.length;
 		const Wv = 56;
@@ -622,6 +654,12 @@ export class RegionLegend {
 		tilt.add(face);
 		this.group.add(tilt);
 		this.group.name = 'legend';
+		this.draw();
+	}
+
+	setNames(names: string[], title: string) {
+		this.names = names;
+		this.title = title;
 		this.draw();
 	}
 

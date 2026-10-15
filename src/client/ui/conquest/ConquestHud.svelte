@@ -20,7 +20,7 @@
 	import CqTip from './CqTip.svelte';
 	import CqVictory from './CqVictory.svelte';
 	import { cqPlay } from './play.svelte';
-	import { boardNames, playerName } from './text';
+	import { playerName } from './text';
 
 	/**
 	 * A game of Conquest on screen: the board plays out each new state (battles, captures) and the
@@ -30,11 +30,10 @@
 
 	const timed = $derived(!!client.lobby?.turnTime && client.cq?.phase !== 'ended');
 
-	// The board's callbacks and names are in place before the board is made.
+	// The board's callbacks are in place before the board is made (its names: see App).
 	$effect.pre(() => {
 		const scene = sceneRef.current;
 		if (!scene) return;
-		scene.conquestNames = boardNames();
 		scene.conquestCallbacks = {
 			onHover: (tr) => cqPlay.hovered(tr),
 			onClick: (tr, touch) => cqPlay.clicked(tr, touch),

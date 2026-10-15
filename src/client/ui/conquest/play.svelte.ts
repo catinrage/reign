@@ -1,4 +1,4 @@
-import { attackTargets, canAttackFrom, canAttackNow, canEndTurnNow, canFortifyNow, conquestMap, fortifyTargets, neighbors } from '../../../shared/conquest/queries';
+import { attackTargets, canAttackFrom, canAttackNow, canEndTurnNow, canFortifyNow, conquestMap, fortifyRoute, fortifyTargets, neighbors } from '../../../shared/conquest/queries';
 import type { Battle, CqAction, CqEvent, CqView } from '../../../shared/conquest/types';
 import type { TerritoryLook } from '../../scene/conquest/realmBoard';
 import { PLAYER_RGB } from '../../scene/layout';
@@ -266,11 +266,15 @@ class CqPlay {
 		this.clear();
 	}
 
-	/** Take back the last army placed this step. */
+	/**
+	 * Take back the last army placed this step. Without a list of placements (lost on a reload, or
+	 * dropped once out of step with the board) any army of yours placed this step comes back.
+	 */
 	undo() {
-		const last = this.placements.at(-1);
 		const v = this.view;
-		if (last === undefined || !v || !(v.placed[last] > 0)) {
+		if (!v) return;
+		const last = this.placements.at(-1) ?? v.placed.findIndex((_, t) => this.placedHere(v, t));
+		if (last < 0 || !this.placedHere(v, last)) {
 			this.placements = [];
 			return;
 		}
@@ -280,7 +284,13 @@ class CqPlay {
 
 	get canUndo() {
 		const v = this.view;
-		return !!v && (this.placing || (this.myTurn && v.step === 'reinforce')) && v.placed.some((n) => n > 0);
+		// While everyone deploys at once, the armies others place are in `placed` too.
+		return !!v && (this.placing || (this.myTurn && v.step === 'reinforce')) && v.placed.some((_, t) => this.placedHere(v, t));
+	}
+
+	/** This player put armies on `t` this step and can take one back. */
+	private placedHere(v: CqView, t: number) {
+		return v.placed[t] > 0 && v.owner[t] === v.me;
 	}
 
 	endAttack() {
@@ -400,7 +410,7 @@ class CqPlay {
 				const aim = this.target ?? (this.hover !== null && reach.includes(this.hover) ? this.hover : null);
 				if (aim !== null) {
 					// The way the armies march, through territories of yours.
-					const path = routeBetween(v, s, aim);
+					const path = fortifyRoute(v, s, aim);
 					for (const t of path) if (t !== s) looks[t] = { ...looks[t], fill: t === aim ? 0.85 : 0.45, color: MARCH_GLOW };
 					for (let i = 1; i < path.length; i++) lanes.add(laneKey(path[i - 1], path[i]));
 					intent = { from: s, to: aim, color: mine, style: this.target === aim ? 'move' : 'preview' };
@@ -420,6 +430,7 @@ class CqPlay {
 		if (this.info !== null) emphasis.push(this.info);
 		if (this.hover !== null) emphasis.push(this.hover);
 		scene.setLooks(looks);
+		scene.setMoveIn(this.occupying ? this.move : null);
 		scene.setLifted(this.selected);
 		scene.setIntent(intent);
 		scene.setClickable(clickable);
@@ -435,27 +446,6 @@ class CqPlay {
 
 function laneKey(a: number, b: number) {
 	return a < b ? `${a}-${b}` : `${b}-${a}`;
-}
-
-/** The shortest way from `from` to `to` through territories held by from's owner (both ends included). */
-export function routeBetween(v: CqView, from: number, to: number): number[] {
-	const map = conquestMap(v.settings);
-	const p = v.owner[from];
-	const prev = new Map<number, number>([[from, -1]]);
-	const queue = [from];
-	while (queue.length) {
-		const t = queue.shift()!;
-		if (t === to) break;
-		for (const n of neighbors(t, map)) {
-			if (v.owner[n] !== p || prev.has(n)) continue;
-			prev.set(n, t);
-			queue.push(n);
-		}
-	}
-	if (!prev.has(to)) return [];
-	const path: number[] = [];
-	for (let t = to; t !== -1; t = prev.get(t)!) path.push(t);
-	return path.reverse();
 }
 
 /**

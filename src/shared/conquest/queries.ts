@@ -118,6 +118,24 @@ export function canEndTurnNow(s: CqTable, p: number): boolean {
 	);
 }
 
+/**
+ * The armies on each territory with the move into a territory just taken already made, `count` of
+ * them (the fewest allowed when left out). A territory taken stands empty until armies move in;
+ * the table shows it as it will be.
+ */
+export function armiesMovedIn(
+	s: Pick<CqTable, 'armies' | 'step' | 'occupy'>,
+	count?: number | null
+): number[] {
+	const o = s.step === 'occupy' ? s.occupy : null;
+	if (!o) return s.armies;
+	const n = Math.max(o.min, Math.min(o.max, count ?? o.min));
+	const out = s.armies.slice();
+	out[o.from] -= n;
+	out[o.to] += n;
+	return out;
+}
+
 /** Territories of the same player that armies on `from` can march to, through territories of theirs. */
 export function fortifyTargets(s: CqTable, from: number): number[] {
 	const map = conquestMap(s.settings);
@@ -134,6 +152,30 @@ export function fortifyTargets(s: CqTable, from: number): number[] {
 	}
 	seen.delete(from);
 	return [...seen].sort((a, b) => a - b);
+}
+
+/**
+ * The shortest way from `from` to `to` through territories held by from's owner, both ends
+ * included (by land or sea lane), or [] if there is none.
+ */
+export function fortifyRoute(s: Pick<CqTable, 'owner' | 'settings'>, from: number, to: number): number[] {
+	const map = conquestMap(s.settings);
+	const p = s.owner[from];
+	const prev = new Map<number, number>([[from, -1]]);
+	const queue = [from];
+	while (queue.length) {
+		const t = queue.shift()!;
+		if (t === to) break;
+		for (const n of neighbors(t, map)) {
+			if (s.owner[n] !== p || prev.has(n)) continue;
+			prev.set(n, t);
+			queue.push(n);
+		}
+	}
+	if (!prev.has(to)) return [];
+	const path: number[] = [];
+	for (let t = to; t !== -1; t = prev.get(t)!) path.push(t);
+	return path.reverse();
 }
 
 /** Three cards alike, one of each, or any three with a wild among them. */

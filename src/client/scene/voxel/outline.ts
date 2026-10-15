@@ -25,8 +25,15 @@ function outlineMaterial() {
 			uniform vec2 uViewport;
 			uniform float uWidth;
 			void main() {
-				vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-				vec2 dir = (normalMatrix * normal).xy;
+				vec4 local = vec4(position, 1.0);
+				vec3 n = normal;
+				#ifdef USE_INSTANCING
+				// Many copies drawn at once (the Conquest troops): each by its own matrix.
+				local = instanceMatrix * local;
+				n = mat3(instanceMatrix) * n;
+				#endif
+				vec4 clip = projectionMatrix * modelViewMatrix * local;
+				vec2 dir = (normalMatrix * n).xy;
 				float len = length(dir);
 				if (len > 1e-4) clip.xy += dir / len * (2.0 * uWidth / uViewport) * clip.w;
 				gl_Position = clip;

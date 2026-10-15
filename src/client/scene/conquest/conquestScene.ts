@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { conquestMap } from '../../../shared/conquest/queries';
+import { armiesMovedIn, conquestMap, fortifyRoute } from '../../../shared/conquest/queries';
 import type { Battle, CqEvent, CqView } from '../../../shared/conquest/types';
 import type { RealmMap } from '../../../shared/conquest/realm';
 import type { Animator } from '../anim';
@@ -7,8 +7,9 @@ import type { Particles } from '../effects';
 import { PLAYER_RGB } from '../layout';
 import type { Stage } from '../stage';
 import { type ArrowStyle, BoardArrow } from './arrow';
-import { type Holder, RealmBoard, type TerritoryLook } from './realmBoard';
+import { type BoardNames, type Holder, RealmBoard, type TerritoryLook } from './realmBoard';
 import { SIGIL_OF } from './sigils';
+import { Troops } from './troops';
 
 /**
  * Conquest on the table: the Realm's board, kept in step with the game. A battle plays out on
@@ -40,6 +41,8 @@ const BATTLE_ROLL_FAST = 0.3;
 
 export class ConquestScene {
 	readonly board: RealmBoard;
+	/** The armies as miniatures, marching and fighting as the game goes (see troops.ts). */
+	readonly troops: Troops;
 	readonly arrow = new BoardArrow();
 	readonly map: RealmMap;
 	callbacks: CqSceneCallbacks = {};
@@ -64,11 +67,13 @@ export class ConquestScene {
 		readonly stage: Stage,
 		readonly anim: Animator,
 		readonly particles: Particles,
-		names?: ConstructorParameters<typeof RealmBoard>[1],
+		names?: BoardNames,
 		map: RealmMap = conquestMap()
 	) {
 		this.map = map;
 		this.board = new RealmBoard(map, names);
+		this.troops = new Troops(map, this.board.realm, this.board.lanes.map((l) => l.path), particles);
+		this.board.group.add(this.troops.group);
 		stage.scene.add(this.board.group);
 		stage.scene.add(this.arrow.group);
 	}
@@ -79,6 +84,7 @@ export class ConquestScene {
 		this.owner = this.map.territories.map(() => -1);
 		this.armies = this.map.territories.map(() => 0);
 		this.board.setHolders(this.owner, this.armies, []);
+		this.troops.reset(this.owner, this.armies);
 		for (const a of this.board.armies) a.group.visible = false;
 		this.board.clearLooks();
 		this.intent = null;
@@ -95,13 +101,14 @@ export class ConquestScene {
 		if (this.view && newest < this.lastSeq) return this.jumpTo(view);
 		const first = !this.view;
 		this.holders = view.players.map((p) => ({ color: PLAYER_RGB[p.color] ?? 0xffffff, sigil: SIGIL_OF[p.color] }));
+		this.troops.setColors(this.holders.map((h) => h.color));
 		const fresh = view.log.filter((e) => e.seq > this.lastSeq);
 		if (view.log.length) this.lastSeq = Math.max(this.lastSeq, view.log[view.log.length - 1].seq);
 		this.view = view;
 		for (const a of this.board.armies) a.group.visible = true;
 		if (first || quiet) {
 			this.queue = [];
-			this.apply(view);
+			this.apply(view, true);
 			if (!this.playing) this.callbacks.onSettled?.(view);
 			return;
 		}
@@ -117,12 +124,27 @@ export class ConquestScene {
 		this.setView(view, true);
 	}
 
-	/** The holders, owners and armies of `view`, all at once. */
-	private apply(view: CqView) {
+	/**
+	 * The holders, owners and armies of `view`, all at once. A territory just taken shows the armies
+	 * moving into it already (and the ones they leave short), so it never reads 0. The troops
+	 * march there; `snap` puts every piece in its place at once instead (a new game, a jump).
+	 */
+	private apply(view: CqView, snap = false) {
 		this.owner = view.owner.slice();
 		this.armies = view.armies.slice();
-		this.board.setHolders(this.owner, this.armies, this.holders);
+		const shown = armiesMovedIn(view, this.moveIn);
+		this.board.setHolders(this.owner, shown, this.holders);
+		if (snap) this.troops.reset(this.owner, shown);
+		else this.troops.settle(this.owner, shown, view.step === 'occupy' ? view.occupy : null);
 	}
+
+	/** How many armies the player taking a territory means to move in (null: the fewest allowed). */
+	setMoveIn(count: number | null) {
+		if (count === this.moveIn) return;
+		this.moveIn = count;
+		if (this.view && !this.playing) this.apply(this.view);
+	}
+	private moveIn: number | null = null;
 
 	private async play() {
 		this.playing = true;
@@ -165,11 +187,14 @@ export class ConquestScene {
 					this.striking = true;
 					this.arrow.set(from, to, this.holders[e.player]?.color ?? 0xffffff, 'attack');
 					this.arrow.strike();
+					this.troops.attack(e.from, e.to, e.attack.length, fast);
 					this.callbacks.onBattle?.(e, fast);
 					await this.hold(fast ? BATTLE_ROLL_FAST : BATTLE_ROLL);
 					this.armies[e.from] = Math.max(0, this.armies[e.from] - e.attackerLoss);
 					this.armies[e.to] = Math.max(0, this.armies[e.to] - e.defenderLoss);
 					this.board.setHolders(this.owner, this.armies, this.holders);
+					this.troops.set(e.from, this.armies[e.from], 'battle', e.to);
+					this.troops.set(e.to, this.armies[e.to], 'battle', e.from);
 					const hit = (t: number, n: number) => {
 						if (!n) return;
 						const at = this.board.realm.anchors[t].clone().add(new THREE.Vector3(0, 3.5, 0));
@@ -183,6 +208,7 @@ export class ConquestScene {
 				case 'captured': {
 					this.owner[e.to] = e.player;
 					this.board.setHolders(this.owner, this.armies, this.holders);
+					this.troops.own(e.to, e.player);
 					const at = this.board.realm.anchors[e.to].clone().add(new THREE.Vector3(0, 4, 0));
 					const c = this.holders[e.player]?.color ?? 0xffffff;
 					this.particles.emit({ at, count: 46, colors: [c, '#fff6c8', '#ffffff', c], speed: 12, up: 18, spread: 3, life: 1.1, size: 0.7, gravity: 18, drag: 1.6 });
@@ -195,6 +221,9 @@ export class ConquestScene {
 					this.armies[e.from] -= e.count;
 					this.armies[e.to] += e.count;
 					this.board.setHolders(this.owner, this.armies, this.holders);
+					// The armies march there: through their own lands, for a fortify.
+					const route = e.type === 'fortified' ? fortifyRoute({ owner: this.owner, settings: this.view!.settings }, e.from, e.to) : [];
+					this.troops.flowTo(route.length ? route : [e.from, e.to], this.armies[e.to]);
 					if (e.type === 'fortified') {
 						this.striking = true;
 						this.arrow.set(this.board.realm.anchors[e.from], this.board.realm.anchors[e.to], this.holders[e.player]?.color ?? 0xffffff, 'move');
@@ -206,6 +235,7 @@ export class ConquestScene {
 				case 'placed': {
 					this.armies[e.territory] += e.count;
 					this.board.setHolders(this.owner, this.armies, this.holders);
+					this.troops.set(e.territory, this.armies[e.territory], 'placed');
 					if (e.count > 0) this.particles.sparkle(this.board.realm.anchors[e.territory].clone().add(new THREE.Vector3(0, 3, 0)), this.holders[e.player]?.color ?? 0xffffff, 8);
 					break;
 				}
@@ -220,6 +250,7 @@ export class ConquestScene {
 				}
 				case 'gameOver': {
 					const c = this.holders[e.winner]?.color ?? 0xffffff;
+					this.troops.cheer(e.winner);
 					this.particles.confetti(new THREE.Vector3(0, 30, 0), [c, '#fff6c8', '#ffffff', '#e0b24a'], 500);
 					break;
 				}
@@ -283,8 +314,10 @@ export class ConquestScene {
 		if (e.button !== 0 || this.hover === null || this.drag) return;
 		if (this.callbacks.onDragStart?.(this.hover)) {
 			this.drag = { from: this.hover, id: e.pointerId };
-			// The camera stays put while armies are dragged.
+			// The camera stays put while armies are dragged, and the drag ends here wherever it is
+			// let go (over a panel, off the window).
 			this.stage.rig.enabled = false;
+			this.stage.canvas.setPointerCapture(e.pointerId);
 		}
 	}
 
@@ -293,13 +326,26 @@ export class ConquestScene {
 		this.updateHover();
 		const drag = this.drag;
 		if (drag && e.pointerId === drag.id) {
-			this.drag = null;
-			this.stage.rig.enabled = true;
-			const moved = this.hover !== drag.from;
-			if (moved) return this.callbacks.onDrop?.(drag.from, this.hover);
+			this.endDrag();
+			// Let go anywhere but on the board itself (over a panel, off the window): called off.
+			if (document.elementFromPoint(e.clientX, e.clientY) !== this.stage.canvas) return;
+			if (this.hover !== drag.from) return this.callbacks.onDrop?.(drag.from, this.hover);
 		}
 		if (e.button !== 0 || this.stage.rig.dragged) return;
 		this.callbacks.onClick?.(this.hover, e.pointerType === 'touch');
+	}
+
+	/** The pointer was taken away mid-drag (the browser cancelled it, or lost it): the drag is off. */
+	pointerCancel(e: PointerEvent) {
+		if (this.drag?.id === e.pointerId) this.endDrag();
+	}
+
+	private endDrag() {
+		const drag = this.drag;
+		if (!drag) return;
+		this.drag = null;
+		this.stage.rig.enabled = true;
+		if (this.stage.canvas.hasPointerCapture(drag.id)) this.stage.canvas.releasePointerCapture(drag.id);
 	}
 
 	/** Territories a click does something on right now (the pointer turns into a hand over them). */
@@ -365,6 +411,7 @@ export class ConquestScene {
 		this.board.update(dt, t, { azimuth: this.stage.rig.azimuth, polar: this.stage.rig.polar, camera: cam, height: this.stage.box.height });
 		const ppu = this.stage.box.height / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2) * Math.max(1, cam.position.length()));
 		this.arrow.update(dt, t, cam, ppu);
+		this.troops.update(dt, ppu);
 	}
 
 	dispose() {
@@ -372,6 +419,7 @@ export class ConquestScene {
 		this.stage.scene.remove(this.board.group);
 		this.stage.scene.remove(this.arrow.group);
 		this.board.dispose();
+		this.troops.dispose();
 		this.arrow.dispose();
 	}
 }

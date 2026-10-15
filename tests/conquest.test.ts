@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { conquestBot } from '../src/shared/conquest/bot';
 import {
+	armiesMovedIn,
 	attackSources,
 	attackTargets,
 	bestSet,
@@ -509,6 +510,22 @@ describe('attacking', () => {
 		expect(t.armies[T('wolfden')]).toBe(2);
 		expect(t.step).toBe('attack');
 		expect(t.occupy).toBeNull();
+	});
+
+	it('shows a territory just taken with its armies already moved in', () => {
+		const s = table(2, { wolfden: [0, 6], rimeholt: [0, 0] });
+		s.step = 'occupy';
+		s.occupy = { from: T('wolfden'), to: T('rimeholt'), min: 3, max: 5 };
+		// The fewest allowed when no count is picked, and a count picked kept within the limits.
+		expect(armiesMovedIn(s)[T('rimeholt')]).toBe(3);
+		expect(armiesMovedIn(s)[T('wolfden')]).toBe(3);
+		expect(armiesMovedIn(s, 4)[T('rimeholt')]).toBe(4);
+		expect(armiesMovedIn(s, 9)[T('rimeholt')]).toBe(5);
+		expect(armiesMovedIn(s, 1)[T('rimeholt')]).toBe(3);
+		// The state itself is left as it is.
+		expect(s.armies[T('rimeholt')]).toBe(0);
+		s.step = 'attack';
+		expect(armiesMovedIn(s, 4)).toBe(s.armies);
 	});
 
 	it('moves in by itself when there is no choice', () => {

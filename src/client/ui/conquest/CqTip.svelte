@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { attackTargets, conquestMap, neighbors, regionTerritories } from '../../../shared/conquest/queries';
+	import { armiesMovedIn, attackTargets, conquestMap, neighbors, regionTerritories } from '../../../shared/conquest/queries';
 	import { t } from '../../i18n/index.svelte';
 	import { SIGIL_OF, sigilUrl } from '../../scene/conquest/sigils';
 	import { sceneRef } from '../sceneRef';
@@ -70,7 +70,7 @@
 			held,
 			whole,
 			owner,
-			armies: v.armies[at],
+			armies: armiesMovedIn(v, p.occupying ? p.move : null)[at],
 			neighbors: neighbors(at, map).length,
 			lanes,
 			hint

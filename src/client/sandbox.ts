@@ -58,8 +58,25 @@ async function runConquestSandbox(canvas: HTMLCanvasElement, params: URLSearchPa
 		const j = Math.floor(rand() * (i + 1));
 		[owner[i], owner[j]] = [owner[j], owner[i]];
 	}
-	const armies = owner.map(() => 1 + Math.floor(rand() * rand() * 14));
+	const most = Number(params.get('max') ?? 14);
+	const armies = owner.map(() => 1 + Math.floor(rand() * rand() * most));
 	board.setHolders(owner, armies, holders);
+	// The armies as miniatures (see troops.ts), to march and fight from the console: __troops.
+	const { Troops } = await import('./scene/conquest/troops');
+	const { Particles } = await import('./scene/effects');
+	const particles = new Particles(stage.scene);
+	const troops = new Troops(REALM, board.realm, board.lanes.map((l) => l.path), particles);
+	board.group.add(troops.group);
+	troops.setColors(holders.map((h) => h.color));
+	troops.reset(owner, armies);
+	stage.onFrame((dt) => {
+		particles.update(dt);
+		const cam = stage.camera;
+		troops.update(dt, canvas.clientHeight / (2 * Math.tan((cam.fov * Math.PI) / 360) * Math.max(1, cam.position.length())));
+	});
+	(window as any).__troops = troops;
+	(window as any).__owner = owner;
+	(window as any).__armies = armies;
 	const az = params.get('az');
 	if (az) stage.rig.set({ azimuth: Number(az) }, true);
 	const pol = params.get('pol');

@@ -124,7 +124,10 @@ export interface CqState {
 	players: CqPlayer[];
 	/** Per territory: who holds it. */
 	owner: number[];
-	/** Per territory: armies on it (always at least one). */
+	/**
+	 * Per territory: armies on it. At least one, except a territory just taken, which stands empty
+	 * until armies move in (see `occupy`; the table shows them moved in already, see armiesMovedIn).
+	 */
 	armies: number[];
 	phase: CqPhase;
 	step: CqStep;

@@ -5,6 +5,7 @@
 	import Invites from './account/Invites.svelte';
 	import Hud from './game/Hud.svelte';
 	import ConquestHud from './conquest/ConquestHud.svelte';
+	import { boardNames } from './conquest/text';
 	import Home from './Home.svelte';
 	import Joining from './Joining.svelte';
 	import Lobby from './Lobby.svelte';
@@ -68,6 +69,12 @@
 	$effect(() => {
 		if (screen === 'game' && (lastScreen === 'lobby' || lastScreen === 'launching')) sfx.horn();
 		lastScreen = screen;
+	});
+
+	// The Realm's board names its territories in the player's language, from the menu's table on
+	// (the board is often made there, before any game), and again when the language changes.
+	$effect.pre(() => {
+		sceneRef.current?.setConquestNames(boardNames());
 	});
 
 	let wasGame = false;

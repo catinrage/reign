@@ -31,6 +31,7 @@ import { type Quality, Stage } from './stage';
 import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
 import type { CqView } from '../../shared/conquest/types';
 import { ConquestScene, type CqSceneCallbacks } from './conquest/conquestScene';
+import type { BoardNames } from './conquest/realmBoard';
 
 /**
  * `stoneRoad` picks one of your roads to pave, `storehouse` and `tavern` one of your buildings to
@@ -231,8 +232,8 @@ export class GameScene {
 	private catHovered = false;
 	/** At a Conquest table: the Realm on the table instead of the island (see showConquest). */
 	conquest: ConquestScene | null = null;
-	/** Names for the Realm's board (translated), set by the interface before it is shown. */
-	conquestNames: ConstructorParameters<typeof ConquestScene>[3] = undefined;
+	/** Names for the Realm's board (translated), see setConquestNames. */
+	private conquestNames: BoardNames | undefined = undefined;
 	/** What the Conquest board tells the interface (see ConquestHud), kept for each board made. */
 	conquestCallbacks: CqSceneCallbacks = {};
 	private catHoverAt = new THREE.Vector2(-9, -9);
@@ -256,7 +257,8 @@ export class GameScene {
 		canvas.addEventListener('pointerdown', this.onPointerDown);
 		canvas.addEventListener('pointermove', this.onPointerMove);
 		canvas.addEventListener('pointerup', this.onPointerUp);
-		canvas.addEventListener('pointercancel', this.endPress);
+		canvas.addEventListener('pointercancel', this.onPointerCancel);
+		canvas.addEventListener('lostpointercapture', (e) => this.conquest?.pointerCancel(e));
 		canvas.addEventListener('pointerleave', this.onPointerLeave);
 		this.showMenuBoard();
 		this.stage.start();
@@ -319,6 +321,12 @@ export class GameScene {
 		this.dice.setShown(this.diceDown);
 		for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = true;
 		this.room.fitTable((this.reach + 50) / (TABLE_HALF * ROOM_SCALE));
+	}
+
+	/** The Realm's names in the player's language: on the board now, and on any made later. */
+	setConquestNames(names: BoardNames) {
+		this.conquestNames = names;
+		this.conquest?.board.setNames(names);
 	}
 
 	/** A Conquest table's lobby: the Realm, empty, turning slowly. */
@@ -1514,6 +1522,12 @@ export class GameScene {
 			if (this.beaconAtPointer()) this.pressed = true;
 		}, LONG_PRESS_MS);
 		this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer };
+	};
+
+	/** The browser took the pointer away (a scroll, a system gesture): whatever it was doing is off. */
+	private onPointerCancel = (e: PointerEvent) => {
+		this.conquest?.pointerCancel(e);
+		this.endPress();
 	};
 
 	/** The finger lifted, moved off or was joined by another: no beacon from this touch. */
