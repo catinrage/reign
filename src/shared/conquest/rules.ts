@@ -9,6 +9,9 @@ import {
 	fortifyTargets,
 	isSet,
 	majorityGoal,
+	missionDeck,
+	missionDone,
+	missionHold,
 	neighbors,
 	reinforcementsFor,
 	setValue,
@@ -20,13 +23,16 @@ import {
 	CARD_SYMBOLS,
 	CONQUEST_MAX_PLAYERS,
 	DEFAULT_CONQUEST_SETTINGS,
+	MISSION_MIN_PLAYERS,
 	type ConquestCard,
 	type ConquestSettings,
 	type CqAction,
 	type CqEvent,
 	type CqResult,
 	type CqState,
-	type CqView
+	type CqView,
+	type Mission,
+	type WinReason
 } from './types';
 
 /** How many events the state keeps in its log; older ones are dropped. */
@@ -78,6 +84,7 @@ export function createConquest(
 ): CqState {
 	const n = players.length;
 	if (n < 2 || n > CONQUEST_MAX_PLAYERS) throw new Error('Conquest seats two to six players.');
+	if (settings.victory === 'missions' && n < MISSION_MIN_PLAYERS) throw new Error('Secret missions need at least three players.');
 	const map = conquestMap(settings);
 	const count = map.territories.length;
 	const start = startingArmies(n, map);
@@ -91,6 +98,7 @@ export function createConquest(
 			color: p.color,
 			isBot: p.isBot,
 			cards: [],
+			mission: null,
 			out: false
 		})),
 		owner: new Array(count).fill(0),
@@ -132,6 +140,7 @@ export function createConquest(
 	const order = shuffle(s, [...Array(count).keys()]);
 	order.forEach((t, i) => (s.owner[t] = i % n));
 	s.deck = shuffle(s, newDeck(map));
+	if (settings.victory === 'missions') dealMissions(s);
 	for (let p = 0; p < n; p++) {
 		const held = territoriesOf(s, p).length;
 		const extra = n === 2 && p === 1 ? SECOND_PLAYER_BONUS : 0;
@@ -151,6 +160,18 @@ export function createConquest(
 		startPlay(ctx);
 	}
 	return s;
+}
+
+/**
+ * Deal everyone a secret mission from the shuffled missions, each a different one, and never one
+ * to knock themselves out.
+ */
+function dealMissions(s: CqState) {
+	const deck = shuffle(s, missionDeck(conquestMap(s.settings), s.players.length));
+	s.players.forEach((pl, p) => {
+		const i = deck.findIndex((m) => !(m.kind === 'destroy' && m.target === p));
+		pl.mission = deck.splice(i, 1)[0];
+	});
 }
 
 class RuleError extends Error {}
@@ -179,6 +200,8 @@ export function applyConquest(state: CqState, player: number, action: CqAction):
 	const ctx = new Ctx(s);
 	try {
 		dispatch(ctx, player, action);
+		// A secret mission is won the moment it is done, by whatever move did it.
+		if (s.phase === 'play' && s.current === player) checkMission(ctx, player);
 	} catch (e) {
 		if (e instanceof RuleError) return { ok: false, error: e.message };
 		throw e;
@@ -417,10 +440,15 @@ function capture(ctx: Ctx, p: number, from: number, to: number, dice: number) {
 		s.stats.players[defender].outBy = p;
 		ctx.emit({ type: 'eliminated', player: defender, by: p, cards: cards.length });
 		if (s.players[p].cards.length >= 6) s.mustTrade = true;
+		// Anyone else sent to knock them out holds territories instead, as the classic game has it.
+		s.players.forEach((pl, q) => {
+			if (q !== p && pl.mission?.kind === 'destroy' && pl.mission.target === defender)
+				pl.mission = { kind: 'territories', ...missionHold(conquestMap(s.settings)), instead: defender };
+		});
 	}
 	const max = s.armies[from] - 1;
 	const min = Math.min(dice, max);
-	const win = victory(s);
+	const win = victory(s, p);
 	if (win) {
 		// Everything moves in, so the board the game ends on has no empty territory.
 		moveIn(ctx, p, from, to, max);
@@ -454,10 +482,13 @@ function occupy(ctx: Ctx, p: number, count: number) {
 	moveIn(ctx, p, o.from, o.to, count);
 }
 
-type Victory = { winner: number; reason: 'domination' | 'majority' | 'lastStanding' };
+type Victory = { winner: number; reason: WinReason };
 
-/** Whether someone has won: the whole map, two thirds of it (if that is the rule), or nobody else left. */
-function victory(s: CqState): Victory | null {
+/**
+ * Whether someone has won: the whole map, two thirds of it (if that is the rule), nobody else
+ * left, or `actor`'s secret mission done (if that is the rule).
+ */
+function victory(s: CqState, actor: number): Victory | null {
 	const map = conquestMap(s.settings);
 	const counts = s.players.map(() => 0);
 	for (const o of s.owner) counts[o]++;
@@ -468,10 +499,24 @@ function victory(s: CqState): Victory | null {
 	}
 	const left = s.players.flatMap((pl, i) => (pl.out ? [] : [i]));
 	if (left.length === 1) return { winner: left[0], reason: 'lastStanding' };
+	if (missionWon(s, actor)) return { winner: actor, reason: 'mission' };
 	return null;
 }
 
-function gameOver(ctx: Ctx, winner: number, reason: Victory['reason']) {
+/** `p`'s secret mission is done (and the war is won by missions). */
+function missionWon(s: CqState, p: number): boolean {
+	const m: Mission | null = s.players[p]?.mission ?? null;
+	return s.settings.victory === 'missions' && s.phase === 'play' && !!m && missionDone(s, p, m);
+}
+
+/** End the war if `p` has just done their secret mission. True if so. */
+function checkMission(ctx: Ctx, p: number): boolean {
+	if (!missionWon(ctx.s, p)) return false;
+	gameOver(ctx, p, 'mission');
+	return true;
+}
+
+function gameOver(ctx: Ctx, winner: number, reason: WinReason) {
 	const s = ctx.s;
 	s.phase = 'ended';
 	s.winner = winner;
@@ -514,6 +559,8 @@ function fortify(ctx: Ctx, p: number, from: number, to: number, count: number) {
 function endTurn(ctx: Ctx) {
 	const s = ctx.s;
 	const p = s.current;
+	// The turn's last move (a fortify, armies placed when time ran out) may have done their mission.
+	if (checkMission(ctx, p)) return;
 	if (s.conquered) drawCard(ctx, p);
 	const n = s.players.length;
 	let next = p;
@@ -614,8 +661,8 @@ export function addConquestChat(state: CqState, player: number, text: string): C
 
 /**
  * What player `me` (or a spectator, -1) may see: everything but the deck, the rng, other
- * players' cards and the cards they drew. Once the game is over every hand is shown, and
- * `revealAll` shows everything (a replay).
+ * players' cards and secret missions, and the cards they drew. Once the game is over every hand
+ * and mission is shown, and `revealAll` shows everything (a replay).
  */
 export function conquestView(state: CqState, me: number, revealAll = false): CqView {
 	const { rng: _rng, deck, players, log, ...rest } = state;
@@ -623,10 +670,10 @@ export function conquestView(state: CqState, me: number, revealAll = false): CqV
 	return {
 		...structuredClone(rest),
 		deckCount: deck.length,
-		players: players.map(({ cards, ...p }, i) => ({
+		players: players.map(({ cards, mission, ...p }, i) => ({
 			...p,
 			cardCount: cards.length,
-			...(open || i === me ? { cards: structuredClone(cards) } : {})
+			...(open || i === me ? { cards: structuredClone(cards), mission: structuredClone(mission) } : {})
 		})),
 		log: log.map((e) =>
 			e.type === 'cardDrawn' && e.player !== me && !revealAll

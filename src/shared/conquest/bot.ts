@@ -6,11 +6,12 @@ import {
 	canFortifyNow,
 	conquestMap,
 	fortifyTargets,
+	missionDone,
 	neighbors,
 	regionTerritories,
 	territoriesOf
 } from './queries';
-import type { CqAction, CqView } from './types';
+import type { CqAction, CqView, Mission } from './types';
 
 /** Battles a bot fights in one turn at most, so a turn always ends. */
 const BATTLES_PER_TURN = 40;
@@ -68,6 +69,61 @@ function threat(view: CqView, t: number): number {
 	return attackTargets(view, t).reduce((n, e) => n + view.armies[e], 0);
 }
 
+/** The bot's secret mission, if the war is won by missions. */
+function missionOf(view: CqView): Mission | null {
+	return view.players[view.me]?.mission ?? null;
+}
+
+/** How much taking enemy territory `e` would serve the bot's mission. */
+function missionPull(view: CqView, e: number): number {
+	const m = missionOf(view);
+	if (!m) return 0;
+	switch (m.kind) {
+		case 'regions': {
+			const r = conquestMap(view.settings).territories[e].region;
+			return m.regions.includes(r) ? 3 : m.extra ? 0.5 : 0;
+		}
+		case 'destroy': {
+			if (view.owner[e] !== m.target) return 0;
+			const left = view.owner.filter((o) => o === m.target).length;
+			return left <= 3 ? 6 : 3;
+		}
+		case 'territories':
+			return 0.6;
+	}
+}
+
+/** Taking `to` from `from` would do the bot's mission there and then (all its armies but one moving in). */
+function winsMission(view: CqView, from: number, to: number): boolean {
+	const m = missionOf(view);
+	if (!m) return false;
+	const owner = view.owner.slice();
+	const armies = view.armies.slice();
+	const loser = owner[to];
+	owner[to] = view.me;
+	armies[to] = armies[from] - 1;
+	armies[from] = 1;
+	const players = view.players.map((p, i) => ({ out: p.out || (i === loser && !owner.includes(loser)) }));
+	return missionDone({ settings: view.settings, owner, armies, players }, view.me, m);
+}
+
+/**
+ * A mission to hold territories with more than one army on each: armies first where one or two more
+ * make a territory count, the ones nearest the mark first. Null when there's no such need.
+ */
+function guardMission(view: CqView): CqAction | null {
+	const m = missionOf(view);
+	if (m?.kind !== 'territories' || m.armies < 2) return null;
+	const mine = territoriesOf(view, view.me);
+	if (mine.filter((t) => view.armies[t] >= m.armies).length >= m.count) return null;
+	const short = mine
+		.filter((t) => view.armies[t] < m.armies)
+		.sort((a, b) => view.armies[b] - view.armies[a] || threat(view, a) - threat(view, b) || a - b);
+	if (!short.length) return null;
+	const t = short[0];
+	return { type: 'place', territory: t, count: Math.min(view.reserve[view.me], m.armies - view.armies[t]) };
+}
+
 /** How much of each region the bot holds, from 0 to 1. */
 function regionShares(view: CqView): number[] {
 	return regionTerritories(conquestMap(view.settings)).map(
@@ -80,6 +136,8 @@ function regionShares(view: CqView): number[] {
  * the bot nearly holds, and guarding regions it holds. Territories with no enemy next door get none.
  */
 function placeArmies(view: CqView, deploying: boolean): CqAction {
+	const guard = guardMission(view);
+	if (guard) return guard;
 	const me = view.me;
 	const map = conquestMap(view.settings);
 	const shares = regionShares(view);
@@ -95,6 +153,7 @@ function placeArmies(view: CqView, deploying: boolean): CqAction {
 			let v = 1 + shares[r] * shares[r] * map.regions[r].bonus;
 			v += 4 / (1 + view.armies[e]);
 			if (counts[view.owner[e]] <= 3) v += 2;
+			v += missionPull(view, e);
 			score = Math.max(score, v);
 		}
 		const r = map.territories[t].region;
@@ -155,14 +214,18 @@ function chooseAttack(view: CqView): CqAction | null {
 			const region = map.territories[to].region;
 			const completes = regions[region].every((t) => t === to || view.owner[t] === me);
 			const knocksOut = counts[view.owner[to]] === 1;
-			let score = good ? ratio : 0;
-			if (fair && (completes || knocksOut || !view.conquered)) {
+			const pull = missionPull(view, to);
+			let score = good ? ratio + pull : 0;
+			if (fair && (completes || knocksOut || pull >= 3 || !view.conquered)) {
 				score =
 					Math.max(score, ratio) +
 					(completes ? map.regions[region].bonus : 0) +
 					(knocksOut ? 5 : 0) +
+					pull +
 					0.5;
 			}
+			// The war won with this one territory: worth a gamble at even odds.
+			if (a >= d && a >= 2 && winsMission(view, from, to)) score = Math.max(score, 100 + ratio);
 			if (score > 0 && (!best || score > best.score)) best = { from, to, score };
 		}
 	}

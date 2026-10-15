@@ -23,8 +23,26 @@ export interface ConquestCard {
 
 /** How many armies a set of cards is worth: rising with every set anyone trades, or fixed by its pictures. */
 export type CardRule = 'escalating' | 'fixed';
-/** Win by taking every territory, or by holding two thirds of the Realm. */
-export type VictoryRule = 'domination' | 'majority';
+/**
+ * Win by taking every territory, by holding two thirds of the Realm, or by completing a secret
+ * mission of your own (taking every territory still wins too).
+ */
+export type VictoryRule = 'domination' | 'majority' | 'missions';
+
+/**
+ * A secret mission, dealt to each player when the war is won by missions.
+ * - `regions`: hold every territory of these regions (indexes), and of `extra` more of your choice.
+ * - `territories`: hold `count` territories with at least `armies` armies on each. `instead` is the
+ *   player a mission to knock out was against, who someone else knocked out first.
+ * - `destroy`: knock player `target` out of the war.
+ */
+export type Mission =
+	| { kind: 'regions'; regions: number[]; extra: number }
+	| { kind: 'territories'; count: number; armies: number; instead?: number }
+	| { kind: 'destroy'; target: number };
+
+/** Secret missions need a table of at least this many. */
+export const MISSION_MIN_PLAYERS = 3;
 /** The armies everyone starts with: placed by the players, all at once, or spread at random. */
 export type DeployRule = 'placed' | 'random';
 
@@ -52,6 +70,8 @@ export interface CqPlayer {
 	color: PlayerColor;
 	isBot: boolean;
 	cards: ConquestCard[];
+	/** Their secret mission, when the war is won by missions (null otherwise). */
+	mission: Mission | null;
 	/** Lost their last territory. */
 	out: boolean;
 }
@@ -160,6 +180,9 @@ export interface CqState {
 
 type Ev<T extends string, P> = { seq: number; type: T } & P;
 
+/** How the war was won: the whole Realm, two thirds of it, everyone else out, or a secret mission. */
+export type WinReason = 'domination' | 'majority' | 'lastStanding' | 'mission';
+
 /** The dice of one battle, highest first, and what each side lost. */
 export interface Battle {
 	player: number;
@@ -195,7 +218,7 @@ export type CqEvent =
 	/** `player` lost their last territory to `by`, who takes their cards. */
 	| Ev<'eliminated', { player: number; by: number; cards: number }>
 	| Ev<'turnTimedOut', { player: number }>
-	| Ev<'gameOver', { winner: number; reason: 'domination' | 'majority' | 'lastStanding' }>
+	| Ev<'gameOver', { winner: number; reason: WinReason }>
 	| Ev<'chat', { player: number; text: string }>;
 
 export type CqAction =
@@ -217,10 +240,12 @@ export type CqAction =
 
 export type CqResult = { ok: true; state: CqState; events: CqEvent[] } | { ok: false; error: string };
 
-export interface CqPlayerView extends Omit<CqPlayer, 'cards'> {
+export interface CqPlayerView extends Omit<CqPlayer, 'cards' | 'mission'> {
 	cardCount: number;
 	/** Only your own (or everyone's once the game is over). */
 	cards?: ConquestCard[];
+	/** Only your own (or everyone's once the game is over). */
+	mission?: Mission | null;
 }
 
 /** What one player (or a spectator, `me` -1) may see: no one else's cards, nor the deck. */

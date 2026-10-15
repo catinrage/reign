@@ -2,7 +2,7 @@
 	import { CARD_RULES, DEPLOY_RULES, VICTORY_RULES } from '../../../shared/conquest/settings';
 	import { REALM } from '../../../shared/conquest/realm';
 	import { majorityGoal } from '../../../shared/conquest/queries';
-	import type { CardRule, ConquestSettings, DeployRule, VictoryRule } from '../../../shared/conquest/types';
+	import { MISSION_MIN_PLAYERS, type CardRule, type ConquestSettings, type DeployRule, type VictoryRule } from '../../../shared/conquest/types';
 	import { msg, t } from '../../i18n/index.svelte';
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
@@ -14,8 +14,13 @@
 
 	const VICTORY: Record<VictoryRule, { name: string; text: string }> = {
 		domination: { name: msg('Conquest'), text: msg('Take every territory of the Realm.') },
-		majority: { name: msg('Majority'), text: msg('First to hold two thirds of the Realm wins.') }
+		majority: { name: msg('Majority'), text: msg('First to hold two thirds of the Realm wins.') },
+		missions: {
+			name: msg('Missions'),
+			text: msg('Everyone draws a secret mission: complete yours, or take the whole Realm, to win. Three players or more.')
+		}
 	};
+	const tooFew = $derived(s.victory === 'missions' && (client.lobby?.seats.length ?? 0) < MISSION_MIN_PLAYERS);
 	const CARDS: Record<CardRule, { name: string; text: string }> = {
 		escalating: { name: msg('Rising'), text: msg('Each set traded is worth more than the last: 4, 6, 8, 10, 12, 15, then 5 more each.') },
 		fixed: { name: msg('Fixed'), text: msg('A set is worth what it shows: footmen 4, knights 6, catapults 8, one of each 10.') }
@@ -41,14 +46,23 @@
 <div class="rule">
 	<div class="rule-head">
 		<span class="label"><img class="icon-px" src={PIXEL.crown} alt="" />{t('Victory')}</span>
-		<span class="chosen">{s.victory === 'majority' ? t('Hold {n} territories', { n: majorityGoal() }) : t('Take all {n}', { n: REALM.territories.length })}</span>
+		<span class="chosen"
+			>{s.victory === 'majority'
+				? t('Hold {n} territories', { n: majorityGoal() })
+				: s.victory === 'missions'
+					? t('Secret missions')
+					: t('Take all {n}', { n: REALM.territories.length })}</span
+		>
 	</div>
-	<div class="seg">
+	<div class="seg three">
 		{#each VICTORY_RULES as r (r)}
 			<button class="btn small" class:on={s.victory === r} disabled={!host} title={t(VICTORY[r].text)} onclick={() => set({ victory: r })}>{t(VICTORY[r].name)}</button>
 		{/each}
 	</div>
 	<p class="note">{t(VICTORY[s.victory].text)}</p>
+	{#if tooFew}
+		<p class="note warn">{t('Secret missions need at least three players. Add a bot!')}</p>
+	{/if}
 </div>
 
 <div class="rule">
@@ -137,6 +151,9 @@
 		grid-template-columns: 1fr 1fr;
 		gap: 4px;
 	}
+	.seg.three {
+		grid-template-columns: 1fr 1fr 1fr;
+	}
 	.seg .btn:disabled:not(.on) {
 		filter: grayscale(0.6) brightness(0.65);
 	}
@@ -149,5 +166,8 @@
 		font-size: 12.5px;
 		line-height: 1.3;
 		color: var(--muted);
+	}
+	.note.warn {
+		color: #ffb09a;
 	}
 </style>

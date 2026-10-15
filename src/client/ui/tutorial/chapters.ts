@@ -3,6 +3,7 @@ import type { GameMode } from '../../../shared/rules/modes';
 import { CQ_PIXEL } from '../conquest/icons';
 import CqBattle from './conquest/Battle.svelte';
 import CqCards from './conquest/Cards.svelte';
+import CqMissions from './conquest/Missions.svelte';
 import CqRealm from './conquest/Realm.svelte';
 import CqTurn from './conquest/Turn.svelte';
 import { msg } from '../../i18n/index.svelte';
@@ -210,6 +211,14 @@ export const CHAPTERS: Chapter[] = [
 		lede: msg('Earn a card each turn you conquer, and trade sets for armies.'),
 		icon: PIXEL.cards,
 		page: CqCards
+	},
+	{
+		id: 'cq-missions',
+		mode: 'conquest',
+		title: msg('Secret missions'),
+		lede: msg('A war of your own to win: two regions, a host of territories, or one rival.'),
+		icon: PIXEL.letter,
+		page: CqMissions
 	}
 ];
 

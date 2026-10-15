@@ -14,6 +14,7 @@
 <ul class="rows">
 	<li><img class="icon-px" src={PIXEL.crown} alt="" /><span>{t('Conquest (the standard rule): take every territory on the map.')}</span></li>
 	<li><img class="icon-px" src={CQ_PIXEL.flag} alt="" /><span>{t('Majority: be the first to hold {n} territories, two thirds of the Realm.', { n: majorityGoal() })}</span></li>
+	<li><img class="icon-px" src={PIXEL.letter} alt="" /><span>{t('Secret missions: everyone gets a mission of their own, and completing it wins (see Secret missions).')}</span></li>
 	<li><img class="icon-px" src={CQ_PIXEL.skull} alt="" /><span>{t('Lose your last territory and you are out. Whoever took it gets your cards.')}</span></li>
 </ul>
 

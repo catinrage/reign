@@ -1289,3 +1289,30 @@ describe('bot trade offers', () => {
 		room.dispose();
 	});
 });
+
+describe('Conquest secret missions', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('need three at the table, and each player is shown only their own', () => {
+		vi.useFakeTimers();
+		const room = new Room('KLMNO', false, 'conquest');
+		const me = fakeSocket();
+		const seat = room.join(me.ws, 'Komeil');
+		if (typeof seat === 'string') throw new Error(seat);
+		room.handle(seat, { t: 'setConquest', settings: { victory: 'missions' } }, me.ws);
+		room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		expect(room.cq).toBeNull();
+		expect(me.sent.at(-1)).toEqual({ t: 'error', message: 'Secret missions need at least three players. Add a bot!' });
+
+		room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		expect(room.cq?.players.every((p) => p.mission)).toBe(true);
+		const view = [...me.sent].reverse().find((m) => m.t === 'cqGame');
+		if (view?.t !== 'cqGame') throw new Error('no game sent');
+		const mine = room.seats.indexOf(seat);
+		expect(view.view.players[mine].mission).toEqual(room.cq!.players[mine].mission);
+		expect(view.view.players.filter((_, i) => i !== mine).every((p) => p.mission === undefined)).toBe(true);
+		room.dispose();
+	});
+});

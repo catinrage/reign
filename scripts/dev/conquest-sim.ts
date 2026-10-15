@@ -58,7 +58,7 @@ const pct = (n: number, of: number) => `${Math.round((n / of) * 100)}%`.padStart
 
 for (const players of tables) {
 	for (const cards of ['escalating', 'fixed'] as CardRule[])
-		for (const victory of ['domination', 'majority'] as VictoryRule[]) {
+		for (const victory of (players >= 3 ? ['domination', 'majority', 'missions'] : ['domination', 'majority']) as VictoryRule[]) {
 			const results: Result[] = [];
 			for (let g = 0; g < games; g++)
 				results.push(play(players, 1000 + g, cards, victory, g % 2 ? 'random' : 'placed'));

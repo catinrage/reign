@@ -98,7 +98,9 @@ export function cqEventParts(e: CqEvent, v: CqView): CqLogPart[] | null {
 		case 'gameOver':
 			return e.reason === 'majority'
 				? say(msg('{player} holds two thirds of the Realm and wins!'), { player: P(e.winner) })
-				: say(msg('{player} conquered the whole Realm!'), { player: P(e.winner) });
+				: e.reason === 'mission'
+					? say(msg('{player} completed their secret mission and wins!'), { player: P(e.winner) })
+					: say(msg('{player} conquered the whole Realm!'), { player: P(e.winner) });
 		case 'chat':
 			return [P(e.player), { text: `: ${e.text}` }];
 		default:

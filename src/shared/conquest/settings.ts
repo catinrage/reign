@@ -1,7 +1,7 @@
 import { DEFAULT_CONQUEST_SETTINGS, type CardRule, type ConquestSettings, type DeployRule, type VictoryRule } from './types';
 
 export const CARD_RULES: CardRule[] = ['escalating', 'fixed'];
-export const VICTORY_RULES: VictoryRule[] = ['domination', 'majority'];
+export const VICTORY_RULES: VictoryRule[] = ['domination', 'majority', 'missions'];
 export const DEPLOY_RULES: DeployRule[] = ['placed', 'random'];
 /** The maps Conquest is played on. */
 export const CONQUEST_MAPS = ['realm'];

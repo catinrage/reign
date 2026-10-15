@@ -36,7 +36,7 @@ import { missionById } from '../shared/campaign/missions';
 import { createMissionGame, missionSeats, missionSettings } from '../shared/campaign/start';
 import type { Action, GameState } from '../shared/rules/types';
 import { viewFor } from '../shared/rules/view';
-import { CONQUEST_MAX_PLAYERS, DEFAULT_CONQUEST_SETTINGS, type ConquestSettings, type CqState } from '../shared/conquest/types';
+import { CONQUEST_MAX_PLAYERS, DEFAULT_CONQUEST_SETTINGS, MISSION_MIN_PLAYERS, type ConquestSettings, type CqState } from '../shared/conquest/types';
 import { addConquestChat, applyConquest, conquestView, createConquest, timeOutConquest } from '../shared/conquest/rules';
 import { conquestBot } from '../shared/conquest/bot';
 import { cleanConquestSettings } from '../shared/conquest/settings';
@@ -497,6 +497,9 @@ export class Room {
 				if (this.mission) return this.startMission(seat, this.mission, ws);
 				if (this.seats.length < MIN_PLAYERS) {
 					return send(ws, { t: 'error', message: 'You need at least two players. Add a bot!' });
+				}
+				if (this.kind === 'conquest' && this.conquest.victory === 'missions' && this.seats.length < MISSION_MIN_PLAYERS) {
+					return send(ws, { t: 'error', message: 'Secret missions need at least three players. Add a bot!' });
 				}
 				{
 					const waiting = this.seats.filter((s) => !this.isReady(s));

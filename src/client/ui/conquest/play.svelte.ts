@@ -45,6 +45,8 @@ class CqPlay {
 	lastBattle = $state.raw<Battle | null>(null);
 	/** Cards panel open. */
 	cardsOpen = $state(false);
+	/** Your secret mission's card open. */
+	missionOpen = $state(false);
 	/** A short note where the player clicked: why that did nothing. */
 	note = $state<{ text: string; x: number; y: number; id: number } | null>(null);
 	/** Armies placed this turn, newest last, so Undo can take them back in order. */

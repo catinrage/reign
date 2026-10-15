@@ -13,6 +13,7 @@
 	import CqCards from './CqCards.svelte';
 	import CqCombat from './CqCombat.svelte';
 	import CqLog from './CqLog.svelte';
+	import CqMissionCard from './CqMissionCard.svelte';
 	import CqNote from './CqNote.svelte';
 	import CqPlayers from './CqPlayers.svelte';
 	import CqPrompt from './CqPrompt.svelte';
@@ -61,6 +62,7 @@
 		cqPlay.battle = null;
 		cqPlay.lastBattle = null;
 		cqPlay.cardsOpen = false;
+		cqPlay.missionOpen = false;
 	});
 
 	/** Events new since the last call: none at first, nor when a new game starts the log over. */
@@ -113,8 +115,9 @@
 	function onKey(e: KeyboardEvent) {
 		if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
 		if (e.key === 'Escape') {
-			// Esc backs out a step at a time: the cards, the target, the selection, then the menu.
+			// Esc backs out a step at a time: the mission, the cards, the target, the selection, then the menu.
 			if (ui.menu) ui.menu = false;
+			else if (cqPlay.missionOpen) cqPlay.missionOpen = false;
 			else if (cqPlay.cardsOpen && !cqPlay.view?.mustTrade) cqPlay.cardsOpen = false;
 			else if (cqPlay.info !== null) cqPlay.info = null;
 			else if (cqPlay.target !== null && !cqPlay.occupying) {
@@ -144,6 +147,7 @@
 		{/if}
 		<CqTip />
 		<CqNote />
+		<CqMissionCard />
 		<CqVictory />
 	{/if}
 	<GameMenu />

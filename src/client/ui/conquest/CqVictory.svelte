@@ -4,6 +4,8 @@
 	import { SIGIL_OF, sigilUrl } from '../../scene/conquest/sigils';
 	import { PIXEL } from '../pixel';
 	import { cqPlay } from './play.svelte';
+	import { missionDone } from '../../../shared/conquest/queries';
+	import { missionText } from './missions';
 	import { cqColor } from './text';
 
 	/** The war is over: who won, how, and what everyone did, with the territories each held round by round. */
@@ -19,6 +21,7 @@
 		hidden = false;
 	});
 	const reason = $derived([...v.log].reverse().find((e) => e.type === 'gameOver'));
+	const winnerMission = $derived(v.winner !== null ? (v.players[v.winner]?.mission ?? null) : null);
 	const order = $derived(
 		v.players
 			.map((p, i) => ({ p, i, s: v.stats.players[i], lands: v.owner.filter((o) => o === i).length }))
@@ -54,7 +57,9 @@
 				<p class="why">
 					{reason?.type === 'gameOver' && reason.reason === 'majority'
 						? t('Held two thirds of the Realm.')
-						: t('Conquered every territory of the Realm.')}
+						: reason?.type === 'gameOver' && reason.reason === 'mission' && winnerMission
+							? t('Completed a secret mission: {mission}', { mission: missionText(v, winnerMission) })
+							: t('Conquered every territory of the Realm.')}
 				</p>
 				<div class="grid">
 					<table>
@@ -99,6 +104,24 @@
 						</svg>
 					</figure>
 				</div>
+				{#if v.settings.victory === 'missions'}
+					<div class="missions well">
+						<h3><img class="icon-px" src={PIXEL.letter} alt="" />{t('The secret missions')}</h3>
+						<ul>
+							{#each order as r (r.i)}
+								{@const m = r.p.mission}
+								{#if m}
+									<li style="--c:{cqColor(v, r.i)}">
+										<img src={sigilUrl(SIGIL_OF[r.p.color], cqColor(v, r.i), '#1a0c05', 24)} alt="" />
+										<b>{r.p.name}</b>
+										<span>{missionText(v, m)}</span>
+										{#if missionDone(v, r.i, m)}<img class="icon-px tick" src={PIXEL.check} alt={t('Done!')} />{/if}
+									</li>
+								{/if}
+							{/each}
+						</ul>
+					</div>
+				{/if}
 				<div class="foot">
 					<button class="btn wood" onclick={() => (hidden = true)}>{t('View board')}</button>
 					{#if client.replaying}
@@ -130,6 +153,47 @@
 {/if}
 
 <style>
+	.missions {
+		margin: 10px 0 0;
+		padding: 8px 12px;
+	}
+	.missions h3 {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: 0 0 6px;
+		font-family: var(--px);
+		font-size: 14px;
+		color: var(--gold);
+	}
+	.missions h3 img {
+		width: 18px;
+		height: 18px;
+	}
+	.missions ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.missions li {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+		color: #e2cba8;
+	}
+	.missions li b {
+		color: var(--c);
+		text-shadow: var(--outline-dark);
+	}
+	.missions li .tick {
+		width: 16px;
+		height: 16px;
+		margin-left: auto;
+	}
 	.victory {
 		z-index: 50;
 		pointer-events: auto;

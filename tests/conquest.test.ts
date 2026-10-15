@@ -9,6 +9,10 @@ import {
 	fortifyTargets,
 	isSet,
 	majorityGoal,
+	missionDeck,
+	missionDone,
+	missionGuard,
+	missionHold,
 	nextSetValue,
 	regionsHeld,
 	reinforcementsFor,
@@ -909,6 +913,154 @@ function botGame(
 	}
 	return { s, actions };
 }
+
+describe('secret missions', () => {
+	const R = (id: string) => REALM.regions.findIndex((r) => r.id === id);
+	const missions = (o: Partial<ConquestSettings> = {}) => settings({ victory: 'missions', deploy: 'random', ...o });
+
+	it('deals each player a different mission, never one to knock themselves out', () => {
+		for (let n = 3; n <= 6; n++)
+			for (let seed = 1; seed <= 40; seed++) {
+				const s = createConquest(seats(n), seed, missions());
+				const dealt = s.players.map((p) => p.mission!);
+				expect(dealt.every(Boolean)).toBe(true);
+				expect(new Set(dealt.map((m) => JSON.stringify(m))).size).toBe(n);
+				dealt.forEach((m, p) => expect(m.kind === 'destroy' && m.target === p).toBe(false));
+				dealt.forEach((m) => m.kind === 'destroy' && expect(m.target).toBeLessThan(n));
+			}
+		// No missions unless the war is won by them.
+		expect(createConquest(seats(3), 1, settings()).players.every((p) => p.mission === null)).toBe(true);
+	});
+
+	it('holds the cards the table agreed on, scaled to the Realm', () => {
+		expect(missionHold()).toEqual({ count: 20, armies: 1 });
+		expect(missionGuard()).toEqual({ count: 15, armies: 2 });
+		const deck = missionDeck(REALM, 4);
+		expect(deck).toContainEqual({ kind: 'regions', regions: [R('heartlands'), R('embersands')], extra: 0 });
+		expect(deck).toContainEqual({ kind: 'regions', regions: [R('elderwood'), R('ironpeaks')], extra: 1 });
+		expect(deck.filter((m) => m.kind === 'destroy')).toHaveLength(4);
+	});
+
+	it('needs three players', () => {
+		expect(() => createConquest(seats(2), 1, missions())).toThrow('Secret missions need at least three players.');
+	});
+
+	it('keeps missions secret until the war is over', () => {
+		const s = createConquest(seats(4), 3, missions());
+		const v = conquestView(s, 1);
+		expect(v.players[1].mission).toEqual(s.players[1].mission);
+		for (const p of [0, 2, 3]) expect(v.players[p].mission).toBeUndefined();
+		expect(conquestView(s, -1).players.every((p) => p.mission === undefined)).toBe(true);
+		expect(conquestView(s, -1, true).players.map((p) => p.mission)).toEqual(s.players.map((p) => p.mission));
+		const over = { ...structuredClone(s), phase: 'ended' as const };
+		expect(conquestView(over, 0).players.map((p) => p.mission)).toEqual(s.players.map((p) => p.mission));
+	});
+
+	/** Every territory of these regions player 0's, two armies on each. */
+	const holding = (...regions: string[]) =>
+		Object.fromEntries(
+			REALM.territories.flatMap((t) => (regions.map(R).includes(t.region) ? [[t.id, [0, 2] as [number, number]]] : []))
+		);
+
+	it('wins the moment the regions it names are held', () => {
+		const s = table(3, { ...holding('heartlands', 'embersands'), harvestdowns: [1, 1], oakshire: [0, 6] }, { victory: 'missions' });
+		s.players[0].mission = { kind: 'regions', regions: [R('heartlands'), R('embersands')], extra: 0 };
+		const r = rigged(s, 0, { type: 'attack', from: T('oakshire'), to: T('harvestdowns') }, ([b]) => b.defenderLoss === 1);
+		if (!r.ok) return;
+		expect(r.state.phase).toBe('ended');
+		expect(r.state.winner).toBe(0);
+		expect(of(r.events, 'gameOver')).toEqual([expect.objectContaining({ winner: 0, reason: 'mission' })]);
+	});
+
+	it('wants one more whole region when the mission says so', () => {
+		const s = table(3, holding('elderwood', 'ironpeaks'), { victory: 'missions' });
+		const m = { kind: 'regions' as const, regions: [R('elderwood'), R('ironpeaks')], extra: 1 };
+		expect(missionDone(s, 0, m)).toBe(false);
+		const more = table(3, holding('elderwood', 'ironpeaks', 'sapphire'), { victory: 'missions' });
+		expect(missionDone(more, 0, m)).toBe(true);
+	});
+
+	it('wins with enough territories guarded, the moment the last army is placed', () => {
+		// Fifteen territories: fourteen with two armies, one with a single army.
+		const ids = REALM.territories.slice(0, 15).map((t) => t.id);
+		const s = table(3, Object.fromEntries(ids.map((id, i) => [id, [0, i ? 2 : 1] as [number, number]])), { victory: 'missions' });
+		s.players[0].mission = { kind: 'territories', ...missionGuard() };
+		s.step = 'reinforce';
+		s.reserve[0] = 3;
+		const placed = act(s, 0, { type: 'place', territory: T(ids[1]), count: 1 });
+		expect(placed.phase).toBe('play');
+		const r = applyConquest(placed, 0, { type: 'place', territory: T(ids[0]), count: 1 });
+		if (!r.ok) throw new Error(r.error);
+		expect(r.state.phase).toBe('ended');
+		expect(of(r.events, 'gameOver')).toEqual([expect.objectContaining({ winner: 0, reason: 'mission' })]);
+	});
+
+	it('wins at the end of a turn whose fortify did it', () => {
+		const ids = REALM.territories.slice(2, 15).map((t) => t.id);
+		const s = table(3, { ...Object.fromEntries(ids.map((id) => [id, [0, 2] as [number, number]])), icewind: [0, 4], wolfden: [0, 1] }, { victory: 'missions' });
+		s.players[0].mission = { kind: 'territories', ...missionGuard() };
+		s.step = 'fortify';
+		const r = applyConquest(s, 0, { type: 'fortify', from: T('icewind'), to: T('wolfden'), count: 1 });
+		if (!r.ok) throw new Error(r.error);
+		expect(r.state.phase).toBe('ended');
+		expect(r.state.winner).toBe(0);
+		expect(of(r.events, 'turnStarted')).toEqual([]);
+	});
+
+	it('wins by knocking out its target', () => {
+		const s = table(3, { wolfden: [0, 6], rimeholt: [2, 1] }, { victory: 'missions' });
+		s.players[0].mission = { kind: 'destroy', target: 2 };
+		const r = rigged(s, 0, { type: 'attack', from: T('wolfden'), to: T('rimeholt') }, ([b]) => b.defenderLoss === 1);
+		if (!r.ok) return;
+		expect(of(r.events, 'eliminated')).toHaveLength(1);
+		expect(of(r.events, 'gameOver')).toEqual([expect.objectContaining({ winner: 0, reason: 'mission' })]);
+	});
+
+	it('sends whoever else was after a player knocked out to hold territories instead', () => {
+		const s = table(4, { wolfden: [0, 6], rimeholt: [2, 1], icewind: [3, 1] }, { victory: 'missions' });
+		s.players[0].mission = { kind: 'regions', regions: [R('heartlands'), R('embersands')], extra: 0 };
+		s.players[1].mission = { kind: 'destroy', target: 2 };
+		s.players[3].mission = { kind: 'territories', ...missionGuard() };
+		const r = rigged(s, 0, { type: 'attack', from: T('wolfden'), to: T('rimeholt') }, ([b]) => b.defenderLoss === 1);
+		if (!r.ok) return;
+		expect(r.state.phase).toBe('play');
+		expect(r.state.players[1].mission).toEqual({ kind: 'territories', ...missionHold(), instead: 2 });
+		expect(r.state.players[3].mission).toEqual({ kind: 'territories', ...missionGuard() });
+	});
+
+	it('still wins by taking every territory', () => {
+		const s = table(3, { ...Object.fromEntries(REALM.territories.map((t) => [t.id, [0, 2] as [number, number]])), wolfden: [0, 6], rimeholt: [1, 1] }, { victory: 'missions' });
+		s.players[0].mission = { kind: 'destroy', target: 2 };
+		s.players[1].out = false;
+		s.players[2].out = true;
+		const r = rigged(s, 0, { type: 'attack', from: T('wolfden'), to: T('rimeholt') }, ([b]) => b.defenderLoss === 1);
+		if (!r.ok) return;
+		expect(of(r.events, 'gameOver')).toEqual([expect.objectContaining({ winner: 0, reason: 'domination' })]);
+	});
+
+	it('bots play for their own mission only, and finish their wars', () => {
+		botGame(4, 9, { victory: 'missions', deploy: 'placed' }, (s, seat) => {
+			const other = structuredClone(s);
+			other.players.forEach((p, i) => {
+				if (i !== seat) p.mission = { kind: 'destroy', target: seat };
+			});
+			expect(conquestBot(conquestView(other, seat))).toEqual(conquestBot(conquestView(s, seat)));
+		});
+		const reasons = new Set<string>();
+		for (let n = 3; n <= 6; n++)
+			for (const seed of [1, 2, 3]) {
+				const { s, actions } = botGame(n, seed * 17 + n, { victory: 'missions' });
+				expect(s.phase).toBe('ended');
+				expect(actions).toBeLessThan(20000);
+				const over = [...s.log].reverse().find((e) => e.type === 'gameOver');
+				if (over?.type !== 'gameOver') throw new Error('no gameOver');
+				reasons.add(over.reason);
+				if (over.reason === 'mission') expect(missionDone(s, s.winner!, s.players[s.winner!].mission!)).toBe(true);
+			}
+		// Missions are what wins most of these wars.
+		expect(reasons.has('mission')).toBe(true);
+	});
+});
 
 describe('bots', () => {
 	it('see only their own view and only make legal moves', () => {

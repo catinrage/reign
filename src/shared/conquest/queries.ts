@@ -1,5 +1,5 @@
 import { REALM, realmNeighbors, type RealmMap } from './realm';
-import type { ConquestCard, ConquestSettings, CqPhase, CqStep, Occupation } from './types';
+import type { ConquestCard, ConquestSettings, CqPhase, CqStep, Mission, Occupation } from './types';
 
 /**
  * Questions about a game of Conquest that the rules, the bots and the table all ask. Each takes
@@ -57,7 +57,7 @@ export function territoriesOf(s: CqTable, p: number): number[] {
 }
 
 /** The regions `p` holds every territory of. */
-export function regionsHeld(s: CqTable, p: number): number[] {
+export function regionsHeld(s: Pick<CqTable, 'settings' | 'owner'>, p: number): number[] {
 	return regionTerritories(conquestMap(s.settings)).flatMap((ts, r) =>
 		ts.every((t) => s.owner[t] === p) ? [r] : []
 	);
@@ -259,4 +259,44 @@ const CLASSIC_START: Record<number, number> = { 2: 40, 3: 35, 4: 30, 5: 25, 6: 2
 /** Armies each player starts with, scaled to the size of the map. */
 export function startingArmies(players: number, map: RealmMap = REALM): number {
 	return Math.round(((CLASSIC_START[players] ?? 20) * map.territories.length) / 42);
+}
+
+/**
+ * The missions to hold territories, scaled to the map from the classic game's 24 of 42, and 18 of
+ * 42 with two armies on each: on the Realm, 20, and 15 with two each.
+ */
+export function missionHold(map: RealmMap = REALM): { count: number; armies: number } {
+	return { count: Math.floor((map.territories.length * 24) / 42), armies: 1 };
+}
+
+export function missionGuard(map: RealmMap = REALM): { count: number; armies: number } {
+	return { count: Math.floor((map.territories.length * 18) / 42), armies: 2 };
+}
+
+/** Every secret mission for a table of `players`: the map's regions, territories, and one to knock out each player. */
+export function missionDeck(map: RealmMap, players: number): Mission[] {
+	const region = (id: string) => map.regions.findIndex((r) => r.id === id);
+	return [
+		...map.missionRegions.map((m): Mission => ({ kind: 'regions', regions: m.regions.map(region), extra: m.extra })),
+		{ kind: 'territories', ...missionHold(map) },
+		{ kind: 'territories', ...missionGuard(map) },
+		...Array.from({ length: players }, (_, target): Mission => ({ kind: 'destroy', target }))
+	];
+}
+
+/** `p` has done what `mission` asks, as the table stands. */
+export function missionDone(s: Pick<CqTable, 'settings' | 'owner' | 'armies' | 'players'>, p: number, mission: Mission): boolean {
+	switch (mission.kind) {
+		case 'regions': {
+			const held = regionsHeld(s, p);
+			return mission.regions.every((r) => held.includes(r)) && held.length >= mission.regions.length + mission.extra;
+		}
+		case 'territories': {
+			let n = 0;
+			for (let t = 0; t < s.owner.length; t++) if (s.owner[t] === p && s.armies[t] >= mission.armies) n++;
+			return n >= mission.count;
+		}
+		case 'destroy':
+			return !!s.players[mission.target]?.out;
+	}
 }

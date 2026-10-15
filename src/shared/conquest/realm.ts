@@ -52,6 +52,11 @@ export interface RealmMap {
 	borders: [string, string][];
 	/** Pairs of territories joined by a sea lane across the water. */
 	lanes: [string, string][];
+	/**
+	 * The secret missions to hold regions (see Mission in types.ts): these regions, by id, and how
+	 * many more of the player's choice.
+	 */
+	missionRegions: { regions: string[]; extra: number }[];
 }
 
 const REGIONS: RegionDef[] = [
@@ -216,6 +221,12 @@ export const REALM: RealmMap = {
 		['tidewell', 'sandhaven'],
 		['harvestdowns', 'tidewell'],
 		['briarmoor', 'redrock']
+	],
+	missionRegions: [
+		{ regions: ['heartlands', 'embersands'], extra: 0 },
+		{ regions: ['elderwood', 'ironpeaks'], extra: 1 },
+		{ regions: ['frostmarch', 'heartlands'], extra: 0 },
+		{ regions: ['sapphire', 'frostmarch'], extra: 1 }
 	]
 };
 

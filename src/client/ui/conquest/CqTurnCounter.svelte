@@ -11,7 +11,9 @@
 	const goalTip = $derived(
 		v.settings.victory === 'majority'
 			? t('Hold {n} of the {total} territories to win.', { n: goal, total: v.owner.length })
-			: t('Take all {total} territories to win.', { total: v.owner.length })
+			: v.settings.victory === 'missions'
+				? t('Take all {total} territories, or complete your secret mission, to win.', { total: v.owner.length })
+				: t('Take all {total} territories to win.', { total: v.owner.length })
 	);
 </script>
 
