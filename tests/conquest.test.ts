@@ -29,6 +29,7 @@ import {
 	createConquest,
 	timeOutConquest
 } from '../src/shared/conquest/rules';
+import { DEFAULT_CONQUEST_SETTINGS } from '../src/shared/conquest/types';
 import type {
 	Battle,
 	CardRule,
@@ -52,13 +53,7 @@ const COUNT = REALM.territories.length;
 
 const seats = (n: number) =>
 	Array.from({ length: n }, (_, i) => ({ name: `P${i}`, color: PLAYER_COLORS[i], isBot: false }));
-const settings = (o: Partial<ConquestSettings> = {}): ConquestSettings => ({
-	map: 'realm',
-	cards: 'escalating',
-	victory: 'domination',
-	deploy: 'placed',
-	...o
-});
+const settings = (o: Partial<ConquestSettings> = {}): ConquestSettings => ({ ...DEFAULT_CONQUEST_SETTINGS, ...o });
 
 function act(s: CqState, p: number, a: CqAction): CqState {
 	const r = applyConquest(s, p, a);
@@ -226,6 +221,7 @@ describe('reinforcements', () => {
 			territories: 6,
 			base: 3,
 			regions: [{ region: 0, bonus: 3 }],
+			extra: [],
 			total: 6
 		});
 		for (const id of ['owlhollow', 'thornwick', 'elderheart', 'mossvale', 'briarmoor', 'fernmere'])
@@ -237,6 +233,7 @@ describe('reinforcements', () => {
 				{ region: 0, bonus: 3 },
 				{ region: 1, bonus: 4 }
 			],
+			extra: [],
 			total: 11
 		});
 		s.owner[T('snowmere')] = 1;

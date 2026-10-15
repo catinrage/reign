@@ -39,7 +39,9 @@
 		if (p.attacking) return { label: t('End attacks'), run: () => p.endAttack(), tone: 'gold', tip: t('Stop attacking and move on to fortifying.') };
 		if (p.fortifying) {
 			if (p.selected !== null && p.target !== null)
-				return { label: t('Move {n} and end turn', { n: p.move }), run: () => p.fortify(), tone: 'green' };
+				return p.lastMove
+					? { label: t('Move {n} and end turn', { n: p.move }), run: () => p.fortify(), tone: 'green' }
+					: { label: t('Move {n}', { n: p.move }), run: () => p.fortify(), tone: 'green' };
 			return { label: t('End turn'), run: () => p.endTurn(), tone: 'red' };
 		}
 		return null;
@@ -126,7 +128,15 @@
 					>{p.selected === null ? t('Click one of your armies, then an enemy next to it.') : t('Click a red territory to attack it, or drag onto it.')}</span
 				>
 			{:else if p.myTurn && p.fortifying}
-				<span class="hint">{p.selected === null ? t('One move between connected territories ends your turn.') : t('Click or drag to a glowing territory.')}</span>
+				<span class="hint"
+					>{p.selected !== null
+						? t('Click or drag to a glowing territory.')
+						: v.omens?.current === 'floods'
+							? t('Floods: nobody may fortify this round.')
+							: p.lastMove
+								? t('One move between connected territories ends your turn.')
+								: t('Move armies as you like, then end your turn.')}</span
+				>
 			{:else if v.phase === 'deploy'}
 				<span class="hint wait"><img class="icon-px" src={PIXEL.hourglass} alt="" />{t('Waiting for everyone to place their armies')}</span>
 			{:else if v.phase === 'play'}
@@ -134,7 +144,7 @@
 			{/if}
 		</div>
 
-		{#if me >= 0}
+		{#if me >= 0 && v.settings.cards !== 'none'}
 			<button
 				class="btn wood cards-btn"
 				class:ready={setReady}

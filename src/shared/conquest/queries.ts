@@ -1,5 +1,8 @@
+import { HARVEST_ARMIES, MERCENARY_ARMIES, type OmenId } from './omens';
 import { REALM, realmNeighbors, type RealmMap } from './realm';
-import type { ConquestCard, ConquestSettings, CqPhase, CqStep, Mission, Occupation } from './types';
+import type { ConquestCard, ConquestSettings, CqPhase, CqStep, Mission, Occupation, ReinforceExtra } from './types';
+import { FULL_STORES, HIGH_GROUND, RESTLESS_MOST, RESTLESS_PER, STRONGHOLD, WOODLAND, type WarlordId } from './warlords';
+import { generateWorld } from './world';
 
 /**
  * Questions about a game of Conquest that the rules, the bots and the table all ask. Each takes
@@ -9,7 +12,11 @@ export interface CqTable {
 	settings: ConquestSettings;
 	owner: number[];
 	armies: number[];
-	players: { out: boolean }[];
+	players: { out: boolean; warlord?: WarlordId | null }[];
+	/** This round's omen, when the table plays with them. */
+	omens?: { current: OmenId | null; region: number | null; target: number | null } | null;
+	/** Territories each player lost since their own last turn began (the Gravewarden's armies). */
+	lostSince?: number[];
 	phase: CqPhase;
 	step: CqStep;
 	current: number;
@@ -20,12 +27,39 @@ export interface CqTable {
 	trades: number;
 }
 
-/** The map a game is played on. The Realm is the only one so far, so every id gets it. */
-export function conquestMap(_settings?: ConquestSettings): RealmMap {
-	return REALM;
+const worlds = new WeakMap<object, RealmMap>();
+
+/** The map a game is played on: the Realm, or the random world its settings make. */
+export function conquestMap(settings?: Pick<ConquestSettings, 'map' | 'world'>): RealmMap {
+	if (settings?.map !== 'random' || !settings.world) return REALM;
+	let map = worlds.get(settings.world);
+	if (!map) worlds.set(settings.world, (map = generateWorld(settings.world)));
+	return map;
 }
 
 const neighborCache = new Map<RealmMap, number[][]>();
+const laneCache = new Map<RealmMap, Set<number>>();
+
+/** Territories `a` and `b` are joined by a sea lane (not a land border). */
+export function isLane(map: RealmMap, a: number, b: number): boolean {
+	let lanes = laneCache.get(map);
+	if (!lanes) {
+		const index = new Map(map.territories.map((t, i) => [t.id, i]));
+		lanes = new Set(map.lanes.flatMap(([x, y]) => [index.get(x)! * 4096 + index.get(y)!, index.get(y)! * 4096 + index.get(x)!]));
+		laneCache.set(map, lanes);
+	}
+	return lanes.has(a * 4096 + b);
+}
+
+/** `p`'s warlord, if the table plays with warlords. */
+export function warlordOf(s: Pick<CqTable, 'players'>, p: number): WarlordId | null {
+	return s.players[p]?.warlord ?? null;
+}
+
+/** This round's omen, if any. */
+export function omenNow(s: Pick<CqTable, 'omens'>): OmenId | null {
+	return s.omens?.current ?? null;
+}
 const regionCache = new Map<RealmMap, number[][]>();
 
 /** Every territory's neighbours on a map, worked out once. */
@@ -64,20 +98,90 @@ export function regionsHeld(s: Pick<CqTable, 'settings' | 'owner'>, p: number): 
 }
 
 /**
- * The armies `p` gets at the start of a turn: a third of their territories (never fewer than
- * three), and each region's bonus for holding all of it.
+ * The armies `p` gets at the start of a turn: a third of their territories (never fewer than the
+ * table's least, three as a rule), each region's bonus for holding all of it, and what their
+ * warlord and the round's omen add.
  */
 export function reinforcementsFor(s: CqTable, p: number) {
 	const map = conquestMap(s.settings);
-	const territories = territoriesOf(s, p).length;
-	const base = Math.max(3, Math.floor(territories / 3));
-	const regions = regionsHeld(s, p).map((region) => ({ region, bonus: map.regions[region].bonus }));
-	return { territories, base, regions, total: base + regions.reduce((n, r) => n + r.bonus, 0) };
+	const mine = territoriesOf(s, p);
+	const territories = mine.length;
+	const base = Math.max(s.settings.minReinforce ?? 3, Math.floor(territories / 3));
+	const omen = omenNow(s);
+	const regions = regionsHeld(s, p).map((region) => ({ region, bonus: map.regions[region].bonus * (omen === 'musterBells' ? 2 : 1) }));
+	const extra: ReinforceExtra[] = [];
+	const warlord = warlordOf(s, p);
+	if (warlord === 'dunstan') {
+		const high = mine.filter((t) => (HIGH_GROUND as readonly string[]).includes(map.territories[t].terrain)).length;
+		if (high >= 2) extra.push({ source: 'warlord', armies: Math.floor(high / 2) });
+	}
+	const restless = warlord === 'gorm' ? Math.min(RESTLESS_MOST, Math.floor((s.lostSince?.[p] ?? 0) / RESTLESS_PER)) : 0;
+	if (restless) extra.push({ source: 'warlord', armies: restless });
+	if (omen === 'harvestMoon') extra.push({ source: 'omen', armies: HARVEST_ARMIES });
+	if (omen === 'mercenaries' && s.omens?.target === p) extra.push({ source: 'omen', armies: MERCENARY_ARMIES });
+	const total = base + regions.reduce((n, r) => n + r.bonus, 0) + extra.reduce((n, e) => n + e.armies, 0);
+	return { territories, base, regions, extra, total };
 }
 
-/** Enemy territories next to `from`. */
+/**
+ * Why `from` can't attack `to` this round, though they are enemies next door: the round's omen.
+ * Null if it can.
+ */
+export function attackBlock(s: CqTable, from: number, to: number): 'seaFog' | 'snowbound' | 'truce' | null {
+	const omen = omenNow(s);
+	if (!omen) return null;
+	const map = conquestMap(s.settings);
+	if (omen === 'seaFog' && isLane(map, from, to)) return 'seaFog';
+	if (omen === 'snowbound' && map.territories[to]?.region === s.omens?.region) return 'snowbound';
+	if (omen === 'truce' && s.owner[to] === s.omens?.target) return 'truce';
+	return null;
+}
+
+/** Enemy territories next to `from` that it may attack this round. */
 export function attackTargets(s: CqTable, from: number): number[] {
-	return neighbors(from, conquestMap(s.settings)).filter((n) => s.owner[n] !== s.owner[from]);
+	return neighbors(from, conquestMap(s.settings)).filter((n) => s.owner[n] !== s.owner[from] && !attackBlock(s, from, n));
+}
+
+/** The most dice an attack from `from` on `to` may roll: three, fewer with fewer armies, two into the Woodwarden's woods. */
+export function attackDiceMax(s: CqTable, from: number, to: number): number {
+	let most = Math.min(3, s.armies[from] - 1);
+	const terrain = conquestMap(s.settings).territories[to]?.terrain;
+	if (warlordOf(s, s.owner[to]) === 'rowan' && (WOODLAND as readonly string[]).includes(terrain)) most = Math.min(most, 2);
+	return Math.max(0, most);
+}
+
+/**
+ * The dice `to` defends with against `from`: two (one with a single army), three for the
+ * Ironwall where she has three or more, one against the Corsair across a sea lane.
+ */
+export function defendDice(s: CqTable, from: number, to: number): number {
+	const d = s.armies[to];
+	if (warlordOf(s, s.owner[from]) === 'ysra' && isLane(conquestMap(s.settings), from, to)) return 1;
+	if (warlordOf(s, s.owner[to]) === 'morwen' && d >= 3) return 3;
+	return Math.min(2, d);
+}
+
+/**
+ * Which of the attacker's dice (by rank, highest first) win ties against `to`: all of them under a
+ * Blood Moon, the highest for the Siegemaster rolling three at a stronghold; none as a rule.
+ */
+export function attackerTies(s: CqTable, attacker: number, dice: number, to: number): number {
+	if (omenNow(s) === 'bloodMoon') return 3;
+	return warlordOf(s, attacker) === 'aldric' && dice === 3 && s.armies[to] >= STRONGHOLD ? 1 : 0;
+}
+
+/**
+ * Which territories' armies `p` can see in the fog of war: their own and those next to them
+ * (everything for the Spymistress, and when there's no fog).
+ */
+export function visibleTo(s: CqTable, p: number): boolean[] {
+	if (!s.settings.fog || p < 0 || warlordOf(s, p) === 'vey' || s.players[p]?.out) return s.owner.map(() => true);
+	const map = conquestMap(s.settings);
+	const seen = s.owner.map((o) => o === p);
+	s.owner.forEach((o, t) => {
+		if (o === p) for (const n of neighbors(t, map)) seen[n] = true;
+	});
+	return seen;
 }
 
 /** `t` is p's, has an army to spare and an enemy next door. It says nothing of whose turn it is. */
@@ -136,16 +240,24 @@ export function armiesMovedIn(
 	return out;
 }
 
-/** Territories of the same player that armies on `from` can march to, through territories of theirs. */
-export function fortifyTargets(s: CqTable, from: number): number[] {
+/**
+ * Territories of the same player that armies on `from` can march to: through territories of
+ * theirs, or only next door if that is the table's rule; never over a sea lane in a Sea Fog, and
+ * nowhere in the Floods.
+ */
+export function fortifyTargets(s: Pick<CqTable, 'settings' | 'owner' | 'omens'>, from: number): number[] {
 	const map = conquestMap(s.settings);
 	const p = s.owner[from];
+	const omen = omenNow(s);
+	if (omen === 'floods') return [];
+	const step = (t: number) => neighbors(t, map).filter((n) => s.owner[n] === p && !(omen === 'seaFog' && isLane(map, t, n)));
+	if (s.settings.fortify === 'adjacent') return step(from).sort((a, b) => a - b);
 	const seen = new Set([from]);
 	const queue = [from];
 	while (queue.length) {
 		const t = queue.pop()!;
-		for (const n of neighbors(t, map)) {
-			if (s.owner[n] !== p || seen.has(n)) continue;
+		for (const n of step(t)) {
+			if (seen.has(n)) continue;
 			seen.add(n);
 			queue.push(n);
 		}
@@ -154,20 +266,27 @@ export function fortifyTargets(s: CqTable, from: number): number[] {
 	return [...seen].sort((a, b) => a - b);
 }
 
+/** How many fortify moves `p` may make in a turn: one (two for the Horselord), or any number. */
+export function fortifyMoves(s: Pick<CqTable, 'settings' | 'players'>, p: number): number {
+	if (s.settings.fortify === 'free') return Infinity;
+	return warlordOf(s, p) === 'kael' ? 2 : 1;
+}
+
 /**
  * The shortest way from `from` to `to` through territories held by from's owner, both ends
  * included (by land or sea lane), or [] if there is none.
  */
-export function fortifyRoute(s: Pick<CqTable, 'owner' | 'settings'>, from: number, to: number): number[] {
+export function fortifyRoute(s: Pick<CqTable, 'owner' | 'settings' | 'omens'>, from: number, to: number): number[] {
 	const map = conquestMap(s.settings);
 	const p = s.owner[from];
+	const fog = omenNow(s) === 'seaFog';
 	const prev = new Map<number, number>([[from, -1]]);
 	const queue = [from];
 	while (queue.length) {
 		const t = queue.shift()!;
 		if (t === to) break;
 		for (const n of neighbors(t, map)) {
-			if (s.owner[n] !== p || prev.has(n)) continue;
+			if (s.owner[n] !== p || prev.has(n) || (fog && isLane(map, t, n))) continue;
 			prev.set(n, t);
 			queue.push(n);
 		}
@@ -194,14 +313,44 @@ export function escalatingValue(n: number): number {
 
 const FIXED_VALUES = { footman: 4, knight: 6, catapult: 8 } as const;
 
-/** The armies these cards would bring if traded now (0 if they aren't a set), before the territory bonus. */
-export function setValue(s: Pick<CqTable, 'settings' | 'trades'>, cards: ConquestCard[]): number {
-	if (!isSet(cards)) return 0;
-	if (s.settings.cards === 'escalating') return escalatingValue(s.trades);
+/**
+ * The armies these cards would bring `p` if traded now (0 if they aren't a set), before the
+ * territory bonus: the Quartermaster's bring more.
+ */
+export function setValue(s: Pick<CqTable, 'settings' | 'trades'> & Partial<Pick<CqTable, 'players'>>, cards: ConquestCard[], p?: number): number {
+	if (!isSet(cards) || s.settings.cards === 'none') return 0;
+	const more = p !== undefined && s.players && warlordOf({ players: s.players }, p) === 'tobin' ? FULL_STORES : 0;
+	if (s.settings.cards === 'escalating') return escalatingValue(s.trades) + more;
 	const kinds = new Set(cards.map((c) => c.symbol));
 	if (kinds.size === 1 && !kinds.has('wild'))
-		return FIXED_VALUES[cards[0].symbol as keyof typeof FIXED_VALUES];
-	return 10;
+		return FIXED_VALUES[cards[0].symbol as keyof typeof FIXED_VALUES] + more;
+	return 10 + more;
+}
+
+/** A card pictures a territory `p` holds, and the table pays two armies there for it. */
+export function cardBonusTerritory(s: Pick<CqTable, 'settings' | 'owner'>, cards: ConquestCard[], p: number): number | null {
+	if (s.settings.cardBonus === false) return null;
+	return cards.find((c) => c.territory !== null && s.owner[c.territory] === p)?.territory ?? null;
+}
+
+/** Holding this many cards as a turn begins, a set must be traded first. */
+export function tradeLimit(s: Pick<CqTable, 'settings'>): number {
+	return s.settings.tradeAt ?? 5;
+}
+
+/** Some three of these cards make a set (any five always do). */
+export function hasSet(cards: ConquestCard[]): boolean {
+	for (let i = 0; i < cards.length; i++)
+		for (let j = i + 1; j < cards.length; j++) for (let k = j + 1; k < cards.length; k++) if (isSet([cards[i], cards[j], cards[k]])) return true;
+	return false;
+}
+
+/**
+ * A hand this big must be traded down before anything else: at the table's number of cards (one
+ * more after taking a knocked-out player's), as long as it holds a set to trade.
+ */
+export function mustTradeHand(s: Pick<CqTable, 'settings'>, cards: ConquestCard[], over = 0): boolean {
+	return s.settings.cards !== 'none' && cards.length >= tradeLimit(s) + over && hasSet(cards);
 }
 
 /** What the next set will bring: one number with escalating cards, a range with fixed ones. */
@@ -235,9 +384,8 @@ export function bestSet(cards: ConquestCard[], s: CqTable, p = s.current): CardS
 			for (let k = j + 1; k < cards.length; k++) {
 				const set = [cards[i], cards[j], cards[k]];
 				if (!isSet(set)) continue;
-				const armies = setValue(s, set);
-				const bonus =
-					set.find((c) => c.territory !== null && s.owner[c.territory] === p)?.territory ?? null;
+				const armies = setValue(s, set, p);
+				const bonus = cardBonusTerritory(s, set, p);
 				const wilds = set.filter((c) => c.symbol === 'wild').length;
 				const score = (armies + (bonus === null ? 0 : 2)) * 10 - wilds * 3;
 				if (score > bestScore) {
@@ -255,10 +403,16 @@ export function majorityGoal(map: RealmMap = REALM): number {
 
 /** The classic starting armies for a table of 2 to 6, which assume a map of 42 territories. */
 const CLASSIC_START: Record<number, number> = { 2: 40, 3: 35, 4: 30, 5: 25, 6: 20 };
+/** Fewer or more starting armies: a quarter either way. */
+const START_SCALE = { fewer: 0.75, standard: 1, more: 1.25 };
 
-/** Armies each player starts with, scaled to the size of the map. */
-export function startingArmies(players: number, map: RealmMap = REALM): number {
-	return Math.round(((CLASSIC_START[players] ?? 20) * map.territories.length) / 42);
+/**
+ * Armies each player starts with, scaled to the size of the map and to the table's rule, and
+ * never fewer than a few more than the territories they are dealt.
+ */
+export function startingArmies(players: number, map: RealmMap = REALM, start: keyof typeof START_SCALE = 'standard'): number {
+	const classic = ((CLASSIC_START[players] ?? 20) * map.territories.length) / 42;
+	return Math.max(Math.ceil(map.territories.length / players) + 3, Math.round(classic * START_SCALE[start]));
 }
 
 /**

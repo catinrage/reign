@@ -98,7 +98,7 @@
 			{#if info.owner >= 0}
 				<div class="owner" style="--c:{cqColor(v, info.owner)}">
 					<b>{playerName(v, info.owner)}</b>
-					<span class="armies">{t('{n, plural, one {# army} other {# armies}}', { n: info.armies })}</span>
+					<span class="armies">{info.armies < 0 ? t('armies unseen') : t('{n, plural, one {# army} other {# armies}}', { n: info.armies })}</span>
 				</div>
 			{/if}
 			{#if info.hint}<div class="hint">{info.hint}</div>{/if}
@@ -111,7 +111,7 @@
 			<div class="owner" style="--c:{cqColor(v, info.owner)}">
 				<img src={sigilUrl(SIGIL_OF[v.players[info.owner].color], cqColor(v, info.owner), '#1a0c05', 32)} alt="" />
 				<b>{playerName(v, info.owner)}</b>
-				<span class="armies">{t('{n, plural, one {# army} other {# armies}}', { n: info.armies })}</span>
+				<span class="armies">{info.armies < 0 ? t('armies unseen') : t('{n, plural, one {# army} other {# armies}}', { n: info.armies })}</span>
 			</div>
 			<div class="held">
 				{info.whole

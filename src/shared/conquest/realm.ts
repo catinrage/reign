@@ -57,6 +57,11 @@ export interface RealmMap {
 	 * many more of the player's choice.
 	 */
 	missionRegions: { regions: string[]; extra: number }[];
+	/** Where the regions' legend board and the compass rose stand in the sea (x, z); the Realm's places if left out. */
+	legend?: [number, number];
+	compass?: [number, number];
+	/** A generated world (see world.ts): its names are made up, not to be translated. */
+	generated?: boolean;
 }
 
 const REGIONS: RegionDef[] = [
@@ -230,6 +235,9 @@ export const REALM: RealmMap = {
 	]
 };
 
+/** The cell size the board draws a map at (world units): the borders the rules know are read off cells this size. */
+export const REALM_CELL = 0.6;
+
 /** What lies at a point of the map: a territory (its index) or water (-1). */
 export interface RealmCell {
 	territory: number;
@@ -243,31 +251,8 @@ export interface RealmCell {
  */
 export function realmCell(map: RealmMap, x: number, z: number): RealmCell {
 	const s = map.seed;
-	// The coast wanders, in bays and headlands big and small.
-	const cx = x + (fractal(x * 0.035, z * 0.035, s) - 0.5) * 12 + (fractal(x * 0.13, z * 0.13, s + 5) - 0.5) * 4;
-	const cz = z + (fractal(x * 0.035, z * 0.035, s + 31) - 0.5) * 12 + (fractal(x * 0.13, z * 0.13, s + 37) - 0.5) * 4;
-	// Each landmass is a soft blend of its discs, so neighbouring discs flow into one coast.
-	let land = '';
-	let best = 0;
-	let second = 0;
-	for (const id in map.lands) {
-		let f = 0;
-		for (const [lx, lz, lr] of map.lands[id]) {
-			const dx = cx - lx;
-			const dz = cz - lz;
-			const q = (dx * dx + dz * dz) / (lr * lr);
-			if (q < 9) f += Math.exp(-q);
-		}
-		if (f > best) {
-			second = best;
-			best = f;
-			land = id;
-		} else if (f > second) second = f;
-	}
-	if (best < COAST) return WATER;
-	// Two landmasses never meet: where they would, a strait runs between them.
-	if (second > COAST * 0.55) return WATER;
-	for (const [lx, lz, lr] of map.waters) if (Math.hypot(cx - lx, cz - lz) < lr) return WATER;
+	const land = realmLand(map, x, z);
+	if (!land) return WATER;
 	// Borders between territories wander too, less than the coast.
 	const qx = x + (fractal(x * 0.06, z * 0.06, s + 51) - 0.5) * 7 + (fractal(x * 0.22, z * 0.22, s + 55) - 0.5) * 1.6;
 	const qz = z + (fractal(x * 0.06, z * 0.06, s + 61) - 0.5) * 7 + (fractal(x * 0.22, z * 0.22, s + 65) - 0.5) * 1.6;
@@ -296,6 +281,86 @@ export function realmCell(map: RealmMap, x: number, z: number): RealmCell {
 /** How strong a landmass's blend of discs is at its coast (a lone disc reaches 0.8 of its radius). */
 const COAST = 0.5;
 const WATER: RealmCell = { territory: -1, next: -1 };
+
+/**
+ * The landmass at (x, z), or '' for water: the coast as the board draws it. Each landmass is a
+ * soft blend of its discs, so neighbouring discs flow into one coast, and the coast wanders in bays
+ * and headlands big and small.
+ */
+export function realmLand(map: RealmMap, x: number, z: number): string {
+	const s = map.seed;
+	const cx = x + (fractal(x * 0.035, z * 0.035, s) - 0.5) * 12 + (fractal(x * 0.13, z * 0.13, s + 5) - 0.5) * 4;
+	const cz = z + (fractal(x * 0.035, z * 0.035, s + 31) - 0.5) * 12 + (fractal(x * 0.13, z * 0.13, s + 37) - 0.5) * 4;
+	const index = discIndex(map);
+	const bucket = index.buckets.get(index.key(cx, cz));
+	let land = '';
+	let best = 0;
+	let second = 0;
+	if (bucket) {
+		// The discs near enough to count, landmass by landmass in the map's order, as if every disc were added up.
+		let k = 0;
+		while (k < bucket.length) {
+			const l = bucket[k].land;
+			let f = 0;
+			for (; k < bucket.length && bucket[k].land === l; k++) {
+				const [lx, lz, lr] = bucket[k].disc;
+				const dx = cx - lx;
+				const dz = cz - lz;
+				const q = (dx * dx + dz * dz) / (lr * lr);
+				if (q < 9) f += Math.exp(-q);
+			}
+			if (f > best) {
+				second = best;
+				best = f;
+				land = index.lands[l];
+			} else if (f > second) second = f;
+		}
+	}
+	if (best < COAST) return '';
+	// Two landmasses never meet: where they would, a strait runs between them.
+	if (second > COAST * 0.55) return '';
+	for (const [lx, lz, lr] of map.waters) if (Math.hypot(cx - lx, cz - lz) < lr) return '';
+	return land;
+}
+
+/**
+ * The land discs sorted into squares of the map, each square holding every disc that reaches into
+ * it (a disc counts out to three radii), in the map's order.
+ */
+interface DiscIndex {
+	lands: string[];
+	size: number;
+	key(x: number, z: number): number;
+	buckets: Map<number, { land: number; disc: [number, number, number] }[]>;
+}
+
+const discIndexes = new WeakMap<RealmMap, DiscIndex>();
+
+function discIndex(map: RealmMap): DiscIndex {
+	let index = discIndexes.get(map);
+	if (index) return index;
+	const lands = Object.keys(map.lands);
+	let reach = 1;
+	for (const id of lands) for (const [, , r] of map.lands[id]) reach = Math.max(reach, r * 3);
+	const size = reach;
+	const key = (x: number, z: number) => (Math.floor(z / size) + 4096) * 8192 + (Math.floor(x / size) + 4096);
+	const buckets = new Map<number, { land: number; disc: [number, number, number] }[]>();
+	lands.forEach((id, l) => {
+		for (const disc of map.lands[id]) {
+			const [x, z, r] = disc;
+			for (let bz = Math.floor((z - r * 3) / size); bz <= Math.floor((z + r * 3) / size); bz++)
+				for (let bx = Math.floor((x - r * 3) / size); bx <= Math.floor((x + r * 3) / size); bx++) {
+					const k = (bz + 4096) * 8192 + (bx + 4096);
+					let list = buckets.get(k);
+					if (!list) buckets.set(k, (list = []));
+					list.push({ land: l, disc });
+				}
+		}
+	});
+	index = { lands, size, key, buckets };
+	discIndexes.set(map, index);
+	return index;
+}
 
 /**
  * The map drawn out cell by cell (`cell` world units square), as the board shows it: each cell is
@@ -366,6 +431,8 @@ export function realmRaster(map: RealmMap, cell: number): RealmRaster {
 	}
 	const r = { nx, nz, cell, x0, z0, ids };
 	rasters.set(key, r);
+	// Random worlds come and go as the host rerolls: keep only the last few.
+	if (rasters.size > 8) rasters.delete(rasters.keys().next().value!);
 	return r;
 }
 

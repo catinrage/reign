@@ -123,6 +123,8 @@ export class Room {
 	mission: string | null = null;
 	/** Conquest tables: the game being played (null before the first), and the host's settings. */
 	cq: CqState | null = null;
+	/** The last omen the bots waited on. */
+	private omenSeen = 0;
 	conquest: ConquestSettings = structuredClone(DEFAULT_CONQUEST_SETTINGS);
 	private botTimer: NodeJS.Timeout | null = null;
 	/** The bot timer is only checking back later (not a move on its way), so news can cut it short. */
@@ -619,6 +621,7 @@ export class Room {
 			this.conquest
 		);
 		this.endTold = false;
+		this.omenSeen = 0;
 		this.recorder = new Recorder(this.cq);
 		this.listener?.gameStarted?.(this);
 		this.broadcastLobby();
@@ -1057,7 +1060,12 @@ export class Room {
 
 	/** What the turn clock times: Settlement's turns and setup steps, or Conquest's deployment and turns. */
 	private clockTurn(): string {
-		if (this.cq) return this.cq.phase === 'deploy' ? 'deploy' : `${this.cq.turn}:${this.cq.current}`;
+		if (this.cq) {
+			const g = this.cq;
+			// The draft is timed pick by pick, deployment as one, then turn by turn.
+			if (g.phase === 'draft') return `draft:${g.draft?.picked ?? 0}`;
+			return g.phase === 'deploy' ? 'deploy' : `${g.turn}:${g.current}`;
+		}
 		return clockTurn(this.game!);
 	}
 
@@ -1086,7 +1094,14 @@ export class Room {
 		if (last?.type === 'battle') delay += 700;
 		if (last?.type === 'captured') delay += 500;
 		if (last?.type === 'turnStarted') delay += 500;
-		if (g.phase === 'deploy') delay = 260 + Math.random() * 300;
+		// A new omen gets a moment on the table before the round goes on.
+		for (let i = g.log.length - 1; i >= 0 && g.log[i].seq > this.omenSeen; i--) {
+			if (g.log[i].type !== 'omen') continue;
+			this.omenSeen = g.log[i].seq;
+			delay += CQ_OMEN_SHOW_MS;
+			break;
+		}
+		if (g.phase === 'deploy' || g.phase === 'draft') delay = 260 + Math.random() * 300;
 		if (this.fastBots) delay = 40;
 		this.botTimer = setTimeout(() => {
 			this.botTimer = null;
@@ -1109,7 +1124,8 @@ export class Room {
 
 	private nextConquestMove() {
 		const g = this.cq!;
-		const seats = g.phase === 'deploy' ? this.seats.map((_, i) => i) : [g.current];
+		const seats =
+			g.phase === 'deploy' ? this.seats.map((_, i) => i) : g.phase === 'draft' && g.draft ? [g.draft.order[g.draft.picked]] : [g.current];
 		for (const i of seats) {
 			if (!this.controlled(i)) continue;
 			const action = conquestBot(conquestView(g, i));
@@ -1231,6 +1247,9 @@ function cleanName(name: unknown): string {
 		.trim()
 		.slice(0, 18);
 }
+
+/** How long the bots let a new omen show before they play on. */
+const CQ_OMEN_SHOW_MS = 2600;
 
 /** Messages only a Settlement table takes, and only a Conquest table. */
 const SETTLEMENT_ONLY = new Set<ClientMessage['t']>([

@@ -20,6 +20,10 @@
 			const w = v.winner ?? 0;
 			return w === v.me ? t('You conquered the Realm!') : t('{player} conquered the Realm!', { player: playerName(v, w) });
 		}
+		if (v.phase === 'draft' && v.draft) {
+			const picker = v.draft.order[v.draft.picked];
+			return picker === v.me ? t('Choose your warlord') : t('{player} is choosing a warlord', { player: playerName(v, picker) });
+		}
 		if (v.phase === 'deploy') {
 			if (p.deploying) return t('Place your starting armies: {n} left', { n: p.reserve });
 			const waiting = v.players.filter((_, i) => v.reserve[i] > 0).map((pl) => pl.name);
@@ -33,7 +37,7 @@
 			if (v.step === 'fortify') return t('{player} is fortifying', { player: who });
 			return t('{player} is attacking', { player: who });
 		}
-		if (v.mustTrade) return t('You hold 5 cards: trade in a set');
+		if (v.mustTrade) return t('You hold {n} cards: trade in a set', { n: v.players[v.me]?.cardCount ?? 5 });
 		if (p.placing) return t('Place {n, plural, one {# army} other {# armies}} on your territories', { n: p.reserve });
 		if (p.occupying) return t('Move armies into {place}', { place: territoryName(v, v.occupy!.to) });
 		if (p.attacking) {

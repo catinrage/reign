@@ -12,6 +12,7 @@ import {
 	territoriesOf
 } from './queries';
 import type { CqAction, CqView, Mission } from './types';
+import { HIGH_GROUND, WOODLAND, type WarlordId } from './warlords';
 
 /** Battles a bot fights in one turn at most, so a turn always ends. */
 const BATTLES_PER_TURN = 40;
@@ -25,6 +26,7 @@ export function conquestBot(view: CqView): CqAction | null {
 	const me = view.me;
 	const pl = view.players[me];
 	if (!pl || pl.out || view.phase === 'ended') return null;
+	if (view.phase === 'draft') return view.draft?.order[view.draft.picked] === me ? { type: 'pickWarlord', warlord: draftPick(view) } : null;
 	if (view.phase === 'deploy') return view.reserve[me] > 0 ? placeArmies(view, true) : null;
 	if (view.current !== me) return null;
 	if (view.step === 'occupy' && view.occupy) return { type: 'occupy', count: occupyCount(view) };
@@ -55,6 +57,30 @@ export function conquestBot(view: CqView): CqAction | null {
 		if (move) return move;
 	}
 	return canEndTurnNow(view, me) ? { type: 'endTurn' } : null;
+}
+
+/**
+ * The warlord the bot drafts: the most use at this table, by a rough worth of each trait for how
+ * the war is set up and the land the bot was dealt.
+ */
+function draftPick(view: CqView): WarlordId {
+	const map = conquestMap(view.settings);
+	const mine = territoriesOf(view, view.me);
+	const kinds = (ks: readonly string[]) => mine.filter((t) => ks.includes(map.territories[t].terrain)).length;
+	const worth: Record<WarlordId, number> = {
+		aldric: 7,
+		morwen: 7,
+		kael: view.settings.fortify === 'adjacent' ? 6 : 4,
+		tobin: view.settings.cards === 'escalating' ? 7 : 5,
+		ysra: 3 + map.lanes.length / 6,
+		dunstan: 2 + kinds(HIGH_GROUND),
+		rowan: 2 + kinds(WOODLAND),
+		brannoc: 8,
+		gorm: 5,
+		vey: 6
+	};
+	const pool = view.draft?.pool ?? [];
+	return pool.reduce((a, b) => (worth[b] > worth[a] ? b : a), pool[0]);
 }
 
 /** How many territories each player holds. */

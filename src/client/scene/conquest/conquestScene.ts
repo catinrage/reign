@@ -190,8 +190,8 @@ export class ConquestScene {
 					this.troops.attack(e.from, e.to, e.attack.length, fast);
 					this.callbacks.onBattle?.(e, fast);
 					await this.hold(fast ? BATTLE_ROLL_FAST : BATTLE_ROLL);
-					this.armies[e.from] = Math.max(0, this.armies[e.from] - e.attackerLoss);
-					this.armies[e.to] = Math.max(0, this.armies[e.to] - e.defenderLoss);
+					this.add(e.from, -e.attackerLoss);
+					this.add(e.to, -e.defenderLoss);
 					this.board.setHolders(this.owner, this.armies, this.holders);
 					this.troops.set(e.from, this.armies[e.from], 'battle', e.to);
 					this.troops.set(e.to, this.armies[e.to], 'battle', e.from);
@@ -218,8 +218,8 @@ export class ConquestScene {
 				}
 				case 'occupied':
 				case 'fortified': {
-					this.armies[e.from] -= e.count;
-					this.armies[e.to] += e.count;
+					this.add(e.from, -e.count);
+					this.add(e.to, e.count);
 					this.board.setHolders(this.owner, this.armies, this.holders);
 					// The armies march there: through their own lands, for a fortify.
 					const route = e.type === 'fortified' ? fortifyRoute({ owner: this.owner, settings: this.view!.settings }, e.from, e.to) : [];
@@ -233,7 +233,7 @@ export class ConquestScene {
 					break;
 				}
 				case 'placed': {
-					this.armies[e.territory] += e.count;
+					this.add(e.territory, e.count);
 					this.board.setHolders(this.owner, this.armies, this.holders);
 					this.troops.set(e.territory, this.armies[e.territory], 'placed');
 					if (e.count > 0) this.particles.sparkle(this.board.realm.anchors[e.territory].clone().add(new THREE.Vector3(0, 3, 0)), this.holders[e.player]?.color ?? 0xffffff, 8);
@@ -246,6 +246,19 @@ export class ConquestScene {
 						if (o !== e.by) return;
 						this.particles.sparkle(this.board.realm.anchors[t].clone().add(new THREE.Vector3(0, 3, 0)), c, 5);
 					});
+					break;
+				}
+				case 'omenStruck': {
+					// A dragon's fire or the plague: the armies lost fall where they stood.
+					for (const l of e.losses) {
+						this.add(l.territory, -l.armies);
+						const at = this.board.realm.anchors[l.territory].clone().add(new THREE.Vector3(0, 3, 0));
+						const colors = e.omen === 'dragon' ? ['#ff6a1a', '#ffd04a', '#c2271d', '#3a2416'] : ['#9fbf3a', '#5f7a2a', '#d8e6a0', '#3a4a1a'];
+						this.particles.emit({ at, count: e.omen === 'dragon' ? 70 : 30, colors, speed: 10, up: e.omen === 'dragon' ? 22 : 8, spread: 3, life: 1.2, size: 0.8, gravity: 6, drag: 1.4 });
+						this.troops.set(l.territory, this.armies[l.territory], 'battle');
+					}
+					this.board.setHolders(this.owner, this.armies, this.holders);
+					await this.hold(0.9);
 					break;
 				}
 				case 'gameOver': {
@@ -263,6 +276,12 @@ export class ConquestScene {
 	/** The board is still playing out what happened (a battle, a capture). */
 	get busy() {
 		return this.playing;
+	}
+
+	/** Armies `n` more (or fewer) on `t`, as the board counts them; a count hidden in the fog stays hidden. */
+	private add(t: number, n: number) {
+		if (this.armies[t] < 0) return;
+		this.armies[t] = Math.max(0, this.armies[t] + n);
 	}
 
 	/** The arrow the interface asks for (null: none), shown whenever no battle is being played. */
@@ -425,4 +444,4 @@ export class ConquestScene {
 }
 
 /** The events the board plays out one by one; the rest just show in the end state. */
-const SHOWN = new Set<CqEvent['type']>(['battle', 'captured', 'occupied', 'fortified', 'placed', 'eliminated', 'gameOver']);
+const SHOWN = new Set<CqEvent['type']>(['battle', 'captured', 'occupied', 'fortified', 'placed', 'eliminated', 'omenStruck', 'gameOver']);

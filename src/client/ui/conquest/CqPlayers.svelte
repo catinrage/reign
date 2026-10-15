@@ -8,6 +8,8 @@
 	import { CQ_PIXEL } from './icons';
 	import { cqPlay } from './play.svelte';
 	import { cqColor, regionName } from './text';
+	import { WARLORD_INFO } from '../../../shared/conquest/warlords';
+	import { WARLORD_ICON, warlordTip, warlordTitle } from './lore';
 
 	/** Everyone at the table: their sigil, territories, armies, cards and what their next turn brings. */
 	const v = $derived(cqPlay.view!);
@@ -16,14 +18,22 @@
 	const rows = $derived(
 		v.players.map((p, i) => {
 			const lands = territoriesOf(v, i).length;
-			const armies = v.armies.reduce((n, a, k) => (v.owner[k] === i ? n + a : n), 0);
+			// In the fog, armies not seen don't count, and the total reads as a guess.
+			const armies = v.armies.reduce((n, a, k) => (v.owner[k] === i && a > 0 ? n + a : n), 0);
+			const unseen = v.armies.some((a, k) => v.owner[k] === i && a < 0);
 			const income = reinforcementsFor(v, i);
-			return { p, i, lands, armies, income };
+			return { p, i, lands, armies, unseen, income };
 		})
 	);
 	function incomeTip(r: (typeof rows)[number]) {
 		const lines = [t('{n, plural, one {# army} other {# armies}} for {lands, plural, one {# territory} other {# territories}}', { n: r.income.base, lands: r.lands })];
 		for (const g of r.income.regions) lines.push(t('+{n} for holding {region}', { n: g.bonus, region: regionName(v, g.region) }));
+		for (const e of r.income.extra)
+			lines.push(
+				e.source === 'warlord' && r.p.warlord
+					? t('+{n} from {warlord}', { n: e.armies, warlord: t(WARLORD_INFO[r.p.warlord].name) })
+					: t('+{n} from the omen', { n: e.armies })
+			);
 		return lines.join('\n');
 	}
 	const sigils = $derived(v.players.map((p) => sigilUrl(SIGIL_OF[p.color], cqColor(v, v.players.indexOf(p)), '#1a0c05', 48)));
@@ -59,12 +69,17 @@
 			</span>
 			<div class="info">
 				<div class="name title">{r.i === v.me ? t('{name} (you)', { name: r.p.name }) : r.p.name}</div>
+				{#if r.p.warlord}
+					<div class="warlord" title={warlordTip(r.p.warlord)} data-tip-head={warlordTitle(r.p.warlord)}>
+						<img class="icon-px" src={WARLORD_ICON[r.p.warlord]} alt="" />{t(WARLORD_INFO[r.p.warlord].name)}
+					</div>
+				{/if}
 				{#if r.p.out}
 					<div class="stats"><span class="gone">{t('Out of the war')}</span></div>
 				{:else}
 					<div class="stats">
 						<span title={t('Territories held')}><img class="icon-px" src={CQ_PIXEL.flag} alt="" />{#key r.lands}<b class="bump">{r.lands}</b>{/key}</span>
-						<span title={t('Armies on the board')}><img class="icon-px" src={CQ_PIXEL.troops} alt="" />{#key r.armies}<b class="bump">{r.armies}</b>{/key}</span>
+						<span title={t('Armies on the board')}><img class="icon-px" src={CQ_PIXEL.troops} alt="" />{#key r.armies}<b class="bump">{r.armies}{r.unseen ? '+?' : ''}</b>{/key}</span>
 						<span title={t('Conquest cards')}><img class="icon-px" src={PIXEL.cards} alt="" />{r.p.cardCount}</span>
 					</div>
 				{/if}
@@ -82,6 +97,19 @@
 </div>
 
 <style>
+	.warlord {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 11.5px;
+		color: var(--gold);
+		text-shadow: var(--outline-dark);
+		margin-top: -1px;
+	}
+	.warlord img {
+		width: 13px;
+		height: 13px;
+	}
 	.players {
 		position: absolute;
 		top: 12px;

@@ -8,6 +8,7 @@
 	import TurnCounter from './TurnCounter.svelte';
 	import CqTurnCounter from '../conquest/CqTurnCounter.svelte';
 	import CqMissionChip from '../conquest/CqMissionChip.svelte';
+	import CqOmenChip from '../conquest/CqOmenChip.svelte';
 	import EventChip from './EventChip.svelte';
 	import MissionChip from '../campaign/MissionChip.svelte';
 	import MissionPanel from '../campaign/MissionPanel.svelte';
@@ -150,7 +151,7 @@
 	{#if client.view}
 		<div class="turn-row"><TurnCounter /><span class="events"><MissionChip /><EventChip /><RumorChip /></span></div>
 	{:else if client.cq}
-		<div class="turn-row"><CqTurnCounter /><span class="events"><CqMissionChip /></span></div>
+		<div class="turn-row"><CqTurnCounter /><span class="events"><CqMissionChip /><CqOmenChip /></span></div>
 	{/if}
 	<SpectatorBadge />
 </div>

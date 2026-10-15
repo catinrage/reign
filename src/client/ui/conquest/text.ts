@@ -1,6 +1,8 @@
 import { conquestMap } from '../../../shared/conquest/queries';
 import type { CardSymbol, CqEvent, CqView } from '../../../shared/conquest/types';
 import { msg, t } from '../../i18n/index.svelte';
+import { OMEN_INFO } from '../../../shared/conquest/omens';
+import { WARLORD_INFO } from '../../../shared/conquest/warlords';
 import { PLAYER_CSS } from '../helpers';
 
 /** Words for Conquest's interface: names on the map, whose turn it is, the chronicle's lines. */
@@ -95,6 +97,16 @@ export function cqEventParts(e: CqEvent, v: CqView): CqLogPart[] | null {
 				: say(msg('{by} knocked {player} out of the war.'), { by: P(e.by), player: P(e.player) });
 		case 'turnTimedOut':
 			return say(msg("{player} ran out of time."), { player: P(e.player) });
+		case 'draftStarted':
+			return [{ text: t('The warlords gather: each commander picks one to lead their armies.') }];
+		case 'warlordPicked':
+			return say(msg('{player} rides with {warlord}.'), { player: P(e.player) }, { warlord: `${t(WARLORD_INFO[e.warlord].name)} ${t(WARLORD_INFO[e.warlord].title)}` });
+		case 'omen':
+			return say(msg('An omen for round {round}: {omen}.'), {}, { round: e.round, omen: t(OMEN_INFO[e.omen].name) });
+		case 'omenStruck':
+			return e.omen === 'dragon'
+				? say(msg('The dragon burns {place}: {n, plural, one {# army} other {# armies}} lost.'), { place: T(e.losses[0].territory) }, { n: e.losses[0].armies })
+				: say(msg('The plague takes {n, plural, one {# army} other {# armies}} across the Realm.'), {}, { n: e.losses.reduce((a, l) => a + l.armies, 0) });
 		case 'gameOver':
 			return e.reason === 'majority'
 				? say(msg('{player} holds two thirds of the Realm and wins!'), { player: P(e.winner) })

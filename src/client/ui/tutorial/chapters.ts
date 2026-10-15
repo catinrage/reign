@@ -4,6 +4,9 @@ import { CQ_PIXEL } from '../conquest/icons';
 import CqBattle from './conquest/Battle.svelte';
 import CqCards from './conquest/Cards.svelte';
 import CqMissions from './conquest/Missions.svelte';
+import CqOmens from './conquest/Omens.svelte';
+import CqWarlords from './conquest/Warlords.svelte';
+import CqWorlds from './conquest/Worlds.svelte';
 import CqRealm from './conquest/Realm.svelte';
 import CqTurn from './conquest/Turn.svelte';
 import { msg } from '../../i18n/index.svelte';
@@ -219,6 +222,30 @@ export const CHAPTERS: Chapter[] = [
 		lede: msg('A war of your own to win: two regions, a host of territories, or one rival.'),
 		icon: PIXEL.letter,
 		page: CqMissions
+	},
+	{
+		id: 'cq-warlords',
+		mode: 'conquest',
+		title: msg('Warlords'),
+		lede: msg('Draft a hero to lead your armies, each bending one rule.'),
+		icon: PIXEL.sword,
+		page: CqWarlords
+	},
+	{
+		id: 'cq-omens',
+		mode: 'conquest',
+		title: msg('Omens'),
+		lede: msg('A portent each round: blessings, reprieves, upheavals and calamities.'),
+		icon: PIXEL.raincloud,
+		page: CqOmens
+	},
+	{
+		id: 'cq-worlds',
+		mode: 'conquest',
+		title: msg('Worlds and house rules'),
+		lede: msg('Random worlds, your own rules, and the fog of war.'),
+		icon: CQ_PIXEL.flag,
+		page: CqWorlds
 	}
 ];
 

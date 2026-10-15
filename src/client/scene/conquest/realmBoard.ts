@@ -52,6 +52,8 @@ export interface Holder {
 }
 
 const MEDAL_R = 2.6;
+/** Territories the board's state texture has room for (a row each for owner, look and highlight). */
+const STATE_W = 128;
 /** Voxels across the medallion's radius. */
 const MEDAL_V = 6.6;
 const VS = MEDAL_R / MEDAL_V;
@@ -62,7 +64,7 @@ export class RealmBoard {
 	readonly armies: ArmyToken[] = [];
 	readonly labels: THREE.Sprite[] = [];
 	readonly lanes: SeaLane[] = [];
-	private readonly stateData = new Uint8Array(64 * 3 * 4);
+	private readonly stateData = new Uint8Array(STATE_W * 3 * 4);
 	private readonly stateTex: THREE.DataTexture;
 	private looks: TerritoryLook[];
 	private shown: TerritoryLook[];
@@ -85,7 +87,7 @@ export class RealmBoard {
 		this.realm = buildRealm(map);
 		this.group.name = 'conquest-board';
 		this.group.add(this.realm.group);
-		this.stateTex = new THREE.DataTexture(this.stateData, 64, 3, THREE.RGBAFormat, THREE.UnsignedByteType);
+		this.stateTex = new THREE.DataTexture(this.stateData, STATE_W, 3, THREE.RGBAFormat, THREE.UnsignedByteType);
 		this.stateTex.magFilter = THREE.NearestFilter;
 		this.stateTex.minFilter = THREE.NearestFilter;
 		this.stateTex.generateMipmaps = false;
@@ -108,10 +110,12 @@ export class RealmBoard {
 			this.group.add(lane.group);
 		});
 		this.legend = new RegionLegend(map, names.regions, names.legend);
-		this.legend.group.position.set(88, 0, 70);
+		const [lx, lz] = map.legend ?? [88, 70];
+		this.legend.group.position.set(lx, 0, lz);
 		this.group.add(this.legend.group);
 		const rose = compassRose();
-		rose.position.set(-96, 2.4, 82);
+		const [cx, cz] = map.compass ?? [-96, 82];
+		rose.position.set(cx, 2.4, cz);
 		this.group.add(rose);
 		this.writeState();
 	}
@@ -252,12 +256,12 @@ export class RealmBoard {
 	private writeState() {
 		const d = this.stateData;
 		this.shown.forEach((s, i) => {
-			const o1 = (64 + i) * 4;
+			const o1 = (STATE_W + i) * 4;
 			d[o1] = Math.round(s.fill! * 255);
 			d[o1 + 1] = Math.round(s.glow! * 255);
 			d[o1 + 2] = Math.round(s.hover! * 255);
 			d[o1 + 3] = Math.round(s.dim! * 255);
-			const o2 = (128 + i) * 4;
+			const o2 = (STATE_W * 2 + i) * 4;
 			const c = s.color ?? 0xffffff;
 			d[o2] = (c >> 16) & 255;
 			d[o2 + 1] = (c >> 8) & 255;
@@ -438,7 +442,8 @@ export class ArmyToken {
 		ctx.fillStyle = '#3a2416';
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
-		const text = String(Math.max(0, this.count));
+		// In the fog of war a count not seen reads as a question.
+		const text = this.count < 0 ? '?' : String(this.count);
 		ctx.font = `900 ${text.length >= 3 ? 56 : text.length === 2 ? 72 : 82}px "Nunito Variable", system-ui, sans-serif`;
 		ctx.fillText(text, s / 2, s * 0.62);
 		this.tex.needsUpdate = true;

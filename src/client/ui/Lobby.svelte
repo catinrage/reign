@@ -29,6 +29,7 @@
 	import { sceneRef } from './sceneRef';
 	import { i18n, msg, t, tx } from '../i18n/index.svelte';
 	import CqLobby from './conquest/CqLobby.svelte';
+	import { conquestMap } from '../../shared/conquest/queries';
 
 	const COLOR_LABEL: Record<PlayerColor, string> = {
 		red: msg('red'),
@@ -77,12 +78,13 @@
 	// until the new settings have painted.
 	$effect(() => {
 		const tiles = extended ? mapTiles : null;
-		const realm = conquest;
+		// A Conquest table shows its map: the Realm, or the random world the host made.
+		const realm = conquest ? conquestMap(lobby.conquest) : null;
 		let timer = 0;
 		const frame = requestAnimationFrame(
 			() =>
 				(timer = window.setTimeout(() =>
-					realm ? sceneRef.current?.showConquestTable() : sceneRef.current?.showMenuMap(tiles)
+					realm ? sceneRef.current?.showConquestTable(realm) : sceneRef.current?.showMenuMap(tiles)
 				))
 		);
 		return () => {

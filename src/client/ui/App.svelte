@@ -6,6 +6,7 @@
 	import Hud from './game/Hud.svelte';
 	import ConquestHud from './conquest/ConquestHud.svelte';
 	import { boardNames } from './conquest/text';
+	import { conquestMap } from '../../shared/conquest/queries';
 	import Home from './Home.svelte';
 	import Joining from './Joining.svelte';
 	import Lobby from './Lobby.svelte';
@@ -84,7 +85,7 @@
 			wasGame = false;
 			// Back to the table the menu (or the lobby) is about: the Realm for Conquest.
 			const realm = client.lobby ? client.lobby.game === 'conquest' : gamePick.game === 'conquest';
-			if (realm) sceneRef.current?.showConquestTable();
+			if (realm) sceneRef.current?.showConquestTable(client.lobby ? conquestMap(client.lobby.conquest) : undefined);
 			else sceneRef.current?.showMenuBoard();
 		}
 	});

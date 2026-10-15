@@ -30,6 +30,8 @@ import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
 import type { CqView } from '../../shared/conquest/types';
+import { conquestMap } from '../../shared/conquest/queries';
+import type { RealmMap } from '../../shared/conquest/realm';
 import { ConquestScene, type CqSceneCallbacks } from './conquest/conquestScene';
 import type { BoardNames } from './conquest/realmBoard';
 
@@ -292,19 +294,26 @@ export class GameScene {
 	// ------------------------------------------------------------ Conquest
 
 	/**
-	 * Put the Realm on the table in place of the island: for a Conquest table's lobby (empty,
-	 * turning slowly) and its game (see showConquest).
+	 * Put a Conquest map on the table in place of the island (the Realm, or a random world): for a
+	 * Conquest table's lobby (empty, turning slowly) and its game (see showConquest). Another map
+	 * than the one on the table takes its place.
 	 */
-	private enterConquest(): ConquestScene {
-		if (this.conquest) return this.conquest;
-		this.setPick(null);
-		this.clearPieces();
-		this.aim.clear(this.boardView);
-		this.beacons.clear();
-		if (this.boardView) this.boardView.group.visible = false;
-		this.dice.setShown(false);
-		for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = false;
-		const cq = new ConquestScene(this.stage, this.anim, this.particles, this.conquestNames);
+	private enterConquest(map: RealmMap = conquestMap()): ConquestScene {
+		if (this.conquest?.map === map) return this.conquest;
+		if (this.conquest) {
+			this.conquest.dispose();
+			this.conquest = null;
+		} else {
+			this.setPick(null);
+			this.clearPieces();
+			this.aim.clear(this.boardView);
+			this.beacons.clear();
+			if (this.boardView) this.boardView.group.visible = false;
+			this.dice.setShown(false);
+			for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = false;
+		}
+		// A random world's names are made up: they stand as they are, untranslated.
+		const cq = new ConquestScene(this.stage, this.anim, this.particles, map.generated ? undefined : this.conquestNames, map);
 		cq.callbacks = this.conquestCallbacks;
 		this.conquest = cq;
 		const r = cq.board.realm;
@@ -326,23 +335,26 @@ export class GameScene {
 	/** The Realm's names in the player's language: on the board now, and on any made later. */
 	setConquestNames(names: BoardNames) {
 		this.conquestNames = names;
-		this.conquest?.board.setNames(names);
+		if (this.conquest && !this.conquest.map.generated) this.conquest.board.setNames(names);
 	}
 
-	/** A Conquest table's lobby: the Realm, empty, turning slowly. */
-	showConquestTable() {
-		const cq = this.enterConquest();
+	/** A Conquest table's lobby: its map (the Realm unless said), empty, turning slowly. */
+	showConquestTable(map?: RealmMap) {
+		const cq = this.enterConquest(map);
 		this.mode = 'menu';
 		this.view = null;
 		cq.showEmpty();
 		this.stage.rig.autoRotate = 0.04;
-		this.stage.rig.set({ radius: this.menuRadius(118, 0.8), polar: 0.8 });
+		// A bigger world is seen from further off.
+		const size = Math.max(cq.board.realm.halfX, cq.board.realm.halfZ) / 125;
+		this.stage.rig.set({ radius: this.menuRadius(118 * Math.max(1, size), 0.8), polar: 0.8 });
 	}
 
 	/** A game of Conquest: what happened since the last view plays out on the board. */
 	showConquest(view: CqView, quiet = false) {
-		const fresh = !this.conquest || this.mode !== 'game';
-		const cq = this.enterConquest();
+		const map = conquestMap(view.settings);
+		const fresh = !this.conquest || this.mode !== 'game' || this.conquest.map !== map;
+		const cq = this.enterConquest(map);
 		if (fresh) {
 			this.mode = 'game';
 			this.stage.rig.autoRotate = 0;

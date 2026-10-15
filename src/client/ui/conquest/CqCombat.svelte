@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { canAttackFrom } from '../../../shared/conquest/queries';
+	import { attackDiceMax, canAttackFrom } from '../../../shared/conquest/queries';
 	import type { Battle } from '../../../shared/conquest/types';
 	import { t } from '../../i18n/index.svelte';
 	import { client } from '../../state/client.svelte';
@@ -66,7 +66,7 @@
 	const to = $derived(mine ? p.target! : (shown?.to ?? 0));
 	const attacker = $derived(v.owner[from]);
 	const defender = $derived(mine ? v.owner[to] : (shown?.defender ?? v.owner[to]));
-	const most = $derived(Math.max(1, Math.min(3, v.armies[from] - 1)));
+	const most = $derived(Math.max(1, attackDiceMax(v, from, to)));
 	const dice = $derived(Math.min(most, p.dice ?? most));
 	const chance = $derived(winChance(v.armies[from], v.armies[to]));
 	const canRoll = $derived(mine && canAttackFrom(v, v.me, from) && !rolling);
@@ -76,7 +76,7 @@
 	/** Which of a side's dice lost its comparison (highest against highest). */
 	function beaten(b: Battle, side: 'a' | 'd', i: number) {
 		if (i >= Math.min(b.attack.length, b.defend.length)) return false;
-		const aWins = b.attack[i] > b.defend[i];
+		const aWins = b.attack[i] > b.defend[i] || (i < (b.tiesToAttacker ?? 0) && b.attack[i] === b.defend[i]);
 		return side === 'a' ? !aWins : aWins;
 	}
 	function roll(blitz = false) {

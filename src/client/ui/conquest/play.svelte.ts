@@ -1,4 +1,4 @@
-import { attackTargets, canAttackFrom, canAttackNow, canEndTurnNow, canFortifyNow, conquestMap, fortifyRoute, fortifyTargets, neighbors } from '../../../shared/conquest/queries';
+import { attackBlock, attackDiceMax, attackTargets, canAttackFrom, canAttackNow, canEndTurnNow, canFortifyNow, conquestMap, fortifyMoves, fortifyRoute, fortifyTargets, neighbors } from '../../../shared/conquest/queries';
 import type { Battle, CqAction, CqEvent, CqView } from '../../../shared/conquest/types';
 import type { TerritoryLook } from '../../scene/conquest/realmBoard';
 import { PLAYER_RGB } from '../../scene/layout';
@@ -47,6 +47,8 @@ class CqPlay {
 	cardsOpen = $state(false);
 	/** Your secret mission's card open. */
 	missionOpen = $state(false);
+	/** This round's omen card open. */
+	omenOpen = $state(false);
 	/** A short note where the player clicked: why that did nothing. */
 	note = $state<{ text: string; x: number; y: number; id: number } | null>(null);
 	/** Armies placed this turn, newest last, so Undo can take them back in order. */
@@ -198,7 +200,10 @@ class CqPlay {
 				if (!from.length) return this.say(t('None of your armies can reach {place}.', { place: name }), touch ? ter : undefined);
 				return this.say(t('Pick one of your territories next to {place} to attack from.', { place: name }));
 			}
-			if (!attackTargets(v, s).includes(ter)) return this.say(t('{place} is not next to {from}.', { place: name, from: this.name(s) }), touch ? ter : undefined);
+			if (!attackTargets(v, s).includes(ter)) {
+				const block = neighbors(s, conquestMap(v.settings)).includes(ter) ? attackBlock(v, s, ter) : null;
+				return this.say(block ? blockNote(block) : t('{place} is not next to {from}.', { place: name, from: this.name(s) }), touch ? ter : undefined);
+			}
 			return this.attack(ter);
 		}
 		if (this.fortifying || (this.myTurn && canFortifyNow(v, me) && this.selected !== null)) {
@@ -247,7 +252,7 @@ class CqPlay {
 		const s = this.selected;
 		if (!v || s === null || sceneRef.current?.conquest?.busy) return;
 		this.target = to;
-		const most = Math.min(3, v.armies[s] - 1);
+		const most = attackDiceMax(v, s, to);
 		const dice = Math.max(1, Math.min(most, this.dice ?? most));
 		this.act({ type: 'attack', from: s, to, dice, ...(blitz ? { blitz: true } : {}) });
 		this.sync();
@@ -308,6 +313,12 @@ class CqPlay {
 	get canEndTurn() {
 		const v = this.view;
 		return !!v && this.myTurn && canEndTurnNow(v, v.me);
+	}
+
+	/** A fortify move now ends the turn (the turn's last move, by the table's rules and the warlord's). */
+	get lastMove() {
+		const v = this.view;
+		return !!v && v.me >= 0 && (v.moves ?? 0) + 1 >= fortifyMoves(v, v.me);
 	}
 
 	// ------------------------------------------------------------ the board shows
@@ -425,6 +436,8 @@ class CqPlay {
 			const c = PLAYER_RGB[v.players[v.current]?.color] ?? 0xffffff;
 			for (let t = 0; t < n; t++) if (v.owner[t] === v.current) looks[t] = { glow: 0.3, color: c };
 		}
+		// The fog of war: what can't be seen lies dim.
+		if (v.fogged) for (let t = 0; t < n; t++) if (v.armies[t] < 0 && !looks[t]) looks[t] = { dim: 0.45 };
 		if (this.spotlight !== null && v.players[this.spotlight]) {
 			const c = PLAYER_RGB[v.players[this.spotlight].color] ?? 0xffffff;
 			for (let t = 0; t < n; t++) if (v.owner[t] === this.spotlight) looks[t] = { ...looks[t], glow: 0.9, color: c, dim: 0 };
@@ -444,6 +457,13 @@ class CqPlay {
 			scene.board.lanes[k]?.setLit(lanes.has(laneKey(i, j)) ? 1 : 0);
 		});
 	}
+}
+
+/** Why the round's omen keeps an attack off a neighbour. */
+function blockNote(block: 'seaFog' | 'snowbound' | 'truce'): string {
+	if (block === 'seaFog') return t('Sea Fog: nobody may cross a sea lane this round.');
+	if (block === 'snowbound') return t('That region is snowed in this round.');
+	return t('The Truce shields the smallest realm this round.');
 }
 
 function laneKey(a: number, b: number) {
