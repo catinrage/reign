@@ -1,4 +1,4 @@
-import { fractal } from './noise';
+import { fractal } from '../noise';
 
 /**
  * Conquest's map: the Realm, a cluster of kingdoms round an inland sea. Each territory is laid

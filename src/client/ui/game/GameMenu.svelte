@@ -7,6 +7,7 @@
 	import SpectatorBadge from './SpectatorBadge.svelte';
 	import TurnCounter from './TurnCounter.svelte';
 	import CqTurnCounter from '../conquest/CqTurnCounter.svelte';
+	import GbTurnCounter from '../gambit/GbTurnCounter.svelte';
 	import CqMissionChip from '../conquest/CqMissionChip.svelte';
 	import CqOmenChip from '../conquest/CqOmenChip.svelte';
 	import EventChip from './EventChip.svelte';
@@ -34,7 +35,7 @@
 	/** A campaign mission shows its stars and rules beside the menu's buttons. */
 	const mission = $derived(page === 'main' && !!client.view?.campaign);
 	/** A spectator can't pause the table, only watch it. */
-	const game = $derived(client.view ?? client.cq);
+	const game = $derived(client.view ?? client.cq ?? client.gb);
 	const playing = $derived(!!game && game.phase !== 'ended' && !client.spectating);
 	const others = $derived(
 		(lobby?.seats ?? []).filter((s) => !s.isBot && s.id !== client.seat && s.connected).length
@@ -152,6 +153,8 @@
 		<div class="turn-row"><TurnCounter /><span class="events"><MissionChip /><EventChip /><RumorChip /></span></div>
 	{:else if client.cq}
 		<div class="turn-row"><CqTurnCounter /><span class="events"><CqMissionChip /><CqOmenChip /></span></div>
+	{:else if client.gb}
+		<div class="turn-row"><GbTurnCounter /></div>
 	{/if}
 	<SpectatorBadge />
 </div>
@@ -276,7 +279,7 @@
 				{:else}
 					<button class="btn small wood back" onclick={() => go('main')}>‹ {t('Back')}</button>
 					{#if page === 'help'}
-						<Tutorial mode={client.cq ? 'conquest' : client.view?.mode} />
+						<Tutorial mode={client.cq ? 'conquest' : client.gb ? 'gambit' : client.view?.mode} />
 					{:else}
 						<div class="page"><Settings /></div>
 					{/if}

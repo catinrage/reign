@@ -1,4 +1,4 @@
-/** Deterministic value noise, shared by the rules (where a territory's land lies) and the board. */
+/** Deterministic value noise, shared by the games' rules and boards (Conquest's lands, Gambit's terrain). */
 
 export function hash2(x: number, z: number, seed = 0): number {
 	let h = (x * 374761393 + z * 668265263 + seed * 144269504) | 0;

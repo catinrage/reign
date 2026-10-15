@@ -8,6 +8,7 @@ import type { ClientMessage } from '../shared/protocol';
 import type { Recorder } from '../shared/replay';
 import type { GameState } from '../shared/rules/types';
 import type { CqState } from '../shared/conquest/types';
+import type { GambitState } from '../shared/gambit/types';
 import { conquestMap, majorityGoal, territoriesOf } from '../shared/conquest/queries';
 import { type GameKind, isGameKind } from '../shared/games';
 import { missionResult } from '../shared/rules/campaign';
@@ -95,17 +96,20 @@ function newCode(): string {
 function openRoom(kind: GameKind = 'settlement'): Room {
 	const room = new Room(newCode(), CHEATS, kind);
 	let match: Promise<string | null> | null = null;
-	// Conquest scores each player by the territories they hold.
-	const points = () =>
-		room.cq ? room.cq.players.map((_, i) => territoriesOf(room.cq!, i).length) : room.game!.players.map((_, i) => totalPoints(room.game!, i));
+	// Conquest scores each player by the territories they hold, Gambit by their crowns.
+	const points = () => {
+		if (room.cq) return room.cq.players.map((_, i) => territoriesOf(room.cq!, i).length);
+		if (room.gb) return room.gb.players.map((p) => p.crowns);
+		return room.game!.players.map((_, i) => totalPoints(room.game!, i));
+	};
 	// Reign Extended drafts characters after the game starts, so they're written down at the end.
-	const characters = () => (room.cq ? [] : room.game!.players.map((p) => p.character));
+	const characters = () => (room.game ? room.game.players.map((p) => p.character) : []);
 	const failed = (e: unknown) => {
 		console.error(`[room ${room.code}] match history:`, e);
 		return null;
 	};
 	// The game's replay goes with its match, once the game is over (won or given up).
-	const keepReplay = (id: string, rec: Recorder<GameState | CqState> | null) => {
+	const keepReplay = (id: string, rec: Recorder<GameState | CqState | GambitState> | null) => {
 		if (!rec?.size) return;
 		const replay = rec.replay();
 		return new Promise<Buffer>((done, fail) => gzip(JSON.stringify(replay), (e, gz) => (e ? fail(e) : done(gz)))).then((gz) =>
@@ -116,15 +120,16 @@ function openRoom(kind: GameKind = 'settlement'): Room {
 		gameStarted(r) {
 			const g = r.game;
 			const cq = r.cq;
+			const gb = r.gb;
 			const map = cq ? conquestMap(cq.settings) : null;
 			match = r.seats.some((s) => s.userId)
 				? accounts
 						.matchStarted({
 							code: r.code,
-							mode: cq ? 'conquest' : g!.mode,
-							mapName: map ? map.name : g!.mapName,
-							// Conquest: the territories it takes to win.
-							pointsToWin: cq && map ? (cq.settings.victory === 'majority' ? majorityGoal(map) : map.territories.length) : g!.pointsToWin,
+							mode: cq ? 'conquest' : gb ? 'gambit' : g!.mode,
+							mapName: map ? map.name : gb ? 'Gambit' : g!.mapName,
+							// Conquest: the territories it takes to win; Gambit: the crowns.
+							pointsToWin: cq && map ? (cq.settings.victory === 'majority' ? majorityGoal(map) : map.territories.length) : gb ? gb.settings.crowns : g!.pointsToWin,
 							seats: r.seats.map((s, i) => ({
 								userId: s.userId,
 								name: s.name,
@@ -156,6 +161,21 @@ function openRoom(kind: GameKind = 'settlement'): Room {
 				void hub.roomChanged(r);
 				return;
 			}
+			if (r.gb) {
+				const gb = r.gb;
+				const rec = r.recorder;
+				r.recorder = null;
+				match
+					?.then(async (id) => {
+						if (!id) return;
+						await accounts.matchFinished(id, gb.round, gb.winner ?? 0, scores);
+						await keepReplay(id, rec);
+					})
+					.catch(failed);
+				match = null;
+				void hub.roomChanged(r);
+				return;
+			}
 			const g = r.game!;
 			// Taken now: Play again starts the next game's recording before this one is saved.
 			const rec = r.recorder;
@@ -177,7 +197,7 @@ function openRoom(kind: GameKind = 'settlement'): Room {
 		},
 		disposed(r) {
 			if (r.playing) {
-				const turn = r.cq ? r.cq.turn : r.game!.turn;
+				const turn = r.cq ? r.cq.turn : r.gb ? r.gb.round : r.game!.turn;
 				const scores = points();
 				const chars = characters();
 				const rec = r.recorder;

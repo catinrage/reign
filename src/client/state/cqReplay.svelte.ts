@@ -10,6 +10,7 @@ import { api } from './account.svelte';
 // Loaded first, so its hook for the end of a replay is in place before this one wraps it.
 import './replay.svelte';
 import { client } from './client.svelte';
+import { DEFAULT_GAMBIT_SETTINGS } from '../../shared/gambit/types';
 
 /**
  * Watching a finished game of Conquest again: the whole recording is loaded, and the board plays
@@ -175,6 +176,7 @@ function lobbyFor(match: Match, start: CqState): LobbyInfo {
 		code: '',
 		game: 'conquest',
 		conquest: start.settings,
+		gambit: DEFAULT_GAMBIT_SETTINGS,
 		seats: start.players.map((p, i) => {
 			const m = match.players[i];
 			return {

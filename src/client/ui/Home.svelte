@@ -24,6 +24,9 @@
 	import { gamePick } from './menu/gamePick.svelte';
 	import { sceneRef } from './sceneRef';
 	import { CQ_PIXEL } from './conquest/icons';
+	import { GB_PIXEL } from './gambit/icons';
+	import { PLAYER_COLORS } from '../../shared/rules/config';
+	import { PLAYER_RGB } from '../scene/layout';
 
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let muted = $state(isMuted());
@@ -60,7 +63,8 @@
 	});
 
 	function play() {
-		client.quickPlay(3, gamePick.game);
+		// Gambit is for a crowd: five rivals round a six-sided board.
+		client.quickPlay(gamePick.game === 'gambit' ? 5 : 3, gamePick.game);
 	}
 	function create() {
 		client.create(gamePick.game);
@@ -71,12 +75,16 @@
 		gamePick.set(g);
 	}
 	const conquest = $derived(gamePick.game === 'conquest');
-	// The table shows the game picked: the island, or the Realm.
+	const gambit = $derived(gamePick.game === 'gambit');
+	/** The board the menu's table shows for Gambit: six seats, a new one each visit. */
+	const menuBoard = { terrain: 'mixed' as const, seed: (Math.random() * 1e9) | 0 };
+	// The table shows the game picked: the island, the Realm, or a Gambit board.
 	$effect(() => {
 		const scene = sceneRef.current;
 		if (!scene || client.launching) return;
 		if (conquest) scene.showConquestTable();
-		else if (scene.conquest) scene.showMenuBoard();
+		else if (gambit) scene.showGambitTable(6, menuBoard, PLAYER_COLORS.slice(0, 6).map((c) => PLAYER_RGB[c] ?? 0xffffff));
+		else if (scene.conquest || scene.gambit) scene.showMenuBoard();
 	});
 	function join() {
 		if (code.length !== 5 || busy) return;
@@ -159,6 +167,8 @@
 			</div>
 			{#if conquest}
 				<div class="ribbon tagline">{t('Muster')} <i>·</i> {t('Attack')} <i>·</i> {t('Conquer')}</div>
+			{:else if gambit}
+				<div class="ribbon tagline">{t('Order')} <i>·</i> {t('Reveal')} <i>·</i> {t('Outwit')}</div>
 			{:else}
 				<div class="ribbon tagline">{t('Settle')} <i>·</i> {t('Trade')} <i>·</i> {t('Build')}</div>
 			{/if}
@@ -193,9 +203,9 @@
 			<div class="games" role="tablist" aria-label={t('Game')}>
 				<button
 					class="game"
-					class:on={!conquest}
+					class:on={!conquest && !gambit}
 					role="tab"
-					aria-selected={!conquest}
+					aria-selected={!conquest && !gambit}
 					onclick={() => pick('settlement')}
 					title={t('Settle an island, trade and build. Classic, Reign Extended and the campaign.')}
 				>
@@ -213,9 +223,20 @@
 					<img class="icon-px" src={PIXEL.sword} alt="" />
 					<span class="stack"><b>{t('Conquest')}</b><small>{t('Muster · Attack · Conquer')}</small></span>
 				</button>
+				<button
+					class="game"
+					class:on={gambit}
+					role="tab"
+					aria-selected={gambit}
+					onclick={() => pick('gambit')}
+					title={t('Up to eight players order their pieces in secret on a hex board, then every move plays out at once.')}
+				>
+					<img class="icon-px" src={GB_PIXEL.knight} alt="" />
+					<span class="stack"><b>{t('Gambit')}</b><small>{t('Order · Reveal · Outwit')}</small></span>
+				</button>
 			</div>
 
-			{#if !conquest}
+			{#if !conquest && !gambit}
 				<button class="btn purple block" onclick={openCampaign} disabled={busy}>
 					<img src={PIXEL.crown} alt="" />
 					<span class="stack"
@@ -226,14 +247,16 @@
 			<button class="btn big block shine" onclick={play} disabled={busy}>
 				<img src={PIXEL.play} alt="" />
 				<span class="stack"
-					>{t('Play vs bots')}<span class="sub">{conquest ? t('Three rivals for the Realm, start right away') : t('Three rivals, start right away')}</span></span
+					>{t('Play vs bots')}<span class="sub"
+						>{conquest ? t('Three rivals for the Realm, start right away') : gambit ? t('Five rivals round the board, start right away') : t('Three rivals, start right away')}</span
+					></span
 				>
 			</button>
 			<button class="btn green block" onclick={create} disabled={busy}>
-				<img src={conquest ? CQ_PIXEL.flag : PIXEL.house} alt="" />
+				<img src={conquest ? CQ_PIXEL.flag : gambit ? GB_PIXEL.monarch : PIXEL.house} alt="" />
 				<span class="stack"
 					>{t('Create a room')}<span class="sub"
-						>{OFFLINE ? (conquest ? t('Pick the rules and bots') : t('Pick the mode, map and bots')) : t('Invite friends with a code')}</span
+						>{OFFLINE ? (conquest || gambit ? t('Pick the rules and bots') : t('Pick the mode, map and bots')) : t('Invite friends with a code')}</span
 					></span
 				>
 			</button>
@@ -344,18 +367,22 @@
 		display: none;
 	}
 	/* The two games, side by side above the buttons: the one picked lit in gold. */
+	/* Three games side by side: each its picture over its name and what it's about. */
 	.games {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: repeat(3, 1fr);
 		gap: 6px;
 	}
 	.game {
 		all: unset;
 		box-sizing: border-box;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		gap: 8px;
-		padding: 6px 8px;
+		text-align: center;
+		gap: 3px;
+		padding: 6px 4px;
+		min-width: 0;
 		cursor: pointer;
 		background: rgba(0, 0, 0, 0.28);
 		box-shadow:
@@ -384,19 +411,22 @@
 	.game .stack {
 		display: flex;
 		flex-direction: column;
+		align-items: center;
 		line-height: 1.1;
 		min-width: 0;
+		max-width: 100%;
 	}
 	.game b {
 		font-family: var(--px);
-		font-size: 18px;
+		font-size: 16px;
 		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
 	}
 	.game.on b {
 		color: var(--gold);
 	}
 	.game small {
-		font-size: 11px;
+		max-width: 100%;
+		font-size: 10px;
 		font-weight: 700;
 		opacity: 0.85;
 		white-space: nowrap;

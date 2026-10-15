@@ -9,6 +9,12 @@ import CqWarlords from './conquest/Warlords.svelte';
 import CqWorlds from './conquest/Worlds.svelte';
 import CqRealm from './conquest/Realm.svelte';
 import CqTurn from './conquest/Turn.svelte';
+import GbBoard from './gambit/Board.svelte';
+import GbClash from './gambit/Clash.svelte';
+import GbCrowns from './gambit/Crowns.svelte';
+import GbPieces from './gambit/Pieces.svelte';
+import GbRound from './gambit/Round.svelte';
+import { GB_PIXEL } from '../gambit/icons';
 import { msg } from '../../i18n/index.svelte';
 import { PIXEL } from '../pixel';
 import Bonus from './classic/Bonus.svelte';
@@ -34,13 +40,14 @@ import { TUT_ICON } from './icons';
  * the chapter list, the page frame and the next/back buttons. To explain a new Reign Extended
  * feature, write a page in ./extended and add one line here.
  */
-/** The tutorial's books: Settlement's two modes, and Conquest. */
-export const TUTORIAL_MODES = ['classic', 'extended', 'conquest'] as const;
-export type TutorialMode = GameMode | 'conquest';
+/** The tutorial's books: Settlement's two modes, Conquest and Gambit. */
+export const TUTORIAL_MODES = ['classic', 'extended', 'conquest', 'gambit'] as const;
+export type TutorialMode = GameMode | 'conquest' | 'gambit';
 export const TUTORIAL_MODE_NAME: Record<TutorialMode, string> = {
 	classic: msg('Classic'),
 	extended: msg('Reign Extended'),
-	conquest: msg('Conquest')
+	conquest: msg('Conquest'),
+	gambit: msg('Gambit')
 };
 
 export interface Chapter {
@@ -246,6 +253,46 @@ export const CHAPTERS: Chapter[] = [
 		lede: msg('Random worlds, your own rules, and the fog of war.'),
 		icon: CQ_PIXEL.flag,
 		page: CqWorlds
+	},
+	{
+		id: 'gb-board',
+		mode: 'gambit',
+		title: msg('The board'),
+		lede: msg('Keeps on the rim, shrines between them, the Throne in the middle.'),
+		icon: PIXEL.crown,
+		page: GbBoard
+	},
+	{
+		id: 'gb-round',
+		mode: 'gambit',
+		title: msg('A round'),
+		lede: msg('Orders in secret, all at once, then everything plays out together.'),
+		icon: PIXEL.letter,
+		page: GbRound
+	},
+	{
+		id: 'gb-pieces',
+		mode: 'gambit',
+		title: msg('The pieces'),
+		lede: msg('How each one moves, how hard it fights, and what it is worth.'),
+		icon: GB_PIXEL.knight,
+		page: GbPieces
+	},
+	{
+		id: 'gb-clash',
+		mode: 'gambit',
+		title: msg('When pieces meet'),
+		lede: msg('Take what stays, dodge what comes, brace, and arrows last.'),
+		icon: PIXEL.sword,
+		page: GbClash
+	},
+	{
+		id: 'gb-crowns',
+		mode: 'gambit',
+		title: msg('Crowns and comebacks'),
+		lede: msg('Monarchs come home, keeps muster guards, and the ground has its ways.'),
+		icon: GB_PIXEL.monarch,
+		page: GbCrowns
 	}
 ];
 

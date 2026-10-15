@@ -9,7 +9,7 @@
 	 */
 	let { color }: { color: PlayerColor } = $props();
 	// Either game's table: Settlement's or Conquest's.
-	const ended = $derived((client.view ?? client.cq)?.phase === 'ended');
+	const ended = $derived((client.view ?? client.cq ?? client.gb)?.phase === 'ended');
 	const total = $derived((client.lobby?.turnTime ?? 0) * 1000);
 	const left = $derived(ended || !total ? null : client.timeLeft);
 	const secs = $derived(Math.ceil((left ?? 0) / 1000));

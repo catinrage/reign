@@ -5,6 +5,8 @@
 	import Invites from './account/Invites.svelte';
 	import Hud from './game/Hud.svelte';
 	import ConquestHud from './conquest/ConquestHud.svelte';
+	import GambitHud from './gambit/GambitHud.svelte';
+	import { PLAYER_RGB } from '../scene/layout';
 	import { boardNames } from './conquest/text';
 	import { conquestMap } from '../../shared/conquest/queries';
 	import Home from './Home.svelte';
@@ -24,7 +26,7 @@
 			? 'auth'
 			: client.joining
 				? 'joining'
-			: (client.view || client.cq) && client.lobby?.started
+			: (client.view || client.cq || client.gb) && client.lobby?.started
 				? 'game'
 				: client.launching
 					? 'launching'
@@ -83,9 +85,12 @@
 		if (screen === 'game') wasGame = true;
 		else if (wasGame) {
 			wasGame = false;
-			// Back to the table the menu (or the lobby) is about: the Realm for Conquest.
-			const realm = client.lobby ? client.lobby.game === 'conquest' : gamePick.game === 'conquest';
-			if (realm) sceneRef.current?.showConquestTable(client.lobby ? conquestMap(client.lobby.conquest) : undefined);
+			// Back to the table the menu (or the lobby) is about: the Realm for Conquest, the board for Gambit.
+			const game = client.lobby ? client.lobby.game : gamePick.game;
+			const lobby = client.lobby;
+			if (game === 'conquest') sceneRef.current?.showConquestTable(lobby ? conquestMap(lobby.conquest) : undefined);
+			else if (game === 'gambit' && lobby)
+				sceneRef.current?.showGambitTable(lobby.seats.length, lobby.gambit, lobby.seats.map((x) => PLAYER_RGB[x.color] ?? 0xffffff));
 			else sceneRef.current?.showMenuBoard();
 		}
 	});
@@ -106,6 +111,8 @@
 		<Lobby />
 	{:else if client.lobby?.game === 'conquest'}
 		<ConquestHud />
+	{:else if client.lobby?.game === 'gambit'}
+		<GambitHud />
 	{:else}
 		<Hud />
 	{/if}

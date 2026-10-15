@@ -16,6 +16,11 @@ import { botAction, closeOffer } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
 import { applyConquestCheat } from '../shared/conquest/cheats';
+import { applyGambitCheat } from '../shared/gambit/cheats';
+import { gambitBot } from '../shared/gambit/bot';
+import { addGambitChat, applyGambit, createGambit, gambitView, timeOutGambit } from '../shared/gambit/rules';
+import { cleanGambitSettings } from '../shared/gambit/settings';
+import { DEFAULT_GAMBIT_SETTINGS, GAMBIT_MAX_PLAYERS, type GambitSettings, type GambitState } from '../shared/gambit/types';
 import { EVENT_SHOW_MS, cleanEventRules } from '../shared/rules/events';
 import { cleanHouseRules } from '../shared/rules/house';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
@@ -129,6 +134,9 @@ export class Room {
 	/** How long the last Conquest move takes to play out on the board, before a bot moves (see cqPause). */
 	private cqPauseMs = 0;
 	conquest: ConquestSettings = structuredClone(DEFAULT_CONQUEST_SETTINGS);
+	/** Gambit tables: the game being played (null before the first), and the host's settings (a board of its own to start with). */
+	gb: GambitState | null = null;
+	gambit: GambitSettings = { ...DEFAULT_GAMBIT_SETTINGS, seed: randomSeed() | 0 };
 	private botTimer: NodeJS.Timeout | null = null;
 	/** The bot timer is only checking back later (not a move on its way), so news can cut it short. */
 	private botTimerIdle = false;
@@ -167,7 +175,7 @@ export class Room {
 	private lobbyLeft = false;
 	listener: RoomListener | null = null;
 	/** Writes the current game down step by step, for watching it again once it's over. */
-	recorder: Recorder<GameState | CqState> | null = null;
+	recorder: Recorder<GameState | CqState | GambitState> | null = null;
 	/** The listener has heard that the current game ended. */
 	private endTold = false;
 
@@ -175,17 +183,19 @@ export class Room {
 	constructor(
 		public code: string,
 		public cheats = false,
-		/** The game this table plays: Settlement or Conquest. Fixed when the table opens. */
+		/** The game this table plays: Settlement, Conquest or Gambit. Fixed when the table opens. */
 		readonly kind: GameKind = 'settlement'
 	) {}
 
 	get started() {
-		return this.game !== null || this.cq !== null;
+		return this.game !== null || this.cq !== null || this.gb !== null;
 	}
 
 	/** A game is under way here (started and not over). */
 	get playing() {
-		return this.kind === 'conquest' ? !!this.cq && this.cq.phase !== 'ended' : !!this.game && this.game.phase !== 'ended';
+		if (this.kind === 'conquest') return !!this.cq && this.cq.phase !== 'ended';
+		if (this.kind === 'gambit') return !!this.gb && this.gb.phase !== 'ended';
+		return !!this.game && this.game.phase !== 'ended';
 	}
 
 	/**
@@ -206,6 +216,7 @@ export class Room {
 			code: this.code,
 			game: this.kind,
 			conquest: this.conquest,
+			gambit: this.gambit,
 			started: this.started,
 			maxPlayers: this.maxPlayers,
 			paused: this.paused,
@@ -247,6 +258,7 @@ export class Room {
 		send(ws, { t: 'watching', code: this.code });
 		this.broadcastLobby();
 		if (this.cq) return send(ws, { t: 'cqGame', view: conquestView(this.cq, -1), clock: this.clockInfo() });
+		if (this.gb) return send(ws, { t: 'gbGame', view: gambitView(this.gb, -1), clock: this.clockInfo() });
 		if (!this.game) return;
 		send(ws, { t: 'game', view: viewFor(this.game, -1), clock: this.clockInfo() });
 		if (this.aim) send(ws, { t: 'aim', player: this.aim.player, hex: this.aim.hex });
@@ -306,6 +318,10 @@ export class Room {
 			send(ws, { t: 'cqGame', view: conquestView(this.cq, this.seatIndex(seat)), clock: this.clockInfo() });
 			this.scheduleBots();
 		}
+		if (this.gb) {
+			send(ws, { t: 'gbGame', view: gambitView(this.gb, this.seatIndex(seat)), clock: this.clockInfo() });
+			this.scheduleBots();
+		}
 		if (this.game) {
 			send(ws, {
 				t: 'game',
@@ -342,7 +358,7 @@ export class Room {
 
 	handle(seat: Seat, msg: ClientMessage, ws: WebSocket) {
 		const isHost = seat.id === this.hostId;
-		if (this.kind === 'conquest' ? SETTLEMENT_ONLY.has(msg.t) : CONQUEST_ONLY.has(msg.t)) return;
+		if (NOT_AT[this.kind].some((only) => only.has(msg.t))) return;
 		switch (msg.t) {
 			case 'setName':
 				// Signed-in players go by their nickname, changed on their profile.
@@ -491,6 +507,36 @@ export class Room {
 				this.broadcastGame();
 				return this.scheduleBots();
 			}
+			case 'setGambit': {
+				if (!isHost || this.lockedSettings) return;
+				const next = cleanGambitSettings({ ...this.gambit, ...(msg.settings ?? {}) });
+				if (JSON.stringify(next) !== JSON.stringify(this.gambit)) this.unready();
+				this.gambit = next;
+				return this.broadcastLobby();
+			}
+			case 'gbAction': {
+				if (!this.gb) return;
+				if (this.heldBy) return send(ws, { t: 'error', message: 'The game is paused.' });
+				const res = applyGambit(this.gb, this.seatIndex(seat), msg.action);
+				if (!res.ok) return send(ws, { t: 'error', message: res.error });
+				this.gb = res.state;
+				this.broadcastGame();
+				return this.scheduleBots();
+			}
+			case 'gbCheat': {
+				if (!this.cheats) return send(ws, { t: 'error', message: 'Cheats only work on the dev server.' });
+				if (!this.gb) return;
+				const res = applyGambitCheat(this.gb, this.seatIndex(seat), msg.cheat);
+				if (!res.ok) return send(ws, { t: 'error', message: res.error });
+				if (msg.cheat.type === 'fastBots') this.fastBots = !!msg.cheat.on;
+				this.gb = res.state;
+				if (this.botTimer) {
+					clearTimeout(this.botTimer);
+					this.botTimer = null;
+				}
+				this.broadcastGame();
+				return this.scheduleBots();
+			}
 			case 'setReady':
 				if (this.lockedSettings || seat.isBot) return;
 				seat.ready = !!msg.ready;
@@ -524,6 +570,7 @@ export class Room {
 				// Random seating order makes the first player fair.
 				this.seats.sort(() => Math.random() - 0.5);
 				if (this.kind === 'conquest') return this.startConquest();
+				if (this.kind === 'gambit') return this.startGambit();
 				this.game = createGame(
 					this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot })),
 					randomSeed(),
@@ -549,6 +596,7 @@ export class Room {
 				const text = String(msg.text ?? '').trim();
 				if (!text) return;
 				if (this.cq) this.cq = addConquestChat(this.cq, this.seatIndex(seat), text);
+				else if (this.gb) this.gb = addGambitChat(this.gb, this.seatIndex(seat), text);
 				else if (this.game) this.game = addChat(this.game, this.seatIndex(seat), text);
 				else return;
 				return this.broadcastGame();
@@ -643,6 +691,20 @@ export class Room {
 		this.omenSeen = 0;
 		this.cqPauseMs = 0;
 		this.recorder = new Recorder(this.cq);
+		this.listener?.gameStarted?.(this);
+		this.broadcastLobby();
+		this.broadcastGame();
+		this.scheduleBots();
+	}
+
+	private startGambit() {
+		this.gb = createGambit(
+			this.seats.map((s) => ({ name: s.name, color: s.color, isBot: s.isBot })),
+			randomSeed(),
+			this.gambit
+		);
+		this.endTold = false;
+		this.recorder = new Recorder(this.gb);
 		this.listener?.gameStarted?.(this);
 		this.broadcastLobby();
 		this.broadcastGame();
@@ -781,6 +843,7 @@ export class Room {
 	/** How many players the chosen mode and island seat (Conquest: always six). */
 	get maxPlayers() {
 		if (this.kind === 'conquest') return CONQUEST_MAX_PLAYERS;
+		if (this.kind === 'gambit') return GAMBIT_MAX_PLAYERS;
 		return Math.min(MAX_PLAYERS, seatsFor(this.settings));
 	}
 
@@ -885,6 +948,7 @@ export class Room {
 
 	private broadcastGame() {
 		if (this.cq) return this.broadcastConquest();
+		if (this.gb) return this.broadcastGambit();
 		if (!this.game) return;
 		// Once the robber has moved (or the turn moved on), nobody is aiming it.
 		const g = this.game;
@@ -929,6 +993,25 @@ export class Room {
 		if (!this.spectators.size) return;
 		const view = conquestView(g, -1);
 		for (const ws of this.spectators) send(ws, { t: 'cqGame', view, clock });
+	}
+
+	private broadcastGambit() {
+		const g = this.gb!;
+		this.recorder?.record(g);
+		if (g.phase === 'ended' && !this.endTold) {
+			this.endTold = true;
+			this.listener?.gameEnded?.(this);
+		}
+		this.syncClock();
+		const clock = this.clockInfo();
+		this.seats.forEach((s, i) => {
+			if (!s.sockets.size) return;
+			const view = gambitView(g, i);
+			for (const ws of s.sockets) send(ws, { t: 'gbGame', view, clock });
+		});
+		if (!this.spectators.size) return;
+		const view = gambitView(g, -1);
+		for (const ws of this.spectators) send(ws, { t: 'gbGame', view, clock });
 	}
 
 	/** What players are told: the time left, not a deadline, since their clocks differ from ours. */
@@ -987,6 +1070,13 @@ export class Room {
 			this.broadcastGame();
 			return this.scheduleBots();
 		}
+		if (this.gb) {
+			// Whoever isn't ready goes with the orders they had given.
+			this.gb = timeOutGambit(this.gb);
+			if (this.clockTurn() === c.turn) c.turn = '';
+			this.broadcastGame();
+			return this.scheduleBots();
+		}
 		let g = timeOut(this.game!);
 		for (let i = 0; i < 20 && g.phase !== 'ended' && clockTurn(g) === c.turn; i++) {
 			const move = forcedMove(g);
@@ -1018,6 +1108,7 @@ export class Room {
 		}
 		if (this.botTimer || !this.playing || this.paused) return;
 		if (this.cq) return this.scheduleConquestBots();
+		if (this.gb) return this.scheduleGambitBots();
 		const next = this.nextBotMove();
 		if (!next) {
 			// A bot waiting on answers to its offer closes it once its time is up; and someone may go
@@ -1087,6 +1178,8 @@ export class Room {
 			if (g.phase === 'draft') return `draft:${g.draft?.picked ?? 0}`;
 			return g.phase === 'deploy' ? 'deploy' : `${g.turn}:${g.current}`;
 		}
+		// Gambit's rounds are timed as one: everyone orders at once.
+		if (this.gb) return `round:${this.gb.round}`;
 		return clockTurn(this.game!);
 	}
 
@@ -1134,6 +1227,47 @@ export class Room {
 					if (fallback.ok) this.cq = fallback.state;
 					else console.warn(`[room ${this.code}] conquest bot failed: ${res.error}`);
 				}
+				this.broadcastGame();
+			}
+			this.scheduleBots();
+		}, delay);
+	}
+
+	/**
+	 * Gambit's bots, and stand-ins for players who left or went away: each gives its orders a few
+	 * moments into the round (everyone sees them get ready one by one), the first of them once the
+	 * last round has had time to play out on the board.
+	 */
+	private scheduleGambitBots() {
+		const g = this.gb!;
+		const next = g.players.findIndex((_, i) => !g.ready[i] && this.controlled(i));
+		if (next < 0) {
+			// Someone may go away later and need a stand-in: check back.
+			if (this.seats.some((s) => !s.isBot && s.sockets.size === 0)) {
+				this.botTimerIdle = true;
+				this.botTimer = setTimeout(() => {
+					this.botTimer = null;
+					this.scheduleBots();
+				}, 5000);
+			}
+			return;
+		}
+		this.botTimerIdle = false;
+		const fresh = !g.ready.some(Boolean);
+		let delay = GB_BOT_MS + Math.random() * GB_BOT_SPREAD_MS + (fresh ? GB_ROUND_SHOW_MS : 0);
+		if (this.fastBots) delay = 40;
+		const round = g.round;
+		this.botTimer = setTimeout(() => {
+			this.botTimer = null;
+			if (!this.gb || this.paused || !this.playing) return;
+			// Still this bot's to order in the same round (nobody timed it out meanwhile).
+			if (this.gb.round === round && !this.gb.ready[next] && this.controlled(next)) {
+				const orders = gambitBot(gambitView(this.gb, next)) ?? [];
+				let res = applyGambit(this.gb, next, { type: 'orders', orders, ready: true });
+				// A bot should never hold the round up: no orders at all, then.
+				if (!res.ok) res = applyGambit(this.gb, next, { type: 'orders', orders: [], ready: true });
+				if (res.ok) this.gb = res.state;
+				else console.warn(`[room ${this.code}] gambit bot failed: ${res.error}`);
 				this.broadcastGame();
 			}
 			this.scheduleBots();
@@ -1297,7 +1431,13 @@ function cqPause(events: CqEvent[]): number {
 	return most + Math.max(0, battles - 1) * CQ_BOT_BLITZ_MS;
 }
 
-/** Messages only a Settlement table takes, and only a Conquest table. */
+/** A Gambit bot's pause before giving its orders, give or take GB_BOT_SPREAD_MS more. */
+const GB_BOT_MS = 1200;
+const GB_BOT_SPREAD_MS = 1800;
+/** The first bot of a round waits this much more, while the last round plays out on the board. */
+const GB_ROUND_SHOW_MS = 3500;
+
+/** Messages only a Settlement table takes, only a Conquest table, only a Gambit table. */
 const SETTLEMENT_ONLY = new Set<ClientMessage['t']>([
 	'setMode',
 	'setMap',
@@ -1317,3 +1457,10 @@ const SETTLEMENT_ONLY = new Set<ClientMessage['t']>([
 	'cheat'
 ]);
 const CONQUEST_ONLY = new Set<ClientMessage['t']>(['setConquest', 'cqAction', 'cqCheat']);
+const GAMBIT_ONLY = new Set<ClientMessage['t']>(['setGambit', 'gbAction', 'gbCheat']);
+/** What each kind of table turns away: the other games' messages. */
+const NOT_AT: Record<GameKind, Set<ClientMessage['t']>[]> = {
+	settlement: [CONQUEST_ONLY, GAMBIT_ONLY],
+	conquest: [SETTLEMENT_ONLY, GAMBIT_ONLY],
+	gambit: [SETTLEMENT_ONLY, CONQUEST_ONLY]
+};

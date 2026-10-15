@@ -1,4 +1,5 @@
 import type { WebSocket as ServerSocket } from 'ws';
+import { isGameKind } from '../../shared/games';
 import type { ClientMessage } from '../../shared/protocol';
 import { Room, send } from '../../server/room';
 import { msg } from '../i18n/index.svelte';
@@ -105,7 +106,7 @@ export class LocalSocket {
 			if (this.room) this.leaveRoom();
 			let room: Room | null;
 			if (msg.t === 'create') {
-				room = new Room(newCode(), false, msg.game === 'conquest' ? 'conquest' : 'settlement');
+				room = new Room(newCode(), false, isGameKind(msg.game) ? msg.game : 'settlement');
 				rooms.set(room.code, room);
 				// A campaign mission won goes on the campaign kept in this browser.
 				room.listener = {

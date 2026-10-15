@@ -6,6 +6,7 @@
 	import { account } from '../../state/account.svelte';
 	import { replay } from '../../state/replay.svelte';
 	import { cqReplay } from '../../state/cqReplay.svelte';
+	import { GB_PIXEL } from '../gambit/icons';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import Avatar from './Avatar.svelte';
@@ -97,6 +98,8 @@
 							<span class="what">
 								{#if m.mode === 'conquest'}
 									<img class="icon-px" src={PIXEL.sword} alt="" />{t('Conquest')} · {tx(m.mapName)}
+								{:else if m.mode === 'gambit'}
+									<img class="icon-px" src={GB_PIXEL.knight} alt="" />{t('Gambit')}
 								{:else}
 									{#if m.mode === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}
 									{MODE_INFO[m.mode] ? t(MODE_INFO[m.mode].name) : m.mode}{m.mode === 'extended' ? ` · ${tx(m.mapName)}` : ''}
@@ -123,7 +126,9 @@
 										<small
 											>{m.mode === 'conquest'
 												? t('{n, plural, one {# territory} other {# territories}}', { n: p.points })
-												: t('{points} pts', { points: p.points })}{#if p.character}
+												: m.mode === 'gambit'
+													? t('{n, plural, one {# crown} other {# crowns}}', { n: p.points })
+													: t('{points} pts', { points: p.points })}{#if p.character}
 												· {t(CHARACTER_INFO[p.character]?.name ?? '')}{/if}</small
 										>
 									</span>
@@ -132,13 +137,17 @@
 						</div>
 						<div class="meta">
 							{#if length(m)}<span>{length(m)}</span>{/if}
-							{#if m.turns}<span>{t('{n, plural, one {# turn} other {# turns}}', { n: m.turns })}</span>{/if}
+							{#if m.turns}<span
+									>{m.mode === 'gambit' ? t('{n, plural, one {# round} other {# rounds}}', { n: m.turns }) : t('{n, plural, one {# turn} other {# turns}}', { n: m.turns })}</span
+								>{/if}
 							<span
 								>{m.mode === 'conquest'
 									? t('to {n, plural, one {# territory} other {# territories}}', { n: m.pointsToWin })
-									: t('to {n, plural, one {# point} other {# points}}', { n: m.pointsToWin })}</span
+									: m.mode === 'gambit'
+										? t('to {n, plural, one {# crown} other {# crowns}}', { n: m.pointsToWin })
+										: t('to {n, plural, one {# point} other {# points}}', { n: m.pointsToWin })}</span
 							>
-							{#if m.replay}
+							{#if m.replay && m.mode !== 'gambit'}
 								<button
 									class="btn small green watch"
 									disabled={replay.loading !== null || cqReplay.loading !== null}
@@ -146,7 +155,7 @@
 									title={t('Watch this game again, move by move')}
 									><img src={replay.loading === m.id || cqReplay.loading === m.id ? PIXEL.hourglass : PIXEL.play} alt="" />{t('Watch replay')}</button
 								>
-							{:else if m.status !== 'playing'}
+							{:else if m.status !== 'playing' && m.mode !== 'gambit'}
 								<span class="no-replay" title={t("Games played before replays were added weren't recorded, so they can't be watched.")}
 									>{t('No replay: played before replays were kept')}</span
 								>

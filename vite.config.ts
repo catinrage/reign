@@ -58,7 +58,10 @@ export default defineConfig(({ mode }) => {
 		test: {
 			root: '.',
 			include: ['tests/**/*.test.ts'],
-			environment: 'node'
+			environment: 'node',
+			// Some tests play whole games with bots in every seat: a few seconds alone, longer with
+			// every file running at once.
+			testTimeout: 20_000
 		}
 	};
 });

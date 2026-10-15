@@ -10,6 +10,7 @@ import { t } from '../i18n/index.svelte';
 import { sceneRef } from '../ui/sceneRef';
 import { api } from './account.svelte';
 import { client } from './client.svelte';
+import { DEFAULT_GAMBIT_SETTINGS } from '../../shared/gambit/types';
 
 /**
  * Watching a finished game again. The whole recording is loaded and played back in the page on
@@ -251,6 +252,7 @@ function lobbyFor(match: Match, start: GameState): LobbyInfo {
 		code: '',
 		game: 'settlement',
 		conquest: DEFAULT_CONQUEST_SETTINGS,
+		gambit: DEFAULT_GAMBIT_SETTINGS,
 		seats: start.players.map((p, i) => {
 			const m = match.players[i];
 			return {

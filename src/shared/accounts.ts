@@ -184,8 +184,8 @@ export interface MatchPlayer {
 export interface Match {
 	id: number;
 	code: string;
-	/** Settlement's mode, or 'conquest' for a game of Conquest. */
-	mode: GameMode | 'conquest';
+	/** Settlement's mode, or 'conquest' or 'gambit' for those games. */
+	mode: GameMode | 'conquest' | 'gambit';
 	mapName: string;
 	pointsToWin: number;
 	status: 'playing' | 'finished' | 'abandoned';

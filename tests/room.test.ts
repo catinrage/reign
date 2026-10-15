@@ -1404,3 +1404,92 @@ describe('Conquest dev cheats and bot pace', () => {
 		room.dispose();
 	});
 });
+
+describe('Gambit tables', () => {
+	afterEach(() => vi.useRealTimers());
+
+	function table(cheats = false) {
+		vi.useFakeTimers();
+		const room = new Room('GAMBT', cheats, 'gambit');
+		const me = fakeSocket();
+		const seat = room.join(me.ws, 'Komeil');
+		if (typeof seat === 'string') throw new Error(seat);
+		room.handle(seat, { t: 'setGambit', settings: { rounds: 10 } }, me.ws);
+		for (let i = 0; i < 3; i++) room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		return { room, seat, me, mine: room.seats.indexOf(seat) };
+	}
+	const views = (sent: ServerMessage[]) => sent.flatMap((m) => (m.t === 'gbGame' ? [m.view] : []));
+
+	it('play the war out round by round with bots, to its end', () => {
+		const { room, seat, me, mine } = table();
+		expect(room.gb?.players).toHaveLength(4);
+		expect(room.lobbyInfo().maxPlayers).toBe(8);
+		for (let i = 0; i < 400 && room.gb!.phase !== 'ended'; i++) {
+			// The bots give their orders a few moments into each round; this player gives none.
+			if (!room.gb!.ready[mine]) room.handle(seat, { t: 'gbAction', action: { type: 'orders', orders: [], ready: true } }, me.ws);
+			vi.advanceTimersByTime(5000);
+		}
+		expect(room.gb!.phase).toBe('ended');
+		expect(room.gb!.round).toBeLessThanOrEqual(10);
+		expect(views(me.sent).at(-1)?.phase).toBe('ended');
+		room.dispose();
+	});
+
+	it("keep each player's orders from the others until the round is played", () => {
+		vi.useFakeTimers();
+		const room = new Room('GAMBS', false, 'gambit');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof host === 'string' || typeof guest === 'string') throw new Error('join failed');
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		const me = room.seats.indexOf(host);
+		const piece = room.gb!.pieces.find((p) => p.owner === me && p.kind === 'guard')!;
+		room.handle(host, { t: 'gbAction', action: { type: 'orders', orders: [{ piece: piece.id, type: 'brace' }], ready: true } }, a.ws);
+		const theirs = views(b.sent).at(-1)!;
+		expect(theirs.ready[me]).toBe(true);
+		expect(theirs.myOrders).toEqual([]);
+		expect(JSON.stringify(theirs)).not.toContain('brace');
+		expect(views(a.sent).at(-1)!.myOrders).toEqual([{ piece: piece.id, type: 'brace' }]);
+		// Settlement's and Conquest's messages are turned away here.
+		room.handle(host, { t: 'cqAction', action: { type: 'endTurn' } }, a.ws);
+		room.handle(host, { t: 'action', action: { type: 'endTurn' } }, a.ws);
+		expect(room.gb!.round).toBe(1);
+		room.dispose();
+	});
+
+	it('play the round for whoever the clock runs out on, with what they had ordered', () => {
+		vi.useFakeTimers();
+		const room = new Room('GAMBC', false, 'gambit');
+		const me = fakeSocket();
+		const seat = room.join(me.ws, 'Komeil');
+		if (typeof seat === 'string') throw new Error(seat);
+		room.handle(seat, { t: 'setTurnTime', seconds: 30 }, me.ws);
+		room.handle(seat, { t: 'addBot' }, me.ws);
+		room.handle(seat, { t: 'start' }, me.ws);
+		const mine = room.seats.indexOf(seat);
+		vi.advanceTimersByTime(29_000);
+		expect(room.gb!.round).toBe(1);
+		vi.advanceTimersByTime(2_000);
+		expect(room.gb!.round).toBe(2);
+		expect(room.gb!.log.some((e) => e.type === 'turnTimedOut' && e.player === mine)).toBe(true);
+		room.dispose();
+	});
+
+	it('take dev cheats only on the dev server', () => {
+		const off = table(false);
+		off.room.handle(off.seat, { t: 'gbCheat', cheat: { type: 'crowns', player: off.mine, count: 5 } }, off.me.ws);
+		expect(off.me.sent.at(-1)).toEqual({ t: 'error', message: 'Cheats only work on the dev server.' });
+		expect(off.room.gb!.players[off.mine].crowns).toBe(0);
+		off.room.dispose();
+		const on = table(true);
+		on.room.handle(on.seat, { t: 'gbCheat', cheat: { type: 'crowns', player: on.mine, count: 5 } }, on.me.ws);
+		expect(on.room.gb!.players[on.mine].crowns).toBe(5);
+		on.room.handle(on.seat, { t: 'gbCheat', cheat: { type: 'win', player: on.mine } }, on.me.ws);
+		expect(on.room.gb!.winner).toBe(on.mine);
+		on.room.dispose();
+	});
+});
