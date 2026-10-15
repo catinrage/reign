@@ -33,7 +33,11 @@ class NetStats {
 	loss = $state<number | null>(null);
 
 	private running = false;
+	/** Animation ticks: the screen's refreshes, counted when the game can't say what it drew. */
 	private frames = 0;
+	/** How many frames the game has drawn so far, when it can say (a frame rate cap draws fewer than the screen shows). */
+	private drawn: (() => number | undefined) | null = null;
+	private lastDrawn: number | undefined;
 	private windowStart = 0;
 	private raf = 0;
 	private timer: ReturnType<typeof setInterval> | undefined;
@@ -47,10 +51,12 @@ class NetStats {
 		this.sendPing = send;
 	}
 
-	start() {
+	start(drawn?: () => number | undefined) {
 		if (this.running) return;
 		this.running = true;
 		this.frames = 0;
+		this.drawn = drawn ?? null;
+		this.lastDrawn = drawn?.();
 		this.windowStart = performance.now();
 		const tick = () => {
 			this.frames++;
@@ -100,8 +106,11 @@ class NetStats {
 		const now = performance.now();
 		const span = now - this.windowStart;
 		// A hidden tab draws nothing; keep the last count rather than showing 0.
-		if (this.frames > 0 || document.visibilityState === 'visible') {
-			this.fps = Math.round((this.frames * 1000) / span);
+		const total = this.drawn?.();
+		const frames = total !== undefined && this.lastDrawn !== undefined && total >= this.lastDrawn ? total - this.lastDrawn : this.frames;
+		this.lastDrawn = total;
+		if (frames > 0 || document.visibilityState === 'visible') {
+			this.fps = Math.round((frames * 1000) / span);
 		}
 		this.frames = 0;
 		this.windowStart = now;

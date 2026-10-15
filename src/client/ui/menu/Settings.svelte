@@ -6,7 +6,8 @@
 
 <script lang="ts">
 	import { PIXEL } from '../pixel';
-	import { CHANNELS, SIZE_MAX, SIZE_MIN, settings } from '../settings.svelte';
+	import { CHANNELS, FPS_CAPS, SIZE_MAX, SIZE_MIN, settings } from '../settings.svelte';
+	import { gamePick } from './gamePick.svelte';
 	import { isMuted, setMuted } from '../sound';
 	import { msg, t } from '../../i18n/index.svelte';
 	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
@@ -20,6 +21,9 @@
 		{ id: 'graphics', label: msg('Graphics'), icon: PIXEL.eye },
 		{ id: 'game', label: msg('Game'), icon: PIXEL.die }
 	];
+
+	/** The game whose own settings the Game tab shows: the one at this table, or the one picked on the menu. */
+	const game = $derived(client.lobby?.game ?? gamePick.game);
 
 	let muted = $state(isMuted());
 	function toggleMute(m: boolean) {
@@ -252,7 +256,7 @@
 					)}
 				</p>
 				<div class="row">
-					<span class="name">{t('Island detail')}</span>
+					<span class="name">{t('Board detail')}</span>
 					<div class="seg wrap">
 						<button
 							class="btn small"
@@ -268,9 +272,20 @@
 				</div>
 				<p class="hint">
 					{t(
-						'Fine builds the island from voxels half the size, for more detail. Standard is lighter on old devices. Switching takes a moment to rebuild.'
+						"Fine builds every game's board from voxels half the size, for more detail. Standard is lighter on old devices. Switching takes a moment to rebuild."
 					)}
 				</p>
+				<div class="row">
+					<span class="name">{t('Frame rate cap')}</span>
+					<div class="seg wrap">
+						{#each FPS_CAPS as cap (cap)}
+							<button class="btn small" class:on={settings.fpsCap === cap} onclick={() => settings.setFpsCap(cap)}
+								>{cap ? t('{n} fps', { n: cap }) : t('No cap')}</button
+							>
+						{/each}
+					</div>
+				</div>
+				<p class="hint">{t('Draw at most this many frames a second, to spare a laptop battery or a hot phone. No cap draws as many as the screen shows.')}</p>
 			</section>
 		</div>
 		<div
@@ -280,6 +295,31 @@
 			id="settings-game"
 			aria-hidden={tab !== 'game'}
 		>
+			{#if game === 'conquest'}
+				<section>
+					<div class="divider"><i></i><span>{t('Conquest')}</span><i></i></div>
+					<div class="row">
+						<span class="name">{t("Others' dice")}</span>
+						<div class="seg">
+							<button class="btn small" class:on={settings.dicePace === 'slow'} onclick={() => settings.setDicePace('slow')}>{t('Slow')}</button>
+							<button class="btn small" class:on={settings.dicePace === 'quick'} onclick={() => settings.setDicePace('quick')}>{t('Quick')}</button>
+						</div>
+					</div>
+					<p class="hint">{t("How long another player's dice roll before the losses show: slow enough to follow every battle, or as quick as your own.")}</p>
+				</section>
+			{:else if game === 'gambit'}
+				<section>
+					<div class="divider"><i></i><span>{t('Gambit')}</span><i></i></div>
+					<div class="row">
+						<span class="name">{t('Round playback')}</span>
+						<div class="seg">
+							<button class="btn small" class:on={settings.roundPace === 'normal'} onclick={() => settings.setRoundPace('normal')}>{t('Normal')}</button>
+							<button class="btn small" class:on={settings.roundPace === 'fast'} onclick={() => settings.setRoundPace('fast')}>{t('Fast')}</button>
+						</div>
+					</div>
+					<p class="hint">{t('How fast each round plays out on the board once everyone has given their orders.')}</p>
+				</section>
+			{:else}
 			<section>
 				<div class="divider"><i></i><span>{t('Trade offers')}</span><i></i></div>
 				<div class="row">
@@ -319,6 +359,7 @@
 					)}
 				</p>
 			</section>
+			{/if}
 		</div>
 	</div>
 </div>

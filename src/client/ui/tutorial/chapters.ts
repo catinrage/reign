@@ -1,4 +1,5 @@
 import type { Component } from 'svelte';
+import type { GameKind } from '../../../shared/games';
 import type { GameMode } from '../../../shared/rules/modes';
 import { CQ_PIXEL } from '../conquest/icons';
 import CqBattle from './conquest/Battle.svelte';
@@ -41,7 +42,6 @@ import { TUT_ICON } from './icons';
  * feature, write a page in ./extended and add one line here.
  */
 /** The tutorial's books: Settlement's two modes, Conquest and Gambit. */
-export const TUTORIAL_MODES = ['classic', 'extended', 'conquest', 'gambit'] as const;
 export type TutorialMode = GameMode | 'conquest' | 'gambit';
 export const TUTORIAL_MODE_NAME: Record<TutorialMode, string> = {
 	classic: msg('Classic'),
@@ -49,6 +49,18 @@ export const TUTORIAL_MODE_NAME: Record<TutorialMode, string> = {
 	conquest: msg('Conquest'),
 	gambit: msg('Gambit')
 };
+
+/** Each game's books: Settlement has one for each of its modes. */
+export const TUTORIAL_BOOKS: Record<GameKind, readonly TutorialMode[]> = {
+	settlement: ['classic', 'extended'],
+	conquest: ['conquest'],
+	gambit: ['gambit']
+};
+
+/** The game a book is about. */
+export function gameOfBook(mode: TutorialMode): GameKind {
+	return mode === 'conquest' || mode === 'gambit' ? mode : 'settlement';
+}
 
 export interface Chapter {
 	id: string;

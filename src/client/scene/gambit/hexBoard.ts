@@ -1,28 +1,32 @@
 import * as THREE from 'three';
 import { hexToWorld, worldToHex, hexKey } from '../../../shared/board/hex';
 import type { GambitBoard } from '../../../shared/gambit/types';
-import { type Raise, pineTree, roundTree, pebble, put } from '../board/terrain';
+import { type Raise, block, pineTree, roundTree, pebble } from '../board/terrain';
 import { VOXEL } from '../layout';
 import { Mat, VoxelGrid, hash3, hex, pick, shade } from '../voxel/grid';
 import { meshesFor } from '../voxel/materials';
 import { meshGrid } from '../voxel/mesher';
 
 /**
- * Gambit's board in voxels: a hex chessboard on the table. Open ground in three woods, light,
- * middle and dark, the way hex chessboards are; groves of little trees, hills raised in stone,
- * lakes sunk in water; marble shrines, the gilded Throne in the middle, and each keep ringed in
- * brass. A walnut rim with brass round the edge.
+ * Gambit's board in voxels: a hex chessboard in a tray on the table. Open ground in three woods,
+ * light, middle and dark, the way hex chessboards are; groves of little trees, hills raised in
+ * stone, lakes sunk in water; marble shrines, the gilded Throne in the middle, and each keep ringed
+ * in brass. Round the board's ragged edge lies sea, out to a hexagonal walnut frame with brass
+ * along its inner edge.
  *
- * Grid coordinates are voxels; world = voxel * VOXEL. A hex is HEX world units from its middle
- * to a corner.
+ * Built at any detail S (voxels per VOXEL, the player's pick): grid voxels are VOXEL / S across,
+ * and sizes below are in VOXEL units, scaled by S. A hex is HEX world units from its middle to a
+ * corner.
  */
 
 /** World units from a hex's middle to a corner. */
 export const HEX = 6.6;
-/** Ground columns fill y = 0..G-1, so open ground's top face is at y = G. */
+/** Ground fills VOXEL units 0..G-1, so open ground's top face is at G (the sea's a few lower). */
 const G = 6;
-/** Rim round the board, in voxels. */
+const SEA_TOP = G - 3;
+/** The frame round the board, and the sea between it and the hexes (VOXEL units, hexes). */
 const RIM = 7;
+const SEA_MARGIN = 0.45;
 const MAX_Y = 30;
 
 /** World y of open ground's surface. */
@@ -66,10 +70,20 @@ export function cellWorld(board: GambitBoard, cell: number): { x: number; z: num
 	return { x: w.x * HEX, z: w.z * HEX };
 }
 
-export function buildHexBoard(board: GambitBoard, seed: number): HexBoardBuild {
-	const reach = (board.radius + 1) * Math.sqrt(3) * HEX;
-	const half = Math.ceil(reach / VOXEL) + RIM + 2;
-	const grid = new VoxelGrid(half * 2, MAX_Y, half * 2, -half, 0, -half);
+export function buildHexBoard(board: GambitBoard, seed: number, S = 1): HexBoardBuild {
+	const vox = VOXEL / S;
+	/**
+	 * The frame's inner face, out from the middle: past the board's flat sides (a hex and a half a
+	 * ring, and a hex's corner) by a strip of sea. The frame's sides face the board's own (at 30,
+	 * 90 and 150 degrees, between its corners).
+	 */
+	const inner = (1.5 * board.radius + 1 + SEA_MARGIN) * HEX;
+	const outer = inner + RIM * VOXEL;
+	const SIDES = [30, 90, 150].map((d) => (d * Math.PI) / 180);
+	const frameInset = (wx: number, wz: number) => inner - Math.max(...SIDES.map((a) => Math.abs(wx * Math.cos(a) + wz * Math.sin(a))));
+	// The frame's corners are furthest out: its flat distance over cos 30.
+	const half = Math.ceil(outer / Math.cos(Math.PI / 6) / vox) + 2;
+	const grid = new VoxelGrid(half * 2, MAX_Y * S, half * 2, -half, 0, -half);
 	const tops = new Int16Array(grid.nx * grid.nz).fill(-1);
 	const at = (x: number, z: number) => x + half + (z + half) * grid.nx;
 	const raise: Raise = (x, z, y) => {
@@ -83,7 +97,7 @@ export function buildHexBoard(board: GambitBoard, seed: number): HexBoardBuild {
 		const a = worldToHex(wx / HEX, wz / HEX);
 		return board.index[hexKey(a)] ?? -1;
 	};
-	/** How far in from its hex's edge a point is, in hexes (0 on the edge, 1 at the middle... about). */
+	/** How far in from its hex's edge a point is (world units). */
 	const inset = (wx: number, wz: number, cell: number) => {
 		const c = cellWorld(board, cell);
 		const lx = (wx - c.x) / HEX;
@@ -92,46 +106,50 @@ export function buildHexBoard(board: GambitBoard, seed: number): HexBoardBuild {
 		const a = Math.abs(lx);
 		const b = Math.abs(0.5 * lx + inR * lz);
 		const d = Math.abs(-0.5 * lx + inR * lz);
-		return inR - Math.max(a, b, d);
+		return (inR - Math.max(a, b, d)) * HEX;
 	};
-	// The rim follows the board's own hexagon, a little way out.
-	const rimInset = (wx: number, wz: number) => {
-		const R = (board.radius + 0.5) * Math.sqrt(3) * HEX;
-		const ang = [0, 60, 120].map((d) => (d * Math.PI) / 180);
-		const most = Math.max(...ang.map((a) => Math.abs(wx * Math.cos(a) + wz * Math.sin(a))));
-		return R - most;
+	/** A column of `top + 1` voxels (VOXEL units scaled to the grid's), its top face in `color`. */
+	const column = (x: number, z: number, top: number, color: number, mat = Mat.Solid) => {
+		const t = top * S + S - 1;
+		const side = shade(color, 0.72);
+		grid.box(x, 0, z, x, t, z, (_, y) => (y > t - S ? color : side), mat);
+		tops[at(x, z)] = t;
 	};
 
-	// ---- ground, hex by hex
+	// ---- ground, hex by hex; sea round it; the frame round that
 	for (let iz = 0; iz < grid.nz; iz++)
 		for (let ix = 0; ix < grid.nx; ix++) {
 			const x = ix - half;
 			const z = iz - half;
-			const wx = (x + 0.5) * VOXEL;
-			const wz = (z + 0.5) * VOXEL;
-			const r = hash3(x, 0, z, seed);
+			const wx = (x + 0.5) * vox;
+			const wz = (z + 0.5) * vox;
+			// Colors vary by the VOXEL-sized block, not the grid voxel, so Fine keeps the same look.
+			const r = hash3(Math.floor(x / S), 0, Math.floor(z / S), seed);
 			const cell = cellOf(wx, wz);
 			if (cell < 0) {
-				// The walnut rim (filling in up to the hexes' ragged edge), a brass line along its inner edge.
-				const inR = rimInset(wx, wz);
-				if (inR < -RIM * VOXEL || inR > 0.6 * HEX) continue;
-				const out = -inR / VOXEL;
+				const f = frameInset(wx, wz);
+				if (f >= 0) {
+					// Sea out to the frame, a little deeper the further from the board.
+					column(x, z, SEA_TOP - 1, shade(pick(P.water, r), 0.9 + Math.min(1, f / HEX) * 0.06), Mat.Water);
+					continue;
+				}
+				const out = -f / VOXEL;
+				if (out > RIM) continue;
+				// The walnut frame: brass along its inner edge, a dark lip on the outside.
 				const edge = out > RIM - 1.2;
-				const c = edge ? P.walnutDark : out >= 0 && out < 1 ? pick(P.brass, r) : shade(pick(P.walnut, r), 0.95 + r * 0.1);
-				const h = edge ? G : out < 0 ? G - 1 : G + 1;
-				grid.box(x, 0, z, x, h - 1, z, (_, y) => (y === h - 1 ? c : shade(c, 0.75)));
-				tops[at(x, z)] = h - 1;
+				const c = edge ? P.walnutDark : out < 1 ? pick(P.brass, r) : shade(pick(P.walnut, r), 0.95 + r * 0.1);
+				column(x, z, edge ? G - 1 : G, c);
 				continue;
 			}
 			const c = board.cells[cell];
-			const ins = inset(wx, wz, cell) * HEX;
+			const ins = inset(wx, wz, cell);
 			const groove = ins < VOXEL * 0.75;
 			const tone = (((c.q - c.r) % 3) + 3) % 3;
 			let top = G - 1;
 			let color = shade(pick(P.woods[tone], r), 0.97 + r * 0.06);
 			let mat = Mat.Solid;
 			if (c.terrain === 'water') {
-				top = G - 3;
+				top = SEA_TOP - 1;
 				color = pick(P.water, r);
 				mat = Mat.Water;
 			} else if (c.terrain === 'hill') {
@@ -150,55 +168,53 @@ export function buildHexBoard(board: GambitBoard, seed: number): HexBoardBuild {
 				color = c.terrain === 'water' ? shade(pick(P.water, r), 0.85) : P.groove;
 				mat = c.terrain === 'water' ? Mat.Water : Mat.Solid;
 			}
-			const side = shade(color, 0.72);
-			grid.box(x, 0, z, x, top, z, (_, y) => (y === top ? color : side), mat);
-			tops[at(x, z)] = top;
+			column(x, z, top, color, mat);
 		}
 
 	// ---- groves and stones, round the edge of their hex so a piece can stand in the middle
 	board.cells.forEach((c, i) => {
 		const w = cellWorld(board, i);
-		const cx = Math.floor(w.x / VOXEL);
-		const cz = Math.floor(w.z / VOXEL);
+		const cx = Math.floor(w.x / vox);
+		const cz = Math.floor(w.z / vox);
 		const ring = (k: number, n: number, out: number) => {
 			const a = (k / n) * Math.PI * 2 + hash3(i, 7, k, seed) * 0.6;
-			return [cx + Math.round(Math.cos(a) * out), cz + Math.round(Math.sin(a) * out)] as const;
+			return [cx + Math.round(Math.cos(a) * out * S), cz + Math.round(Math.sin(a) * out * S)] as const;
 		};
 		if (c.terrain === 'forest') {
 			const n = 4;
 			for (let k = 0; k < n; k++) {
 				const [x, z] = ring(k, n, 6.5);
 				const s = seed + i * 31 + k;
-				if (hash3(i, k, 1, seed) < 0.55) pineTree(grid, x, G, z, s, raise, 1);
-				else roundTree(grid, x, G, z, s, raise, 1);
+				if (hash3(i, k, 1, seed) < 0.55) pineTree(grid, x, G * S, z, s, raise, S);
+				else roundTree(grid, x, G * S, z, s, raise, S);
 			}
 		} else if (c.terrain === 'hill') {
 			for (let k = 0; k < 3; k++) {
 				const [x, z] = ring(k, 3, 7);
-				pebble(grid, x, G + 1, z, seed + i * 17 + k, raise, 1);
+				pebble(grid, x, (G + 1) * S, z, seed + i * 17 + k, raise, S);
 			}
 		}
-		if (c.shrine) shrineStones(grid, cx, cz, c.shrine === 2, raise, seed + i);
+		if (c.shrine) shrineStones(grid, cx, cz, c.shrine === 2, raise, seed + i, S);
 	});
 
 	const geos = meshGrid(grid, { jitter: 0.04, skipFloor: true });
-	const group = meshesFor(geos, VOXEL, {
+	const group = meshesFor(geos, vox, {
 		[Mat.Solid]: { lamps: true },
-		[Mat.Sway]: { swayBase: G, swayScale: 1, roughness: 0.7, lamps: true },
+		[Mat.Sway]: { swayBase: G * S, swayScale: S, roughness: 0.7, lamps: true },
 		[Mat.Water]: { roughness: 0.22, bevel: 0.35, lamps: true }
 	});
 	group.name = 'gambit-board';
 
 	const centers = board.cells.map((c, i) => {
 		const w = cellWorld(board, i);
-		const lift = c.terrain === 'hill' ? 2 : c.terrain === 'water' ? -2 : 0;
+		const lift = c.terrain === 'hill' ? 2 : c.terrain === 'water' ? SEA_TOP - G : 0;
 		return new THREE.Vector3(w.x, (G + lift) * VOXEL, w.z);
 	});
 	const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -G * VOXEL);
 	return {
 		group,
 		centers,
-		half: half * VOXEL,
+		half: half * vox,
 		cellAt: cellOf,
 		raycast: (ray) => ray.intersectPlane(plane, new THREE.Vector3()),
 		dispose: () => group.traverse((o) => (o as THREE.Mesh).geometry?.dispose())
@@ -206,13 +222,14 @@ export function buildHexBoard(board: GambitBoard, seed: number): HexBoardBuild {
 }
 
 /** Corner posts of marble round a shrine (gold capped round the Throne), clear of the middle. */
-function shrineStones(grid: VoxelGrid, cx: number, cz: number, throne: boolean, raise: Raise, seed: number) {
+function shrineStones(grid: VoxelGrid, cx: number, cz: number, throne: boolean, raise: Raise, seed: number, S: number) {
 	const posts = 6;
+	const h = throne ? 4 : 3;
 	for (let k = 0; k < posts; k++) {
 		const a = (k / posts) * Math.PI * 2 + Math.PI / 6;
-		const x = cx + Math.round(Math.cos(a) * 7.2);
-		const z = cz + Math.round(Math.sin(a) * 7.2);
-		const h = throne ? 4 : 3;
-		for (let y = 0; y < h; y++) put(grid, raise, x, G + y, z, y === h - 1 && throne ? pick(P.gold, hash3(x, y, z, seed)) : pick(P.marble, hash3(x, y, z, seed)));
+		const x = cx + Math.round(Math.cos(a) * 7.2 * S);
+		const z = cz + Math.round(Math.sin(a) * 7.2 * S);
+		for (let y = 0; y < h; y++)
+			block(grid, raise, S, x, (G + y) * S, z, 0, 0, 0, () => (y === h - 1 && throne ? pick(P.gold, hash3(k, y, 1, seed)) : pick(P.marble, hash3(k, y, 2, seed))));
 	}
 }

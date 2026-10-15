@@ -10,7 +10,7 @@ import { client } from './state/client.svelte';
 import { replay } from './state/replay.svelte';
 import App from './ui/App.svelte';
 import { installArt } from './ui/art';
-import { applySettings, settings } from './ui/settings.svelte';
+import { applyPaces, applySettings, settings } from './ui/settings.svelte';
 import { bootStep, nextPaint, until } from './boot';
 import { t } from './i18n/index.svelte';
 import { sceneRef } from './ui/sceneRef';
@@ -24,6 +24,8 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	getIcons();
 	sceneRef.current = new GameScene(canvas, settings.quality, settings.detail);
 	sceneRef.current.stage.setNight(settings.night, true);
+	sceneRef.current.stage.maxFps = settings.fpsCap;
+	applyPaces();
 	(window as any).__scene = sceneRef.current;
 	sceneRef.current.onPurr = sfx.purr;
 	mount(App, { target: el });

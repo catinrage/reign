@@ -32,7 +32,7 @@ import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
 import type { CqView } from '../../shared/conquest/types';
 import { conquestMap } from '../../shared/conquest/queries';
 import type { RealmMap } from '../../shared/conquest/realm';
-import { ConquestScene, type CqSceneCallbacks } from './conquest/conquestScene';
+import { BATTLE_ROLL_WATCHED, ConquestScene, type CqSceneCallbacks } from './conquest/conquestScene';
 import { GambitScene, type GbSceneCallbacks } from './gambit/gambitScene';
 import { BOARD_TOP } from './gambit/hexBoard';
 import type { GambitView, TerrainRule } from '../../shared/gambit/types';
@@ -247,6 +247,15 @@ export class GameScene {
 	private gambitKey = '';
 	/** What the Gambit board tells the interface (see GambitHud), kept for each board made. */
 	gambitCallbacks: GbSceneCallbacks = {};
+	/** The player's picks for how fast things play out: someone else's dice in Conquest, a round in Gambit. */
+	private paces = { watchedRoll: BATTLE_ROLL_WATCHED, round: 1 };
+
+	/** How fast things play out, as the player picked (see settings), on the boards up now and those to come. */
+	setPaces(p: { watchedRoll: number; round: number }) {
+		this.paces = p;
+		if (this.conquest) this.conquest.watchedRoll = p.watchedRoll;
+		if (this.gambit) this.gambit.pace = p.round;
+	}
 	private catHoverAt = new THREE.Vector2(-9, -9);
 
 	constructor(
@@ -315,8 +324,9 @@ export class GameScene {
 		} else if (this.gambit) this.dropGambit();
 		else this.hideIsland();
 		// A random world's names are made up: they stand as they are, untranslated.
-		const cq = new ConquestScene(this.stage, this.anim, this.particles, map.generated ? undefined : this.conquestNames, map);
+		const cq = new ConquestScene(this.stage, this.anim, this.particles, map.generated ? undefined : this.conquestNames, map, this.detail);
 		cq.callbacks = this.conquestCallbacks;
+		cq.watchedRoll = this.paces.watchedRoll;
 		this.conquest = cq;
 		const r = cq.board.realm;
 		// A rim of table round the board, and the mug, the lantern and the plant standing off its corners.
@@ -340,16 +350,24 @@ export class GameScene {
 		this.beacons.clear();
 		if (this.boardView) this.boardView.group.visible = false;
 		this.dice.setShown(false);
-		for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = false;
+		this.room.showIslandProps(false);
 	}
 
-	/** Settlement's island back on the table, its dice and cards beside it. */
+	/** Settlement's island back on the table (at the detail picked meanwhile), its dice and cards beside it. */
 	private showIsland() {
+		if (this.islandStale && this.boardView) {
+			this.islandStale = false;
+			const robber = this.boardView.robberHex;
+			this.setBoard(this.boardView.board, this.boardSeed, this.boardPlots);
+			this.boardView!.setRobber(robber, true);
+		}
 		if (this.boardView) this.boardView.group.visible = true;
 		this.dice.setShown(this.diceDown);
-		for (const o of this.room.props.children) if (o.name === 'cards' || o.name === 'tray') o.visible = true;
+		this.room.showIslandProps(true);
 		this.room.fitTable((this.reach + 50) / (TABLE_HALF * ROOM_SCALE));
 	}
+	/** The island's detail changed while another game's board was on the table: rebuild it when it's back. */
+	private islandStale = false;
 
 	/**
 	 * Put a Gambit board on the table in place of the island (or another game's board): for a
@@ -363,8 +381,9 @@ export class GameScene {
 			this.conquest.dispose();
 			this.conquest = null;
 		} else this.hideIsland();
-		const gb = new GambitScene(this.stage, this.anim, this.particles, players, settings);
+		const gb = new GambitScene(this.stage, this.anim, this.particles, players, settings, this.detail);
 		gb.callbacks = this.gambitCallbacks;
+		gb.pace = this.paces.round;
 		this.gambit = gb;
 		this.gambitKey = key;
 		const half = gb.build.half;
@@ -507,16 +526,25 @@ export class GameScene {
 		this.room.fitTable((this.reach + 50) / (TABLE_HALF * ROOM_SCALE));
 	}
 
-	/** Rebuild the island at another voxel detail, keeping the game (pieces, robber) as it is. */
+	/** Rebuild the board on the table at another voxel detail, keeping the game on it as it is. */
 	setDetail(detail: number) {
-		if (detail === this.detail || !this.boardView) return;
+		if (detail === this.detail) return;
 		this.detail = detail;
+		// Another game's board is on the table: it's rebuilt now; the island waits off the table, and
+		// is rebuilt when it's back.
+		if (this.conquest || this.gambit) {
+			this.islandStale = true;
+			this.gambit?.setDetail(detail);
+			this.conquest?.setDetail(detail);
+			return;
+		}
 		if (this.mode === 'game' && this.view) {
 			const view = this.view;
 			this.boardKey = '';
 			this.setView(view);
 			return;
 		}
+		if (!this.boardView) return;
 		const robber = this.boardView.robberHex;
 		this.setBoard(this.boardView.board, this.boardSeed, this.boardPlots);
 		this.boardView!.setRobber(robber, true);

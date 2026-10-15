@@ -72,7 +72,7 @@ export const FRAG_OUTPUT = /* glsl */ `
  * The land's shader reads them, so ownership and highlights change without rebuilding the map.
  */
 export const realmUniforms = {
-	/** RGBA8, one texel per map column: r = territory + 1 (0 for water), g = voxels to the nearest border (0 on it). */
+	/** RGBA8, one texel per map column: r = territory + 1 (0 for water), g = columns to the nearest border (0 on it). */
 	uRealmMap: { value: null as THREE.Texture | null },
 	/**
 	 * RGBA8, a column per territory. Row 0: the owner's color, a = 1 while held. Row 1: r = how
@@ -81,8 +81,10 @@ export const realmUniforms = {
 	 * Row 3: r = how deep in the fog of war it lies.
 	 */
 	uRealmState: { value: null as THREE.Texture | null },
-	/** The map's first column (world voxels) and its size in columns: (x0, z0, nx, nz). */
+	/** The map's first column (grid voxels) and its size in columns: (x0, z0, nx, nz). */
 	uRealmGrid: { value: new THREE.Vector4(0, 0, 1, 1) },
+	/** Map columns per VOXEL (the board's detail), so bands and shadows keep their size at any detail. */
+	uRealmScale: { value: 1 },
 	/** 0..1, worked out on the CPU (see uAimWave for why): how far the highlights' pulse is. */
 	uRealmPulse: { value: 0 },
 	/** How far (voxels) the fog's shadows have drifted, kept small on the CPU for the same reason. */
@@ -105,7 +107,7 @@ vec3 realmLight = vec3(0.0);
 			vec4 own = texelFetch(uRealmState, ivec2(id, 0), 0);
 			vec4 st = texelFetch(uRealmState, ivec2(id, 1), 0);
 			vec4 hl = texelFetch(uRealmState, ivec2(id, 2), 0);
-			float bd = m.g * 255.0;
+			float bd = m.g * 255.0 / uRealmScale;
 			// The band in the owner's color, inside the border line (which keeps its own color).
 			float band = bd < 0.5 ? 0.0 : 1.0 - smoothstep(2.5, 4.5, bd);
 			float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
@@ -125,7 +127,7 @@ vec3 realmLight = vec3(0.0);
 			float fog = texelFetch(uRealmState, ivec2(id, 3), 0).r;
 			if (fog > 0.0) {
 				// Cells of 9 voxels, repeating every 100 so the drift can start over unseen.
-				vec2 q = (vec2(ij) + uRealmDrift) / 9.0;
+				vec2 q = (vec2(ij) / uRealmScale + uRealmDrift) / 9.0;
 				vec2 c = floor(q);
 				vec2 f = fract(q);
 				f = f * f * (3.0 - 2.0 * f);
@@ -421,7 +423,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 			Object.assign(shader.uniforms, realmUniforms);
 			fs = fs.replace(
 				'#include <common>',
-				'#include <common>\nuniform sampler2D uRealmMap;\nuniform sampler2D uRealmState;\nuniform vec4 uRealmGrid;\nuniform float uRealmPulse;\nuniform vec2 uRealmDrift;'
+				'#include <common>\nuniform sampler2D uRealmMap;\nuniform sampler2D uRealmState;\nuniform vec4 uRealmGrid;\nuniform float uRealmScale;\nuniform float uRealmPulse;\nuniform vec2 uRealmDrift;'
 			);
 			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_REALM}`);
 			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += realmLight;');

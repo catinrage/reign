@@ -55,6 +55,8 @@ export class ConquestScene {
 	readonly arrow = new BoardArrow();
 	readonly map: RealmMap;
 	callbacks: CqSceneCallbacks = {};
+	/** How long someone else's battle rolls (the player's pick: slow enough to follow, or quick). */
+	watchedRoll = BATTLE_ROLL_WATCHED;
 	private view: CqView | null = null;
 	private owner: number[] = [];
 	private armies: number[] = [];
@@ -77,10 +79,12 @@ export class ConquestScene {
 		readonly anim: Animator,
 		readonly particles: Particles,
 		names?: BoardNames,
-		map: RealmMap = conquestMap()
+		map: RealmMap = conquestMap(),
+		/** Voxels per VOXEL (the player's board detail). */
+		detail = 1
 	) {
 		this.map = map;
-		this.board = new RealmBoard(map, names);
+		this.board = new RealmBoard(map, names, detail);
 		this.troops = new Troops(map, this.board.realm, this.board.lanes.map((l) => l.path), particles);
 		this.board.group.add(this.troops.group);
 		stage.scene.add(this.board.group);
@@ -195,7 +199,7 @@ export class ConquestScene {
 					const to = this.board.realm.anchors[e.to];
 					// Someone else's battle on its own rolls longest; one of a blitz, or your own, quicker.
 					const watched = !battlesLeft && e.player !== this.view?.me;
-					const roll = fast ? BATTLE_ROLL_FAST : watched ? BATTLE_ROLL_WATCHED : BATTLE_ROLL;
+					const roll = fast ? BATTLE_ROLL_FAST : watched ? this.watchedRoll : BATTLE_ROLL;
 					const clash = fast ? BATTLE_ROLL_FAST : BATTLE_ROLL;
 					this.striking = true;
 					this.arrow.set(from, to, this.holders[e.player]?.color ?? 0xffffff, 'attack');
@@ -451,6 +455,12 @@ export class ConquestScene {
 		const ppu = this.stage.box.height / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2) * Math.max(1, cam.position.length()));
 		this.arrow.update(dt, t, cam, ppu);
 		this.troops.update(dt, ppu);
+	}
+
+	/** Rebuild the land at another voxel detail; the game on it stays as it is. */
+	setDetail(detail: number) {
+		this.board.setDetail(detail);
+		this.troops.setRealm(this.board.realm);
 	}
 
 	dispose() {

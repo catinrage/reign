@@ -172,7 +172,7 @@ export class Troops {
 
 	constructor(
 		readonly map: RealmMap,
-		readonly realm: RealmBuild,
+		public realm: RealmBuild,
 		/** The sea lanes' courses, in the map's order, each from its first territory to its second. */
 		readonly laneCourses: THREE.Curve<THREE.Vector3>[],
 		readonly particles: Particles | null
@@ -184,14 +184,8 @@ export class Troops {
 		this.facing = new Array(n).fill(0);
 		this.grounds = new Array(n).fill(null);
 		this.raster = realmRaster(map, VOXEL);
-		const { nx, nz, x0, z0, cell, ids } = this.raster;
-		this.going = new Float32Array(nx * nz).fill(1);
-		for (let i = 0; i < ids.length; i++) {
-			if (ids[i] < 0) continue;
-			const x = x0 + ((i % nx) + 0.5) * cell;
-			const z = z0 + (Math.floor(i / nx) + 0.5) * cell;
-			if (realm.surfaceY(x, z) - realm.groundY(x, z) > 0.25) this.going[i] = 5;
-		}
+		this.going = new Float32Array(this.raster.nx * this.raster.nz);
+		this.measureGoing();
 		const index = new Map(map.territories.map((t, i) => [t.id, i]));
 		map.lanes.forEach(([a, b], k) => {
 			const i = index.get(a)!;
@@ -205,6 +199,24 @@ export class Troops {
 			this.borders.add(`${i}-${j}`).add(`${j}-${i}`);
 		}
 		this.group.name = 'troops';
+	}
+
+	/** The land rebuilt at another detail: the squares are the same, the ground a little different. */
+	setRealm(realm: RealmBuild) {
+		this.realm = realm;
+		this.measureGoing();
+	}
+
+	/** How hard each map column is to walk: slow under trees and on anything standing on the ground. */
+	private measureGoing() {
+		const { nx, x0, z0, cell, ids } = this.raster;
+		this.going.fill(1);
+		for (let i = 0; i < ids.length; i++) {
+			if (ids[i] < 0) continue;
+			const x = x0 + ((i % nx) + 0.5) * cell;
+			const z = z0 + (Math.floor(i / nx) + 0.5) * cell;
+			if (this.realm.surfaceY(x, z) - this.realm.groundY(x, z) > 0.25) this.going[i] = 5;
+		}
 	}
 
 	// ------------------------------------------------------------ what the game says

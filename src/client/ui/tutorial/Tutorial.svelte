@@ -1,13 +1,18 @@
 <script lang="ts">
-		import { t } from '../../i18n/index.svelte';
+	import type { GameKind } from '../../../shared/games';
+	import { t } from '../../i18n/index.svelte';
 	import { sfx } from '../sound';
-	import { CHAPTERS, TUTORIAL_MODES, TUTORIAL_MODE_NAME, chaptersOf, type Chapter, type TutorialMode } from './chapters';
+	import { CHAPTERS, TUTORIAL_BOOKS, TUTORIAL_MODE_NAME, chaptersOf, gameOfBook, type Chapter, type TutorialMode } from './chapters';
 
 	/**
-	 * The rules of both modes as a small book: chapters down the side, one page at a time.
-	 * Used full screen from the main menu and inside the in-game menu.
+	 * The rules of one game as a small book (Settlement's two modes as two): chapters down the
+	 * side, one page at a time. Used full screen from the main menu, for the game picked there,
+	 * and inside the in-game menu, for the game being played (`mode`, its book to open on).
 	 */
-	let { mode = undefined }: { mode?: TutorialMode } = $props();
+	let { mode = undefined, game = undefined }: { mode?: TutorialMode; game?: GameKind } = $props();
+
+	const books = $derived(TUTORIAL_BOOKS[game ?? (mode ? gameOfBook(mode) : 'settlement')]);
+	const shelf = $derived(CHAPTERS.filter((c) => books.includes(c.mode)));
 
 	const KEY = 'reign:tutorial';
 	function remembered(): Chapter | undefined {
@@ -21,19 +26,20 @@
 	// Opened from a game, start on that game's mode; otherwise where the reader left off.
 	function first(): Chapter {
 		const last = remembered();
-		if (!mode) return last ?? CHAPTERS[0];
-		return last?.mode === mode ? last : chaptersOf(mode)[0];
+		const open = mode && books.includes(mode) ? mode : books[0];
+		if (last && books.includes(last.mode) && (!mode || last.mode === mode)) return last;
+		return chaptersOf(open)[0];
 	}
 
 	// Kept as an id: a chapter object in $state would be proxied and never equal the list's own.
 	let currentId = $state(first().id);
 	let page: HTMLElement | undefined = $state();
-	const at = $derived(CHAPTERS.findIndex((c) => c.id === currentId));
-	const current = $derived(CHAPTERS[at]);
+	const at = $derived(shelf.findIndex((c) => c.id === currentId));
+	const current = $derived(shelf[at] ?? shelf[0]);
 	const list = $derived(chaptersOf(current.mode));
 	const index = $derived(list.indexOf(current));
-	const prev = $derived(CHAPTERS[at - 1] ?? null);
-	const next = $derived(CHAPTERS[at + 1] ?? null);
+	const prev = $derived(shelf[at - 1] ?? null);
+	const next = $derived(shelf[at + 1] ?? null);
 
 	function open(c: Chapter) {
 		if (c.id === currentId) return;
@@ -60,17 +66,19 @@
 
 <div class="tutorial">
 	<nav class="side">
-		<div class="seg modes" role="tablist" aria-label={t('Game mode')}>
-			{#each TUTORIAL_MODES as m (m)}
-				<button
-					class="btn small"
-					class:on={current.mode === m}
-					role="tab"
-					aria-selected={current.mode === m}
-					onclick={() => open(chaptersOf(m)[0])}>{t(TUTORIAL_MODE_NAME[m])}</button
-				>
-			{/each}
-		</div>
+		{#if books.length > 1}
+			<div class="seg modes" role="tablist" aria-label={t('Game mode')}>
+				{#each books as m (m)}
+					<button
+						class="btn small"
+						class:on={current.mode === m}
+						role="tab"
+						aria-selected={current.mode === m}
+						onclick={() => open(chaptersOf(m)[0])}>{t(TUTORIAL_MODE_NAME[m])}</button
+					>
+				{/each}
+			</div>
+		{/if}
 		<ol class="chapters">
 			{#each list as c, i (c.id)}
 				<li>

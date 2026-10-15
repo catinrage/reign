@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { FrameCap } from '../scene/frameCap';
 	import { LogoView } from '../scene/logo';
 	import { account } from '../state/account.svelte';
 	import { OFFLINE } from '../offline/flag';
@@ -25,12 +26,15 @@
 	import { sceneRef } from './sceneRef';
 	import { CQ_PIXEL } from './conquest/icons';
 	import { GB_PIXEL } from './gambit/icons';
-	import { PLAYER_COLORS } from '../../shared/rules/config';
-	import { PLAYER_RGB } from '../scene/layout';
+	import { showMenuGambit } from './gambit/menuTable';
+	import GameBanner from './menu/GameBanner.svelte';
+	import GameChooser from './menu/GameChooser.svelte';
+	import { fitHeight } from './menu/fitHeight';
+	import { gameInfo } from './menu/games';
 
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let muted = $state(isMuted());
-	let sheet = $state<'settings' | 'profile' | 'friends' | 'history' | null>(null);
+	let sheet = $state<'settings' | 'profile' | 'friends' | 'history' | 'games' | null>(null);
 	let reading = $state(false);
 	/** Whose games the history sheet shows: a friend's username, or yours when unset. */
 	let historyOf = $state<string | undefined>(undefined);
@@ -38,6 +42,12 @@
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let logoOk = $state(true);
 	const busy = $derived(client.pendingJoin || client.launching || client.status !== 'online');
+
+	/** The title's own frame rate cap, kept to the one picked in Settings. */
+	let logoCap = $state<FrameCap | null>(null);
+	$effect(() => {
+		if (logoCap) logoCap.maxFps = settings.fpsCap;
+	});
 
 	// A bigger menu column pushes the island further over.
 	$effect(() => {
@@ -50,6 +60,7 @@
 		let logo: LogoView | null = null;
 		try {
 			logo = new LogoView(canvas, settings.quality);
+			logoCap = logo.cap;
 		} catch {
 			// No second WebGL context: show the title as text instead.
 			logoOk = false;
@@ -70,20 +81,20 @@
 		client.create(gamePick.game);
 	}
 	function pick(g: typeof gamePick.game) {
-		if (g === gamePick.game) return;
+		sheet = null;
+		if (g === gamePick.game) return sfx.close();
 		sfx.open();
 		gamePick.set(g);
 	}
+	const game = $derived(gameInfo(gamePick.game));
 	const conquest = $derived(gamePick.game === 'conquest');
 	const gambit = $derived(gamePick.game === 'gambit');
-	/** The board the menu's table shows for Gambit: six seats, a new one each visit. */
-	const menuBoard = { terrain: 'mixed' as const, seed: (Math.random() * 1e9) | 0 };
 	// The table shows the game picked: the island, the Realm, or a Gambit board.
 	$effect(() => {
 		const scene = sceneRef.current;
 		if (!scene || client.launching) return;
 		if (conquest) scene.showConquestTable();
-		else if (gambit) scene.showGambitTable(6, menuBoard, PLAYER_COLORS.slice(0, 6).map((c) => PLAYER_RGB[c] ?? 0xffffff));
+		else if (gambit) showMenuGambit();
 		else if (scene.conquest || scene.gambit) scene.showMenuBoard();
 	});
 	function join() {
@@ -144,7 +155,7 @@
 				<button class="icon-btn close" onclick={closeTutorial} aria-label={t('Back to the menu')} title={t('Back to the menu')}
 					><img src={PIXEL.close} alt="" /></button
 				>
-				<Tutorial />
+				<Tutorial game={gamePick.game} />
 			</div>
 		</div>
 	{:else if campaign.open}
@@ -159,22 +170,17 @@
 		</div>
 	{/if}
 	<!-- Hidden rather than removed while the tutorial is open, so the 3D title keeps its canvas. -->
-	<div class="column" class:away={reading || campaign.open}>
+	<div class="column" class:away={reading || campaign.open} use:fitHeight={{ margin: 40 }}>
 		<header class="crest">
 			<div class="logo">
 				<canvas bind:this={canvas} aria-label="Reign"></canvas>
 				{#if !logoOk}<h1 class="title">REIGN</h1>{/if}
 			</div>
-			{#if conquest}
-				<div class="ribbon tagline">{t('Muster')} <i>·</i> {t('Attack')} <i>·</i> {t('Conquer')}</div>
-			{:else if gambit}
-				<div class="ribbon tagline">{t('Order')} <i>·</i> {t('Reveal')} <i>·</i> {t('Outwit')}</div>
-			{:else}
-				<div class="ribbon tagline">{t('Settle')} <i>·</i> {t('Trade')} <i>·</i> {t('Build')}</div>
-			{/if}
+			<div class="ribbon tagline">{t(game.motto[0])} <i>·</i> {t(game.motto[1])} <i>·</i> {t(game.motto[2])}</div>
 		</header>
 
 		<div class="sign panel">
+			<GameBanner {game} onopen={() => openSheet('games')} />
 			<div class="me">
 				<button class="me-face" onclick={() => openSheet('profile')} title={t('Edit your profile')}>
 					<Avatar id={me.avatar} size={60} />
@@ -200,41 +206,6 @@
 				</button>
 			{/if}
 
-			<div class="games" role="tablist" aria-label={t('Game')}>
-				<button
-					class="game"
-					class:on={!conquest && !gambit}
-					role="tab"
-					aria-selected={!conquest && !gambit}
-					onclick={() => pick('settlement')}
-					title={t('Settle an island, trade and build. Classic, Reign Extended and the campaign.')}
-				>
-					<img class="icon-px" src={PIXEL.house} alt="" />
-					<span class="stack"><b>{t('Settlement')}</b><small>{t('Settle · Trade · Build')}</small></span>
-				</button>
-				<button
-					class="game"
-					class:on={conquest}
-					role="tab"
-					aria-selected={conquest}
-					onclick={() => pick('conquest')}
-					title={t('A war for the Realm: take territories with armies and dice, region by region.')}
-				>
-					<img class="icon-px" src={PIXEL.sword} alt="" />
-					<span class="stack"><b>{t('Conquest')}</b><small>{t('Muster · Attack · Conquer')}</small></span>
-				</button>
-				<button
-					class="game"
-					class:on={gambit}
-					role="tab"
-					aria-selected={gambit}
-					onclick={() => pick('gambit')}
-					title={t('Up to eight players order their pieces in secret on a hex board, then every move plays out at once.')}
-				>
-					<img class="icon-px" src={GB_PIXEL.knight} alt="" />
-					<span class="stack"><b>{t('Gambit')}</b><small>{t('Order · Reveal · Outwit')}</small></span>
-				</button>
-			</div>
 
 			{#if !conquest && !gambit}
 				<button class="btn purple block" onclick={openCampaign} disabled={busy}>
@@ -318,7 +289,9 @@
 	</div>
 </div>
 
-{#if sheet === 'settings'}
+{#if sheet === 'games'}
+	<GameChooser current={gamePick.game} onpick={pick} onclose={closeSheet} />
+{:else if sheet === 'settings'}
 	<Modal title={t('Settings')} width={600} onclose={closeSheet}><Settings /></Modal>
 {:else if sheet === 'profile'}
 	<Modal title={t('Your profile')} width={640} onclose={closeSheet}><Profile onclose={closeSheet} /></Modal>
@@ -341,6 +314,9 @@
 		inset: 0;
 		overflow-y: auto;
 		overflow-x: hidden;
+		/* The menu shrinks to fit a short window (see fitHeight); one too short even for that
+		   scrolls, with no bar over the table. */
+		scrollbar-width: none;
 		pointer-events: auto;
 		background:
 			radial-gradient(ellipse 70% 60% at 50% 46%, transparent 35%, rgba(12, 5, 2, 0.6) 100%),
@@ -351,6 +327,9 @@
 				transparent 70%,
 				rgba(12, 5, 2, 0.5)
 			);
+	}
+	.home::-webkit-scrollbar {
+		display: none;
 	}
 	.column {
 		position: relative;
@@ -365,73 +344,6 @@
 	}
 	.away {
 		display: none;
-	}
-	/* The two games, side by side above the buttons: the one picked lit in gold. */
-	/* Three games side by side: each its picture over its name and what it's about. */
-	.games {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 6px;
-	}
-	.game {
-		all: unset;
-		box-sizing: border-box;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		text-align: center;
-		gap: 3px;
-		padding: 6px 4px;
-		min-width: 0;
-		cursor: pointer;
-		background: rgba(0, 0, 0, 0.28);
-		box-shadow:
-			inset 0 0 0 2px rgba(255, 220, 160, 0.14),
-			0 3px 0 rgba(0, 0, 0, 0.35);
-		color: var(--muted);
-		transition:
-			background 0.15s,
-			transform 0.1s;
-	}
-	.game:hover {
-		background: rgba(255, 212, 90, 0.08);
-	}
-	.game.on {
-		background: linear-gradient(rgba(255, 212, 90, 0.26), rgba(184, 116, 15, 0.22));
-		box-shadow:
-			inset 0 0 0 2px var(--gold),
-			0 3px 0 rgba(0, 0, 0, 0.35);
-		color: #fff2d2;
-	}
-	.game img {
-		width: 28px;
-		height: 28px;
-		flex: none;
-	}
-	.game .stack {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		line-height: 1.1;
-		min-width: 0;
-		max-width: 100%;
-	}
-	.game b {
-		font-family: var(--px);
-		font-size: 16px;
-		text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
-	}
-	.game.on b {
-		color: var(--gold);
-	}
-	.game small {
-		max-width: 100%;
-		font-size: 10px;
-		font-weight: 700;
-		opacity: 0.85;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 	.book {
 		position: relative;

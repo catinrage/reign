@@ -68,7 +68,8 @@ const HALO_SIZE = 3.3;
 
 export class RealmBoard {
 	readonly group = new THREE.Group();
-	readonly realm: RealmBuild;
+	/** The land itself, rebuilt at another detail by `setDetail`. */
+	realm: RealmBuild;
 	readonly armies: ArmyToken[] = [];
 	readonly labels: THREE.Sprite[] = [];
 	readonly lanes: SeaLane[] = [];
@@ -89,10 +90,12 @@ export class RealmBoard {
 			territories: map.territories.map((t) => t.name),
 			regions: map.regions.map((r) => r.name),
 			legend: 'Regions'
-		}
+		},
+		/** Voxels per VOXEL (the player's board detail). */
+		detail = 1
 	) {
 		this.names = names;
-		this.realm = buildRealm(map);
+		this.realm = buildRealm(map, detail);
 		this.group.name = 'conquest-board';
 		this.group.add(this.realm.group);
 		this.stateTex = new THREE.DataTexture(this.stateData, STATE_W, 4, THREE.RGBAFormat, THREE.UnsignedByteType);
@@ -257,10 +260,25 @@ export class RealmBoard {
 		for (const l of this.lanes) l.update(dt, t);
 	}
 
+	/**
+	 * Rebuild the land at another voxel detail. Squares, and so the tokens, names and lanes standing
+	 * on them, are the same at every detail, so only the land itself is swapped.
+	 */
+	setDetail(detail: number) {
+		if (detail === this.realm.detail) return;
+		const old = this.realm;
+		this.realm = buildRealm(this.map, detail);
+		this.group.remove(old.group);
+		this.group.add(this.realm.group);
+		old.dispose();
+		this.bindUniforms();
+	}
+
 	private bindUniforms() {
 		realmUniforms.uRealmMap.value = this.realm.mapTexture;
 		realmUniforms.uRealmState.value = this.stateTex;
 		realmUniforms.uRealmGrid.value.copy(this.realm.gridInfo);
+		realmUniforms.uRealmScale.value = this.realm.detail;
 	}
 
 	private writeState() {

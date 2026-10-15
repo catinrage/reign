@@ -60,8 +60,10 @@ interface PieceObj {
 export class GambitScene {
 	readonly group = new THREE.Group();
 	readonly board: GambitBoard;
-	readonly build: HexBoardBuild;
+	build: HexBoardBuild;
 	callbacks: GbSceneCallbacks = {};
+	/** How long a round takes to play out, as a share of the usual (the player's pick). */
+	pace = 1;
 	private colors: number[] = [];
 	private pieces = new Map<number, PieceObj>();
 	private view: GambitView | null = null;
@@ -84,13 +86,26 @@ export class GambitScene {
 		readonly anim: Animator,
 		readonly particles: Particles,
 		players: number,
-		settings: { terrain: GambitView['settings']['terrain']; seed: number }
+		private settings: { terrain: GambitView['settings']['terrain']; seed: number },
+		/** Voxels per VOXEL the board is built from (the player's pick of detail). */
+		private detail = 1
 	) {
 		this.board = gambitBoard(players, settings);
-		this.build = buildHexBoard(this.board, settings.seed);
+		this.build = buildHexBoard(this.board, settings.seed, detail);
 		this.group.add(this.build.group, this.keeps, this.marks, this.orders);
 		this.group.name = 'gambit';
 		stage.scene.add(this.group);
+	}
+
+	/** Build the board again at another detail (the pieces stay where they are). */
+	setDetail(detail: number) {
+		if (detail === this.detail) return;
+		this.detail = detail;
+		const old = this.build;
+		this.build = buildHexBoard(this.board, this.settings.seed, detail);
+		this.group.remove(old.group);
+		this.group.add(this.build.group);
+		old.dispose();
 	}
 
 	/** The board as a lobby shows it: everyone's pieces where they start, in the seats' colors. */
@@ -218,7 +233,7 @@ export class GambitScene {
 		this.setMarks(new Map());
 		// Everyone's orders, shown at once.
 		this.showAllOrders(play);
-		await this.hold(SHOW_ORDERS);
+		await this.hold(SHOW_ORDERS * this.pace);
 		empty(this.orders);
 
 		const swapped = new Map<number, number>();
@@ -238,7 +253,7 @@ export class GambitScene {
 				const hop = o.piece.kind === 'knight' ? 4 : o.piece.kind === 'lancer' ? 0.6 : 1.2;
 				o.group.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
 				return this.anim.tween(
-					MOVE,
+					MOVE * this.pace,
 					(t) => {
 						o.group.position.lerpVectors(from, end, t);
 						o.group.position.y += Math.sin(Math.PI * Math.min(1, t)) * hop;
@@ -265,7 +280,7 @@ export class GambitScene {
 				const o = this.pieces.get(m.piece)!;
 				const from = o.group.position.clone();
 				const to = this.build.centers[m.to].clone();
-				return this.anim.tween(AFTER_SWAP, (t) => o.group.position.lerpVectors(from, to, t));
+				return this.anim.tween(AFTER_SWAP * this.pace, (t) => o.group.position.lerpVectors(from, to, t));
 			});
 		await Promise.all([...falls, ...onward]);
 
@@ -295,7 +310,7 @@ export class GambitScene {
 			o.group.position.copy(at);
 			o.group.rotation.y = this.facing(at);
 			this.particles.dust(at.clone().add(new THREE.Vector3(0, 0.5, 0)), 12);
-			void this.anim.tween(HOME, (t) => o.model.position.set(0, -3 * (1 - t), 0), ease.outBack);
+			void this.anim.tween(HOME * this.pace, (t) => o.model.position.set(0, -3 * (1 - t), 0), ease.outBack);
 		}
 		for (const c of play.crowns) {
 			if (!c.shrines) continue;
@@ -303,7 +318,7 @@ export class GambitScene {
 				if (o.piece.owner === c.player && this.board.cells[this.cellOf(o)]?.shrine)
 					this.particles.sparkle(o.group.position.clone().add(new THREE.Vector3(0, 4, 0)), '#ffd45a', 10);
 		}
-		await this.hold(HOME);
+		await this.hold(HOME * this.pace);
 	}
 
 	/** The cell a piece stands on now, as the board shows it. */
@@ -321,8 +336,8 @@ export class GambitScene {
 	private async fall(o: PieceObj) {
 		const at = o.group.position.clone();
 		this.particles.emit({ at: at.clone().add(new THREE.Vector3(0, 2, 0)), count: 18, colors: [this.colors[o.piece.owner] ?? 0xffffff, '#f2e2c0', '#3a2416'], speed: 8, up: 9, spread: 2, life: 0.6, size: 0.55, gravity: 22, drag: 2.5 });
-		await this.anim.tween(FALL * 0.6, (t) => (o.model.rotation.x = -t * Math.PI * 0.5), ease.outBounce);
-		await this.anim.tween(FALL * 0.4, (t) => (o.model.position.y = -t * 4), ease.linear);
+		await this.anim.tween(FALL * 0.6 * this.pace, (t) => (o.model.rotation.x = -t * Math.PI * 0.5), ease.outBounce);
+		await this.anim.tween(FALL * 0.4 * this.pace, (t) => (o.model.position.y = -t * 4), ease.linear);
 		this.group.remove(o.group);
 		this.pieces.delete(o.piece.id);
 	}
@@ -336,7 +351,7 @@ export class GambitScene {
 		this.group.add(dart);
 		const prev = from.clone();
 		await this.anim.tween(
-			ARROW,
+			ARROW * this.pace,
 			(t) => {
 				dart.position.lerpVectors(from, to, t);
 				dart.position.y += Math.sin(Math.PI * t) * 5;

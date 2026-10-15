@@ -22,6 +22,7 @@
 	import Portrait from './extended/Portrait.svelte';
 	import CodeTiles from './menu/CodeTiles.svelte';
 	import Embers from './menu/Embers.svelte';
+	import { fitHeight } from './menu/fitHeight';
 	import Modal from './menu/Modal.svelte';
 	import { sideLayout } from './menu/sideLayout';
 	import { settings as prefs } from './settings.svelte';
@@ -173,7 +174,7 @@
 
 <div class="lobby">
 	<Embers count={14} />
-	<div class="column wide">
+	<div class="column wide" use:fitHeight={{ margin: 60 }}>
 		<div class="card panel wide">
 			<div class="ribbon head">{t('Gather your table')}</div>
 
@@ -503,12 +504,18 @@
 		position: absolute;
 		inset: 0;
 		overflow-y: auto;
+		/* The table shrinks to fit a short window (see fitHeight); one too short even for that
+		   scrolls, with no bar over the room. */
+		scrollbar-width: none;
 		pointer-events: auto;
 		background: radial-gradient(
 			ellipse 70% 60% at 50% 46%,
 			transparent 35%,
 			rgba(12, 5, 2, 0.55) 100%
 		);
+	}
+	.lobby::-webkit-scrollbar {
+		display: none;
 	}
 	.column {
 		position: relative;

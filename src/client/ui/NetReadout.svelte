@@ -3,6 +3,7 @@
 	import { OFFLINE } from '../offline/flag';
 	import { client } from '../state/client.svelte';
 	import { netStats } from '../state/netStats.svelte';
+	import { sceneRef } from './sceneRef';
 	import { settings } from './settings.svelte';
 
 	/**
@@ -15,7 +16,8 @@
 
 	$effect(() => {
 		if (!settings.showStats) return;
-		netStats.start();
+		// The frames the table draws, which a frame rate cap holds below the screen's own rate.
+		netStats.start(() => sceneRef.current?.stage.drawn);
 		return () => netStats.stop();
 	});
 

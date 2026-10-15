@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { FrameCap } from './frameCap';
 import type { Quality } from './stage';
 import { Mat, VoxelGrid, hash3, hex, mix } from './voxel/grid';
 import { meshesFor } from './voxel/materials';
@@ -259,8 +260,12 @@ export class LogoView {
 		this.camera.updateProjectionMatrix();
 	}
 
-	private loop = () => {
+	/** Frames a second at most (0: as many as the screen shows), as the table. */
+	readonly cap = new FrameCap();
+
+	private loop = (now = performance.now()) => {
 		this.raf = requestAnimationFrame(this.loop);
+		if (!this.cap.due(now)) return;
 		const t = (performance.now() - this.t0) / 1000;
 		this.group.rotation.y = Math.sin(t * 0.45) * 0.13;
 		this.group.rotation.x = -0.16 + Math.sin(t * 0.6) * 0.035;

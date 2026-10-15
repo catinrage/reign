@@ -46,6 +46,11 @@ export interface Room {
 	 * clear of a rectangular board of these half extents (world units) in the middle.
 	 */
 	clearScale(halfX: number, halfZ: number): number;
+	/**
+	 * Settlement's things on the rim (its card piles and the players' trays) on the table or off it,
+	 * for another game's board; those still to be built follow suit.
+	 */
+	showIslandProps(on: boolean): void;
 	/** The cat asleep on the armchair, once it is built (it purrs when clicked). */
 	readonly cat: Cat | null;
 	update(dt: number, t: number): void;
@@ -298,6 +303,8 @@ export function buildRoom(stage: Stage): Room {
 	// ---------------------------------------------------------------- things on the table
 	const onTable = new THREE.Group();
 	onTable.name = 'onTable';
+	/** Settlement's card piles and trays belong on the table (not while another game's board is on it). */
+	let islandProps = true;
 	group.add(onTable);
 	soon(() => {
 		const lantern = buildLantern();
@@ -312,6 +319,7 @@ export function buildRoom(stage: Stage): Room {
 			[hex('#2c5fd6'), 128, -60, Math.PI / 2]
 		];
 		trays.forEach(([c, x, z, r], i) => onTable.add(N(place(buildTray(c, 30 + i), x, 0, z, r + (i % 2 ? 0.04 : -0.03)), 'tray')));
+		for (const o of onTable.children) if (o.name === 'tray') o.visible = islandProps;
 		const cards: [Parameters<typeof buildCards>[0], number, number, number][] = [
 			['wood', -128, -36, Math.PI / 2 + 0.08],
 			['brick', -126, -62, Math.PI / 2 - 0.05],
@@ -323,7 +331,9 @@ export function buildRoom(stage: Stage): Room {
 		for (const [k, x, z, r] of cards) {
 			const c = buildCards(k, k === 'dev' ? 7 : 5);
 			c.position.set(-8, 0, -11.5);
-			onTable.add(N(place(c, x, 0, z, r), 'cards'));
+			const pile = N(place(c, x, 0, z, r), 'cards');
+			pile.visible = islandProps;
+			onTable.add(pile);
 		}
 		layoutTable();
 	});
@@ -382,6 +392,10 @@ export function buildRoom(stage: Stage): Room {
 		},
 		get cat() {
 			return cat;
+		},
+		showIslandProps(on: boolean) {
+			islandProps = on;
+			for (const o of onTable.children) if (o.name === 'cards' || o.name === 'tray') o.visible = on;
 		},
 		clearScale(halfX: number, halfZ: number) {
 			// Each stands clear past the board's side or past its end, whichever comes sooner as the table grows.

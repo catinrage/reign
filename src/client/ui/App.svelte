@@ -6,6 +6,7 @@
 	import Hud from './game/Hud.svelte';
 	import ConquestHud from './conquest/ConquestHud.svelte';
 	import GambitHud from './gambit/GambitHud.svelte';
+	import { showMenuGambit } from './gambit/menuTable';
 	import { PLAYER_RGB } from '../scene/layout';
 	import { boardNames } from './conquest/text';
 	import { conquestMap } from '../../shared/conquest/queries';
@@ -89,9 +90,10 @@
 			const game = client.lobby ? client.lobby.game : gamePick.game;
 			const lobby = client.lobby;
 			if (game === 'conquest') sceneRef.current?.showConquestTable(lobby ? conquestMap(lobby.conquest) : undefined);
-			else if (game === 'gambit' && lobby)
-				sceneRef.current?.showGambitTable(lobby.seats.length, lobby.gambit, lobby.seats.map((x) => PLAYER_RGB[x.color] ?? 0xffffff));
-			else sceneRef.current?.showMenuBoard();
+			else if (game === 'gambit') {
+				if (lobby) sceneRef.current?.showGambitTable(lobby.seats.length, lobby.gambit, lobby.seats.map((x) => PLAYER_RGB[x.color] ?? 0xffffff));
+				else showMenuGambit();
+			} else sceneRef.current?.showMenuBoard();
 		}
 	});
 </script>

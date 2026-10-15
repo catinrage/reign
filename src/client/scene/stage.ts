@@ -14,6 +14,7 @@ import {
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CameraRig } from './camera';
+import { FrameCap } from './frameCap';
 import { Lighting } from './lighting';
 import { ShadowCache } from './shadowCache';
 import { sharedUniforms } from './voxel/materials';
@@ -234,16 +235,27 @@ export class Stage {
 		return () => this.updaters.delete(fn);
 	}
 
+	/** Frames a second at most (0: as many as the screen shows). */
+	private readonly cap = new FrameCap();
+	get maxFps() {
+		return this.cap.maxFps;
+	}
+	set maxFps(fps: number) {
+		this.cap.maxFps = fps;
+	}
+	/** Frames drawn so far, for the frame rate readout (the screen may refresh more often). */
+	drawn = 0;
+
 	start() {
 		if (this.running) return;
 		this.running = true;
 		this.clock.start();
-		const loop = () => {
+		const loop = (now: number) => {
 			if (!this.running) return;
 			requestAnimationFrame(loop);
-			this.frame();
+			if (this.cap.due(now)) this.frame();
 		};
-		loop();
+		loop(performance.now());
 	}
 
 	stop() {
@@ -270,6 +282,7 @@ export class Stage {
 
 	/** Render one frame (also used by tests and icon capture). */
 	frame() {
+		this.drawn++;
 		const dt = Math.min(0.05, this.clock.getDelta());
 		const t = this.clock.elapsedTime;
 		sharedUniforms.uTime.value = t;

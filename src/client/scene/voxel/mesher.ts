@@ -77,6 +77,11 @@ export interface MeshOptions {
 	jitter?: number;
 	/** Leave out the downward faces on the grid's floor, for things that lie on a surface. */
 	skipFloor?: boolean;
+	/**
+	 * Mesh only grid rows z in [from, to), the rest read as neighbours only: a big grid built a slab
+	 * at a time keeps its faces and shading whole across the seams.
+	 */
+	rows?: [number, number];
 }
 
 export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THREE.BufferGeometry> {
@@ -112,8 +117,9 @@ export function meshGrid(grid: VoxelGrid, opts: MeshOptions = {}): Map<Mat, THRE
 	const ao = [0, 0, 0, 0];
 	const skipFloor = !!opts.skipFloor;
 
+	const [zFrom, zTo] = opts.rows ?? [0, nz];
 	for (let y = 0; y < ny; y++) {
-		for (let z = 0; z < nz; z++) {
+		for (let z = zFrom; z < zTo; z++) {
 			const row = nx * z + strideY * y;
 			// Cells off the grid's outer shell have every neighbour and corner sample inside it.
 			const inner = y > 0 && y < ny - 1 && z > 0 && z < nz - 1;
