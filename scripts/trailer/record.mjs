@@ -135,6 +135,18 @@ async function playTo(page, turns, at = 'roll') {
 	await cheat(page, { type: 'fastBots', on: false });
 }
 
+/**
+ * Hand the page a fake clock to step frames on. The scene's loop is stopped across the switch:
+ * the fake time isn't the real one, and one frame seeing time jump would wreck the lighting.
+ */
+async function fakeClock(page) {
+	await page.evaluate(() => window.__scene.stage.stop());
+	await page.clock.install();
+	await page.clock.resume();
+	await page.evaluate(() => window.__scene.stage.start());
+	await page.waitForTimeout(3000);
+}
+
 let cdp;
 /**
  * Record `frames` frames into <dir>/<name>/. `each(i, t)` runs before frame i (t = 0..1) to move
@@ -218,9 +230,7 @@ if (game === 'a') {
 	await playTo(page, Number(process.env.TURNS ?? 9), 'roll');
 	log('at my turn, reloading at high');
 	await resume(page);
-	await page.clock.install();
-	await page.clock.resume();
-	log('clock installed');
+	await fakeClock(page);
 	let f = await boardFacts(page);
 	const home = f.home;
 	log('home', JSON.stringify(home));
@@ -385,9 +395,7 @@ if (game === 'b') {
 	await start(page);
 	await playTo(page, Number(process.env.TURNS ?? 28), 'roll');
 	await resume(page);
-	await page.clock.install();
-	await page.clock.resume();
-	log('clock installed');
+	await fakeClock(page);
 	const home = await page.evaluate(() => window.__home);
 	await page.screenshot({ path: `${dir}/still-eight.png`, timeout: 300000 });
 	await clip(page, 'eight', 165, async (i, t) => {
