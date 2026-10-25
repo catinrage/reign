@@ -112,7 +112,7 @@ for i, s in enumerate(segs):
         events.append((start + 0.02, whoosh, 0.55))
     for at_frame, name, vol in s.get('sfx', []):
         f = boom if name == 'boom' else whoosh if name == 'whoosh' else os.path.join(SFX, f'{name}.mp3')
-        events.append((start + (at_frame - s['first']) / FPS, f, vol))
+        events.append((start + (at_frame - s['first']) / FPS / s.get('speed', 1), f, vol))
 for at, name, vol in cfg.get('sfx', []):
     f = boom if name == 'boom' else os.path.join(SFX, f'{name}.mp3')
     events.append((at, f, vol))
