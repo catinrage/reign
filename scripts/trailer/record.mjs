@@ -277,7 +277,7 @@ if (game === 'a') {
 	if (want('build')) {
 		const s = f.buildings.find((b) => b.owner === f.me && b.kind === 'settlement');
 		if (s) {
-			await cheat(page, { type: 'resources', player: f.me, resources: { grain: 2, ore: 3 } });
+			await cheat(page, { type: 'resources', player: f.me, resources: { wheat: 2, ore: 3 } });
 			await page.waitForTimeout(800);
 			await clip(page, 'build', 105, async (i, t) => {
 				if (i === 20) {
@@ -298,11 +298,11 @@ if (game === 'a') {
 
 	await cam(page, home);
 	if (want('trade')) {
-		await cheat(page, { type: 'resources', player: f.me, resources: { wool: 3, lumber: 2 } });
+		await cheat(page, { type: 'resources', player: f.me, resources: { sheep: 3, wood: 2 } });
 		await page.waitForTimeout(800);
 		await clip(page, 'trade', 105, async (i) => {
 			if (i === 8) {
-				await act(page, { type: 'offerTrade', give: { wool: 2 }, want: { brick: 1 } });
+				await act(page, { type: 'offerTrade', give: { sheep: 2 }, want: { brick: 1 } });
 				await page.waitForTimeout(300);
 			}
 		});
