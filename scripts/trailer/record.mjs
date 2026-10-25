@@ -188,6 +188,27 @@ async function clip(page, name, frames, each, { ui = true } = {}) {
 	log('done', name, `${Math.round((Date.now() - t0) / 1000)}s`);
 }
 
+/** Clear what stands between my turn and building: an event's free resource, owed picks, the roll. */
+async function settle(page) {
+	for (let k = 0; k < 20; k++) {
+		const st = await page.evaluate(() => {
+			const c = window.__client;
+			if (c.tossing) c.landed(c.tossing.seq);
+			if (c.presenting) c.presented(c.presenting.seq);
+			const v = c.view, s = c.latest;
+			return { step: v.step, bounty: !!s.events?.bounty?.includes(v.me), picks: !!s.picks?.[v.me]?.length };
+		});
+		if (st.bounty) await act(page, { type: 'claimBounty', resource: 'wheat' });
+		else if (st.picks) await act(page, { type: 'takePick', resource: 'wheat' });
+		else if (st.step === 'roll') {
+			await cheat(page, { type: 'rigDice', total: 6 });
+			await act(page, { type: 'rollDice' });
+		} else if (st.step === 'main') return;
+		await page.waitForTimeout(1500);
+	}
+	log('could not get to building, step still', await page.evaluate(() => window.__client.view.step));
+}
+
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
@@ -283,6 +304,7 @@ if (game === 'a') {
 		});
 	}
 
+	await settle(page);
 	f = await boardFacts(page);
 	if (want('build')) {
 		const s = f.buildings.find((b) => b.owner === f.me && b.kind === 'settlement');
@@ -307,6 +329,7 @@ if (game === 'a') {
 	}
 
 	await cam(page, home);
+	await settle(page);
 	if (want('trade')) {
 		await cheat(page, { type: 'resources', player: f.me, resources: { sheep: 3, wood: 2 } });
 		await page.waitForTimeout(800);
@@ -320,6 +343,7 @@ if (game === 'a') {
 		await page.waitForTimeout(1500);
 	}
 
+	await settle(page);
 	f = await boardFacts(page);
 	if (want('robber')) {
 		// The robber onto a rival's best tile, then steal from them.
