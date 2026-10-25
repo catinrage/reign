@@ -15,7 +15,7 @@ FPS = 30
 BEAT = 60 / 79.507
 BAR = BEAT * 4
 LEAD = BEAT * 2  # the first downbeat lands two beats in
-MUSIC_AT = 38.41 - LEAD  # where in the track the trailer starts
+MUSIC_AT = 38.41 - LEAD  # where in the track the trailer starts (cut.json can move it by whole bars)
 
 
 def run(cmd):
@@ -29,6 +29,7 @@ def bar(n):
 
 cfg = json.load(open(os.environ.get('CUT') or os.path.join(os.path.dirname(__file__), 'cut.json')))
 segs = cfg['segments']
+MUSIC_AT += cfg.get('musicBars', 0) * BAR
 END = cfg['end']  # seconds the whole trailer runs
 
 parts = []

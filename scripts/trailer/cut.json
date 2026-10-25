@@ -28,7 +28,7 @@
 		},
 		{
 			"clip": "build",
-			"first": 14,
+			"first": 12,
 			"from": 3,
 			"to": 4,
 			"caption": "cap-build",
