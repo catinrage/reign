@@ -5,8 +5,6 @@
 	import { i18n, t, tx } from '../../i18n/index.svelte';
 	import { account } from '../../state/account.svelte';
 	import { replay } from '../../state/replay.svelte';
-	import { cqReplay } from '../../state/cqReplay.svelte';
-	import { GB_PIXEL } from '../gambit/icons';
 	import { PLAYER_CSS } from '../helpers';
 	import { PIXEL } from '../pixel';
 	import Avatar from './Avatar.svelte';
@@ -96,10 +94,11 @@
 								{#if r.kind === 'win'}<img class="icon-px" src={ACCOUNT_ICONS.trophy} alt="" />{/if}{r.text}
 							</span>
 							<span class="what">
+								<!-- Games of Conquest and Gambit from before they moved to the experimental-games branch. -->
 								{#if m.mode === 'conquest'}
 									<img class="icon-px" src={PIXEL.sword} alt="" />{t('Conquest')} · {tx(m.mapName)}
 								{:else if m.mode === 'gambit'}
-									<img class="icon-px" src={GB_PIXEL.knight} alt="" />{t('Gambit')}
+									<img class="icon-px" src={PIXEL.sword} alt="" />{t('Gambit')}
 								{:else}
 									{#if m.mode === 'extended'}<img class="icon-px" src={PIXEL.crown} alt="" />{/if}
 									{MODE_INFO[m.mode] ? t(MODE_INFO[m.mode].name) : m.mode}{m.mode === 'extended' ? ` · ${tx(m.mapName)}` : ''}
@@ -147,15 +146,17 @@
 										? t('to {n, plural, one {# crown} other {# crowns}}', { n: m.pointsToWin })
 										: t('to {n, plural, one {# point} other {# points}}', { n: m.pointsToWin })}</span
 							>
-							{#if m.replay && m.mode !== 'gambit'}
+							{#if m.mode === 'conquest' || m.mode === 'gambit'}
+								<!-- Their replays can only be watched on the experimental-games branch. -->
+							{:else if m.replay}
 								<button
 									class="btn small green watch"
-									disabled={replay.loading !== null || cqReplay.loading !== null}
-									onclick={() => (m.mode === 'conquest' ? cqReplay.watch(m) : replay.watch(m))}
+									disabled={replay.loading !== null}
+									onclick={() => replay.watch(m)}
 									title={t('Watch this game again, move by move')}
-									><img src={replay.loading === m.id || cqReplay.loading === m.id ? PIXEL.hourglass : PIXEL.play} alt="" />{t('Watch replay')}</button
+									><img src={replay.loading === m.id ? PIXEL.hourglass : PIXEL.play} alt="" />{t('Watch replay')}</button
 								>
-							{:else if m.status !== 'playing' && m.mode !== 'gambit'}
+							{:else if m.status !== 'playing'}
 								<span class="no-replay" title={t("Games played before replays were added weren't recorded, so they can't be watched.")}
 									>{t('No replay: played before replays were kept')}</span
 								>

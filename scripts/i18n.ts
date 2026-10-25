@@ -96,8 +96,6 @@ function sharedKeys(): Map<string, string> {
 	const keys = new Map<string, string>();
 	for (const file of walk(join(ROOT, 'src/shared'), ['.ts'])) {
 		if (file.endsWith('cheats.ts')) continue; // dev-only, stays English
-		// A random world's made-up names are its own proper nouns, never translated.
-		if (/conquest[\\/](names|world)\.ts$/.test(file)) continue;
 		for (const s of literals(file)) {
 			const text = s.trim();
 			if (text !== s || text.length < 2 || looksLikeCode(text)) continue;

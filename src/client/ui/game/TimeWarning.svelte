@@ -6,17 +6,8 @@
 	import { sfx } from '../sound';
 
 	const view = $derived(client.view);
-	const cq = $derived(client.cq);
-	const gb = $derived(client.gb);
 	// Your own turn, or cards you still owe after a 7: either is played for you when time runs out.
-	// In Conquest: your turn, or your starting armies still to place. In Gambit: your orders not yet given.
-	const onMe = $derived(
-		view
-			? myTurn(view) || (view.step === 'discard' && !!view.pendingDiscards[view.me])
-			: cq
-				? cq.me >= 0 && (cq.phase === 'deploy' ? cq.reserve[cq.me] > 0 : cq.phase === 'play' && cq.current === cq.me)
-				: !!gb && gb.me >= 0 && gb.phase === 'orders' && !gb.ready[gb.me]
-	);
+	const onMe = $derived(!!view && (myTurn(view) || (view.step === 'discard' && !!view.pendingDiscards[view.me])));
 	const secs = $derived(client.clock?.running ? Math.ceil((client.timeLeft ?? 0) / 1000) : 0);
 	const show = $derived(onMe && secs > 0 && secs <= 5);
 

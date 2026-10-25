@@ -29,10 +29,6 @@
 	import { PIXEL } from './pixel';
 	import { sceneRef } from './sceneRef';
 	import { i18n, msg, t, tx } from '../i18n/index.svelte';
-	import CqLobby from './conquest/CqLobby.svelte';
-	import GbLobby from './gambit/GbLobby.svelte';
-	import { PLAYER_RGB } from '../scene/layout';
-	import { conquestMap } from '../../shared/conquest/queries';
 
 	const COLOR_LABEL: Record<PlayerColor, string> = {
 		red: msg('red'),
@@ -56,10 +52,6 @@
 	let copied = $state(false);
 	let inviting = $state(false);
 	const settings = $derived(lobby.settings);
-	/** A Conquest table: its own rules instead of Settlement's modes and island. */
-	const conquest = $derived(lobby.game === 'conquest');
-	/** A Gambit table: its own rules, and its board on the table. */
-	const gambit = $derived(lobby.game === 'gambit');
 	const extended = $derived(settings.mode === 'extended');
 	const pool = $derived(characterPool({ ...settings, characters: true }));
 	const mapTiles = $derived(
@@ -83,21 +75,8 @@
 	// until the new settings have painted.
 	$effect(() => {
 		const tiles = extended ? mapTiles : null;
-		// A Conquest table shows its map: the Realm, or the random world the host made.
-		const realm = conquest ? conquestMap(lobby.conquest) : null;
-		// A Gambit table shows its board for the seats there are, everyone's pieces where they start.
-		const board = gambit ? { seats: lobby.seats.length, settings: lobby.gambit, colors: lobby.seats.map((x) => PLAYER_RGB[x.color] ?? 0xffffff) } : null;
 		let timer = 0;
-		const frame = requestAnimationFrame(
-			() =>
-				(timer = window.setTimeout(() =>
-					realm
-						? sceneRef.current?.showConquestTable(realm)
-						: board
-							? sceneRef.current?.showGambitTable(board.seats, board.settings, board.colors)
-							: sceneRef.current?.showMenuMap(tiles)
-				))
-		);
+		const frame = requestAnimationFrame(() => (timer = window.setTimeout(() => sceneRef.current?.showMenuMap(tiles))));
 		return () => {
 			cancelAnimationFrame(frame);
 			clearTimeout(timer);
@@ -199,11 +178,7 @@
 
 					<div class="divider">
 						<i></i><span
-							>{conquest
-								? t('Commanders {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })
-								: gambit
-									? t('Rivals {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })
-									: t('Settlers {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })}</span
+							>{t('Settlers {count}/{max}', { count: lobby.seats.length, max: lobby.maxPlayers })}</span
 						><i></i>
 					</div>
 
@@ -301,7 +276,6 @@
 					</div>
 				</div>
 				<div class="col">
-					{#if conquest}<CqLobby />{:else if gambit}<GbLobby />{:else}
 					<div class="modes" role="radiogroup" aria-label={t('Game mode')}>
 						{#each GAME_MODES as m (m)}
 							<button
@@ -323,8 +297,6 @@
 						{/each}
 					</div>
 
-					{/if}
-
 					{#if mySeat}
 						<div class="colors">
 							<span class="label">{t('Your banner')}</span>
@@ -345,9 +317,7 @@
 						</div>
 					{/if}
 
-					{#if conquest || gambit}
-						<!-- Conquest's and Gambit's rules are above. -->
-					{:else if extended}
+					{#if extended}
 						<div class="extended">
 							<button class="pick plaque" onclick={() => (picking = 'character')}>
 								<span class="map-well well cast" class:off={!settings.characters}>

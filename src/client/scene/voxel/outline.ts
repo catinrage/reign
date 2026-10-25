@@ -28,7 +28,7 @@ function outlineMaterial() {
 				vec4 local = vec4(position, 1.0);
 				vec3 n = normal;
 				#ifdef USE_INSTANCING
-				// Many copies drawn at once (the Conquest troops): each by its own matrix.
+				// Many copies drawn at once: each by its own matrix.
 				local = instanceMatrix * local;
 				n = mat3(instanceMatrix) * n;
 				#endif

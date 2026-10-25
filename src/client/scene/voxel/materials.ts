@@ -66,88 +66,6 @@ export const FRAG_OUTPUT = /* glsl */ `
 #include <colorspace_fragment>
 `;
 
-/**
- * Conquest's board (see scene/conquest): which territory each column of the map is and how far
- * it lies from a border, and per territory its owner's color and how it is lit up right now.
- * The land's shader reads them, so ownership and highlights change without rebuilding the map.
- */
-export const realmUniforms = {
-	/** RGBA8, one texel per map column: r = territory + 1 (0 for water), g = columns to the nearest border (0 on it). */
-	uRealmMap: { value: null as THREE.Texture | null },
-	/**
-	 * RGBA8, a column per territory. Row 0: the owner's color, a = 1 while held. Row 1: r = how
-	 * much the whole territory lights up, g = how much its border band glows, b = hover, a = how
-	 * much it fades back. Row 2: the color it lights up in, a = how much the light pulses.
-	 * Row 3: r = how deep in the fog of war it lies.
-	 */
-	uRealmState: { value: null as THREE.Texture | null },
-	/** The map's first column (grid voxels) and its size in columns: (x0, z0, nx, nz). */
-	uRealmGrid: { value: new THREE.Vector4(0, 0, 1, 1) },
-	/** Map columns per VOXEL (the board's detail), so bands and shadows keep their size at any detail. */
-	uRealmScale: { value: 1 },
-	/** 0..1, worked out on the CPU (see uAimWave for why): how far the highlights' pulse is. */
-	uRealmPulse: { value: 0 },
-	/** How far (voxels) the fog's shadows have drifted, kept small on the CPU for the same reason. */
-	uRealmDrift: { value: new THREE.Vector2() }
-};
-
-/**
- * Conquest's territories in their owners' colors: a band inside each border, so who holds what
- * reads at a glance, and highlights for the turn (territories to pick, the one picked, targets).
- * Each voxel takes one value, so the color keeps to the blocks.
- */
-const FRAG_REALM = /* glsl */ `
-vec3 realmLight = vec3(0.0);
-{
-	ivec2 ij = ivec2(floor(vVox - vVoxN * 0.5).xz - uRealmGrid.xy);
-	if (ij.x >= 0 && ij.y >= 0 && ij.x < int(uRealmGrid.z) && ij.y < int(uRealmGrid.w)) {
-		vec4 m = texelFetch(uRealmMap, ij, 0);
-		int id = int(m.r * 255.0 + 0.5) - 1;
-		if (id >= 0) {
-			vec4 own = texelFetch(uRealmState, ivec2(id, 0), 0);
-			vec4 st = texelFetch(uRealmState, ivec2(id, 1), 0);
-			vec4 hl = texelFetch(uRealmState, ivec2(id, 2), 0);
-			float bd = m.g * 255.0 / uRealmScale;
-			// The band in the owner's color, inside the border line (which keeps its own color).
-			float band = bd < 0.5 ? 0.0 : 1.0 - smoothstep(2.5, 4.5, bd);
-			float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-			vec3 tint = own.rgb * (0.55 + 0.6 * l);
-			diffuseColor.rgb = mix(diffuseColor.rgb, tint, band * own.a * 0.85);
-			float pulse = mix(1.0, 0.5 + 0.5 * uRealmPulse, hl.a);
-			// Lit up as a whole (picked, a target), and a wide band glowing inside its border, the
-			// border line too, so it reads at Low graphics without any bloom.
-			float glowBand = 1.0 - smoothstep(4.0, 11.0, bd);
-			diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.5 + hl.rgb * 0.65, st.r * 0.7);
-			diffuseColor.rgb = mix(diffuseColor.rgb, hl.rgb * (0.8 + 0.3 * l), glowBand * st.g * 0.85 * pulse);
-			realmLight += hl.rgb * (st.r * 0.22 + glowBand * st.g * 0.6) * pulse;
-			diffuseColor.rgb *= 1.0 + st.b * 0.3;
-			// Faded back: greyed and darkened, so what is lit stands out.
-			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l * 0.38), st.a);
-			// The fog of war: darker and colder under slow-drifting shadows, a voxel at a time.
-			float fog = texelFetch(uRealmState, ivec2(id, 3), 0).r;
-			if (fog > 0.0) {
-				// Cells of 9 voxels, repeating every 100 so the drift can start over unseen.
-				vec2 q = (vec2(ij) / uRealmScale + uRealmDrift) / 9.0;
-				vec2 c = floor(q);
-				vec2 f = fract(q);
-				f = f * f * (3.0 - 2.0 * f);
-				vec2 c0 = mod(c, 100.0);
-				vec2 c1 = mod(c + 1.0, 100.0);
-				float n = mix(
-					mix(voxHash(vec3(c0.x, c0.y, 5.0)), voxHash(vec3(c1.x, c0.y, 5.0)), f.x),
-					mix(voxHash(vec3(c0.x, c1.y, 5.0)), voxHash(vec3(c1.x, c1.y, 5.0)), f.x),
-					f.y
-				);
-				// Less over land already faded back, so it doesn't sink to black.
-				float shade = fog * (0.75 + 0.25 * n) * (1.0 - 0.4 * st.a);
-				diffuseColor.rgb *= mix(vec3(1.0), vec3(0.3, 0.34, 0.44), shade);
-				realmLight *= 1.0 - 0.6 * fog;
-			}
-		}
-	}
-}
-`;
-
 export interface VoxelMaterialOptions {
 	roughness?: number;
 	metalness?: number;
@@ -183,8 +101,6 @@ export interface VoxelMaterialOptions {
 	 * a fire in a brazier). Meshes of these should not cast shadows.
 	 */
 	night?: boolean;
-	/** Conquest's land: owner colors and highlights by territory (see `realmUniforms`). */
-	realm?: boolean;
 }
 
 const VERT_HEAD = /* glsl */ `
@@ -419,15 +335,6 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_GRAY}\n${FRAG_AIM}`);
 			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += aimLight;');
 		}
-		if (opts.realm) {
-			Object.assign(shader.uniforms, realmUniforms);
-			fs = fs.replace(
-				'#include <common>',
-				'#include <common>\nuniform sampler2D uRealmMap;\nuniform sampler2D uRealmState;\nuniform vec4 uRealmGrid;\nuniform float uRealmScale;\nuniform float uRealmPulse;\nuniform vec2 uRealmDrift;'
-			);
-			fs = fs.replace('#include <color_fragment>', `#include <color_fragment>\n${FRAG_REALM}`);
-			fs = fs.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += realmLight;');
-		}
 		if (kind === Mat.Water) {
 			fs = fs.replace(
 				'#include <color_fragment>',
@@ -478,7 +385,7 @@ function patch(material: THREE.MeshStandardMaterial, kind: Mat, opts: VoxelMater
 		shader.fragmentShader = fs;
 	};
 	material.customProgramCacheKey = () =>
-		`voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}${opts.lift ? '-lift' : ''}${opts.lamps ? '-lamps' : ''}${opts.night ? '-night' : ''}${opts.realm ? '-realm' : ''}`;
+		`voxel-${kind}${opts.tileGray ? '-gray' : ''}${opts.antialias ? '-aa' : ''}${opts.lift ? '-lift' : ''}${opts.lamps ? '-lamps' : ''}${opts.night ? '-night' : ''}`;
 	return material;
 }
 

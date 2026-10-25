@@ -47,7 +47,7 @@ export class Dice {
 		}
 	}
 
-	/** Show the dice on the table or put them away (Conquest rolls its own in the interface). */
+	/** Show the dice on the table or put them away. */
 	setShown(on: boolean) {
 		for (const d of this.dice) d.visible = on;
 	}

@@ -1,10 +1,6 @@
-import type { ConquestSettings, CqAction, CqView } from '../../shared/conquest/types';
 import type { GameKind } from '../../shared/games';
 import { BEACON_GAP_MS, type ClientMessage, type LobbyInfo, type PigeonNote, type ServerMessage, type TurnClock } from '../../shared/protocol';
 import type { Cheat } from '../../shared/rules/cheats';
-import type { ConquestCheat } from '../../shared/conquest/cheats';
-import type { GambitCheat } from '../../shared/gambit/cheats';
-import type { GambitAction, GambitSettings, GambitView } from '../../shared/gambit/types';
 import { hasResources, type Resource } from '../../shared/rules/config';
 import { EVENT_SHOW_MS, type EventCard } from '../../shared/rules/events';
 import type { Action, GameEvent, GameView } from '../../shared/rules/types';
@@ -113,10 +109,6 @@ class GameClient {
 	lobby = $state<LobbyInfo | null>(null);
 	/** The newest state from the server. The 3D scene plays it the moment it arrives. */
 	latest = $state.raw<GameView | null>(null);
-	/** At a Conquest table: the game as this player may see it, newest first. */
-	cq = $state.raw<CqView | null>(null);
-	/** At a Gambit table: the game as this player may see it, newest first. */
-	gb = $state.raw<GambitView | null>(null);
 	/**
 	 * The state the interface shows. While dice are in the air it keeps the state from before the
 	 * roll, so the hand, the plaques, the log, the prompt and the dialogs never give the result
@@ -332,23 +324,7 @@ class GameClient {
 				this.lobby = msg.lobby;
 				this.setClock(msg.lobby.clock);
 				// A game in progress stays behind the loading screen until its state arrives.
-				if (!msg.lobby.started || this.view || this.cq || this.gb) this.joining = null;
-				break;
-			case 'cqGame':
-				if (!this.seat && !this.spectating) break;
-				this.cq = msg.view;
-				this.setClock(msg.clock);
-				this.joining = null;
-				this.launching = false;
-				if (this.code) storage(LAST_GAME, this.code);
-				break;
-			case 'gbGame':
-				if (!this.seat && !this.spectating) break;
-				this.gb = msg.view;
-				this.setClock(msg.clock);
-				this.joining = null;
-				this.launching = false;
-				if (this.code) storage(LAST_GAME, this.code);
+				if (!msg.lobby.started || this.view) this.joining = null;
 				break;
 			case 'game':
 				if (!this.seat && !this.spectating) break;
@@ -503,17 +479,6 @@ class GameClient {
 		this.setReplayView(view, true);
 	}
 
-	/** Watch a recorded game of Conquest: the table as a spectator who sees every hand. */
-	startCqReplay(lobby: LobbyInfo, view: CqView) {
-		if (this.code) this.leave();
-		this.replaying = true;
-		this.spectating = true;
-		this.lobby = lobby;
-		this.latest = null;
-		this.view = null;
-		this.cq = view;
-	}
-
 	/**
 	 * The replay moved on to `view`: one step forward plays like a live game (dice, cards flying),
 	 * a jump (scrubbing, skipping) shows the new state at once.
@@ -661,7 +626,7 @@ class GameClient {
 	 * here at once; false when the last one was too recent (the server would drop it).
 	 */
 	beacon(x: number, z: number): boolean {
-		const me = this.view?.me ?? this.cq?.me ?? this.gb?.me;
+		const me = this.view?.me;
 		if (me === undefined || me < 0 || this.replaying) return false;
 		const now = performance.now();
 		if (now - this.lastBeacon < BEACON_GAP_MS) return false;
@@ -706,26 +671,6 @@ class GameClient {
 		this.create(game);
 	}
 
-	/** A move in this table's game of Conquest. */
-	cqAct(action: CqAction) {
-		this.send({ t: 'cqAction', action });
-	}
-
-	/** Host: change the Conquest table's settings. */
-	setConquest(settings: Partial<ConquestSettings>) {
-		this.send({ t: 'setConquest', settings });
-	}
-
-	/** This round's orders in this table's game of Gambit. */
-	gbAct(action: GambitAction) {
-		this.send({ t: 'gbAction', action });
-	}
-
-	/** Host: change the Gambit table's settings. */
-	setGambit(settings: Partial<GambitSettings>) {
-		this.send({ t: 'setGambit', settings });
-	}
-
 	/**
 	 * Play a campaign mission: at a new table of its own, or (the next mission, or the same one
 	 * again, once a game is over) at the campaign table we are at.
@@ -758,7 +703,7 @@ class GameClient {
 	setMenuOpen(open: boolean) {
 		if (open === this.menuOpen) return;
 		this.menuOpen = open;
-		if ((this.view || this.cq || this.gb) && !this.replaying) this.send({ t: 'pause', paused: open });
+		if (this.view && !this.replaying) this.send({ t: 'pause', paused: open });
 	}
 
 	leave() {
@@ -771,8 +716,6 @@ class GameClient {
 		this.lobby = null;
 		this.latest = null;
 		this.view = null;
-		this.cq = null;
-		this.gb = null;
 		clearTimeout(this.tossTimer);
 		this.tossing = null;
 		clearTimeout(this.presentTimer);
@@ -812,14 +755,6 @@ class GameClient {
 		this.send({ t: 'action', action });
 	}
 
-	cqCheat(cheat: ConquestCheat) {
-		this.send({ t: 'cqCheat', cheat });
-	}
-
-	gbCheat(cheat: GambitCheat) {
-		this.send({ t: 'gbCheat', cheat });
-	}
-
 	cheat(cheat: Cheat) {
 		this.send({ t: 'cheat', cheat });
 	}
@@ -831,7 +766,7 @@ class GameClient {
 	}
 
 	get me(): number {
-		return this.view?.me ?? this.cq?.me ?? this.gb?.me ?? -1;
+		return this.view?.me ?? -1;
 	}
 
 	get isHost(): boolean {

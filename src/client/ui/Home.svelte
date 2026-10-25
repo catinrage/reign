@@ -23,14 +23,10 @@
 	import { campaign } from '../state/campaign.svelte';
 	import { t } from '../i18n/index.svelte';
 	import { gamePick } from './menu/gamePick.svelte';
-	import { sceneRef } from './sceneRef';
-	import { CQ_PIXEL } from './conquest/icons';
-	import { GB_PIXEL } from './gambit/icons';
-	import { showMenuGambit } from './gambit/menuTable';
 	import GameBanner from './menu/GameBanner.svelte';
 	import GameChooser from './menu/GameChooser.svelte';
 	import { fitHeight } from './menu/fitHeight';
-	import { gameInfo } from './menu/games';
+	import { GAMES, gameInfo } from './menu/games';
 
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let muted = $state(isMuted());
@@ -74,8 +70,7 @@
 	});
 
 	function play() {
-		// Gambit is for a crowd: five rivals round a six-sided board.
-		client.quickPlay(gamePick.game === 'gambit' ? 5 : 3, gamePick.game);
+		client.quickPlay(3, gamePick.game);
 	}
 	function create() {
 		client.create(gamePick.game);
@@ -87,16 +82,6 @@
 		gamePick.set(g);
 	}
 	const game = $derived(gameInfo(gamePick.game));
-	const conquest = $derived(gamePick.game === 'conquest');
-	const gambit = $derived(gamePick.game === 'gambit');
-	// The table shows the game picked: the island, the Realm, or a Gambit board.
-	$effect(() => {
-		const scene = sceneRef.current;
-		if (!scene || client.launching) return;
-		if (conquest) scene.showConquestTable();
-		else if (gambit) showMenuGambit();
-		else if (scene.conquest || scene.gambit) scene.showMenuBoard();
-	});
 	function join() {
 		if (code.length !== 5 || busy) return;
 		client.join(code);
@@ -180,7 +165,8 @@
 		</header>
 
 		<div class="sign panel">
-			<GameBanner {game} onopen={() => openSheet('games')} />
+			<!-- The game shelf only has a choice to offer with more than one game. -->
+			{#if GAMES.length > 1}<GameBanner {game} onopen={() => openSheet('games')} />{/if}
 			<div class="me">
 				<button class="me-face" onclick={() => openSheet('profile')} title={t('Edit your profile')}>
 					<Avatar id={me.avatar} size={60} />
@@ -207,27 +193,25 @@
 			{/if}
 
 
-			{#if !conquest && !gambit}
-				<button class="btn purple block" onclick={openCampaign} disabled={busy}>
-					<img src={PIXEL.crown} alt="" />
-					<span class="stack"
-						>{t('Campaign')}<span class="sub">{t('The Shattered Crown: a story for one player')}</span></span
-					>
-				</button>
-			{/if}
+			<button class="btn purple block" onclick={openCampaign} disabled={busy}>
+				<img src={PIXEL.crown} alt="" />
+				<span class="stack"
+					>{t('Campaign')}<span class="sub">{t('The Shattered Crown: a story for one player')}</span></span
+				>
+			</button>
 			<button class="btn big block shine" onclick={play} disabled={busy}>
 				<img src={PIXEL.play} alt="" />
 				<span class="stack"
 					>{t('Play vs bots')}<span class="sub"
-						>{conquest ? t('Three rivals for the Realm, start right away') : gambit ? t('Five rivals round the board, start right away') : t('Three rivals, start right away')}</span
+						>{t('Three rivals, start right away')}</span
 					></span
 				>
 			</button>
 			<button class="btn green block" onclick={create} disabled={busy}>
-				<img src={conquest ? CQ_PIXEL.flag : gambit ? GB_PIXEL.monarch : PIXEL.house} alt="" />
+				<img src={PIXEL.house} alt="" />
 				<span class="stack"
 					>{t('Create a room')}<span class="sub"
-						>{OFFLINE ? (conquest || gambit ? t('Pick the rules and bots') : t('Pick the mode, map and bots')) : t('Invite friends with a code')}</span
+						>{OFFLINE ? t('Pick the mode, map and bots') : t('Invite friends with a code')}</span
 					></span
 				>
 			</button>

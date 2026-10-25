@@ -29,14 +29,6 @@ import { TABLE_HALF } from './room/table';
 import { ROOM_SCALE } from './room/util';
 import { type Quality, Stage } from './stage';
 import { FRAG_OUTPUT, sharedUniforms } from './voxel/materials';
-import type { CqView } from '../../shared/conquest/types';
-import { conquestMap } from '../../shared/conquest/queries';
-import type { RealmMap } from '../../shared/conquest/realm';
-import { BATTLE_ROLL_WATCHED, ConquestScene, type CqSceneCallbacks } from './conquest/conquestScene';
-import { GambitScene, type GbSceneCallbacks } from './gambit/gambitScene';
-import { BOARD_TOP } from './gambit/hexBoard';
-import type { GambitView, TerrainRule } from '../../shared/gambit/types';
-import type { BoardNames } from './conquest/realmBoard';
 
 /**
  * `stoneRoad` picks one of your roads to pave, `storehouse` and `tavern` one of your buildings to
@@ -235,27 +227,6 @@ export class GameScene {
 	private purredAt = -Infinity;
 	/** The mouse is over the cat. */
 	private catHovered = false;
-	/** At a Conquest table: the Realm on the table instead of the island (see showConquest). */
-	conquest: ConquestScene | null = null;
-	/** Names for the Realm's board (translated), see setConquestNames. */
-	private conquestNames: BoardNames | undefined = undefined;
-	/** What the Conquest board tells the interface (see ConquestHud), kept for each board made. */
-	conquestCallbacks: CqSceneCallbacks = {};
-	/** At a Gambit table: its hex board instead of the island (see showGambit). */
-	gambit: GambitScene | null = null;
-	/** Which board is up: players, ground and seed (a new one replaces it when they change). */
-	private gambitKey = '';
-	/** What the Gambit board tells the interface (see GambitHud), kept for each board made. */
-	gambitCallbacks: GbSceneCallbacks = {};
-	/** The player's picks for how fast things play out: someone else's dice in Conquest, a round in Gambit. */
-	private paces = { watchedRoll: BATTLE_ROLL_WATCHED, round: 1 };
-
-	/** How fast things play out, as the player picked (see settings), on the boards up now and those to come. */
-	setPaces(p: { watchedRoll: number; round: number }) {
-		this.paces = p;
-		if (this.conquest) this.conquest.watchedRoll = p.watchedRoll;
-		if (this.gambit) this.gambit.pace = p.round;
-	}
 	private catHoverAt = new THREE.Vector2(-9, -9);
 
 	constructor(
@@ -278,7 +249,6 @@ export class GameScene {
 		canvas.addEventListener('pointermove', this.onPointerMove);
 		canvas.addEventListener('pointerup', this.onPointerUp);
 		canvas.addEventListener('pointercancel', this.onPointerCancel);
-		canvas.addEventListener('lostpointercapture', (e) => this.conquest?.pointerCancel(e));
 		canvas.addEventListener('pointerleave', this.onPointerLeave);
 		this.showMenuBoard();
 		this.stage.start();
@@ -309,176 +279,7 @@ export class GameScene {
 		this.stage.setLensShift(x);
 	}
 
-	// ------------------------------------------------------------ Conquest
-
-	/**
-	 * Put a Conquest map on the table in place of the island (the Realm, or a random world): for a
-	 * Conquest table's lobby (empty, turning slowly) and its game (see showConquest). Another map
-	 * than the one on the table takes its place.
-	 */
-	private enterConquest(map: RealmMap = conquestMap()): ConquestScene {
-		if (this.conquest?.map === map) return this.conquest;
-		if (this.conquest) {
-			this.conquest.dispose();
-			this.conquest = null;
-		} else if (this.gambit) this.dropGambit();
-		else this.hideIsland();
-		// A random world's names are made up: they stand as they are, untranslated.
-		const cq = new ConquestScene(this.stage, this.anim, this.particles, map.generated ? undefined : this.conquestNames, map, this.detail);
-		cq.callbacks = this.conquestCallbacks;
-		cq.watchedRoll = this.paces.watchedRoll;
-		this.conquest = cq;
-		const r = cq.board.realm;
-		// A rim of table round the board, and the mug, the lantern and the plant standing off its corners.
-		this.room.fitTable(Math.max((Math.max(r.halfX, r.halfZ) * 1.12) / (TABLE_HALF * ROOM_SCALE), this.room.clearScale(r.halfX, r.halfZ)));
-		return cq;
-	}
-
-	/** Back to Settlement's island on the table. */
-	private leaveConquest() {
-		if (!this.conquest) return;
-		this.conquest.dispose();
-		this.conquest = null;
-		this.showIsland();
-	}
-
-	/** Settlement's island off the table, for another game's board. */
-	private hideIsland() {
-		this.setPick(null);
-		this.clearPieces();
-		this.aim.clear(this.boardView);
-		this.beacons.clear();
-		if (this.boardView) this.boardView.group.visible = false;
-		this.dice.setShown(false);
-		this.room.showIslandProps(false);
-	}
-
-	/** Settlement's island back on the table (at the detail picked meanwhile), its dice and cards beside it. */
-	private showIsland() {
-		if (this.islandStale && this.boardView) {
-			this.islandStale = false;
-			const robber = this.boardView.robberHex;
-			this.setBoard(this.boardView.board, this.boardSeed, this.boardPlots);
-			this.boardView!.setRobber(robber, true);
-		}
-		if (this.boardView) this.boardView.group.visible = true;
-		this.dice.setShown(this.diceDown);
-		this.room.showIslandProps(true);
-		this.room.fitTable((this.reach + 50) / (TABLE_HALF * ROOM_SCALE));
-	}
-	/** The island's detail changed while another game's board was on the table: rebuild it when it's back. */
-	private islandStale = false;
-
-	/**
-	 * Put a Gambit board on the table in place of the island (or another game's board): for a
-	 * Gambit table's lobby (the pieces where they start) and its game (see showGambit).
-	 */
-	private enterGambit(players: number, settings: { terrain: TerrainRule; seed: number }): GambitScene {
-		const key = `${players}:${settings.terrain}:${settings.seed}`;
-		if (this.gambit && this.gambitKey === key) return this.gambit;
-		if (this.gambit) this.dropGambit();
-		else if (this.conquest) {
-			this.conquest.dispose();
-			this.conquest = null;
-		} else this.hideIsland();
-		const gb = new GambitScene(this.stage, this.anim, this.particles, players, settings, this.detail);
-		gb.callbacks = this.gambitCallbacks;
-		gb.pace = this.paces.round;
-		this.gambit = gb;
-		this.gambitKey = key;
-		const half = gb.build.half;
-		this.room.fitTable(Math.max((half * 1.12) / (TABLE_HALF * ROOM_SCALE), this.room.clearScale(half, half)));
-		return gb;
-	}
-
-	private dropGambit() {
-		this.gambit?.dispose();
-		this.gambit = null;
-		this.gambitKey = '';
-	}
-
-	/** Back to Settlement's island on the table. */
-	private leaveGambit() {
-		if (!this.gambit) return;
-		this.dropGambit();
-		this.showIsland();
-	}
-
-	/** A Gambit table's lobby: its board with everyone's pieces where they start, turning slowly. */
-	showGambitTable(players: number, settings: { terrain: TerrainRule; seed: number }, colors: number[]) {
-		const gb = this.enterGambit(Math.max(2, players), settings);
-		this.mode = 'menu';
-		this.view = null;
-		gb.showEmpty(colors);
-		this.stage.rig.autoRotate = 0.04;
-		const size = gb.build.half / 110;
-		this.stage.rig.set({ radius: this.menuRadius(118 * Math.max(1, size), 0.8), polar: 0.8 });
-	}
-
-	/** A game of Gambit: the rounds played since the last view play out on the board. */
-	showGambit(view: GambitView, colors: number[], quiet = false) {
-		const key = `${view.players.length}:${view.settings.terrain}:${view.settings.seed}`;
-		const fresh = !this.gambit || this.mode !== 'game' || this.gambitKey !== key;
-		const gb = this.enterGambit(view.players.length, view.settings);
-		this.gambitMe = view.me;
-		if (fresh) {
-			this.mode = 'game';
-			this.stage.rig.autoRotate = 0;
-			this.stage.rig.set(gb.framing(view.me));
-			gb.setView(view, colors, true);
-			return;
-		}
-		gb.setView(view, colors, quiet);
-	}
-
-	/** Frame the whole board again, from this player's side (the view's Home button). */
-	frameGambit() {
-		if (this.gambit) this.stage.rig.set(this.gambit.framing(this.gambitMe));
-	}
-	/** The seat the Gambit board is seen from (-1: a spectator). */
-	private gambitMe = -1;
-
-	/** The Realm's names in the player's language: on the board now, and on any made later. */
-	setConquestNames(names: BoardNames) {
-		this.conquestNames = names;
-		if (this.conquest && !this.conquest.map.generated) this.conquest.board.setNames(names);
-	}
-
-	/** A Conquest table's lobby: its map (the Realm unless said), empty, turning slowly. */
-	showConquestTable(map?: RealmMap) {
-		const cq = this.enterConquest(map);
-		this.mode = 'menu';
-		this.view = null;
-		cq.showEmpty();
-		this.stage.rig.autoRotate = 0.04;
-		// A bigger world is seen from further off.
-		const size = Math.max(cq.board.realm.halfX, cq.board.realm.halfZ) / 125;
-		this.stage.rig.set({ radius: this.menuRadius(118 * Math.max(1, size), 0.8), polar: 0.8 });
-	}
-
-	/** A game of Conquest: what happened since the last view plays out on the board. */
-	showConquest(view: CqView, quiet = false) {
-		const map = conquestMap(view.settings);
-		const fresh = !this.conquest || this.mode !== 'game' || this.conquest.map !== map;
-		const cq = this.enterConquest(map);
-		if (fresh) {
-			this.mode = 'game';
-			this.stage.rig.autoRotate = 0;
-			this.stage.rig.set(cq.framing());
-			cq.jumpTo(view);
-			return;
-		}
-		cq.setView(view, quiet);
-	}
-
-	/** Frame the whole Realm again (the view's Home button). */
-	frameConquest() {
-		if (this.conquest) this.stage.rig.set(this.conquest.framing());
-	}
-
 	showMenuBoard() {
-		this.leaveConquest();
-		this.leaveGambit();
 		this.mode = 'menu';
 		this.boardKey = '';
 		this.view = null;
@@ -500,7 +301,6 @@ export class GameScene {
 	 */
 	showMenuMap(tiles: MapTile[] | null) {
 		if (this.mode !== 'menu') return;
-		if (this.conquest || this.gambit) this.showMenuBoard();
 		const key = tiles ? JSON.stringify(tiles) : '';
 		if (key === this.menuMap) return;
 		this.menuMap = key;
@@ -530,14 +330,6 @@ export class GameScene {
 	setDetail(detail: number) {
 		if (detail === this.detail) return;
 		this.detail = detail;
-		// Another game's board is on the table: it's rebuilt now; the island waits off the table, and
-		// is rebuilt when it's back.
-		if (this.conquest || this.gambit) {
-			this.islandStale = true;
-			this.gambit?.setDetail(detail);
-			this.conquest?.setDetail(detail);
-			return;
-		}
 		if (this.mode === 'game' && this.view) {
 			const view = this.view;
 			this.boardKey = '';
@@ -1593,14 +1385,6 @@ export class GameScene {
 		if (this.mode !== 'game') return;
 		const wx = x * HEX_R;
 		const wz = z * HEX_R;
-		if (this.conquest) {
-			this.beacons.add(wx, Math.max(this.conquest.board.realm.surfaceY(wx, wz), SEA_Y), wz, PLAYER_RGB[color] ?? 0xffffff);
-			return;
-		}
-		if (this.gambit) {
-			this.beacons.add(wx, BOARD_TOP, wz, PLAYER_RGB[color] ?? 0xffffff);
-			return;
-		}
 		const bv = this.boardView;
 		if (!bv) return;
 		this.beacons.add(
@@ -1624,8 +1408,7 @@ export class GameScene {
 	private mapAtPointer(): { x: number; z: number } | null {
 		if (this.mode !== 'game') return null;
 		this.raycaster.setFromCamera(this.pointer, this.stage.camera);
-		// Conquest's board, land or sea, counts as the map as Settlement's island does.
-		const board = this.conquest ? this.conquest.board.realm : this.gambit ? this.gambit.build : this.boardView?.build;
+		const board = this.boardView?.build;
 		if (!board) return null;
 		const p = board.raycast(this.raycaster.ray);
 		return p ? { x: p.x / HEX_R, z: p.z / HEX_R } : null;
@@ -1635,24 +1418,13 @@ export class GameScene {
 	private beaconAtPointer(): boolean {
 		const at = this.mapAtPointer();
 		if (!at) return false;
-		if (this.conquest) this.conquestCallbacks.onBeacon?.(at.x, at.z);
-		else if (this.gambit) this.gambitCallbacks.onBeacon?.(at.x, at.z);
-		else this.callbacks.onBeacon?.(at.x, at.z);
+		this.callbacks.onBeacon?.(at.x, at.z);
 		return true;
-	}
-
-	/** The pointer's spot in the canvas, -1..1 each way. */
-	private ndc(e: PointerEvent) {
-		const r = this.stage.box;
-		return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 	}
 
 	private onPointerDown = (e: PointerEvent) => {
 		this.endPress();
 		this.pressed = false;
-		// Alt+click on Conquest's board is for a beacon, not to start dragging armies.
-		if (this.conquest && this.mode === 'game' && !e.altKey) this.conquest.pointerDown(e, this.ndc(e));
-		if (this.gambit && this.mode === 'game' && !e.altKey) this.gambit.pointerDown(e);
 		// One finger resting on the board without moving lights a beacon there.
 		if (e.pointerType !== 'touch' || !e.isPrimary || this.mode !== 'game') return;
 		const timer = setTimeout(() => {
@@ -1663,18 +1435,13 @@ export class GameScene {
 				-((this.press.y - r.top) / r.height) * 2 + 1
 			);
 			this.press = null;
-			if (this.beaconAtPointer()) {
-				this.pressed = true;
-				// The finger was resting to point, not to drag armies off.
-				this.conquest?.cancelDrag();
-			}
+			if (this.beaconAtPointer()) this.pressed = true;
 		}, LONG_PRESS_MS);
 		this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, timer };
 	};
 
 	/** The browser took the pointer away (a scroll, a system gesture): whatever it was doing is off. */
-	private onPointerCancel = (e: PointerEvent) => {
-		this.conquest?.pointerCancel(e);
+	private onPointerCancel = () => {
 		this.endPress();
 	};
 
@@ -1686,8 +1453,6 @@ export class GameScene {
 	};
 
 	private onPointerMove = (e: PointerEvent) => {
-		if (this.conquest) this.conquest.pointerMove(this.ndc(e));
-		if (this.gambit) this.gambit.pointerMove(this.ndc(e));
 		const r = this.stage.box;
 		this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
 		this.pointerType = e.pointerType;
@@ -1698,53 +1463,10 @@ export class GameScene {
 	};
 
 	private onPointerLeave = () => {
-		this.conquest?.pointerLeave();
-		this.gambit?.pointerLeave();
 		this.pointer.set(-9, -9);
 	};
 
 	private onPointerUp = (e: PointerEvent) => {
-		if (this.conquest && this.mode === 'game') {
-			this.endPress();
-			// The touch that lit a beacon does nothing else.
-			if (this.pressed) {
-				this.pressed = false;
-				this.conquest.pointerCancel(e);
-				return;
-			}
-			// Alt+click lights a beacon on the map, and does nothing else.
-			if (e.button === 0 && e.altKey && !this.stage.rig.dragged) {
-				this.onPointerMove(e);
-				this.beaconAtPointer();
-				return;
-			}
-			// The cat purrs at Conquest tables too.
-			if (e.button === 0 && !this.stage.rig.dragged && this.conquest.dragFrom === null) {
-				this.onPointerMove(e);
-				if (this.catAtPointer()) return this.petCat();
-			}
-			return this.conquest.pointerUp(e, this.ndc(e));
-		}
-		if (this.gambit && this.mode === 'game') {
-			this.endPress();
-			// The touch that lit a beacon does nothing else.
-			if (this.pressed) {
-				this.pressed = false;
-				return;
-			}
-			// Alt+click lights a beacon on the board, and does nothing else.
-			if (e.button === 0 && e.altKey && !this.stage.rig.dragged) {
-				this.onPointerMove(e);
-				this.beaconAtPointer();
-				return;
-			}
-			// The cat purrs at Gambit tables too.
-			if (e.button === 0 && !this.stage.rig.dragged) {
-				this.onPointerMove(e);
-				if (this.catAtPointer()) return this.petCat();
-			}
-			return this.gambit.pointerUp(e, this.ndc(e));
-		}
 		this.pointerHeld = false;
 		this.endPress();
 		// The touch that lit a beacon does nothing else.
@@ -2076,21 +1798,6 @@ export class GameScene {
 		this.nightLights.update(dt);
 		this.fireflies(dt);
 		this.room.update(dt, t);
-		if (this.conquest) {
-			this.conquest.frame(dt, t);
-			// Beacons light Conquest's board too.
-			this.beacons.update(dt, t);
-			const cursor = this.conquest.hovering && this.mode === 'game' ? 'pointer' : this.hoverCat() ? 'pointer' : '';
-			if (cursor !== this.cursor) this.stage.canvas.style.cursor = this.cursor = cursor;
-			return;
-		}
-		if (this.gambit) {
-			this.gambit.frame(dt, t);
-			this.beacons.update(dt, t);
-			const cursor = this.gambit.hovering && this.mode === 'game' ? 'pointer' : this.hoverCat() ? 'pointer' : '';
-			if (cursor !== this.cursor) this.stage.canvas.style.cursor = this.cursor = cursor;
-			return;
-		}
 		if (!this.diceDown && this.room.ready && this.boardView) {
 			this.diceDown = true;
 			this.dice.place(this.diceSpots().ends);
