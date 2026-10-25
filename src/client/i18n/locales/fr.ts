@@ -2549,5 +2549,14 @@ export default {
 	"Dice battles": "Batailles aux dés",
 	"Secret orders": "Ordres secrets",
 	"Everyone moves at once": "Tout le monde joue en même temps",
-	"No dice": "Sans dés"
+	"No dice": "Sans dés",
+	"Sign in to CrazyGames again.": "Reconnecte-toi à CrazyGames.",
+	"Sign in to CrazyGames to join your friend.": "Connecte-toi à CrazyGames pour rejoindre ton ami.",
+	"play with friends": "jouer entre amis",
+	"Play online": "Jouer en ligne",
+	"Sign in to CrazyGames to play with friends": "Connecte-toi à CrazyGames pour jouer avec tes amis",
+	"Sign in or make a free account to play with friends": "Connecte-toi ou crée un compte gratuit pour jouer avec tes amis",
+	"or just try it": "ou essaie simplement",
+	"Play as guest": "Jouer en invité",
+	"Bots and the campaign, no account needed": "Les bots et la campagne, sans compte"
 } satisfies Messages;

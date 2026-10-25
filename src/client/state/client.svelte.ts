@@ -8,6 +8,8 @@ import { CHARACTER_INFO } from '../../shared/rules/characters';
 import { t, tx } from '../i18n/index.svelte';
 import { account } from './account.svelte';
 import { netStats } from './netStats.svelte';
+import { openServerSocket, socketUrl } from './server';
+import { inviteLink } from '../platform';
 import { settings } from '../ui/settings.svelte';
 
 /**
@@ -208,7 +210,7 @@ class GameClient {
 	private wanted = false;
 
 	/** Opens the line to the game server. The offline build swaps in a server inside the page. */
-	openSocket = (url: string): WebSocket => new WebSocket(url);
+	openSocket = openServerSocket;
 
 	constructor() {
 		const code = invitedRoom();
@@ -223,8 +225,7 @@ class GameClient {
 	connect() {
 		this.wanted = true;
 		if (this.ws) return;
-		const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-		const ws = this.openSocket(`${proto}://${location.host}/ws`);
+		const ws = this.openSocket(socketUrl());
 		this.ws = ws;
 		this.status = 'connecting';
 		ws.onopen = () => {
@@ -781,9 +782,7 @@ class GameClient {
 	}
 
 	get inviteLink(): string {
-		const url = new URL(location.origin + location.pathname);
-		if (this.code) url.searchParams.set('room', this.code);
-		return url.toString();
+		return inviteLink(this.code);
 	}
 }
 

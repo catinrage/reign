@@ -146,7 +146,9 @@ const MIGRATIONS = [
 		best_round int not null,
 		won_at timestamptz not null default now(),
 		primary key (user_id, mission)
-	);`
+	);`,
+	// Players who come from CrazyGames sign in with their CrazyGames account (see crazygames.ts).
+	`alter table users add column crazygames_id text unique;`
 ];
 
 async function migrate(db: Db) {

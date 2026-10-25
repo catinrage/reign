@@ -1,5 +1,5 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { type IncomingMessage, createServer } from 'node:http';
 import { gzip } from 'node:zlib';
 import { extname, join, normalize, resolve } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -11,7 +11,7 @@ import { type GameKind, isGameKind } from '../shared/games';
 import { missionResult } from '../shared/rules/campaign';
 import { totalPoints } from '../shared/rules/engine';
 import { Accounts } from './accounts';
-import { SESSION_COOKIE, handleApi, readCookie } from './api';
+import { SESSION_COOKIE, handleApi, originAllowed, readCookie } from './api';
 import { openDb } from './db';
 import { Hub } from './hub';
 import { Room, send } from './room';
@@ -78,7 +78,28 @@ const server = createServer(async (req, res) => {
 	createReadStream(file).pipe(res);
 });
 
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
+/**
+ * A page hosted on another site (see api.ts) can't send its sign-in in a cookie or a header to
+ * the WebSocket, so it offers it as a subprotocol: `reign` and `reign-token.<token>`. The server
+ * picks `reign`, which the browser needs to see back.
+ */
+const TOKEN_PROTOCOL = 'reign-token.';
+
+const wss = new WebSocketServer({
+	server,
+	path: '/ws',
+	maxPayload: 64 * 1024,
+	handleProtocols: (protocols) => (protocols.has('reign') ? 'reign' : false)
+});
+
+/** The token a page from another site sent with the connection, if any. */
+function protocolToken(req: IncomingMessage): string | null {
+	for (const p of String(req.headers['sec-websocket-protocol'] ?? '').split(',')) {
+		const s = p.trim();
+		if (s.startsWith(TOKEN_PROTOCOL)) return s.slice(TOKEN_PROTOCOL.length) || null;
+	}
+	return null;
+}
 
 function newCode(): string {
 	const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -194,8 +215,14 @@ wss.on('connection', (ws: WebSocket, req) => {
 	let room: Room | null = null;
 	let seat: ReturnType<Room['join']> | null = null;
 	let user: Me | null = null;
-	const session = readCookie(req, SESSION_COOKIE);
-	const signedIn = sameOrigin(req.headers.origin, req.headers['x-forwarded-host']?.toString() ?? req.headers.host)
+	// The cookie only counts from the game's own site; a token sent on purpose from any allowed one.
+	const fromToken = protocolToken(req);
+	const origin = req.headers.origin;
+	const session = fromToken ?? readCookie(req, SESSION_COOKIE);
+	const trusted = fromToken
+		? !origin || originAllowed(origin)
+		: sameOrigin(origin, req.headers['x-forwarded-host']?.toString() ?? req.headers.host);
+	const signedIn = trusted
 		? accounts.userForSession(session).catch((e) => {
 				console.error('[ws] session check failed', e);
 				return null;

@@ -1,10 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError, type Accounts, SESSION_DAYS } from './accounts';
+import { verifyCrazyGamesToken } from './crazygames';
 import type { Hub } from './hub';
 
 /**
  * The account API under /api: signing up and in, the profile, friends and match history. The
  * sign-in lives in an HttpOnly cookie, which the game's WebSocket carries along too.
+ *
+ * A copy of the game hosted on another site (itch.io, CrazyGames, see docs/publishing.md) can't
+ * use that cookie: browsers keep it from pages inside another site's frame. It asks for the
+ * session token itself instead (the X-Reign-Auth: token header on signing in), keeps it, and sends
+ * it back as `Authorization: Bearer <token>` (and to the WebSocket as a subprotocol, see
+ * index.ts). Only the cookie is ever sent by the browser on its own, and only the page's own
+ * site may use it, so other sites may call the API (CORS) without being able to act for anyone.
  */
 
 export const SESSION_COOKIE = 'reign_session';
@@ -28,6 +36,44 @@ export function readCookie(req: IncomingMessage, name: string): string | null {
 		}
 	}
 	return null;
+}
+
+/** The session token: the cookie, or the token a page hosted on another site sends itself. */
+export function sessionToken(req: IncomingMessage): string | null {
+	const auth = String(req.headers.authorization ?? '');
+	if (auth.startsWith('Bearer ')) return auth.slice(7).trim() || null;
+	return readCookie(req, SESSION_COOKIE);
+}
+
+/**
+ * Sites whose pages may call the API, from CORS_ORIGINS (comma separated, `*` for any part of a
+ * name, e.g. `https://*.itch.zone,https://*.crazygames.com`). Unset, any site may: it can't act
+ * for a player without their token.
+ */
+const ORIGINS = (process.env.CORS_ORIGINS ?? '')
+	.split(',')
+	.map((o) => o.trim())
+	.filter(Boolean)
+	.map((o) => new RegExp(`^${o.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')}$`));
+
+export function originAllowed(origin: string): boolean {
+	return !ORIGINS.length || ORIGINS.some((re) => re.test(origin));
+}
+
+/** CORS headers for a page from another site; true when the request was only the browser asking first. */
+function cors(req: IncomingMessage, res: ServerResponse): boolean {
+	const origin = req.headers.origin;
+	if (!origin || !originAllowed(origin)) return false;
+	res.setHeader('access-control-allow-origin', origin);
+	res.setHeader('vary', 'Origin');
+	if (req.method !== 'OPTIONS') return false;
+	res.writeHead(204, {
+		'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE',
+		'access-control-allow-headers': 'content-type, authorization, x-reign-auth',
+		'access-control-max-age': '86400'
+	});
+	res.end();
+	return true;
 }
 
 /** Behind Render's proxy (or any https proxy) the cookie is marked Secure. */
@@ -92,18 +138,27 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, accou
 	if (!url.pathname.startsWith('/api/')) return false;
 	const path = url.pathname.slice(5).replace(/\/+$/, '');
 	const method = req.method ?? 'GET';
+	if (cors(req, res)) return true;
 	try {
 		// Changes only come as JSON, which a form on another site can't send.
 		if (method !== 'GET' && !String(req.headers['content-type'] ?? '').startsWith('application/json')) {
 			return (json(res, 415, { error: 'Send JSON.' }), true);
 		}
-		const token = readCookie(req, SESSION_COOKIE);
+		const token = sessionToken(req);
 
-		if (path === 'register' || path === 'login') {
+		if (path === 'register' || path === 'login' || path === 'crazygames') {
 			if (method !== 'POST') return (json(res, 405, { error: 'Use POST.' }), true);
 			if (tooManyAttempts(req)) return (json(res, 429, { error: 'Too many tries. Wait a few minutes.' }), true);
 			const body = await readBody(req);
-			const { user, token: fresh } = path === 'register' ? await accounts.register(body) : await accounts.login(body);
+			let signedIn: Awaited<ReturnType<Accounts['login']>>;
+			if (path === 'crazygames') {
+				const cg = await verifyCrazyGamesToken(body.token);
+				if (!cg) return (json(res, 401, { error: 'Sign in to CrazyGames again.' }), true);
+				signedIn = await accounts.crazyGamesLogin(cg);
+			} else signedIn = path === 'register' ? await accounts.register(body) : await accounts.login(body);
+			const { user, token: fresh } = signedIn;
+			// A page on another site keeps the token itself (see the top of this file).
+			if (req.headers['x-reign-auth'] === 'token') return (json(res, 200, { user, token: fresh }), true);
 			json(res, 200, { user }, { 'set-cookie': sessionCookie(req, fresh) });
 			return true;
 		}

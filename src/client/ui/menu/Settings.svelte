@@ -10,7 +10,7 @@
 	import { isMuted, setMuted } from '../sound';
 	import { msg, t } from '../../i18n/index.svelte';
 	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
-	import { OFFLINE } from '../../offline/flag';
+	import { guest } from '../../offline/guest.svelte';
 	import { OFFER_WAITS } from '../../../shared/protocol';
 	import { client } from '../../state/client.svelte';
 
@@ -134,7 +134,7 @@
 					</div>
 				</div>
 				<p class="hint">
-					{OFFLINE
+					{guest.on
 						? t('A small readout in the corner with how many frames a second your device draws.')
 						: t(
 								'A small readout in the corner with how many frames a second your device draws and how long a message takes to reach the server and back (ping).'

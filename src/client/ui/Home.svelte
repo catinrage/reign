@@ -3,7 +3,9 @@
 	import type { FrameCap } from '../scene/frameCap';
 	import { LogoView } from '../scene/logo';
 	import { account } from '../state/account.svelte';
-	import { OFFLINE } from '../offline/flag';
+	import { OFFLINE_BUILD, guest } from '../offline/guest.svelte';
+	import { leaveGuest } from '../state/guestPlay';
+	import { SITE_ACCOUNTS, platform } from '../platform';
 	import { client } from '../state/client.svelte';
 	import Avatar from './account/Avatar.svelte';
 	import Friends from './account/Friends.svelte';
@@ -174,7 +176,7 @@
 				<span class="me-name">
 					<span class="label">{t('Playing as')}</span>
 					<b class="title">{me.nickname}</b>
-					{#if !OFFLINE}<small>@{me.username}</small>{/if}
+					{#if !guest.on}<small>@{me.username}</small>{/if}
 				</span>
 				<button class="icon-btn edit" onclick={() => openSheet('profile')} title={t('Edit your profile')} aria-label={t('Edit your profile')}>
 					<img src={ACCOUNT_ICONS.quill} alt="" />
@@ -211,23 +213,34 @@
 				<img src={PIXEL.house} alt="" />
 				<span class="stack"
 					>{t('Create a room')}<span class="sub"
-						>{OFFLINE ? t('Pick the mode, map and bots') : t('Invite friends with a code')}</span
+						>{guest.on ? t('Pick the mode, map and bots') : t('Invite friends with a code')}</span
 					></span
 				>
 			</button>
 
-			{#if !OFFLINE}
+			{#if !guest.on}
 				<div class="divider"><i></i><span>{t('or join a friend')}</span><i></i></div>
 
 				<div class="join">
 					<CodeTiles bind:value={code} editable onenter={join} />
 					<button class="btn wood" onclick={join} disabled={code.length !== 5 || busy}>{t('Join')}</button>
 				</div>
+			{:else if !OFFLINE_BUILD}
+				<!-- A guest plays bots only: playing with people takes an account. -->
+				<div class="divider"><i></i><span>{t('play with friends')}</span><i></i></div>
+				<button class="btn purple block" onclick={() => (SITE_ACCOUNTS ? platform.signIn() : leaveGuest())}>
+					<img src={ACCOUNT_ICONS.friends} alt="" />
+					<span class="stack"
+						>{t('Play online')}<span class="sub"
+							>{SITE_ACCOUNTS ? t('Sign in to CrazyGames to play with friends') : t('Sign in or make a free account to play with friends')}</span
+						></span
+					>
+				</button>
 			{/if}
 		</div>
 
 		<nav class="extras">
-			{#if !OFFLINE}
+			{#if !guest.on}
 				<button class="medal" onclick={() => openSheet('friends')}>
 					<span class="icon-btn"><img src={ACCOUNT_ICONS.friends} alt="" /></span>
 					<span class="cap">{t('Friends')}</span>

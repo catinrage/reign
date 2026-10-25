@@ -16,7 +16,11 @@ services:
     image: reign
     ports:
       - '${BIND:-0.0.0.0}:${PORT:-8787}:8787'
-    environment: *database
+    environment:
+      <<: *database
+      # For copies of the game on other sites (see docs/publishing.md).
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      CRAZYGAMES_GAME_ID: ${CRAZYGAMES_GAME_ID:-}
     depends_on:
       db:
         condition: service_healthy

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '../i18n/index.svelte';
-	import { OFFLINE } from '../offline/flag';
+	import { guest } from '../offline/guest.svelte';
 	import { client } from '../state/client.svelte';
 	import { netStats } from '../state/netStats.svelte';
 	import { sceneRef } from './sceneRef';
@@ -58,7 +58,7 @@
 					class={netStats.fps === null ? '' : fpsTone(netStats.fps)}>{netStats.fps ?? '–'}</b
 				></span
 			>
-			{#if !OFFLINE}
+			{#if !guest.on}
 				<span class="cell"
 					><span class="label">{t('Ping')}</span><b
 						class={online && netStats.ping !== null ? pingTone(netStats.ping) : ''}
@@ -67,7 +67,7 @@
 				>
 			{/if}
 		</div>
-		{#if !OFFLINE}
+		{#if !guest.on}
 			<div class="line small">
 				<span class="cell jitter"
 					><span class="label">{t('Jitter')}</span><b

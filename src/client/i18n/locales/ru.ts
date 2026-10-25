@@ -2549,5 +2549,14 @@ export default {
 	"Dice battles": "Битвы на кубиках",
 	"Secret orders": "Тайные приказы",
 	"Everyone moves at once": "Все ходят одновременно",
-	"No dice": "Без кубиков"
+	"No dice": "Без кубиков",
+	"Sign in to CrazyGames again.": "Войдите в CrazyGames ещё раз.",
+	"Sign in to CrazyGames to join your friend.": "Войдите в CrazyGames, чтобы присоединиться к другу.",
+	"play with friends": "игра с друзьями",
+	"Play online": "Играть онлайн",
+	"Sign in to CrazyGames to play with friends": "Войдите в CrazyGames, чтобы играть с друзьями",
+	"Sign in or make a free account to play with friends": "Войдите или создайте бесплатный аккаунт, чтобы играть с друзьями",
+	"or just try it": "или просто попробуйте",
+	"Play as guest": "Играть как гость",
+	"Bots and the campaign, no account needed": "Боты и кампания, без аккаунта"
 } satisfies Messages;

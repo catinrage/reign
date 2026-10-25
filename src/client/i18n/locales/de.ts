@@ -2549,5 +2549,14 @@ export default {
 	"Dice battles": "Würfelschlachten",
 	"Secret orders": "Geheime Befehle",
 	"Everyone moves at once": "Alle ziehen gleichzeitig",
-	"No dice": "Keine Würfel"
+	"No dice": "Keine Würfel",
+	"Sign in to CrazyGames again.": "Melde dich erneut bei CrazyGames an.",
+	"Sign in to CrazyGames to join your friend.": "Melde dich bei CrazyGames an, um deinem Freund beizutreten.",
+	"play with friends": "mit Freunden spielen",
+	"Play online": "Online spielen",
+	"Sign in to CrazyGames to play with friends": "Melde dich bei CrazyGames an, um mit Freunden zu spielen",
+	"Sign in or make a free account to play with friends": "Melde dich an oder erstelle ein kostenloses Konto, um mit Freunden zu spielen",
+	"or just try it": "oder probier es einfach",
+	"Play as guest": "Als Gast spielen",
+	"Bots and the campaign, no account needed": "Bots und die Kampagne, ohne Konto"
 } satisfies Messages;
