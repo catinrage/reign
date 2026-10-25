@@ -7,3 +7,5 @@ node_modules
 !.env.example
 vite.config.ts.timestamp-*
 data
+/trailer/
+__pycache__/

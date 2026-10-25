@@ -1,0 +1,17 @@
+{
+	"//": "Each segment: the clip folder, its first frame, the bars it runs from and to (bar 0 is the first downbeat, 1.51 s in; a bar is 3.019 s), a caption image from art.mjs, a white flash on the cut, and sound effects as [frame in the clip, src/client/public/sfx name or boom/whoosh, volume]. The first segment always starts at 0 s.",
+	"segments": [
+		{ "clip": "establish", "first": 15, "from": 0, "to": 1 },
+		{ "clip": "glide", "first": 15, "from": 1, "to": 2, "caption": "cap-island" },
+		{ "clip": "roll", "first": 6, "from": 2, "to": 3, "caption": "cap-roll", "flash": true, "sfx": [[13, "dice", 1.0], [44, "card", 0.7]] },
+		{ "clip": "build", "first": 14, "from": 3, "to": 4, "caption": "cap-build", "sfx": [[21, "build", 1.0], [23, "coin", 0.5]] },
+		{ "clip": "trade", "first": 4, "from": 4, "to": 5, "caption": "cap-trade", "sfx": [[9, "trade", 0.8]] },
+		{ "clip": "robber", "first": 22, "from": 5, "to": 6, "caption": "cap-robber", "sfx": [[31, "robber", 1.0], [77, "steal", 0.9]] },
+		{ "clip": "comet", "first": 0, "from": 6, "to": 7.5, "caption": "cap-events", "flash": true, "sfx": [[8, "open", 0.6], [60, "boom", 0.9]] },
+		{ "clip": "eight", "first": 15, "from": 7.5, "to": 9, "caption": "cap-eight" }
+	],
+	"end": 34.6,
+	"logo": [0.6, 4.1],
+	"music": 0.95,
+	"sfx": [[28.7, "horn", 0.45]]
+}
