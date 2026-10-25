@@ -4,16 +4,9 @@
 	import Auth from './account/Auth.svelte';
 	import Invites from './account/Invites.svelte';
 	import Hud from './game/Hud.svelte';
-	import ConquestHud from './conquest/ConquestHud.svelte';
-	import GambitHud from './gambit/GambitHud.svelte';
-	import { showMenuGambit } from './gambit/menuTable';
-	import { PLAYER_RGB } from '../scene/layout';
-	import { boardNames } from './conquest/text';
-	import { conquestMap } from '../../shared/conquest/queries';
 	import Home from './Home.svelte';
 	import Joining from './Joining.svelte';
 	import Lobby from './Lobby.svelte';
-	import { gamePick } from './menu/gamePick.svelte';
 	import NetReadout from './NetReadout.svelte';
 	import Toasts from './Toasts.svelte';
 	import { PIXEL } from './pixel';
@@ -27,7 +20,7 @@
 			? 'auth'
 			: client.joining
 				? 'joining'
-			: (client.view || client.cq || client.gb) && client.lobby?.started
+			: client.view && client.lobby?.started
 				? 'game'
 				: client.launching
 					? 'launching'
@@ -75,25 +68,12 @@
 		lastScreen = screen;
 	});
 
-	// The Realm's board names its territories in the player's language, from the menu's table on
-	// (the board is often made there, before any game), and again when the language changes.
-	$effect.pre(() => {
-		sceneRef.current?.setConquestNames(boardNames());
-	});
-
 	let wasGame = false;
 	$effect(() => {
 		if (screen === 'game') wasGame = true;
 		else if (wasGame) {
 			wasGame = false;
-			// Back to the table the menu (or the lobby) is about: the Realm for Conquest, the board for Gambit.
-			const game = client.lobby ? client.lobby.game : gamePick.game;
-			const lobby = client.lobby;
-			if (game === 'conquest') sceneRef.current?.showConquestTable(lobby ? conquestMap(lobby.conquest) : undefined);
-			else if (game === 'gambit') {
-				if (lobby) sceneRef.current?.showGambitTable(lobby.seats.length, lobby.gambit, lobby.seats.map((x) => PLAYER_RGB[x.color] ?? 0xffffff));
-				else showMenuGambit();
-			} else sceneRef.current?.showMenuBoard();
+			sceneRef.current?.showMenuBoard();
 		}
 	});
 </script>
@@ -111,10 +91,6 @@
 		<Joining />
 	{:else if screen === 'lobby'}
 		<Lobby />
-	{:else if client.lobby?.game === 'conquest'}
-		<ConquestHud />
-	{:else if client.lobby?.game === 'gambit'}
-		<GambitHud />
 	{:else}
 		<Hud />
 	{/if}

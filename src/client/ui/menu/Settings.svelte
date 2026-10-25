@@ -7,7 +7,6 @@
 <script lang="ts">
 	import { PIXEL } from '../pixel';
 	import { CHANNELS, FPS_CAPS, SIZE_MAX, SIZE_MIN, settings } from '../settings.svelte';
-	import { gamePick } from './gamePick.svelte';
 	import { isMuted, setMuted } from '../sound';
 	import { msg, t } from '../../i18n/index.svelte';
 	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
@@ -22,8 +21,6 @@
 		{ id: 'game', label: msg('Game'), icon: PIXEL.die }
 	];
 
-	/** The game whose own settings the Game tab shows: the one at this table, or the one picked on the menu. */
-	const game = $derived(client.lobby?.game ?? gamePick.game);
 
 	let muted = $state(isMuted());
 	function toggleMute(m: boolean) {
@@ -295,31 +292,6 @@
 			id="settings-game"
 			aria-hidden={tab !== 'game'}
 		>
-			{#if game === 'conquest'}
-				<section>
-					<div class="divider"><i></i><span>{t('Conquest')}</span><i></i></div>
-					<div class="row">
-						<span class="name">{t("Others' dice")}</span>
-						<div class="seg">
-							<button class="btn small" class:on={settings.dicePace === 'slow'} onclick={() => settings.setDicePace('slow')}>{t('Slow')}</button>
-							<button class="btn small" class:on={settings.dicePace === 'quick'} onclick={() => settings.setDicePace('quick')}>{t('Quick')}</button>
-						</div>
-					</div>
-					<p class="hint">{t("How long another player's dice roll before the losses show: slow enough to follow every battle, or as quick as your own.")}</p>
-				</section>
-			{:else if game === 'gambit'}
-				<section>
-					<div class="divider"><i></i><span>{t('Gambit')}</span><i></i></div>
-					<div class="row">
-						<span class="name">{t('Round playback')}</span>
-						<div class="seg">
-							<button class="btn small" class:on={settings.roundPace === 'normal'} onclick={() => settings.setRoundPace('normal')}>{t('Normal')}</button>
-							<button class="btn small" class:on={settings.roundPace === 'fast'} onclick={() => settings.setRoundPace('fast')}>{t('Fast')}</button>
-						</div>
-					</div>
-					<p class="hint">{t('How fast each round plays out on the board once everyone has given their orders.')}</p>
-				</section>
-			{:else}
 			<section>
 				<div class="divider"><i></i><span>{t('Trade offers')}</span><i></i></div>
 				<div class="row">
@@ -359,7 +331,6 @@
 					)}
 				</p>
 			</section>
-			{/if}
 		</div>
 	</div>
 </div>

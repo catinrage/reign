@@ -1,10 +1,6 @@
 import { GAME_KINDS, type GameKind } from '../../../shared/games';
-import { CONQUEST_MAX_PLAYERS } from '../../../shared/conquest/types';
-import { GAMBIT_MAX_PLAYERS, GAMBIT_MIN_PLAYERS } from '../../../shared/gambit/types';
 import { MAX_PLAYERS, MIN_PLAYERS } from '../../../shared/protocol';
 import { msg } from '../../i18n/index.svelte';
-import { CQ_PIXEL } from '../conquest/icons';
-import { GB_PIXEL } from '../gambit/icons';
 import { PIXEL } from '../pixel';
 
 /**
@@ -40,28 +36,6 @@ export const GAMES: GameInfo[] = [
 		icon: PIXEL.house,
 		cover: [PIXEL.anchor, PIXEL.house, PIXEL.clover],
 		theme: { top: '#3d8fb0', bottom: '#2f6b2a', glow: '#9ee07a' }
-	},
-	{
-		id: 'conquest',
-		name: msg('Conquest'),
-		motto: [msg('Muster'), msg('Attack'), msg('Conquer')],
-		blurb: msg('A war for the Realm: take territories with armies and dice, region by region.'),
-		features: [msg('Dice battles'), msg('Random worlds'), msg('Secret missions')],
-		players: [MIN_PLAYERS, CONQUEST_MAX_PLAYERS],
-		icon: PIXEL.sword,
-		cover: [CQ_PIXEL.footman, CQ_PIXEL.knight, CQ_PIXEL.catapult],
-		theme: { top: '#b0402e', bottom: '#4a1a12', glow: '#ff9a6e' }
-	},
-	{
-		id: 'gambit',
-		name: msg('Gambit'),
-		motto: [msg('Order'), msg('Reveal'), msg('Outwit')],
-		blurb: msg('Up to eight players order their pieces in secret on a hex board, then every move plays out at once.'),
-		features: [msg('Secret orders'), msg('Everyone moves at once'), msg('No dice')],
-		players: [GAMBIT_MIN_PLAYERS, GAMBIT_MAX_PLAYERS],
-		icon: GB_PIXEL.knight,
-		cover: [GB_PIXEL.archer, GB_PIXEL.monarch, GB_PIXEL.knight],
-		theme: { top: '#6a4cb8', bottom: '#241a4e', glow: '#c9aaff' }
 	}
 ];
 

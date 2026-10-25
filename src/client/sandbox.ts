@@ -10,7 +10,6 @@ import { type Quality, Stage } from './scene/stage';
 /** Visual test bed: ?sandbox renders a random island without a server (&map=<preset> for a Reign Extended map). */
 export function runSandbox(canvas: HTMLCanvasElement) {
 	const params = new URLSearchParams(location.search);
-	if (params.has('conquest')) return runConquestSandbox(canvas, params);
 	const seed = Number(params.get('seed') ?? 7);
 	const stage = new Stage(canvas, (params.get('q') as Quality) ?? 'high');
 	const preset = presetById(params.get('map') ?? '');
@@ -32,60 +31,5 @@ export function runSandbox(canvas: HTMLCanvasElement) {
 	stage.start();
 	(window as any).__stage = stage;
 	(window as any).__view = view;
-	(window as any).__ready = true;
-}
-
-/** ?sandbox&conquest: the Realm with territories dealt out at random to `&players=` (4) players. */
-async function runConquestSandbox(canvas: HTMLCanvasElement, params: URLSearchParams) {
-	const { RealmBoard } = await import('./scene/conquest/realmBoard');
-	const { REALM } = await import('../shared/conquest/realm');
-	const { SIGIL_OF } = await import('./scene/conquest/sigils');
-	const { PLAYER_RGB } = await import('./scene/layout');
-	const { PLAYER_COLORS } = await import('../shared/rules/config');
-	const seed = Number(params.get('seed') ?? 7);
-	const stage = new Stage(canvas, (params.get('q') as Quality) ?? 'high');
-	const board = new RealmBoard(REALM);
-	stage.scene.add(board.group);
-	const room = buildRoom(stage);
-	room.fitTable(Math.max(board.realm.halfX, board.realm.halfZ) * 1.12 / (TABLE_HALF * ROOM_SCALE));
-	stage.onFrame((dt, t) => room.update(dt, t));
-	const players = Number(params.get('players') ?? 4);
-	let r = seed * 9301 + 49297;
-	const rand = () => ((r = (r * 9301 + 49297) % 233280) / 233280);
-	const holders = PLAYER_COLORS.slice(0, players).map((c) => ({ color: PLAYER_RGB[c], sigil: SIGIL_OF[c] }));
-	const owner = REALM.territories.map((_, i) => (params.has('empty') ? -1 : i % players));
-	for (let i = owner.length - 1; i > 0; i--) {
-		const j = Math.floor(rand() * (i + 1));
-		[owner[i], owner[j]] = [owner[j], owner[i]];
-	}
-	const most = Number(params.get('max') ?? 14);
-	const armies = owner.map(() => 1 + Math.floor(rand() * rand() * most));
-	board.setHolders(owner, armies, holders);
-	// The armies as miniatures (see troops.ts), to march and fight from the console: __troops.
-	const { Troops } = await import('./scene/conquest/troops');
-	const { Particles } = await import('./scene/effects');
-	const particles = new Particles(stage.scene);
-	const troops = new Troops(REALM, board.realm, board.lanes.map((l) => l.path), particles);
-	board.group.add(troops.group);
-	troops.setColors(holders.map((h) => h.color));
-	troops.reset(owner, armies);
-	stage.onFrame((dt) => {
-		particles.update(dt);
-		const cam = stage.camera;
-		troops.update(dt, canvas.clientHeight / (2 * Math.tan((cam.fov * Math.PI) / 360) * Math.max(1, cam.position.length())));
-	});
-	(window as any).__troops = troops;
-	(window as any).__owner = owner;
-	(window as any).__armies = armies;
-	const az = params.get('az');
-	if (az) stage.rig.set({ azimuth: Number(az) }, true);
-	const pol = params.get('pol');
-	if (pol) stage.rig.set({ polar: Number(pol) }, true);
-	const rad = params.get('rad');
-	if (rad) stage.rig.set({ radius: Number(rad) }, true);
-	stage.onFrame((dt, t) => board.update(dt, t, { azimuth: stage.rig.azimuth, polar: stage.rig.polar, camera: stage.camera, height: canvas.clientHeight }));
-	stage.start();
-	(window as any).__stage = stage;
-	(window as any).__board = board;
 	(window as any).__ready = true;
 }

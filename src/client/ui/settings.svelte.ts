@@ -46,16 +46,6 @@ function readFpsCap(): FpsCap {
 	return FPS_CAPS.includes(v as FpsCap) ? (v as FpsCap) : 0;
 }
 
-/** How long other players' dice roll in Conquest, and how fast Gambit's rounds play out. */
-export const DICE_PACES = ['slow', 'quick'] as const;
-export type DicePace = (typeof DICE_PACES)[number];
-export const ROUND_PACES = ['normal', 'fast'] as const;
-export type RoundPace = (typeof ROUND_PACES)[number];
-function readPick<T extends string>(key: string, from: readonly T[]): T {
-	const v = read(key);
-	return from.includes(v as T) ? (v as T) : from[0];
-}
-
 /** The saved wait for bots' trade offers, in seconds (0: until answered); the standard one if none. */
 function readOfferWait(): number {
 	const v = read('reign:offerWait');
@@ -94,10 +84,6 @@ class Settings {
 	detail = $state<1 | 2>(readDetail(this.quality));
 	/** Frames a second at most (0: no cap). */
 	fpsCap = $state<FpsCap>(readFpsCap());
-	/** Conquest: other players' dice roll slowly enough to follow, or quickly. */
-	dicePace = $state<DicePace>(readPick('reign:dicePace', DICE_PACES));
-	/** Gambit: how fast a round plays out on the board. */
-	roundPace = $state<RoundPace>(readPick('reign:roundPace', ROUND_PACES));
 	/** The room's lights down for a cozy evening: only this player sees it, and it changes nothing in the game. */
 	night = $state(read('reign:night') === '1');
 	/** A small readout of frames per second and the ping to the server, like competitive games have. */
@@ -154,18 +140,6 @@ class Settings {
 		if (sceneRef.current) sceneRef.current.stage.maxFps = cap;
 	}
 
-	setDicePace(pace: DicePace) {
-		this.dicePace = pace;
-		write('reign:dicePace', pace);
-		applyPaces();
-	}
-
-	setRoundPace(pace: RoundPace) {
-		this.roundPace = pace;
-		write('reign:roundPace', pace);
-		applyPaces();
-	}
-
 	setNight(on: boolean) {
 		if (on === this.night) return;
 		this.night = on;
@@ -207,15 +181,6 @@ class Settings {
 }
 
 export const settings = new Settings();
-
-/** How long someone else's dice roll in Conquest (seconds), and a Gambit round's length as a share of the usual. */
-const WATCHED_ROLL: Record<DicePace, number> = { slow: 1.15, quick: 0.62 };
-const ROUND_LENGTH: Record<RoundPace, number> = { normal: 1, fast: 0.5 };
-
-/** The pace picks to the scene. */
-export function applyPaces() {
-	sceneRef.current?.setPaces({ watchedRoll: WATCHED_ROLL[settings.dicePace], round: ROUND_LENGTH[settings.roundPace] });
-}
 
 export function applySettings() {
 	document.body.classList.toggle('reduce-motion', settings.reduceMotion);

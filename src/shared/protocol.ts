@@ -2,16 +2,12 @@ import type { AvatarId, DiceStyleId, FriendsInfo, RoomInvite, Whereabouts } from
 import type { MapChoice } from './board/maps';
 import type { ExtraBuilding } from './rules/buildings';
 import type { Cheat } from './rules/cheats';
-import type { ConquestCheat } from './conquest/cheats';
-import type { GambitCheat } from './gambit/cheats';
-import type { GambitAction, GambitSettings, GambitView } from './gambit/types';
 import type { EventRules } from './rules/events';
 import type { HouseRules } from './rules/house';
 import type { CharacterId } from './rules/characters';
 import type { PlayerColor } from './rules/config';
 import type { GameMode, GameSettings } from './rules/modes';
 import type { Action, GameView } from './rules/types';
-import type { ConquestSettings, CqAction, CqView } from './conquest/types';
 import type { GameKind } from './games';
 
 export interface LobbySeat {
@@ -64,10 +60,6 @@ export interface LobbyInfo {
 	turnTime: number;
 	/** Settlement: mode, map and points to win, picked by the host before the game starts. */
 	settings: GameSettings;
-	/** Conquest: the cards' worth, how to win and how armies are deployed. */
-	conquest: ConquestSettings;
-	/** Gambit: orders a round, crowns to win, rounds, the ground and the board's seed. */
-	gambit: GambitSettings;
 	/** The current turn's clock, or null when turns are unlimited or no game is running. */
 	clock: TurnClock | null;
 	/** How many people are watching the game without a seat. */
@@ -125,18 +117,6 @@ export type ClientMessage =
 	/** Play a solo campaign mission at this table (alone with its rivals), or play it again. */
 	| { t: 'mission'; mission: string }
 	| { t: 'action'; action: Action }
-	/** Host, at a Conquest table: change some of its settings. */
-	| { t: 'setConquest'; settings: Partial<ConquestSettings> }
-	/** A move in a game of Conquest. */
-	| { t: 'cqAction'; action: CqAction }
-	/** A Conquest dev cheat (only the local dev server takes them, see `welcome.cheats`). */
-	| { t: 'cqCheat'; cheat: ConquestCheat }
-	/** Host, at a Gambit table: change some of its settings. */
-	| { t: 'setGambit'; settings: Partial<GambitSettings> }
-	/** This round's orders in a game of Gambit (sent again whenever they change). */
-	| { t: 'gbAction'; action: GambitAction }
-	/** A Gambit dev cheat (only the local dev server takes them). */
-	| { t: 'gbCheat'; cheat: GambitCheat }
 	| { t: 'chat'; text: string }
 	/** The game menu opened or closed. */
 	| { t: 'pause'; paused: boolean }
@@ -171,10 +151,6 @@ export type ServerMessage =
 	| { t: 'welcome'; code: string; seat: string; token: string; cheats?: boolean }
 	| { t: 'lobby'; lobby: LobbyInfo }
 	| { t: 'game'; view: GameView; clock: TurnClock | null }
-	/** The game of Conquest at this table, as this player (or a spectator) may see it. */
-	| { t: 'cqGame'; view: CqView; clock: TurnClock | null }
-	/** The game of Gambit at this table, as this player (or a spectator) may see it. */
-	| { t: 'gbGame'; view: GambitView; clock: TurnClock | null }
 	/** The game had already started, so this connection watches it without a seat (no hands shown). */
 	| { t: 'watching'; code: string }
 	| { t: 'error'; message: string }

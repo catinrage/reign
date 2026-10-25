@@ -1,21 +1,6 @@
 import type { Component } from 'svelte';
 import type { GameKind } from '../../../shared/games';
 import type { GameMode } from '../../../shared/rules/modes';
-import { CQ_PIXEL } from '../conquest/icons';
-import CqBattle from './conquest/Battle.svelte';
-import CqCards from './conquest/Cards.svelte';
-import CqMissions from './conquest/Missions.svelte';
-import CqOmens from './conquest/Omens.svelte';
-import CqWarlords from './conquest/Warlords.svelte';
-import CqWorlds from './conquest/Worlds.svelte';
-import CqRealm from './conquest/Realm.svelte';
-import CqTurn from './conquest/Turn.svelte';
-import GbBoard from './gambit/Board.svelte';
-import GbClash from './gambit/Clash.svelte';
-import GbCrowns from './gambit/Crowns.svelte';
-import GbPieces from './gambit/Pieces.svelte';
-import GbRound from './gambit/Round.svelte';
-import { GB_PIXEL } from '../gambit/icons';
 import { msg } from '../../i18n/index.svelte';
 import { PIXEL } from '../pixel';
 import Bonus from './classic/Bonus.svelte';
@@ -41,25 +26,21 @@ import { TUT_ICON } from './icons';
  * the chapter list, the page frame and the next/back buttons. To explain a new Reign Extended
  * feature, write a page in ./extended and add one line here.
  */
-/** The tutorial's books: Settlement's two modes, Conquest and Gambit. */
-export type TutorialMode = GameMode | 'conquest' | 'gambit';
+/** The tutorial's books: Settlement's two modes. */
+export type TutorialMode = GameMode;
 export const TUTORIAL_MODE_NAME: Record<TutorialMode, string> = {
 	classic: msg('Classic'),
-	extended: msg('Reign Extended'),
-	conquest: msg('Conquest'),
-	gambit: msg('Gambit')
+	extended: msg('Reign Extended')
 };
 
 /** Each game's books: Settlement has one for each of its modes. */
 export const TUTORIAL_BOOKS: Record<GameKind, readonly TutorialMode[]> = {
-	settlement: ['classic', 'extended'],
-	conquest: ['conquest'],
-	gambit: ['gambit']
+	settlement: ['classic', 'extended']
 };
 
 /** The game a book is about. */
-export function gameOfBook(mode: TutorialMode): GameKind {
-	return mode === 'conquest' || mode === 'gambit' ? mode : 'settlement';
+export function gameOfBook(_mode: TutorialMode): GameKind {
+	return 'settlement';
 }
 
 export interface Chapter {
@@ -201,110 +182,6 @@ export const CHAPTERS: Chapter[] = [
 		lede: msg('Draw your own island, save it and share it with a code.'),
 		icon: TUT_ICON.pen,
 		page: MapMaker
-	},
-	{
-		id: 'cq-realm',
-		mode: 'conquest',
-		title: msg('The Realm'),
-		lede: msg('Six regions, borders and sea lanes, and how a war is won.'),
-		icon: CQ_PIXEL.flag,
-		page: CqRealm
-	},
-	{
-		id: 'cq-turn',
-		mode: 'conquest',
-		title: msg('Your turn'),
-		lede: msg('Reinforce, attack, fortify, all with clicks on the board.'),
-		icon: CQ_PIXEL.troops,
-		page: CqTurn
-	},
-	{
-		id: 'cq-battle',
-		mode: 'conquest',
-		title: msg('Battles'),
-		lede: msg('Dice against dice, and the defender wins ties.'),
-		icon: PIXEL.sword,
-		page: CqBattle
-	},
-	{
-		id: 'cq-cards',
-		mode: 'conquest',
-		title: msg('Cards'),
-		lede: msg('Earn a card each turn you conquer, and trade sets for armies.'),
-		icon: PIXEL.cards,
-		page: CqCards
-	},
-	{
-		id: 'cq-missions',
-		mode: 'conquest',
-		title: msg('Secret missions'),
-		lede: msg('A war of your own to win: two regions, a host of territories, or one rival.'),
-		icon: PIXEL.letter,
-		page: CqMissions
-	},
-	{
-		id: 'cq-warlords',
-		mode: 'conquest',
-		title: msg('Warlords'),
-		lede: msg('Draft a hero to lead your armies, each bending one rule.'),
-		icon: PIXEL.sword,
-		page: CqWarlords
-	},
-	{
-		id: 'cq-omens',
-		mode: 'conquest',
-		title: msg('Omens'),
-		lede: msg('A portent each round: blessings, reprieves, upheavals and calamities.'),
-		icon: PIXEL.raincloud,
-		page: CqOmens
-	},
-	{
-		id: 'cq-worlds',
-		mode: 'conquest',
-		title: msg('Worlds and house rules'),
-		lede: msg('Random worlds, your own rules, and the fog of war.'),
-		icon: CQ_PIXEL.flag,
-		page: CqWorlds
-	},
-	{
-		id: 'gb-board',
-		mode: 'gambit',
-		title: msg('The board'),
-		lede: msg('Keeps on the rim, shrines between them, the Throne in the middle.'),
-		icon: PIXEL.crown,
-		page: GbBoard
-	},
-	{
-		id: 'gb-round',
-		mode: 'gambit',
-		title: msg('A round'),
-		lede: msg('Orders in secret, all at once, then everything plays out together.'),
-		icon: PIXEL.letter,
-		page: GbRound
-	},
-	{
-		id: 'gb-pieces',
-		mode: 'gambit',
-		title: msg('The pieces'),
-		lede: msg('How each one moves, how hard it fights, and what it is worth.'),
-		icon: GB_PIXEL.knight,
-		page: GbPieces
-	},
-	{
-		id: 'gb-clash',
-		mode: 'gambit',
-		title: msg('When pieces meet'),
-		lede: msg('Take what stays, dodge what comes, brace, and arrows last.'),
-		icon: PIXEL.sword,
-		page: GbClash
-	},
-	{
-		id: 'gb-crowns',
-		mode: 'gambit',
-		title: msg('Crowns and comebacks'),
-		lede: msg('Monarchs come home, keeps muster guards, and the ground has its ways.'),
-		icon: GB_PIXEL.monarch,
-		page: GbCrowns
 	}
 ];
 
