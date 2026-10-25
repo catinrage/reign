@@ -5,7 +5,8 @@ import { prewarmBusts } from './scene/avatars';
 import { GameScene } from './scene/gameScene';
 import { getIcons } from './scene/icons';
 import { account } from './state/account.svelte';
-import { OFFLINE } from './offline/flag';
+import { playAsGuest, wasGuest } from './state/guestPlay';
+import { PLATFORM } from './platform';
 import { client } from './state/client.svelte';
 import { replay } from './state/replay.svelte';
 import App from './ui/App.svelte';
@@ -31,13 +32,11 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	armAudio();
 	// The game connection opens once signed in, and closes on signing out.
 	account.watch((signedIn) => (signedIn ? client.connect() : client.disconnect()));
-	if (OFFLINE) {
-		// No server: the rules and the bots run in this page, and the one local player is signed in.
-		void import('./offline/localServer').then(({ LocalSocket }) => {
-			client.openSocket = () => new LocalSocket() as unknown as WebSocket;
-			void account.boot();
-		});
-	} else void account.boot();
+	// CrazyGames signs players in itself (see platform/crazygames.ts).
+	if (PLATFORM === 'crazygames') void import('./platform/crazygames').then((m) => m.startCrazyGames());
+	// A guest (and everyone in the offline build) plays against bots in this page, with no server.
+	else if (wasGuest()) void playAsGuest();
+	else void account.boot();
 	(window as any).__account = account;
 	(window as any).__client = client;
 	(window as any).__replay = replay;

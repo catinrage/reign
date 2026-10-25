@@ -14,6 +14,7 @@
 	import { sceneRef } from './sceneRef';
 	import { settings } from './settings.svelte';
 	import { t } from '../i18n/index.svelte';
+	import { SITE_ACCOUNTS, platform } from '../platform';
 
 	const screen = $derived(
 		account.status !== 'in'
@@ -43,6 +44,11 @@
 	// The tavern tune plays full in the menus and softly under a game.
 	$effect(() => {
 		setMusicMode(screen === 'game' ? 'game' : 'menu');
+	});
+
+	// The site's SDK hears when a game is being played (CrazyGames).
+	$effect(() => {
+		platform.playing(screen === 'game');
 	});
 
 	// Wooden taps for every button, and a faint tick when the mouse moves onto one.
@@ -83,7 +89,8 @@
 <NetReadout />
 <div class="ui" style:zoom={size === 1 ? undefined : size} style:--ui-zoom={size}>
 	{#if screen === 'auth'}
-		{#if account.status === 'out'}<Auth />{/if}
+		<!-- On CrazyGames there is no sign-in screen: players are signed in through it, or guests. -->
+		{#if account.status === 'out' && !SITE_ACCOUNTS}<Auth />{/if}
 	{:else if screen === 'home' || screen === 'launching'}
 		<!-- Play vs bots and missions keep the menu up while their table is set up. -->
 		<Home />

@@ -11,6 +11,7 @@ import {
 	type PublicUser,
 	type SavedMap,
 	MAX_SAVED_MAPS,
+	USERNAME_MAX,
 	cleanNickname,
 	cleanUsername,
 	isAvatar,
@@ -167,6 +168,31 @@ export class Accounts {
 		);
 		const ok = row && typeof input.password === 'string' && (await checkPassword(input.password, row.password_hash));
 		if (!ok) throw new AccountError('Wrong username or password.');
+		return { user: me(row), token: await this.newSession(row.id) };
+	}
+
+	/**
+	 * Sign in a CrazyGames player (their token already checked, see crazygames.ts). Their first
+	 * visit makes a Reign account for them, named after their CrazyGames name, with no password:
+	 * they only ever sign in through CrazyGames.
+	 */
+	async crazyGamesLogin(cg: { userId: string; username: string }) {
+		const find = () => this.db.query<UserRow>(`select ${USER_COLS} from users where crazygames_id = $1`, [cg.userId]);
+		let [row] = await find();
+		const nickname = cleanNickname(cg.username) || 'Player';
+		const base = cleanUsername(cg.username).replace(/[^a-z0-9_]/g, '').slice(0, USERNAME_MAX - 5);
+		for (let i = 0; !row && i < 30; i++) {
+			const name = usernameProblem(base) || i ? `${base || 'player'}_${randomBytes(3).readUIntBE(0, 3) % 10000}` : base;
+			// The hash marks an account without a password: checkPassword never takes it.
+			[row] = await this.db.query<UserRow>(
+				`insert into users (username, nickname, avatar, password_hash, crazygames_id) values ($1, $2, 'knight', 'crazygames', $3)
+				 on conflict do nothing returning ${USER_COLS}`,
+				[name.slice(0, USERNAME_MAX), nickname, cg.userId]
+			);
+			// The same player signing in twice at once: the other request made the account.
+			if (!row) [row] = await find();
+		}
+		if (!row) throw new AccountError('Something went wrong.');
 		return { user: me(row), token: await this.newSession(row.id) };
 	}
 

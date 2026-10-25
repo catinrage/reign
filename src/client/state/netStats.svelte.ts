@@ -1,4 +1,4 @@
-import { OFFLINE } from '../offline/flag';
+import { guest } from '../offline/guest.svelte';
 
 /**
  * The numbers behind the performance readout (Settings > Show FPS and ping): frames drawn a
@@ -65,7 +65,7 @@ class NetStats {
 		this.raf = requestAnimationFrame(tick);
 		this.timer = setInterval(() => this.refresh(), REFRESH_MS);
 		// The offline build has its server in this page: there is no network to time.
-		if (!OFFLINE) {
+		if (!guest.on) {
 			this.pingServer();
 			this.pinger = setInterval(() => this.pingServer(), PING_EVERY_MS);
 		}
@@ -114,7 +114,7 @@ class NetStats {
 		}
 		this.frames = 0;
 		this.windowStart = now;
-		if (!OFFLINE) this.refreshNet(now);
+		if (!guest.on) this.refreshNet(now);
 	}
 
 	private refreshNet(now = performance.now()) {

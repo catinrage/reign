@@ -193,7 +193,7 @@ export function setVolume(ch: Channel, v: number) {
 
 async function loadOne(a: AudioContext, name: string) {
 	try {
-		const res = await fetch(`/sfx/${name}.mp3`);
+		const res = await fetch(`${import.meta.env.BASE_URL}sfx/${name}.mp3`);
 		if (!res.ok) return;
 		const data = await res.arrayBuffer();
 		const buf = await a.decodeAudioData(data);
@@ -325,7 +325,7 @@ export function stopAmbience() {
 // ---------------------------------------------------------------- music
 
 export type MusicMode = 'menu' | 'game' | 'off';
-const MUSIC_URL = '/music/tavern.mp3';
+const MUSIC_URL = `${import.meta.env.BASE_URL}music/tavern.mp3`;
 /** Level of the track (before the music channel volume) in each mode. */
 const MUSIC_LEVEL: Record<MusicMode, number> = { menu: 1, game: 0.45, off: 0 };
 const MUSIC_FADE = 2;

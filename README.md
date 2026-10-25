@@ -112,7 +112,7 @@ Everything in Classic, plus:
 ## Playing together
 
 - **Accounts.** Sign in with a username, nickname, password and one of twelve voxel avatars, all
-  changeable later.
+  changeable later. Or play as a guest, against bots and in the campaign, without an account.
 - **Friends.** Add friends by username, see who is online, at a table or in a game, and invite them
   to your lobby.
 - **Match history.** Every game is recorded, with characters and results, for you and your friends.
@@ -199,6 +199,12 @@ the same `Room` the server uses behind a stand-in WebSocket. You play one local 
 in either mode, and your nickname, avatar and saved maps stay in the browser. `vercel.json` builds
 this version, so the repository deploys to Vercel or any static host as is.
 
+### On itch.io, CrazyGames and other game sites
+
+`pnpm build:itch` and `pnpm build:crazygames` make zips to upload to game sites, talking to your
+own server for multiplayer. See [docs/publishing.md](docs/publishing.md) for the whole setup, from
+the VPS and its certificate to each site's upload settings.
+
 ### Render
 
 `render.yaml` deploys the game as a Node web service with a free Render Postgres database. The
@@ -214,6 +220,9 @@ same Docker image also runs on any host that supports WebSockets, such as Fly.io
 | `POSTGRES_PASSWORD` | `change-me` | compose | Password for the bundled Postgres, set before the first start. |
 | `BIND` | `0.0.0.0` | compose | Address the game port is published on. |
 | `DOMAIN` | `localhost` | compose (`https`) | Domain Caddy gets a certificate for. |
+| `CORS_ORIGINS` | *(any)* | server | Sites whose copies of the game may use the server (see [publishing](docs/publishing.md)). |
+| `CRAZYGAMES_GAME_ID` | | server | The game's id on CrazyGames, to check CrazyGames sign-ins. |
+| `VITE_SERVER_URL` | | `build:itch`, `build:crazygames` | The server's https address, for builds hosted on other sites. |
 
 ## Controls
 

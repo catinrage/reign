@@ -4,6 +4,7 @@ import '@fontsource-variable/nunito';
 import './styles/global.css';
 import { bootDone, bootLabel, bootStep, nextPaint } from './boot';
 import { initLanguage, t } from './i18n/index.svelte';
+import { PLATFORM, platform } from './platform';
 
 async function boot() {
 	bootStep(0.12, 0.3);
@@ -28,12 +29,13 @@ async function boot() {
 	await nextPaint();
 	mountApp(canvas, document.getElementById('app')!);
 	await whenReady();
+	platform.loaded();
 }
 // Whatever happens, the loading screen doesn't stay up over the page.
 boot().finally(bootDone);
 
 // Installs as an app and opens from the stored copy (see pwa/sw.js). Built versions only: the dev
-// server's files change on every save.
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// server's files change on every save. Not on another site, inside its frame: it serves the game.
+if (import.meta.env.PROD && PLATFORM === 'web' && 'serviceWorker' in navigator) {
 	addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }

@@ -1,7 +1,7 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 
 const serverPort = Number(process.env.PORT ?? 8787);
 
@@ -34,16 +34,47 @@ function serviceWorker(): Plugin {
 	};
 }
 
+/** CrazyGames' SDK, in the page of the CrazyGames build (see src/client/platform/crazygames.ts). */
+function crazyGamesSdk(): Plugin {
+	return {
+		name: 'reign-crazygames-sdk',
+		transformIndexHtml: () => [{ tag: 'script', attrs: { src: 'https://sdk.crazygames.com/crazygames-sdk-v3.js' }, injectTo: 'head-prepend' }]
+	};
+}
+
+/** Builds for other sites (see docs/publishing.md and src/client/platform): mode → platform. */
+const SITES: Record<string, 'itch' | 'crazygames'> = { itch: 'itch', crazygames: 'crazygames' };
+
 export default defineConfig(({ mode }) => {
 	/** The offline build (play against bots, no server): see src/client/offline. */
 	const offline = mode === 'offline';
+	const site = SITES[mode] ?? null;
+	if (site) {
+		// A copy on another site has to know where the server is, and reach it over https (the
+		// sites are https, and browsers block plain http from them). http://localhost is for testing.
+		const url = loadEnv(mode, process.cwd(), 'VITE_').VITE_SERVER_URL ?? '';
+		if (!/^(https:\/\/[^/]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$)/.test(url)) {
+			throw new Error(
+				`The ${site} build needs VITE_SERVER_URL set to the game server's https address, e.g.\n` +
+					`  VITE_SERVER_URL=https://reign.example.com pnpm build:${site}\n(see docs/publishing.md)`
+			);
+		}
+	}
 	return {
 		root: 'src/client',
 		publicDir: 'public',
-		plugins: [svelte(), serviceWorker()],
-		define: { __REIGN_OFFLINE__: JSON.stringify(offline) },
+		// .env files sit next to package.json (with compose.yaml's), not in src/client.
+		envDir: process.cwd(),
+		// Another site serves the game from a folder of its own, so every path is relative.
+		base: site ? './' : '/',
+		// No service worker inside another site's frame.
+		plugins: [svelte(), ...(site ? [] : [serviceWorker()]), ...(site === 'crazygames' ? [crazyGamesSdk()] : [])],
+		define: {
+			__REIGN_OFFLINE__: JSON.stringify(offline),
+			__REIGN_PLATFORM__: JSON.stringify(site ?? 'web')
+		},
 		build: {
-			outDir: offline ? '../../dist/offline' : '../../dist/client',
+			outDir: offline ? '../../dist/offline' : site ? `../../dist/${site}` : '../../dist/client',
 			emptyOutDir: true,
 			chunkSizeWarningLimit: 2000
 		},

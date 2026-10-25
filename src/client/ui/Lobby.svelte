@@ -5,7 +5,7 @@
 	import { RANDOM_SHAPE_INFO } from '../../shared/board/random';
 	import { GAME_MODES, MODE_INFO, characterPool } from '../../shared/rules/modes';
 	import { CLASSIC_PLAYERS, MIN_PLAYERS, TURN_TIMES } from '../../shared/protocol';
-	import { OFFLINE } from '../offline/flag';
+	import { guest } from '../offline/guest.svelte';
 	import { account } from '../state/account.svelte';
 	import { client } from '../state/client.svelte';
 	import Avatar from './account/Avatar.svelte';
@@ -159,7 +159,7 @@
 
 			<div class="cols">
 				<div class="col">
-					{#if !OFFLINE}
+					{#if !guest.on}
 						<div class="invite">
 							<span class="label">{t('Room code')}</span>
 							<CodeTiles value={lobby.code} size="big" />
@@ -265,7 +265,7 @@
 							{/if}
 						</div>
 						{#if client.isHost && !enough}
-							<p class="hint">{OFFLINE ? t('Add a bot or two to start.') : t('Send the link to friends, or add a bot to start.')}</p>
+							<p class="hint">{guest.on ? t('Add a bot or two to start.') : t('Send the link to friends, or add a bot to start.')}</p>
 						{:else if client.isHost && notReady.length}
 							<p class="hint">{t('Waiting for {players} to be ready.', { players: names(notReady) })}</p>
 						{:else if !client.isHost && mySeat?.ready}

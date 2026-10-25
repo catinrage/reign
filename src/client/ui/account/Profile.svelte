@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { SITE_ACCOUNTS } from '../../platform';
 	import { type AvatarId, type DiceStyleId, DICE_NAMES, NICKNAME_MAX, USERNAME_MAX, cleanUsername, passwordProblem, usernameProblem } from '../../../shared/accounts';
 	import { t, tx } from '../../i18n/index.svelte';
-	import { OFFLINE } from '../../offline/flag';
+	import { guest } from '../../offline/guest.svelte';
 	import { account } from '../../state/account.svelte';
 	import { client } from '../../state/client.svelte';
 	import { PIXEL } from '../pixel';
@@ -77,13 +78,16 @@
 				<input class="input" bind:value={nickname} maxlength={NICKNAME_MAX} />
 				<span class="hint">{t('What the table calls you.')}</span>
 			</label>
-			{#if !OFFLINE}
+			{#if !guest.on}
 				<label class="field">
 					<span class="label">{t('Username')}</span>
 					<input class="input" bind:value={username} maxlength={USERNAME_MAX} autocapitalize="off" spellcheck="false" autocomplete="username" />
 					<span class="hint">{t('Friends add you by it.')}</span>
 				</label>
-				{#if changingPassword}
+				<!-- CrazyGames players sign in through CrazyGames: no password, no signing out. -->
+				{#if SITE_ACCOUNTS}
+					<!-- nothing to change here -->
+				{:else if changingPassword}
 					<label class="field">
 						<span class="label">{t('Current password')}</span>
 						<input class="input" type="password" bind:value={current} autocomplete="current-password" />
@@ -114,7 +118,7 @@
 	{#if error}<p class="error" role="alert">{tx(error)}</p>{/if}
 
 	<div class="foot">
-		{#if OFFLINE}<span></span>{:else}
+		{#if guest.on || SITE_ACCOUNTS}<span></span>{:else}
 			<button type="button" class="btn small red" onclick={signOut}
 				><img class="icon-px" src={PIXEL.door} alt="" />{t('Sign out')}</button
 			>

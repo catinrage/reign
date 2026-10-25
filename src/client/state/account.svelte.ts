@@ -1,6 +1,7 @@
 import type { AvatarId, DiceStyleId, Friend, FriendRequest, FriendsInfo, MatchHistory, Me, RoomInvite, Whereabouts } from '../../shared/accounts';
 import { msg, t, tx } from '../i18n/index.svelte';
-import { OFFLINE } from '../offline/flag';
+import { guest } from '../offline/guest.svelte';
+import { REMOTE, apiUrl, keepSessionToken, sessionToken } from './server';
 
 /**
  * The signed-in player: their profile, friends, friend requests and invitations to tables.
@@ -11,25 +12,34 @@ import { OFFLINE } from '../offline/flag';
 export class ApiError extends Error {}
 
 export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-	if (OFFLINE) {
+	if (guest.on) {
 		const { offlineApi } = await import('../offline/api');
 		return offlineApi<T>(path, method, body).catch((e) => {
 			throw new ApiError(tx((e as Error).message));
 		});
 	}
+	const headers: Record<string, string> = method === 'GET' ? {} : { 'content-type': 'application/json' };
+	// A page on another site signs in with a token of its own (see state/server.ts).
+	const token = sessionToken();
+	if (token) headers.authorization = `Bearer ${token}`;
+	if (REMOTE) headers['x-reign-auth'] = 'token';
 	let res: Response;
 	try {
-		res = await fetch(`/api/${path}`, {
+		res = await fetch(apiUrl(path), {
 			method,
 			credentials: 'same-origin',
-			headers: method === 'GET' ? {} : { 'content-type': 'application/json' },
+			headers,
 			body: method === 'GET' ? undefined : JSON.stringify(body ?? {})
 		});
 	} catch {
 		throw new ApiError(t("Can't reach the server. Check your connection."));
 	}
 	const data = await res.json().catch(() => ({}));
-	if (res.status === 401 && path !== 'login') account.signedOut();
+	if (REMOTE && typeof data.token === 'string') keepSessionToken(data.token);
+	if (res.status === 401 && path !== 'login') {
+		if (token) keepSessionToken(null);
+		account.signedOut();
+	}
 	if (!res.ok) throw new ApiError(data.error ? tx(data.error) : t('Something went wrong.'));
 	return data as T;
 }
@@ -81,6 +91,7 @@ class Account {
 
 	async logout() {
 		await api('logout', 'POST').catch(() => {});
+		keepSessionToken(null);
 		this.signedOut();
 	}
 

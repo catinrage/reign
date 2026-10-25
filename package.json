@@ -11,6 +11,8 @@
 		"build": "vite build",
 		"build:offline": "vite build --mode offline",
 		"dev:offline": "vite --mode offline",
+		"build:itch": "vite build --mode itch && node scripts/package.mjs itch",
+		"build:crazygames": "vite build --mode crazygames && node scripts/package.mjs crazygames",
 		"start": "tsx src/server/index.ts",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run",

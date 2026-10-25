@@ -2549,5 +2549,14 @@ export default {
 	"Dice battles": "掷骰战斗",
 	"Secret orders": "秘密命令",
 	"Everyone moves at once": "所有人同时行动",
-	"No dice": "无需骰子"
+	"No dice": "无需骰子",
+	"Sign in to CrazyGames again.": "请重新登录 CrazyGames。",
+	"Sign in to CrazyGames to join your friend.": "登录 CrazyGames 即可加入好友的牌桌。",
+	"play with friends": "与好友同玩",
+	"Play online": "在线游戏",
+	"Sign in to CrazyGames to play with friends": "登录 CrazyGames 即可与好友同玩",
+	"Sign in or make a free account to play with friends": "登录或免费注册账号，与好友同玩",
+	"or just try it": "或者先试试",
+	"Play as guest": "以游客身份游玩",
+	"Bots and the campaign, no account needed": "人机对战和战役，无需账号"
 } satisfies Messages;

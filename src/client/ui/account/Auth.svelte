@@ -15,6 +15,7 @@
 	import Rich from '../../i18n/Rich.svelte';
 	import { LogoView } from '../../scene/logo';
 	import { account } from '../../state/account.svelte';
+	import { playAsGuest } from '../../state/guestPlay';
 	import Embers from '../menu/Embers.svelte';
 	import { sideLayout } from '../menu/sideLayout';
 	import { PIXEL } from '../pixel';
@@ -84,6 +85,17 @@
 			sfx.open();
 		} catch (err) {
 			error = (err as Error).message;
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function guest() {
+		if (busy) return;
+		busy = true;
+		sfx.open();
+		try {
+			await playAsGuest();
 		} finally {
 			busy = false;
 		}
@@ -181,6 +193,13 @@
 					{t('Have an account?')} <button type="button" class="link" onclick={() => switchTo('in')}>{t('Sign in')}</button>
 				{/if}
 			</p>
+			<div class="divider"><i></i><span>{t('or just try it')}</span><i></i></div>
+			<button type="button" class="btn green block" onclick={guest} disabled={busy}>
+				<img src={PIXEL.bot} alt="" />
+				<span class="stack"
+					>{t('Play as guest')}<span class="sub">{t('Bots and the campaign, no account needed')}</span></span
+				>
+			</button>
 			<div class="lang">
 				<div class="divider"><i></i><span>{t('Language')}</span><i></i></div>
 				<LanguagePicker />
