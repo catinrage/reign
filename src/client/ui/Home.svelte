@@ -274,17 +274,22 @@
 							? t('Sign in with CrazyGames to join public rooms, open private ones and invite friends.')
 							: t('A free account lets you join public rooms, open private ones with an invite code, add friends and keep your match history.')}
 					</p>
-					<div class="online-btns">
-						{#if SITE_ACCOUNTS}
-							<button class="btn shine" onclick={() => signIn('in')}>
-								<img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />{t('Sign in to play online')}
-							</button>
-						{:else}
-							<button class="btn shine main" onclick={() => signIn('up')}>{t('Create free account')}</button>
-							<button class="btn wood" onclick={() => signIn('in')}>{t('Sign in')}</button>
+					<!-- One wide button, so its label fits in every language. -->
+					{#if SITE_ACCOUNTS}
+						<button class="btn shine block cta" onclick={() => signIn('in')}>
+							<img class="icon-px" src={ACCOUNT_ICONS.key} alt="" /><span class="label-fit">{t('Sign in to play online')}</span>
+						</button>
+					{:else}
+						<button class="btn shine block cta" onclick={() => signIn('up')}>
+							<img class="icon-px" src={ACCOUNT_ICONS.quill} alt="" /><span class="label-fit">{t('Create free account')}</span>
+						</button>
+					{/if}
+					<div class="links">
+						{#if !SITE_ACCOUNTS}
+							<span>{t('Have an account?')} <button class="peek" onclick={() => signIn('in')}>{t('Sign in')}</button></span>
 						{/if}
+						<button class="peek" onclick={() => openSheet('rooms')}>{t('See the open rooms')} <span aria-hidden="true">›</span></button>
 					</div>
-					<button class="peek" onclick={() => openSheet('rooms')}>{t('See the open rooms')} <span aria-hidden="true">›</span></button>
 				</div>
 			{/if}
 		</div>
@@ -337,7 +342,7 @@
 </div>
 
 {#if sheet === 'rooms'}
-	<Modal title={t('Online rooms')} width={600} onclose={closeSheet}><Rooms guest={guest.on} onsignin={signIn} /></Modal>
+	<Modal title={t('Online rooms')} width={1100} onclose={closeSheet}><Rooms guest={guest.on} onsignin={signIn} /></Modal>
 {:else if sheet === 'games'}
 	<GameChooser current={gamePick.game} onpick={pick} onclose={closeSheet} />
 {:else if sheet === 'settings'}
@@ -546,23 +551,31 @@
 	.signin img {
 		height: 16px !important;
 	}
+	/* A tag pinned to the button's top corner, so it never crowds the label. */
 	.live {
-		margin-left: auto;
-		margin-right: calc(var(--s) * 2);
-		flex: none;
+		position: absolute;
+		top: calc(var(--s) * -6);
+		right: calc(var(--s) * -3);
+		z-index: 1;
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
-		padding: 2px 6px;
+		padding: 1px 6px;
 		font-family: var(--px);
-		font-size: 13px;
-		color: #eaffd8;
+		font-size: 12px;
+		line-height: 16px;
+		color: #fff;
 		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
-		background: rgba(10, 40, 4, 0.45);
+		background: #3f9a2e;
+		border: 2px solid #1e0e06;
+		box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.3);
 		white-space: nowrap;
 	}
 	.live.dark {
-		margin-right: 0;
+		position: static;
+		margin-left: auto;
+		border: none;
+		box-shadow: none;
 		color: #24510f;
 		text-shadow: none;
 		background: rgba(60, 140, 30, 0.18);
@@ -592,6 +605,7 @@
 	}
 	.online-head {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 8px;
 	}
@@ -610,28 +624,35 @@
 		line-height: 1.3;
 		color: var(--ink-soft);
 	}
-	.online-btns {
-		display: flex;
-		gap: 8px;
+	.sign .online-card .cta {
+		justify-content: center;
+		gap: 10px;
+		padding: 0 calc(var(--s) * 3);
+		min-height: calc(var(--s) * 14);
+		font-size: 18px;
 	}
-	.online-btns .btn {
-		flex: 1 1 0;
+	.sign .online-card .cta img {
+		height: 20px;
+	}
+	.label-fit {
 		min-width: 0;
-		padding: 0 calc(var(--s) * 1);
-		font-size: 15px;
-		min-height: calc(var(--s) * 13);
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
-	.online-btns .main {
-		flex-grow: 1.5;
-	}
-	.online-btns .btn img {
-		height: 18px;
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 2px 10px;
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--ink-soft);
 	}
 	.peek {
 		all: unset;
 		pointer-events: auto;
 		cursor: pointer;
-		align-self: center;
 		font-family: var(--px);
 		font-weight: 700;
 		font-size: 14px;
