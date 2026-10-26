@@ -13,6 +13,8 @@
 	import { nextMission } from '../../../shared/campaign/missions';
 	import { campaign } from '../../state/campaign.svelte';
 	import MissionResult from '../campaign/MissionResult.svelte';
+	import { playWithHeadStart } from '../campaign/headStart';
+	import { site } from '../../platform/site.svelte';
 
 	const view = $derived(client.view!);
 	let hidden = $state(false);
@@ -52,6 +54,14 @@
 		counted = key;
 		campaign.record(view.campaign.mission, mission);
 	});
+	/** Watching a rewarded ad for a head start on the next try (site.rewarded). */
+	let watching = $state(false);
+	async function tryHeadStart() {
+		if (!view.campaign || watching) return;
+		watching = true;
+		await playWithHeadStart(view.campaign.mission);
+		watching = false;
+	}
 	function toCampaign() {
 		campaign.picked = next?.id ?? view.campaign?.mission ?? null;
 		campaign.open = true;
@@ -378,6 +388,14 @@
 						<button class="btn red" onclick={() => client.leave()}>{t('Stop watching')}</button>
 					{:else if playing}
 						<button class="btn purple" onclick={toCampaign}>{t('Campaign')}</button>
+						{#if site.rewarded && view.campaign}
+							<button
+								class="btn"
+								disabled={watching}
+								title={t('Watch an ad to start with one of each resource.')}
+								onclick={tryHeadStart}><img src={PIXEL.clover} alt="" />{t('Try again with a head start')}</button
+							>
+						{/if}
 						{#if next}
 							<button class="btn" onclick={() => client.send({ t: 'start' })}>{t('Try again')}</button>
 							<button class="btn green shine" onclick={() => client.playMission(next.id)}>{t('Next mission')}</button>

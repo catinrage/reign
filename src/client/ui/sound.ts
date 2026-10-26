@@ -92,9 +92,14 @@ const DEFAULT_VOLUME: Record<Channel, number> = {
 };
 const volume: Record<Channel, number> = { ...DEFAULT_VOLUME };
 
+/** Silent: the player muted the game, or the site it runs on asks for quiet (see setSiteMuted). */
 let muted = false;
+/** The player's own mute, remembered in this browser. */
+let chosenMute = false;
+/** The site's mute (CrazyGames' audio setting), never remembered: the site says so each time. */
+let siteMute = false;
 try {
-	muted = localStorage.getItem('reign:muted') === '1';
+	chosenMute = muted = localStorage.getItem('reign:muted') === '1';
 	for (const ch of CHANNELS) {
 		const s = localStorage.getItem(`reign:vol:${ch}`);
 		const v = s === null ? NaN : Number(s);
@@ -237,17 +242,30 @@ function sample(name: SampleName, delay = 0): boolean {
 	return true;
 }
 
+/** The player's own mute (the speaker button), whatever the site asks. */
 export function isMuted() {
-	return muted;
+	return chosenMute;
 }
 
 export function setMuted(m: boolean) {
-	muted = m;
+	chosenMute = m;
 	try {
 		localStorage.setItem('reign:muted', m ? '1' : '0');
 	} catch {
 		/* ignore */
 	}
+	applyMute();
+}
+
+/** The site the game runs on mutes it, or lets it play again (the player's own mute still holds). */
+export function setSiteMuted(m: boolean) {
+	siteMute = m;
+	applyMute();
+}
+
+function applyMute() {
+	const m = chosenMute || siteMute;
+	muted = m;
 	if (m) {
 		if (master) glide(master.gain, 0, 0.15);
 		stopAmbienceSource(0.3);

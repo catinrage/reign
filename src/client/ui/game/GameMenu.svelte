@@ -3,6 +3,7 @@
 		import Settings from '../menu/Settings.svelte';
 	import { PIXEL } from '../pixel';
 	import { settings } from '../settings.svelte';
+	import { site } from '../../platform/site.svelte';
 	import PigeonButton from './PigeonButton.svelte';
 	import SpectatorBadge from './SpectatorBadge.svelte';
 	import TurnCounter from './TurnCounter.svelte';
@@ -104,7 +105,7 @@
 	<button class="icon-btn gear" onclick={open} aria-label={t('Menu')} title={t('Menu (Esc)')}
 		><img src={PIXEL.gear} alt="" /></button
 	>
-	{#if !client.spectating}<PigeonButton />{/if}
+	{#if !client.spectating && !site.chatOff}<PigeonButton />{/if}
 	{#if playing && !pausedBy}
 		<button
 			class="icon-btn"

@@ -157,7 +157,7 @@ export type ClientMessage =
 	| { t: 'setReady'; ready: boolean }
 	| { t: 'start' }
 	/** Play a solo campaign mission at this table (alone with its rivals), or play it again. */
-	| { t: 'mission'; mission: string }
+	| { t: 'mission'; mission: string; headStart?: boolean }
 	| { t: 'action'; action: Action }
 	| { t: 'chat'; text: string }
 	/** The game menu opened or closed. */

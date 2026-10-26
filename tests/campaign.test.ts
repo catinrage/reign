@@ -3,7 +3,7 @@ import type { WebSocket } from 'ws';
 import { Room } from '../src/server/room';
 import { MISSIONS, missionById, missionOpen, nextMission, type Mission } from '../src/shared/campaign/missions';
 import { cleanProgress, withResult } from '../src/shared/campaign/progress';
-import { createMissionGame, missionSeats } from '../src/shared/campaign/start';
+import { HEAD_START, createMissionGame, missionSeats } from '../src/shared/campaign/start';
 import type { ServerMessage } from '../src/shared/protocol';
 import { botAction, closeOffer } from '../src/shared/rules/bot';
 import { campaignRound, goalMet, missionResult } from '../src/shared/rules/campaign';
@@ -353,5 +353,19 @@ describe('Extended beats', () => {
 		expect(said).toContain(line('event'));
 		expect(heard.some((e) => e.type === 'powerUsed' && e.player !== s.campaign!.hero)).toBe(true);
 		expect(said).toContain(line('power'));
+	});
+});
+
+describe('head start', () => {
+	it('deals the hero one more of each card, taken from the bank', () => {
+		const m = MISSIONS[0];
+		const seats = missionSeats(m, { name: 'Hero', color: 'red' }, COLORS, () => 0.5);
+		const plain = createMissionGame(m, seats, 7);
+		const boosted = createMissionGame(m, seats, 7, true);
+		const hero = plain.campaign!.hero;
+		for (const r of RESOURCES) {
+			expect(boosted.players[hero].resources[r]).toBe(plain.players[hero].resources[r] + HEAD_START[r]);
+			expect(boosted.bank[r]).toBe(plain.bank[r] - HEAD_START[r]);
+		}
 	});
 });

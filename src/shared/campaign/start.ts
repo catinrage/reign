@@ -58,11 +58,15 @@ export function missionTraits(m: Mission): boolean {
 	return m.mode === 'extended' && (m.traits ?? !!m.hero?.character);
 }
 
+/** A head start (the reward for watching an ad on CrazyGames): one of each card on top of the mission's own. */
+export const HEAD_START: ResourceCounts = { wood: 1, brick: 1, sheep: 1, wheat: 1, ore: 1 };
+
 /**
  * Deal a mission's game for these seats (from missionSeats). The island comes from the mission's
- * own seed, so it is the same every attempt; the dice and decks from `seed`.
+ * own seed, so it is the same every attempt; the dice and decks from `seed`. `headStart` gives the
+ * hero HEAD_START too.
  */
-export function createMissionGame(m: Mission, seats: MissionSeat[], seed: number): GameState {
+export function createMissionGame(m: Mission, seats: MissionSeat[], seed: number, headStart = false): GameState {
 	const settings = missionSettings(m);
 	const tiles = m.mode === 'extended' ? mapTiles(settings.map) : null;
 	const island = { rng: m.seed | 0 };
@@ -89,6 +93,7 @@ export function createMissionGame(m: Mission, seats: MissionSeat[], seed: number
 		}
 	};
 	give(hero, m.hero?.start);
+	if (headStart) give(hero, HEAD_START);
 	m.rivals.forEach((r, i) => {
 		const p = rivalAt(i);
 		give(p, r.start);

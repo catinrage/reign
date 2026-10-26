@@ -5,6 +5,7 @@
 </script>
 
 <script lang="ts">
+	import Privacy from './Privacy.svelte';
 	import { PIXEL } from '../pixel';
 	import { CHANNELS, FPS_CAPS, SIZE_MAX, SIZE_MIN, settings } from '../settings.svelte';
 	import { isMuted, setMuted } from '../sound';
@@ -330,6 +331,10 @@
 						'How long a bot keeps its trade offer open for your answer. It closes sooner once everyone has answered.'
 					)}
 				</p>
+			</section>
+			<section>
+				<div class="divider"><i></i><span>{t('Privacy & terms')}</span><i></i></div>
+				<Privacy />
 			</section>
 		</div>
 	</div>

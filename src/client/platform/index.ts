@@ -22,13 +22,16 @@ export interface PlatformHooks {
 	inviteLink(code: string): string | null;
 	/** Sign in with the site's own account (CrazyGames' sign-in window). */
 	signIn(): Promise<void>;
+	/** Show a rewarded ad (only where site.rewarded says the site has them): true once it was watched to the end, false if it was skipped or none came. */
+	rewardedAd(): Promise<boolean>;
 }
 
 export const platform: PlatformHooks = {
 	loaded() {},
 	playing() {},
 	inviteLink: () => null,
-	signIn: async () => {}
+	signIn: async () => {},
+	rewardedAd: async () => false
 };
 
 /** The link to send a friend for table `code`: the site's own, or the game on the server's site. */
