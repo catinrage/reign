@@ -62,6 +62,22 @@ ${ribbon('SETTLE · TRADE · BUILD', { x: 0, y: 222, w: 960, h: 44, size: 25 })}
 ${ribbon('SETTLE · TRADE · BUILD', { x: 30, y: 340, w: 620, h: 56, size: 30 })}
 <div class="tag" style="left:70px;top:460px;font-size:46px;line-height:1.25">COZY VOXEL<br>BOARD GAME</div>
 <div class="chip" style="left:74px;top:610px;font-size:30px;padding:10px 22px">PLAY FREE IN YOUR BROWSER</div>`],
+	// CrazyGames covers. CrazyGames lays its own label over the top-left corner, so that stays picture.
+	'cg-landscape': [1920, 1080, `
+<div class="hero" style="background-image:url(${url(wide)});background-position:50% 40%"></div>
+<div class="shade" style="background:linear-gradient(rgba(20,9,4,0) 45%, rgba(20,9,4,.85) 88%)"></div>
+<img class="logo" src="${logo}" style="left:610px;top:640px;width:700px">
+${ribbon('SETTLE · TRADE · BUILD', { x: 0, y: 950, w: 1920, h: 70, size: 38 })}`],
+	'cg-portrait': [800, 1200, `
+<div class="hero" style="background-image:url(${url(wide)});background-size:auto 100%;background-position:50% 50%"></div>
+<div class="shade" style="background:linear-gradient(rgba(20,9,4,0) 50%, rgba(20,9,4,.9) 85%)"></div>
+<img class="logo" src="${logo}" style="left:90px;top:820px;width:620px">
+${ribbon('SETTLE · TRADE · BUILD', { x: 0, y: 1090, w: 800, h: 56, size: 30 })}`],
+	'cg-square': [800, 800, `
+<div class="hero" style="background-image:url(${url(wide)});background-size:auto 100%;background-position:50% 50%"></div>
+<div class="shade" style="background:linear-gradient(rgba(20,9,4,0) 45%, rgba(20,9,4,.88) 85%)"></div>
+<img class="logo" src="${logo}" style="left:140px;top:500px;width:520px">
+${ribbon('SETTLE · TRADE · BUILD', { x: 0, y: 715, w: 800, h: 50, size: 27 })}`],
 	// Trailer title cards: transparent, laid over the footage.
 	'card-logo': [1920, 1080, `
 <img class="logo" src="${logo}" style="left:510px;top:250px;width:900px">
