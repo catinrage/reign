@@ -115,6 +115,22 @@ ask for more, for example an option to turn the chat off.
 - **Game Distribution, Y8, Armor Games:** take HTML5 games too. The itch.io zip is the starting
   point, though each site may want its own SDK for ads.
 
+## 5. The admin panel
+
+The server has an admin panel at `https://your-domain/admin`: who's playing right now (signed-in
+players and guests), the tables on the server, every account, every online game with its replay,
+and charts of daily visitors, games and sign-ups by site and mode.
+
+Only the usernames in `ADMIN_USERS` (in `.env`, comma separated) get in, signed in on the server's
+own site. Everyone else, and the same account signed in from a copy on another site, gets
+"Nothing here". After setting it, restart: `docker compose up -d`.
+
+Guests play against bots inside their own page, so the server only knows about them because every
+copy of the game (all sites) pings `POST /api/ping` once a minute while it's open and in view, and
+says when a guest's game starts and ends. Only a random id the browser keeps is sent: no names, no
+addresses. Those counts are what pages report, so read them as trends. Games of guests aren't
+kept (only counted), so they have no replays.
+
 ## Trying a build locally
 
 Run the server (`pnpm start`, or `pnpm dev:server`), then build against it and serve the folder

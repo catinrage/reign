@@ -148,7 +148,43 @@ const MIGRATIONS = [
 		primary key (user_id, mission)
 	);`,
 	// Players who come from CrazyGames sign in with their CrazyGames account (see crazygames.ts).
-	`alter table users add column crazygames_id text unique;`
+	`alter table users add column crazygames_id text unique;`,
+	// What the admin panel counts (see analytics.ts): every browser that opens the game, signed in
+	// or a guest, on which site, and the games guests play against bots inside their page.
+	`create table clients (
+		id text primary key,
+		platform text not null,
+		user_id bigint references users(id) on delete set null,
+		first_seen timestamptz not null default now(),
+		last_seen timestamptz not null default now(),
+		visits int not null default 1
+	);
+	create index clients_last_seen on clients(last_seen);
+	create table client_days (
+		day date not null,
+		client_id text not null references clients(id) on delete cascade,
+		guest boolean not null,
+		platform text not null,
+		primary key (day, client_id)
+	);
+	create table guest_games (
+		id bigserial primary key,
+		client_id text not null references clients(id) on delete cascade,
+		local_id text not null,
+		platform text not null,
+		mode text not null,
+		mission text,
+		bots int not null,
+		status text not null default 'playing',
+		won boolean,
+		turns int not null default 0,
+		started_at timestamptz not null default now(),
+		ended_at timestamptz,
+		unique (client_id, local_id)
+	);
+	create index guest_games_started on guest_games(started_at);
+	create index matches_started on matches(started_at);
+	create index users_created on users(created_at);`
 ];
 
 async function migrate(db: Db) {

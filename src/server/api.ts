@@ -3,6 +3,8 @@ import { AccountError, type Accounts, SESSION_DAYS } from './accounts';
 import { verifyCrazyGamesToken } from './crazygames';
 import type { Hub } from './hub';
 import type { RoomSummary } from '../shared/protocol';
+import { type AdminSources, handleAdmin, isAdmin } from './admin';
+import { cleanPing } from './analytics';
 
 /**
  * The account API under /api: signing up and in, the profile, friends and match history. The
@@ -24,6 +26,9 @@ const ATTEMPTS = 20;
 const ATTEMPT_WINDOW_MS = 10 * 60_000;
 
 const attempts = new Map<string, { n: number; until: number }>();
+/** Pings allowed per address a minute (each page sends about one; a household or school, more). */
+const PINGS = 240;
+const pings = new Map<string, { n: number; until: number }>();
 
 export function readCookie(req: IncomingMessage, name: string): string | null {
 	for (const part of (req.headers.cookie ?? '').split(';')) {
@@ -121,16 +126,26 @@ function clientAddress(req: IncomingMessage) {
 	return fwd || req.socket.remoteAddress || '?';
 }
 
-function tooManyAttempts(req: IncomingMessage) {
+function overLimit(req: IncomingMessage, counts: typeof attempts, limit: number, windowMs: number) {
 	const now = Date.now();
 	const key = clientAddress(req);
-	let a = attempts.get(key);
+	let a = counts.get(key);
 	if (!a || a.until < now) {
-		if (attempts.size > 10_000) for (const [k, v] of attempts) if (v.until < now) attempts.delete(k);
-		a = { n: 0, until: now + ATTEMPT_WINDOW_MS };
-		attempts.set(key, a);
+		if (counts.size > 10_000) for (const [k, v] of counts) if (v.until < now) counts.delete(k);
+		a = { n: 0, until: now + windowMs };
+		counts.set(key, a);
 	}
-	return ++a.n > ATTEMPTS;
+	return ++a.n > limit;
+}
+
+function tooManyAttempts(req: IncomingMessage) {
+	return overLimit(req, attempts, ATTEMPTS, ATTEMPT_WINDOW_MS);
+}
+
+/** What the server has besides accounts: the public rooms list, and the admin panel's sources. */
+export interface ApiSources {
+	openRooms?: () => RoomSummary[];
+	admin?: AdminSources;
 }
 
 /** Handle an /api request. Returns false when the path isn't part of the API. */
@@ -139,7 +154,7 @@ export async function handleApi(
 	res: ServerResponse,
 	accounts: Accounts,
 	hub: Hub,
-	openRooms: () => RoomSummary[] = () => []
+	sources: ApiSources = {}
 ): Promise<boolean> {
 	const url = new URL(req.url ?? '/', 'http://x');
 	if (!url.pathname.startsWith('/api/')) return false;
@@ -154,7 +169,17 @@ export async function handleApi(
 		const token = sessionToken(req);
 
 		// The public tables waiting for players. Anyone may look, guests too (joining takes an account).
-		if (path === 'rooms' && method === 'GET') return (json(res, 200, { rooms: openRooms() }), true);
+		if (path === 'rooms' && method === 'GET') return (json(res, 200, { rooms: sources.openRooms?.() ?? [] }), true);
+
+		// A page saying it's open, guests' too (see analytics.ts). Always "fine": nothing to fix on the page's side.
+		if (path === 'ping' && method === 'POST') {
+			const ping = cleanPing(await readBody(req));
+			if (ping && sources.admin && !overLimit(req, pings, PINGS, 60_000)) {
+				const user = ping.guest ? null : await accounts.userForSession(token);
+				await sources.admin.analytics.ping(ping, user);
+			}
+			return (json(res, 200, { ok: true }), true);
+		}
 
 		if (path === 'register' || path === 'login' || path === 'crazygames') {
 			if (method !== 'POST') return (json(res, 405, { error: 'Use POST.' }), true);
@@ -183,6 +208,14 @@ export async function handleApi(
 
 		const me = await accounts.userForSession(token);
 		if (!me) return (json(res, 401, { error: 'Sign in first.' }, token ? { 'set-cookie': sessionCookie(req, null) } : {}), true);
+		// Signed in with the cookie of the server's own site, not a token a page elsewhere keeps.
+		const admin = isAdmin(me, !String(req.headers.authorization ?? '').startsWith('Bearer '));
+
+		if (path === 'admin' || path.startsWith('admin/')) {
+			if (!admin || !sources.admin) return (json(res, 404, { error: 'Nothing here.' }), true);
+			await handleAdmin(path.slice(6), req, res, url, accounts, hub, sources.admin);
+			return true;
+		}
 
 		if (path === 'me') {
 			if (method === 'GET') return (json(res, 200, { user: me }), true);
@@ -268,7 +301,7 @@ export async function handleApi(
 
 		const replay = /^replays\/(\d+)$/.exec(path);
 		if (replay && method === 'GET') {
-			const gz = await accounts.replay(me.id, replay[1]);
+			const gz = await accounts.replay(me.id, replay[1], admin);
 			if (!gz) return (json(res, 404, { error: "There's no replay of that game." }), true);
 			// Kept gzipped, and sent as it is: the browser unpacks it.
 			res.writeHead(200, {
