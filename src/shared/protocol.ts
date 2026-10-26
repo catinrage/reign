@@ -84,12 +84,26 @@ export interface RoomSummary {
 	players: number;
 	bots: number;
 	maxPlayers: number;
+	/** Who sits at the table, in seat order. */
+	seats: { name: string; avatar: AvatarId | null; color: PlayerColor; isBot: boolean }[];
 	mode: GameMode;
-	/** The island's name ('Classic' in Classic mode). */
+	/** The island's name ('Classic' in Classic mode), and how many tiles it has. */
 	map: string;
+	tiles: number;
 	pointsToWin: number;
+	/** Cards a player may hold on a 7. */
+	handLimit: number;
 	/** Seconds a turn may last, 0 for no limit. */
 	turnTime: number;
+	/** Reign Extended: a character draft, with powers or traits only. */
+	characters: boolean;
+	powers: boolean;
+	/** Reign Extended: the Events deck is in. */
+	events: boolean;
+	/** Reign Extended: how many of the extra buildings are in. */
+	buildings: number;
+	/** The bank or the development deck differ from the standard ones. */
+	houseRules: boolean;
 	/** When the table opened (ms since 1970). */
 	createdAt: number;
 }

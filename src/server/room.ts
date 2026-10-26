@@ -17,7 +17,7 @@ import { botAction, closeOffer } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
 import { EVENT_SHOW_MS, cleanEventRules } from '../shared/rules/events';
-import { cleanHouseRules } from '../shared/rules/house';
+import { cleanHouseRules, isStandard } from '../shared/rules/house';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
 import {
 	DEFAULT_SETTINGS,
@@ -245,10 +245,18 @@ export class Room {
 			players: this.seats.filter((s) => !s.isBot).length,
 			bots: this.seats.filter((s) => s.isBot).length,
 			maxPlayers: this.maxPlayers,
+			seats: this.seats.map((s) => ({ name: s.name, avatar: s.avatar, color: s.color, isBot: s.isBot })),
 			mode: this.settings.mode,
 			map: extended ? mapName(this.settings.map) : 'Classic',
+			tiles: (extended ? mapTiles(this.settings.map)?.length : null) ?? 19,
 			pointsToWin: this.settings.pointsToWin,
+			handLimit: this.settings.handLimit,
 			turnTime: this.turnTime,
+			characters: extended && this.settings.characters,
+			powers: extended && this.settings.characters && this.settings.powers,
+			events: extended && this.settings.events.on,
+			buildings: extended ? Object.values(this.settings.buildings).filter(Boolean).length : 0,
+			houseRules: !isStandard(this.settings.house),
 			createdAt: this.createdAt
 		};
 	}
