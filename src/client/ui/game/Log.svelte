@@ -2,6 +2,7 @@
 	import { tick } from 'svelte';
 	import { getIcons } from '../../scene/icons';
 	import { t } from '../../i18n/index.svelte';
+	import { site } from '../../platform/site.svelte';
 	import { client } from '../../state/client.svelte';
 	import { RESOURCE_LABEL, eventParts, playerColor } from '../helpers';
 	import { PIXEL } from '../pixel';
@@ -20,6 +21,7 @@
 		for (let i = view.log.length - 1; i >= 0 && out.length < 40; i--) {
 			const e = view.log[i];
 			if (e.seq <= cut) continue;
+			if (e.type === 'chat' && site.chatOff) continue;
 			const parts = eventParts(e, view);
 			if (parts) out.push({ seq: e.seq, chat: e.type === 'chat', parts });
 		}
@@ -76,7 +78,7 @@
 				</div>
 			{/each}
 		</div>
-		{#if !client.spectating}
+		{#if !client.spectating && !site.chatOff}
 			<form
 				class="chat"
 				onsubmit={(e) => {

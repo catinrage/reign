@@ -100,7 +100,17 @@ This makes `dist/reign-crazygames.zip`, with CrazyGames' SDK (v3) loaded in the 
   guest against bots;
 - replaces the guest menu's "Play online" button with "Sign in to CrazyGames";
 - shows no sign-in screen and no "Sign out" button of its own (CrazyGames' rules);
-- makes invite links through CrazyGames, which bring friends to the same table.
+- makes invite links through CrazyGames, which bring friends to the same table;
+- tells CrazyGames which table a signed-in player sits at and whether friends can still join it
+  (`updateRoom`), joins a friend picked from CrazyGames' friends list without a reload, and on an
+  instant multiplayer launch opens a new unlisted table for the party leader;
+- follows CrazyGames' settings: `disableChat` hides the chronicle's chat and the pigeons, and
+  `muteAudio` mutes the game (so does any ad while it plays);
+- shows a short ad (`midgame`) when a player goes back to the menu after a game, never during one,
+  and offers a campaign head start (one of each card) for watching a rewarded ad.
+
+Chat lines and pigeons are run through a profanity filter on every copy (`src/server/profanity.ts`),
+and Settings has the privacy policy and terms of play that CrazyGames asks for in the game.
 
 Upload it in the CrazyGames developer portal as an HTML5 game, and set `CRAZYGAMES_GAME_ID` on the
 server once you have the game's id. Before you submit, read CrazyGames'

@@ -201,6 +201,8 @@ class GameClient {
 	private autoBots = 0;
 	/** A campaign mission to start as soon as the new table seats us. */
 	private autoMission: string | null = null;
+	/** That mission starts with a head start (see playMission). */
+	private autoHeadStart = false;
 	/** The player backed out of a join the server is still answering: leave the room it seats us in. */
 	private dropJoin = false;
 	/** The trade offer last declined for this player because they hadn't the cards for it. */
@@ -299,7 +301,7 @@ class GameClient {
 				// How long this player wants bots' offers kept open: theirs to pick, the table's to honor.
 				this.send({ t: 'offerWait', seconds: settings.offerWait });
 				if (this.autoMission) {
-					this.send({ t: 'mission', mission: this.autoMission });
+					this.send({ t: 'mission', mission: this.autoMission, ...(this.autoHeadStart ? { headStart: true } : {}) });
 					this.autoMission = null;
 				} else if (this.autoBots) {
 					for (let i = 0; i < this.autoBots; i++) this.send({ t: 'addBot' });
@@ -674,11 +676,13 @@ class GameClient {
 
 	/**
 	 * Play a campaign mission: at a new table of its own, or (the next mission, or the same one
-	 * again, once a game is over) at the campaign table we are at.
+	 * again, once a game is over) at the campaign table we are at. `headStart` deals a few extra
+	 * cards, the reward for watching an ad (see HEAD_START).
 	 */
-	playMission(id: string) {
-		if (this.seat && this.lobby?.mission) return this.send({ t: 'mission', mission: id });
+	playMission(id: string, headStart = false) {
+		if (this.seat && this.lobby?.mission) return this.send({ t: 'mission', mission: id, ...(headStart ? { headStart } : {}) });
 		this.autoMission = id;
+		this.autoHeadStart = headStart;
 		this.launching = true;
 		this.create();
 	}

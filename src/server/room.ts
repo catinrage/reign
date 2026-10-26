@@ -33,6 +33,7 @@ import {
 import { PLAYER_COLORS, type PlayerColor } from '../shared/rules/config';
 import { addChat, applyAction, createGame, timeOut } from '../shared/rules/engine';
 import { Recorder } from '../shared/replay';
+import { censor } from './profanity';
 import { missionById } from '../shared/campaign/missions';
 import { createMissionGame, missionSeats, missionSettings } from '../shared/campaign/start';
 import type { Action, GameState } from '../shared/rules/types';
@@ -505,7 +506,7 @@ export class Room {
 				seat.ready = !!msg.ready;
 				return this.broadcastLobby();
 			case 'mission':
-				return this.startMission(seat, String(msg.mission ?? ''), ws);
+				return this.startMission(seat, String(msg.mission ?? ''), ws, msg.headStart === true);
 			case 'start':
 				if (!isHost || this.playing) return;
 				// Play again, on a campaign table: the same mission from the start.
@@ -551,7 +552,7 @@ export class Room {
 				return this.scheduleBots();
 			}
 			case 'chat': {
-				const text = String(msg.text ?? '').trim();
+				const text = censor(String(msg.text ?? '').trim());
 				if (!text) return;
 				if (this.game) this.game = addChat(this.game, this.seatIndex(seat), text);
 				else return;
@@ -620,8 +621,9 @@ export class Room {
 	/**
 	 * Start a solo campaign mission: the player alone with the mission's rivals, on its island and
 	 * by its rules. Also how Play again and the next mission start, once a game here is over.
+	 * `headStart` deals the player a few extra cards (see HEAD_START).
 	 */
-	private startMission(seat: Seat, id: string, ws: WebSocket) {
+	private startMission(seat: Seat, id: string, ws: WebSocket, headStart = false) {
 		if (seat.id !== this.hostId || this.playing) return;
 		const m = missionById(id);
 		if (!m) return send(ws, { t: 'error', message: 'Unknown mission.' });
@@ -654,7 +656,7 @@ export class Room {
 				: seat
 		);
 		seat.ready = false;
-		this.game = createMissionGame(m, table, randomSeed());
+		this.game = createMissionGame(m, table, randomSeed(), headStart);
 		this.endTold = false;
 		this.recorder = new Recorder(this.game);
 		this.listener?.gameStarted?.(this);
@@ -683,7 +685,7 @@ export class Room {
 			return send(ws, { t: 'error', message: 'Your last pigeon is still taking off.' });
 		}
 		seat.lastPigeon = now;
-		const note: PigeonNote = { id: ++this.pigeonId, from: seat.id, to: reader.id, text: clean };
+		const note: PigeonNote = { id: ++this.pigeonId, from: seat.id, to: reader.id, text: censor(clean) };
 		this.pigeons.push(note);
 		if (this.pigeons.length > PIGEON_KEEP) this.pigeons.splice(0, this.pigeons.length - PIGEON_KEEP);
 		for (const s of [seat, reader]) for (const w of s.sockets) send(w, { t: 'pigeon', note });

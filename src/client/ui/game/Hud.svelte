@@ -40,6 +40,7 @@
 	import Log from './Log.svelte';
 	import GameMenu from './GameMenu.svelte';
 	import OfferCard from './OfferCard.svelte';
+	import { site } from '../../platform/site.svelte';
 	import PigeonLoft from './PigeonLoft.svelte';
 	import Players from './Players.svelte';
 	import Prompt from './Prompt.svelte';
@@ -549,7 +550,7 @@
 	<BoardTip />
 	<GameMenu />
 	{#if !client.spectating}
-		<PigeonLoft />
+		{#if !site.chatOff}<PigeonLoft />{/if}
 		<TimeWarning />
 		{#if client.cheats}<CheatPanel />{/if}
 	{/if}

@@ -35,7 +35,7 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	// The game connection opens once signed in, and closes on signing out.
 	account.watch((signedIn) => (signedIn ? client.connect() : client.disconnect()));
 	// CrazyGames signs players in itself (see platform/crazygames.ts).
-	if (PLATFORM === 'crazygames') void import('./platform/crazygames').then((m) => m.startCrazyGames());
+	if (PLATFORM === 'crazygames') void import('./platform/crazygames.svelte').then((m) => m.startCrazyGames());
 	// Signed in, or a guest (as is everyone in the offline build) playing bots in this page.
 	else startPlaying();
 	startTelemetry();

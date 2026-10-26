@@ -7,7 +7,9 @@
 	import { t } from '../../i18n/index.svelte';
 	import Portrait from '../extended/Portrait.svelte';
 	import { PIXEL } from '../pixel';
+	import { site } from '../../platform/site.svelte';
 	import { sfx } from '../sound';
+	import { playWithHeadStart } from './headStart';
 	import Stars from './Stars.svelte';
 	import { actNumber, actTitle, goalText, missionRules, rivalName } from './text';
 
@@ -41,6 +43,15 @@
 		if (!open || busy) return;
 		campaign.open = false;
 		client.playMission(mission.id);
+	}
+	/** Watching a rewarded ad for a head start (site.rewarded). */
+	let watching = $state(false);
+	async function playHeadStart() {
+		if (!open || busy || watching) return;
+		watching = true;
+		const id = mission.id;
+		if (await playWithHeadStart(id)) campaign.open = false;
+		watching = false;
 	}
 </script>
 
@@ -154,9 +165,21 @@
 						{:else}
 							<span></span>
 						{/if}
-						<button class="btn big shine" onclick={play} disabled={busy}>
-							<img src={PIXEL.sword} alt="" />{record ? t('Play again') : t('Play mission')}
-						</button>
+						<div class="plays">
+							{#if site.rewarded}
+								<button
+									class="btn big"
+									onclick={playHeadStart}
+									disabled={busy || watching}
+									title={t('Watch an ad to start with one of each resource.')}
+								>
+									<img src={PIXEL.clover} alt="" />{t('Head start')}
+								</button>
+							{/if}
+							<button class="btn big shine" onclick={play} disabled={busy || watching}>
+								<img src={PIXEL.sword} alt="" />{record ? t('Play again') : t('Play mission')}
+							</button>
+						</div>
 					{:else}
 						<p class="locked-note">
 							<img class="icon-px" src={PIXEL.lock} alt="" />{t('Win "{mission}" to open this mission.', { mission: t(before.title) })}
@@ -169,6 +192,12 @@
 </div>
 
 <style>
+	.plays {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+	}
 	.campaign {
 		display: grid;
 		grid-template-columns: 260px minmax(0, 1fr);
