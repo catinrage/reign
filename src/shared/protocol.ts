@@ -66,6 +66,32 @@ export interface LobbyInfo {
 	spectators: number;
 	/** The solo campaign mission this table plays, or null. */
 	mission: string | null;
+	/**
+	 * Listed in the open rooms anyone can browse and join (public), or only reachable with its
+	 * code (unlisted: an invite link, or friends told the code). The host can change it in the lobby.
+	 */
+	listed: boolean;
+}
+
+/** A public table waiting for players, as the rooms list shows it (see GET /api/rooms). */
+export interface RoomSummary {
+	code: string;
+	game: GameKind;
+	/** The host's nickname and avatar. */
+	host: string;
+	avatar: AvatarId | null;
+	/** People at the table, and bots. */
+	players: number;
+	bots: number;
+	maxPlayers: number;
+	mode: GameMode;
+	/** The island's name ('Classic' in Classic mode). */
+	map: string;
+	pointsToWin: number;
+	/** Seconds a turn may last, 0 for no limit. */
+	turnTime: number;
+	/** When the table opened (ms since 1970). */
+	createdAt: number;
 }
 
 /**
@@ -83,13 +109,15 @@ export interface PigeonNote {
 
 export type ClientMessage =
 	/** Open a table for `game` (Settlement when left out). */
-	| { t: 'create'; name: string; token?: string; game?: GameKind }
+	| { t: 'create'; name: string; token?: string; game?: GameKind; listed?: boolean }
 	| { t: 'join'; code: string; name: string; token?: string }
 	| { t: 'setName'; name: string }
 	| { t: 'setColor'; color: PlayerColor }
 	| { t: 'addBot' }
 	| { t: 'removeSeat'; seat: string }
 	| { t: 'setTurnTime'; seconds: number }
+	/** Host: list the table in the public rooms, or keep it to those with the code. */
+	| { t: 'setListed'; listed: boolean }
 	| { t: 'setMode'; mode: GameMode }
 	| { t: 'setMap'; map: MapChoice }
 	/** Host: the points to win, in either mode. */

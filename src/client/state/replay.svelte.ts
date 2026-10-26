@@ -278,7 +278,8 @@ function lobbyFor(match: Match, start: GameState): LobbyInfo {
 		},
 		clock: null,
 		spectators: 0,
-		mission: start.campaign?.mission ?? null
+		mission: start.campaign?.mission ?? null,
+		listed: false
 	};
 }
 

@@ -4,7 +4,7 @@ import { gzip } from 'node:zlib';
 import { extname, join, normalize, resolve } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Me } from '../shared/accounts';
-import type { ClientMessage } from '../shared/protocol';
+import type { ClientMessage, RoomSummary } from '../shared/protocol';
 import type { Recorder } from '../shared/replay';
 import type { GameState } from '../shared/rules/types';
 import { type GameKind, isGameKind } from '../shared/games';
@@ -53,7 +53,7 @@ const MIME: Record<string, string> = {
 const server = createServer(async (req, res) => {
 	const url = new URL(req.url ?? '/', 'http://x');
 	if (url.pathname.startsWith('/api/')) {
-		await handleApi(req, res, accounts, hub);
+		await handleApi(req, res, accounts, hub, openRooms);
 		return;
 	}
 	if (url.pathname === '/health') {
@@ -110,9 +110,21 @@ function newCode(): string {
 	}
 }
 
+/** The most tables the public rooms list shows at once. */
+const ROOMS_LISTED = 60;
+
+/** Public tables waiting for players: the fullest first, then the newest. */
+function openRooms(): RoomSummary[] {
+	const list: RoomSummary[] = [];
+	for (const room of rooms.values()) if (room.browsable) list.push(room.summary());
+	list.sort((a, b) => b.players - a.players || b.createdAt - a.createdAt);
+	return list.slice(0, ROOMS_LISTED);
+}
+
 /** A new table, with its games written into the match history. */
-function openRoom(kind: GameKind = 'settlement'): Room {
+function openRoom(kind: GameKind = 'settlement', listed = false): Room {
 	const room = new Room(newCode(), CHEATS, kind);
+	room.listed = listed;
 	let match: Promise<string | null> | null = null;
 	const points = () => room.game!.players.map((_, i) => totalPoints(room.game!, i));
 	// Reign Extended drafts characters after the game starts, so they're written down at the end.
@@ -252,7 +264,7 @@ wss.on('connection', (ws: WebSocket, req) => {
 				room.disconnect(ws);
 				cancelIfAbandoned(room);
 			}
-			if (msg.t === 'create') room = openRoom(isGameKind(msg.game) ? msg.game : 'settlement');
+			if (msg.t === 'create') room = openRoom(isGameKind(msg.game) ? msg.game : 'settlement', msg.listed === true);
 			else {
 				const code = String(msg.code ?? '').toUpperCase();
 				room = rooms.get(code) ?? null;
