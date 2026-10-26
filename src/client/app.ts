@@ -4,11 +4,13 @@ import './styles/ui.css';
 import { prewarmBusts } from './scene/avatars';
 import { GameScene } from './scene/gameScene';
 import { getIcons } from './scene/icons';
-import { account } from './state/account.svelte';
+import type { Match } from '../shared/accounts';
+import { account, api } from './state/account.svelte';
 import { startPlaying } from './state/guestPlay';
 import { PLATFORM } from './platform';
 import { client } from './state/client.svelte';
 import { replay } from './state/replay.svelte';
+import { startTelemetry } from './state/telemetry';
 import App from './ui/App.svelte';
 import { installArt } from './ui/art';
 import { applySettings, settings } from './ui/settings.svelte';
@@ -36,6 +38,10 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	if (PLATFORM === 'crazygames') void import('./platform/crazygames.svelte').then((m) => m.startCrazyGames());
 	// Signed in, or a guest (as is everyone in the offline build) playing bots in this page.
 	else startPlaying();
+	startTelemetry();
+	// The admin panel's "Watch" opens a game's replay here (see src/client/admin).
+	const watch = new URLSearchParams(location.search).get('replay');
+	if (watch && /^\d+$/.test(watch)) void watchFromAdmin(watch);
 	(window as any).__account = account;
 	(window as any).__client = client;
 	(window as any).__replay = replay;
@@ -47,6 +53,21 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	// them awaits this first.
 	(window as any).__portraits = prewarmBusts;
 	(window as any).__ready = true;
+}
+
+/** Watch any game's replay, for an admin (the server says no to everyone else). */
+async function watchFromAdmin(id: string) {
+	await until(() => account.status !== 'loading' && (account.status === 'out' || client.status === 'online'), 15_000);
+	if (account.status !== 'in') return;
+	const url = new URL(location.href);
+	url.searchParams.delete('replay');
+	history.replaceState(null, '', url);
+	try {
+		const { match } = await api<{ match: Match }>(`admin/matches/${id}`);
+		await replay.watch(match);
+	} catch (e) {
+		client.toast((e as Error).message, 'error');
+	}
 }
 
 /**
