@@ -4,6 +4,7 @@ import { gzip } from 'node:zlib';
 import { extname, join, normalize, resolve } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Me } from '../shared/accounts';
+import type { LiveRoom } from '../shared/admin';
 import type { ClientMessage, RoomSummary } from '../shared/protocol';
 import type { Recorder } from '../shared/replay';
 import type { GameState } from '../shared/rules/types';
@@ -11,6 +12,7 @@ import { type GameKind, isGameKind } from '../shared/games';
 import { missionResult } from '../shared/rules/campaign';
 import { totalPoints } from '../shared/rules/engine';
 import { Accounts } from './accounts';
+import { Analytics } from './analytics';
 import { SESSION_COOKIE, handleApi, originAllowed, readCookie } from './api';
 import { openDb } from './db';
 import { Hub } from './hub';
@@ -32,6 +34,7 @@ const db = await openDb().catch((e) => {
 });
 const accounts = new Accounts(db);
 const hub = new Hub(accounts);
+const analytics = new Analytics(db, accounts);
 await accounts.closeStaleMatches();
 
 const MIME: Record<string, string> = {
@@ -53,7 +56,7 @@ const MIME: Record<string, string> = {
 const server = createServer(async (req, res) => {
 	const url = new URL(req.url ?? '/', 'http://x');
 	if (url.pathname.startsWith('/api/')) {
-		await handleApi(req, res, accounts, hub, openRooms);
+		await handleApi(req, res, accounts, hub, { openRooms, admin: { analytics, rooms: liveRooms } });
 		return;
 	}
 	if (url.pathname === '/health') {
@@ -69,6 +72,8 @@ const server = createServer(async (req, res) => {
 		res.writeHead(403);
 		return res.end();
 	}
+	// The admin panel is a page of its own (see src/client/admin).
+	if (url.pathname === '/admin' || url.pathname === '/admin/') file = join(STATIC_DIR, 'admin.html');
 	if (!existsSync(file) || statSync(file).isDirectory()) file = join(STATIC_DIR, 'index.html');
 	const ext = extname(file);
 	res.writeHead(200, {
@@ -119,6 +124,36 @@ function openRooms(): RoomSummary[] {
 	for (const room of rooms.values()) if (room.browsable) list.push(room.summary());
 	list.sort((a, b) => b.players - a.players || b.createdAt - a.createdAt);
 	return list.slice(0, ROOMS_LISTED);
+}
+
+/** Every table, for the admin panel: games under way first, then the newest. */
+function liveRooms(): LiveRoom[] {
+	const list: LiveRoom[] = [];
+	for (const room of rooms.values()) {
+		const g = room.game;
+		const info = room.lobbyInfo();
+		list.push({
+			code: room.code,
+			game: room.kind,
+			mode: g?.mode ?? room.settings.mode,
+			state: !g ? 'lobby' : g.phase === 'ended' ? 'ended' : 'playing',
+			listed: room.listed,
+			mission: room.mission,
+			createdAt: room.createdAt,
+			turn: g?.turn ?? 0,
+			spectators: info.spectators,
+			seats: info.seats.map((s, i) => ({
+				name: s.name,
+				avatar: s.avatar,
+				isBot: s.isBot,
+				userId: s.userId,
+				connected: s.connected && !s.left,
+				points: g?.players[i] ? totalPoints(g, i) : null
+			}))
+		});
+	}
+	const rank = { playing: 0, lobby: 1, ended: 2 };
+	return list.sort((a, b) => rank[a.state] - rank[b.state] || b.createdAt - a.createdAt);
 }
 
 /** A new table, with its games written into the match history. */

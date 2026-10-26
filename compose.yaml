@@ -21,6 +21,8 @@ services:
       # For copies of the game on other sites (see docs/publishing.md).
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       CRAZYGAMES_GAME_ID: ${CRAZYGAMES_GAME_ID:-}
+      # Usernames that may open the admin panel at /admin (see src/server/admin.ts).
+      ADMIN_USERS: ${ADMIN_USERS:-}
     depends_on:
       db:
         condition: service_healthy

@@ -127,6 +127,17 @@ export class Hub {
 		}
 	}
 
+	/** Everyone online, once each, where they are and at which table (for the admin panel). */
+	everyone(): { user: Me; where: Whereabouts; room: string | null }[] {
+		const out = new Map<string, { user: Me; where: Whereabouts; room: string | null }>();
+		for (const c of this.conns.values()) {
+			const where = this.where(c.user.id);
+			const seen = out.get(c.user.id);
+			if (!seen || (c.room && !seen.room)) out.set(c.user.id, { user: c.user, where, room: c.room?.code ?? null });
+		}
+		return [...out.values()];
+	}
+
 	online(userId: string) {
 		for (const c of this.conns.values()) if (c.user.id === userId) return true;
 		return false;

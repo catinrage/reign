@@ -1,6 +1,7 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 
 const serverPort = Number(process.env.PORT ?? 8787);
@@ -76,7 +77,17 @@ export default defineConfig(({ mode }) => {
 		build: {
 			outDir: offline ? '../../dist/offline' : site ? `../../dist/${site}` : '../../dist/client',
 			emptyOutDir: true,
-			chunkSizeWarningLimit: 2000
+			chunkSizeWarningLimit: 2000,
+			// The server's own copy also has the admin panel (/admin, see src/client/admin).
+			rollupOptions:
+				site || offline
+					? undefined
+					: {
+							input: {
+								main: fileURLToPath(new URL('src/client/index.html', import.meta.url)),
+								admin: fileURLToPath(new URL('src/client/admin.html', import.meta.url))
+							}
+						}
 		},
 		server: {
 			port: 5173,

@@ -5,6 +5,7 @@ import { Room, send } from '../../server/room';
 import { msg } from '../i18n/index.svelte';
 import { missionResult } from '../../shared/rules/campaign';
 import { OFFLINE_USER, offlineMissionWon } from './api';
+import { guestGameEnded, guestGameStarted } from '../state/telemetry';
 
 /**
  * The game server, run inside the page for the offline build (play against bots, no accounts).
@@ -109,13 +110,22 @@ export class LocalSocket {
 				room = new Room(newCode(), false, isGameKind(msg.game) ? msg.game : 'settlement');
 				rooms.set(room.code, room);
 				// A campaign mission won goes on the campaign kept in this browser.
+				// Its start and end go to the admin panel's numbers too (see state/telemetry.ts).
 				room.listener = {
+					gameStarted(r) {
+						if (r.game) guestGameStarted({ mode: r.game.mode, mission: r.mission, bots: r.seats.filter((s) => s.isBot).length });
+					},
 					gameEnded(r) {
 						const g = r.game;
 						if (!g) return;
+						const me = r.seats.findIndex((s) => !s.isBot);
+						guestGameEnded(g.winner === me ? 'won' : 'lost', g.turn);
 						const result = missionResult(g);
 						const seat = g.campaign ? r.seats[g.campaign.hero] : undefined;
 						if (result?.won && seat && !seat.left) offlineMissionWon(g.campaign!.mission, result);
+					},
+					disposed(r) {
+						if (r.playing) guestGameEnded('quit', r.game!.turn);
 					}
 				};
 			} else {

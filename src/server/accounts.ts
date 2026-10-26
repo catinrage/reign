@@ -512,6 +512,23 @@ export class Accounts {
 		};
 	}
 
+	/** The latest games of everyone (for the admin panel), all of them or those with this status. */
+	async recentMatches(status: string | null, limit: number, offset: number): Promise<Match[]> {
+		const rows = await this.db.query<MatchRow>(
+			`select ${MATCH_COLUMNS} from matches m where $1::text is null or m.status = $1
+			 order by m.started_at desc, m.id desc limit ${Math.floor(limit)} offset ${Math.floor(offset)}`,
+			[status]
+		);
+		return this.matchesFrom(rows);
+	}
+
+	/** One game, whoever played it (for the admin panel). */
+	async match(id: string): Promise<Match | null> {
+		if (!/^\d{1,18}$/.test(id)) return null;
+		const rows = await this.db.query<MatchRow>(`select ${MATCH_COLUMNS} from matches m where m.id = $1`, [id]);
+		return (await this.matchesFrom(rows))[0] ?? null;
+	}
+
 	/** Matches as the interface shows them, with everyone who sat at each table. */
 	private async matchesFrom(matchRows: MatchRow[]): Promise<Match[]> {
 		const ids = matchRows.map((m) => m.id);
@@ -581,9 +598,11 @@ export class Accounts {
 	/**
 	 * A game's replay for `userId` to watch: they sat at that table, or a friend of theirs did.
 	 * Null when there is none (games from before replays were kept) or it isn't theirs to see.
+	 * `anyone`: the admin, who may watch every game.
 	 */
-	async replay(userId: string, matchId: string): Promise<Uint8Array | null> {
+	async replay(userId: string, matchId: string, anyone = false): Promise<Uint8Array | null> {
 		if (!/^\d{1,18}$/.test(matchId)) return null;
+		if (anyone) return this.replayData(matchId);
 		const [allowed] = await this.db.query<{ ok: boolean }>(
 			`select exists(
 				select 1 from match_players p where p.match_id = $1 and p.user_id is not null and (
@@ -596,6 +615,10 @@ export class Accounts {
 			[matchId, userId]
 		);
 		if (!allowed?.ok) return null;
+		return this.replayData(matchId);
+	}
+
+	private async replayData(matchId: string): Promise<Uint8Array | null> {
 		const [row] = await this.db.query<{ data: Uint8Array }>('select data from match_replays where match_id = $1', [matchId]);
 		return row?.data ?? null;
 	}
