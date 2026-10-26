@@ -15,6 +15,17 @@ without the server. **Playing with other people takes an account.** On itch.io (
 site) that's a Reign account. On CrazyGames it's the player's CrazyGames account, because
 CrazyGames doesn't allow games to have logins of their own.
 
+The game opens straight into the guest menu, so a game site's frame never starts on a sign-in
+form. The menu's **Play online with friends** card (and the **Sign in** button next to the
+player's name) leads to a short sign-in / sign-up panel. Only an invite link (`?room=CODE`) opens
+on the sign-in screen, since sitting at a friend's table takes an account.
+
+Signed-in players find **Play online** in the menu: the open rooms list, where they can join a
+public table or open their own, either **public** (listed there for anyone to join) or
+**private** (unlisted, joined with its code or an invite link). The host can switch between the
+two in the lobby. Guests can look at the list too, with sign-in in place of joining. The list
+comes from `GET /api/rooms`, which needs no sign-in.
+
 ## 1. The server on your VPS
 
 You need a domain (or subdomain) pointing at the server. Game sites are served over https, and

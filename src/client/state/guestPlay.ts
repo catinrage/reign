@@ -1,7 +1,7 @@
 import { OFFLINE_BUILD, guest } from '../offline/guest.svelte';
 import { account } from './account.svelte';
 import { client } from './client.svelte';
-import { openServerSocket } from './server';
+import { REMOTE, openServerSocket, sessionToken } from './server';
 
 /**
  * Switching between guest play (bots only, the server inside the page, see offline/guest.svelte.ts)
@@ -42,9 +42,26 @@ export async function playAsGuest() {
 	await account.boot();
 }
 
+/**
+ * The first screen: someone who isn't signed in lands in the guest menu (bots and the campaign),
+ * which offers signing in to play online. Only an invite link, which needs an account to sit at
+ * that table, opens on the sign-in screen.
+ */
+export function startPlaying() {
+	if (wasGuest()) return void playAsGuest();
+	if (new URLSearchParams(location.search).has('room')) return void account.boot();
+	// A copy on another site with no token kept can't be signed in: no need to ask the server.
+	if (REMOTE && !sessionToken()) return void playAsGuest();
+	void account.boot(playAsGuest);
+}
+
+/** Which tab the sign-in screen opens on: signing in, or making an account. */
+export const authStart = { mode: 'in' as 'in' | 'up' };
+
 /** From guest play to the sign-in screen, to play online with an account. */
-export function leaveGuest() {
+export function leaveGuest(mode: 'in' | 'up' = 'in') {
 	if (OFFLINE_BUILD) return;
+	authStart.mode = mode;
 	remember(false);
 	account.signedOut();
 	guest.on = false;

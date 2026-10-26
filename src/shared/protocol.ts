@@ -66,6 +66,46 @@ export interface LobbyInfo {
 	spectators: number;
 	/** The solo campaign mission this table plays, or null. */
 	mission: string | null;
+	/**
+	 * Listed in the open rooms anyone can browse and join (public), or only reachable with its
+	 * code (unlisted: an invite link, or friends told the code). The host can change it in the lobby.
+	 */
+	listed: boolean;
+}
+
+/** A public table waiting for players, as the rooms list shows it (see GET /api/rooms). */
+export interface RoomSummary {
+	code: string;
+	game: GameKind;
+	/** The host's nickname and avatar. */
+	host: string;
+	avatar: AvatarId | null;
+	/** People at the table, and bots. */
+	players: number;
+	bots: number;
+	maxPlayers: number;
+	/** Who sits at the table, in seat order. */
+	seats: { name: string; avatar: AvatarId | null; color: PlayerColor; isBot: boolean }[];
+	mode: GameMode;
+	/** The island's name ('Classic' in Classic mode), and how many tiles it has. */
+	map: string;
+	tiles: number;
+	pointsToWin: number;
+	/** Cards a player may hold on a 7. */
+	handLimit: number;
+	/** Seconds a turn may last, 0 for no limit. */
+	turnTime: number;
+	/** Reign Extended: a character draft, with powers or traits only. */
+	characters: boolean;
+	powers: boolean;
+	/** Reign Extended: the Events deck is in. */
+	events: boolean;
+	/** Reign Extended: how many of the extra buildings are in. */
+	buildings: number;
+	/** The bank or the development deck differ from the standard ones. */
+	houseRules: boolean;
+	/** When the table opened (ms since 1970). */
+	createdAt: number;
 }
 
 /**
@@ -83,13 +123,15 @@ export interface PigeonNote {
 
 export type ClientMessage =
 	/** Open a table for `game` (Settlement when left out). */
-	| { t: 'create'; name: string; token?: string; game?: GameKind }
+	| { t: 'create'; name: string; token?: string; game?: GameKind; listed?: boolean }
 	| { t: 'join'; code: string; name: string; token?: string }
 	| { t: 'setName'; name: string }
 	| { t: 'setColor'; color: PlayerColor }
 	| { t: 'addBot' }
 	| { t: 'removeSeat'; seat: string }
 	| { t: 'setTurnTime'; seconds: number }
+	/** Host: list the table in the public rooms, or keep it to those with the code. */
+	| { t: 'setListed'; listed: boolean }
 	| { t: 'setMode'; mode: GameMode }
 	| { t: 'setMap'; map: MapChoice }
 	/** Host: the points to win, in either mode. */

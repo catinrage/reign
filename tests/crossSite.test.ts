@@ -125,3 +125,12 @@ describe('the API from another site', () => {
 		expect(bad.status).toBe(401);
 	});
 });
+
+describe('the public rooms list', () => {
+	it('answers anyone, from any site, without signing in', async () => {
+		const res = await fetch(`${base}/api/rooms`, { headers: { origin: 'https://html.itch.zone' } });
+		expect(res.status).toBe(200);
+		expect(res.headers.get('access-control-allow-origin')).toBe('https://html.itch.zone');
+		expect(await res.json()).toEqual({ rooms: [] });
+	});
+});

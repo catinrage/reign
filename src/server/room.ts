@@ -5,6 +5,7 @@ import type {
 	LobbyInfo,
 	LobbySeat,
 	PigeonNote,
+	RoomSummary,
 	ServerMessage,
 	TurnClock
 } from '../shared/protocol';
@@ -16,7 +17,7 @@ import { botAction, closeOffer } from '../shared/rules/bot';
 import { isExtraBuilding } from '../shared/rules/buildings';
 import { applyCheat } from '../shared/rules/cheats';
 import { EVENT_SHOW_MS, cleanEventRules } from '../shared/rules/events';
-import { cleanHouseRules } from '../shared/rules/house';
+import { cleanHouseRules, isStandard } from '../shared/rules/house';
 import { CHARACTERS, isCharacter } from '../shared/rules/characters';
 import {
 	DEFAULT_SETTINGS,
@@ -117,6 +118,8 @@ export class Room {
 	settings: GameSettings = structuredClone(DEFAULT_SETTINGS);
 	/** The solo campaign mission played here, or null: the mission sets the table and its rules. */
 	mission: string | null = null;
+	/** Shown in the public rooms list (see RoomSummary); otherwise only its code finds it. */
+	listed = false;
 	private botTimer: NodeJS.Timeout | null = null;
 	/** The bot timer is only checking back later (not a move on its way), so news can cut it short. */
 	private botTimerIdle = false;
@@ -202,6 +205,7 @@ export class Room {
 			clock: this.clockInfo(),
 			spectators: this.spectators.size,
 			mission: this.mission,
+			listed: this.listed,
 			seats: this.seats.map(
 				(s): LobbySeat => ({
 					id: s.id,
@@ -217,6 +221,43 @@ export class Room {
 					dice: s.dice
 				})
 			)
+		};
+	}
+
+	/**
+	 * The table belongs in the public rooms list: listed, still in its lobby with a seat free, not
+	 * a campaign mission, and with its host at it.
+	 */
+	get browsable(): boolean {
+		if (!this.listed || this.started || this.mission || this.seats.length >= this.maxPlayers) return false;
+		const host = this.seats.find((s) => s.id === this.hostId);
+		return !!host && !host.isBot && host.sockets.size > 0;
+	}
+
+	summary(): RoomSummary {
+		const host = this.seats.find((s) => s.id === this.hostId);
+		const extended = this.settings.mode === 'extended';
+		return {
+			code: this.code,
+			game: this.kind,
+			host: host?.name ?? '',
+			avatar: host?.avatar ?? null,
+			players: this.seats.filter((s) => !s.isBot).length,
+			bots: this.seats.filter((s) => s.isBot).length,
+			maxPlayers: this.maxPlayers,
+			seats: this.seats.map((s) => ({ name: s.name, avatar: s.avatar, color: s.color, isBot: s.isBot })),
+			mode: this.settings.mode,
+			map: extended ? mapName(this.settings.map) : 'Classic',
+			tiles: (extended ? mapTiles(this.settings.map)?.length : null) ?? 19,
+			pointsToWin: this.settings.pointsToWin,
+			handLimit: this.settings.handLimit,
+			turnTime: this.turnTime,
+			characters: extended && this.settings.characters,
+			powers: extended && this.settings.characters && this.settings.powers,
+			events: extended && this.settings.events.on,
+			buildings: extended ? Object.values(this.settings.buildings).filter(Boolean).length : 0,
+			houseRules: !isStandard(this.settings.house),
+			createdAt: this.createdAt
 		};
 	}
 
@@ -365,6 +406,10 @@ export class Room {
 				if (!isHost || this.started || !TURN_TIMES.includes(msg.seconds)) return;
 				if (this.turnTime !== msg.seconds) this.unready();
 				this.turnTime = msg.seconds;
+				return this.broadcastLobby();
+			case 'setListed':
+				if (!isHost || this.mission) return;
+				this.listed = msg.listed === true;
 				return this.broadcastLobby();
 			case 'setMode':
 				if (!isHost || this.lockedSettings || !GAME_MODES.includes(msg.mode)) return;
@@ -584,6 +629,7 @@ export class Room {
 			return send(ws, { t: 'error', message: 'The campaign is played alone: this table has other players.' });
 		}
 		this.mission = m.id;
+		this.listed = false;
 		this.settings = missionSettings(m);
 		this.turnTime = 0;
 		this.pausedBy.clear();

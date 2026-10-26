@@ -38,7 +38,8 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 	if (REMOTE && typeof data.token === 'string') keepSessionToken(data.token);
 	if (res.status === 401 && path !== 'login') {
 		if (token) keepSessionToken(null);
-		account.signedOut();
+		// While booting, boot() decides what a signed-out browser gets (guest play, mostly).
+		if (account.status !== 'loading') account.signedOut();
 	}
 	if (!res.ok) throw new ApiError(data.error ? tx(data.error) : t('Something went wrong.'));
 	return data as T;
@@ -69,13 +70,18 @@ class Account {
 		return this.friends.filter((f) => f.where !== 'offline');
 	}
 
-	/** Ask the server who this browser is signed in as. */
-	async boot() {
+	/**
+	 * Ask the server who this browser is signed in as. Not signed in, `orElse` runs instead of the
+	 * sign-in screen showing (it starts guest play), so the menu opens without a flash of it.
+	 */
+	async boot(orElse?: () => Promise<void>) {
 		try {
 			const { user } = await api<{ user: Me }>('me');
 			this.signedIn(user);
 		} catch {
-			if (this.status === 'loading') this.signedOut();
+			if (this.status !== 'loading') return;
+			if (orElse) await orElse();
+			else this.signedOut();
 		}
 	}
 

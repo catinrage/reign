@@ -1289,3 +1289,50 @@ describe('bot trade offers', () => {
 		room.dispose();
 	});
 });
+
+describe('public rooms', () => {
+	it('lists a table only while the host lets it, it waits in its lobby and has a free seat', () => {
+		const room = new Room('PUBLC');
+		const a = fakeSocket();
+		const b = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error(host);
+		// Unlisted by default: only the code finds it.
+		expect(room.browsable).toBe(false);
+		expect(room.lobbyInfo().listed).toBe(false);
+
+		room.handle(host, { t: 'setListed', listed: true }, a.ws);
+		expect(room.browsable).toBe(true);
+		expect(room.lobbyInfo().listed).toBe(true);
+		expect(room.summary()).toMatchObject({ code: 'PUBLC', host: 'Ada', players: 1, bots: 0, maxPlayers: 4, mode: 'classic', map: 'Classic' });
+
+		// Only the host decides.
+		const guest = room.join(b.ws, 'Bram');
+		if (typeof guest === 'string') throw new Error(guest);
+		room.handle(guest, { t: 'setListed', listed: false }, b.ws);
+		expect(room.browsable).toBe(true);
+
+		// A full table drops off the list, and so does one that started.
+		room.handle(host, { t: 'addBot' }, a.ws);
+		room.handle(host, { t: 'addBot' }, a.ws);
+		expect(room.browsable).toBe(false);
+		room.handle(host, { t: 'removeSeat', seat: room.seats[3].id }, a.ws);
+		expect(room.summary()).toMatchObject({ players: 2, bots: 1 });
+		expect(room.browsable).toBe(true);
+		room.handle(guest, { t: 'setReady', ready: true }, b.ws);
+		room.handle(host, { t: 'start' }, a.ws);
+		expect(room.browsable).toBe(false);
+		room.dispose();
+	});
+
+	it('leaves the list when its host goes away', () => {
+		const room = new Room('AWAYH');
+		const a = fakeSocket();
+		const host = room.join(a.ws, 'Ada');
+		if (typeof host === 'string') throw new Error(host);
+		room.handle(host, { t: 'setListed', listed: true }, a.ws);
+		room.disconnect(a.ws);
+		expect(room.browsable).toBe(false);
+		room.dispose();
+	});
+});
