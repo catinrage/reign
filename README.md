@@ -62,7 +62,7 @@ of any shape and size.
 - 🛡️ **Server-authoritative.** The server runs the rules and sends each player only what they may
   see, so hands, the deck and the dice seed stay secret.
 - 🌍 **Five languages.** English, Russian, Simplified Chinese, German and French, picked from your
-  browser and switchable in Settings or on the sign-in screen.
+  browser and switchable in Settings.
 - 📚 **Built-in tutorial.** A full illustrated rule book for both modes, from the main menu or the
   in-game menu.
 
@@ -116,6 +116,8 @@ Everything in Classic, plus:
 - **Friends.** Add friends by username, see who is online, at a table or in a game, and invite them
   to your lobby.
 - **Match history.** Every game is recorded, with characters and results, for you and your friends.
+- **Open rooms.** Browse public tables waiting for players and join one, or open your own: public
+  (listed for anyone) or private (only with its code).
 - **Invite links.** Create a room and share the link or the room code.
 - **Spectators.** Entering the code of a running game lets you watch without seeing anyone's hand.
 - **Pigeon post.** Send private notes to another player by carrier pigeon. Only the two of you can

@@ -172,6 +172,25 @@
 								<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />{t('Invite friends')}{#if account.onlineFriends.length}
 									<span class="online">{t('{count} online', { count: account.onlineFriends.length })}</span>{/if}
 							</button>
+							{#if !lobby.mission}
+								<div class="vis">
+									{#if client.isHost}
+										<div class="seg" role="radiogroup" aria-label={t('Who can find it')}>
+											<button class="btn small" class:on={!lobby.listed} role="radio" aria-checked={!lobby.listed} onclick={() => client.send({ t: 'setListed', listed: false })}
+												><img class="icon-px" src={PIXEL.lock} alt="" />{t('Private')}</button
+											>
+											<button class="btn small" class:on={lobby.listed} role="radio" aria-checked={lobby.listed} onclick={() => client.send({ t: 'setListed', listed: true })}
+												><img class="icon-px" src={PIXEL.eye} alt="" />{t('Public')}</button
+											>
+										</div>
+									{:else}
+										<span class="vis-tag"><img class="icon-px" src={lobby.listed ? PIXEL.eye : PIXEL.lock} alt="" />{lobby.listed ? t('Public') : t('Private')}</span>
+									{/if}
+									<span class="vis-note"
+										>{lobby.listed ? t('Listed in the open rooms: anyone can join.') : t('Unlisted: only people with the code can join.')}</span
+									>
+								</div>
+							{/if}
 						</div>
 					{/if}
 
@@ -530,6 +549,35 @@
 	}
 	.invite .btn img {
 		height: 18px;
+	}
+	.vis {
+		flex-basis: 100%;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.vis .seg {
+		flex: none;
+	}
+	.vis img {
+		height: 14px;
+	}
+	.vis-tag {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 14px;
+		color: var(--gold);
+		text-shadow: var(--outline-dark);
+	}
+	.vis-note {
+		font-size: 12px;
+		font-weight: 700;
+		line-height: 1.2;
+		color: var(--muted);
 	}
 	.invite .online {
 		font-size: 12px;

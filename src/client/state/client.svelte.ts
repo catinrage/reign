@@ -659,10 +659,10 @@ class GameClient {
 		return account.me?.nickname ?? (this.name || 'Player');
 	}
 
-	/** Open a new table for `game`. */
-	create(game: GameKind = 'settlement') {
+	/** Open a new table for `game`, listed in the public rooms or only found by its code. */
+	create(game: GameKind = 'settlement', listed = false) {
 		this.pendingJoin = true;
-		this.send({ t: 'create', name: this.joinName, game });
+		this.send({ t: 'create', name: this.joinName, game, ...(listed ? { listed } : {}) });
 	}
 
 	/** Create a table for `game`, fill it with bots and start right away. */

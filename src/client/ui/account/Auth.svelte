@@ -11,12 +11,13 @@
 		usernameProblem
 	} from '../../../shared/accounts';
 	import { msg, t, tx } from '../../i18n/index.svelte';
-	import LanguagePicker from '../../i18n/LanguagePicker.svelte';
 	import Rich from '../../i18n/Rich.svelte';
 	import { LogoView } from '../../scene/logo';
 	import { account } from '../../state/account.svelte';
-	import { playAsGuest } from '../../state/guestPlay';
+	import { OFFLINE_BUILD } from '../../offline/guest.svelte';
+	import { authStart, playAsGuest } from '../../state/guestPlay';
 	import Embers from '../menu/Embers.svelte';
+	import { fitHeight } from '../menu/fitHeight';
 	import { sideLayout } from '../menu/sideLayout';
 	import { PIXEL } from '../pixel';
 	import { settings } from '../settings.svelte';
@@ -24,9 +25,12 @@
 	import AvatarPicker from './AvatarPicker.svelte';
 	import { ACCOUNT_ICONS } from './icons';
 
-	/** The first thing anyone sees: sign in, or make an account. */
+	/**
+	 * Signing in, or making an account, to play online. Players come here from the guest menu (or
+	 * an invite link), so it is kept short enough to fit a game site's frame, with a way back.
+	 */
 
-	let mode = $state<'in' | 'up'>('in');
+	let mode = $state<'in' | 'up'>(authStart.mode);
 	let username = $state('');
 	let nickname = $state('');
 	let password = $state('');
@@ -104,13 +108,12 @@
 
 <div class="auth">
 	<Embers />
-	<div class="column">
+	<div class="column" use:fitHeight={{ margin: 24 }}>
 		<header class="crest">
 			<div class="logo">
 				<canvas bind:this={canvas} aria-label="Reign"></canvas>
 				{#if !logoOk}<h1 class="title">REIGN</h1>{/if}
 			</div>
-			<div class="ribbon tagline">{t('Settle')} <i>·</i> {t('Trade')} <i>·</i> {t('Build')}</div>
 		</header>
 
 		<form class="sign panel" class:wide={mode === 'up'} onsubmit={submit} novalidate>
@@ -118,6 +121,12 @@
 				<p class="invite plaque">
 					<img class="icon-px" src={PIXEL.letter} alt="" /><span><Rich text={t('Sign in to join table {code}')} slots={{ code }} /></span>
 					{#snippet code()}<b>{invitedTo}</b>{/snippet}
+				</p>
+			{:else}
+				<p class="why">
+					<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />{mode === 'in'
+						? t('Sign in to play online with friends')
+						: t('Free, and takes a few seconds')}
 				</p>
 			{/if}
 			<div class="seg tabs" role="tablist">
@@ -130,79 +139,66 @@
 			</div>
 
 			<div class="fields" class:two={mode === 'up'}>
-				<div class="col">
-					<label class="field">
-						<span class="label">{t('Username')}</span>
-						<input
-							class="input"
-							bind:value={username}
-							maxlength={USERNAME_MAX}
-							autocomplete="username"
-							autocapitalize="off"
-							spellcheck="false"
-							placeholder="settler_42"
-						/>
-						{#if mode === 'up'}<span class="hint">{t('Friends find you by it. Letters, digits and _.')}</span>{/if}
-					</label>
-					{#if mode === 'up'}
-						<label class="field">
-							<span class="label">{t('Nickname')}</span>
-							<input class="input" bind:value={nickname} maxlength={NICKNAME_MAX} placeholder={t('What the table calls you')} />
-						</label>
-					{/if}
-					<label class="field">
-						<span class="label">{t('Password')}</span>
-						<input
-							class="input"
-							type="password"
-							bind:value={password}
-							autocomplete={mode === 'in' ? 'current-password' : 'new-password'}
-							placeholder={mode === 'up' ? t('At least {n} characters', { n: PASSWORD_MIN }) : ''}
-						/>
-					</label>
-					{#if mode === 'up'}
-						<label class="field">
-							<span class="label">{t('Password again')}</span>
-							<input class="input" type="password" bind:value={confirm} autocomplete="new-password" />
-						</label>
-					{/if}
-				</div>
+				<label class="field">
+					<span class="label">{t('Username')}</span>
+					<input
+						class="input"
+						bind:value={username}
+						maxlength={USERNAME_MAX}
+						autocomplete="username"
+						autocapitalize="off"
+						spellcheck="false"
+						placeholder="settler_42"
+						title={mode === 'up' ? t('Friends find you by it. Letters, digits and _.') : undefined}
+					/>
+				</label>
 				{#if mode === 'up'}
-					<div class="col">
-						<span class="label">{t('Avatar')}</span>
-						<div class="well avatars"><AvatarPicker bind:value={avatar} size={54} /></div>
-						<span class="hint">{t('You can change all of this later.')}</span>
-					</div>
+					<label class="field">
+						<span class="label">{t('Nickname')}</span>
+						<input class="input" bind:value={nickname} maxlength={NICKNAME_MAX} placeholder={t('What the table calls you')} />
+					</label>
+				{/if}
+				<label class="field">
+					<span class="label">{t('Password')}</span>
+					<input
+						class="input"
+						type="password"
+						bind:value={password}
+						autocomplete={mode === 'in' ? 'current-password' : 'new-password'}
+						placeholder={mode === 'up' ? t('At least {n} characters', { n: PASSWORD_MIN }) : ''}
+					/>
+				</label>
+				{#if mode === 'up'}
+					<label class="field">
+						<span class="label">{t('Password again')}</span>
+						<input class="input" type="password" bind:value={confirm} autocomplete="new-password" />
+					</label>
 				{/if}
 			</div>
+			{#if mode === 'up'}
+				<div class="field">
+					<span class="label">{t('Avatar')} <small class="hint">{t('You can change all of this later.')}</small></span>
+					<div class="well avatars"><AvatarPicker bind:value={avatar} size={38} /></div>
+				</div>
+			{/if}
 
 			{#if error}<p class="error" role="alert">{tx(error)}</p>{/if}
 
-			<button class="btn big block shine" type="submit" disabled={busy || !username || !password}>
+			<button class="btn block shine go" type="submit" disabled={busy || !username || !password}>
 				<img src={mode === 'in' ? PIXEL.play : ACCOUNT_ICONS.quill} alt="" />
-				<span class="stack"
-					>{mode === 'in' ? t('Sign in') : t('Create account')}<span class="sub"
-						>{mode === 'in' ? t('Welcome back, settler') : t('Claim your place at the table')}</span
-					></span
-				>
+				{mode === 'in' ? t('Sign in') : t('Create account')}
 			</button>
-			<p class="switch">
-				{#if mode === 'in'}
-					{t('New here?')} <button type="button" class="link" onclick={() => switchTo('up')}>{t('Create an account')}</button>
-				{:else}
-					{t('Have an account?')} <button type="button" class="link" onclick={() => switchTo('in')}>{t('Sign in')}</button>
+			<div class="foot">
+				{#if !OFFLINE_BUILD}
+					<button type="button" class="link back" onclick={guest} disabled={busy}>‹ {t('Back to the menu')}</button>
 				{/if}
-			</p>
-			<div class="divider"><i></i><span>{t('or just try it')}</span><i></i></div>
-			<button type="button" class="btn green block" onclick={guest} disabled={busy}>
-				<img src={PIXEL.bot} alt="" />
-				<span class="stack"
-					>{t('Play as guest')}<span class="sub">{t('Bots and the campaign, no account needed')}</span></span
-				>
-			</button>
-			<div class="lang">
-				<div class="divider"><i></i><span>{t('Language')}</span><i></i></div>
-				<LanguagePicker />
+				<span class="switch">
+					{#if mode === 'in'}
+						{t('New here?')} <button type="button" class="link" onclick={() => switchTo('up')}>{t('Create an account')}</button>
+					{:else}
+						{t('Have an account?')} <button type="button" class="link" onclick={() => switchTo('in')}>{t('Sign in')}</button>
+					{/if}
+				</span>
 			</div>
 		</form>
 	</div>
@@ -214,10 +210,14 @@
 		inset: 0;
 		overflow-y: auto;
 		overflow-x: hidden;
+		scrollbar-width: none;
 		pointer-events: auto;
 		background:
 			radial-gradient(ellipse 70% 60% at 50% 46%, transparent 35%, rgba(12, 5, 2, 0.6) 100%),
 			linear-gradient(180deg, rgba(12, 5, 2, 0.45), transparent 30%, transparent 70%, rgba(12, 5, 2, 0.5));
+	}
+	.auth::-webkit-scrollbar {
+		display: none;
 	}
 	.column {
 		position: relative;
@@ -227,8 +227,8 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 14px;
-		padding: 10px 16px 32px;
+		gap: 4px;
+		padding: 8px 16px 16px;
 	}
 	.crest {
 		display: flex;
@@ -238,9 +238,9 @@
 	}
 	.logo {
 		position: relative;
-		width: min(620px, calc(94vw / var(--ui-zoom)));
+		width: min(380px, calc(80vw / var(--ui-zoom)));
 		aspect-ratio: 700 / 230;
-		margin-bottom: -18px;
+		margin-bottom: -10px;
 		pointer-events: none;
 	}
 	.logo canvas {
@@ -254,38 +254,41 @@
 		margin: 0;
 		display: grid;
 		place-items: center;
-		font-size: clamp(64px, calc(13vw / var(--ui-zoom)), 132px);
+		font-size: clamp(48px, calc(9vw / var(--ui-zoom)), 84px);
 		color: #ffd86b;
 		letter-spacing: 0.08em;
 		text-shadow:
-			0 4px 0 #c9781a,
-			0 8px 0 #8a4410,
-			0 12px 0 #4a2008,
-			0 18px 24px rgba(0, 0, 0, 0.6);
-	}
-	.tagline {
-		--rib: var(--art-ribbon-crimson);
-		font-size: 18px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		padding-left: calc(var(--s) * 6);
-		padding-right: calc(var(--s) * 6);
-	}
-	.tagline i {
-		font-style: normal;
-		color: var(--gold);
+			0 3px 0 #c9781a,
+			0 6px 0 #8a4410,
+			0 9px 0 #4a2008,
+			0 14px 18px rgba(0, 0, 0, 0.6);
 	}
 	.sign {
-		width: min(400px, 100%);
+		width: min(380px, 100%);
 		box-sizing: border-box;
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		padding: 10px 12px 12px;
+		gap: 9px;
+		padding: 8px 12px 10px;
 		animation: pop-in 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) 0.15s both;
 	}
 	.sign.wide {
-		width: min(720px, 100%);
+		width: min(560px, 100%);
+	}
+	.why {
+		margin: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 15px;
+		color: #fff2d2;
+		text-shadow: var(--outline-dark);
+	}
+	.why img {
+		height: 20px;
 	}
 	.invite {
 		display: flex;
@@ -318,33 +321,47 @@
 	}
 	.fields {
 		display: grid;
-		gap: 12px;
+		gap: 8px;
 	}
 	.fields.two {
-		grid-template-columns: 1fr 1.1fr;
-	}
-	.col {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		min-width: 0;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px 10px;
 	}
 	.field {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 3px;
+		min-width: 0;
+	}
+	.field .input {
+		min-width: 0;
 	}
 	.hint {
-		font-size: 13px;
+		font-family: var(--body);
+		font-size: 12px;
 		font-weight: 700;
+		letter-spacing: 0;
+		text-transform: none;
 		color: var(--muted);
+		opacity: 0.85;
 	}
 	.avatars {
-		padding: 8px 6px;
+		padding: 2px 4px;
+	}
+	/* One row that scrolls sideways, to keep the form short. */
+	.avatars :global(.picker) {
+		grid-template-columns: none;
+		grid-auto-flow: column;
+		grid-auto-columns: 46px;
+		gap: 2px;
+		overflow-x: auto;
+		padding: 4px 2px;
+		scrollbar-width: thin;
+		scrollbar-color: #b8740f transparent;
 	}
 	.error {
 		margin: 0;
-		padding: 6px 10px;
+		padding: 5px 10px;
 		text-align: center;
 		font-weight: 800;
 		color: #ffd2c4;
@@ -352,24 +369,25 @@
 		border: 2px solid rgba(255, 110, 80, 0.6);
 		animation: pop-in 0.25s ease-out;
 	}
-	.sign .btn.block {
-		justify-content: flex-start;
-		gap: 12px;
-		padding-left: calc(var(--s) * 4);
+	.go {
+		gap: 10px;
+		font-size: 20px;
 	}
-	.sign .btn.block img {
-		height: calc(var(--s) * 9);
+	.go img {
+		height: calc(var(--s) * 7);
 	}
-	.switch {
-		margin: 0;
-		text-align: center;
+	.foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 4px 12px;
 		font-weight: 700;
+		font-size: 14px;
 		color: var(--muted);
 	}
-	.lang {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
+	.switch {
+		margin-left: auto;
 	}
 	.link {
 		all: unset;
@@ -382,29 +400,20 @@
 	.link:hover {
 		color: #fff2a8;
 	}
+	.back {
+		color: #fff2d2;
+		text-decoration: none;
+		font-family: var(--px);
+	}
 	@media (min-width: 1100px) and (min-aspect-ratio: 4/3) {
 		.column {
-			width: 760px;
+			width: 640px;
 			margin-left: max(24px, calc(4vw / var(--ui-zoom)));
 		}
-		.sign {
-			width: 420px;
-		}
-		.logo {
-			width: 560px;
-		}
 	}
-	@media (max-width: 700px) {
-		.column {
-			justify-content: flex-start;
-			padding-top: 18px;
-			gap: 12px;
-		}
+	@media (max-width: 560px) {
 		.fields.two {
 			grid-template-columns: 1fr;
-		}
-		.tagline {
-			font-size: 14px;
 		}
 	}
 </style>

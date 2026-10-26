@@ -29,10 +29,16 @@
 	import GameChooser from './menu/GameChooser.svelte';
 	import { fitHeight } from './menu/fitHeight';
 	import { GAMES, gameInfo } from './menu/games';
+	import Rooms from './menu/Rooms.svelte';
+	import { ROOMS_ONLINE, fetchRooms } from '../state/rooms';
 
 	let code = $state(new URLSearchParams(location.search).get('room')?.toUpperCase() ?? '');
 	let muted = $state(isMuted());
-	let sheet = $state<'settings' | 'profile' | 'friends' | 'history' | 'games' | null>(null);
+	let sheet = $state<'settings' | 'profile' | 'friends' | 'history' | 'games' | 'rooms' | null>(null);
+	/** Public tables waiting for players right now, for the count on the online buttons. */
+	let openTables = $state(0);
+	// Playing online is offered to guests too, unless there is no server (the offline build).
+	const online = $derived(!guest.on || !OFFLINE_BUILD);
 	let reading = $state(false);
 	/** Whose games the history sheet shows: a friend's username, or yours when unset. */
 	let historyOf = $state<string | undefined>(undefined);
@@ -70,6 +76,27 @@
 			logo?.dispose();
 		};
 	});
+
+	// The count of open tables, asked again now and then while the menu is up.
+	onMount(() => {
+		if (!ROOMS_ONLINE) return;
+		const count = () =>
+			document.visibilityState === 'visible' &&
+			fetchRooms()
+				.then((r) => (openTables = r.length))
+				.catch(() => {});
+		count();
+		const timer = setInterval(count, 20_000);
+		return () => clearInterval(timer);
+	});
+
+	/** A guest goes to sign in or make an account (on CrazyGames, its own sign-in window). */
+	function signIn(mode: 'in' | 'up' = 'in') {
+		sfx.open();
+		sheet = null;
+		if (SITE_ACCOUNTS) void platform.signIn();
+		else leaveGuest(mode);
+	}
 
 	function play() {
 		client.quickPlay(3, gamePick.game);
@@ -178,6 +205,11 @@
 					<b class="title">{me.nickname}</b>
 					{#if !guest.on}<small>@{me.username}</small>{/if}
 				</span>
+				{#if guest.on && online}
+					<button class="btn small signin" onclick={() => signIn('in')}>
+						<img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />{t('Sign in')}
+					</button>
+				{/if}
 				<button class="icon-btn edit" onclick={() => openSheet('profile')} title={t('Edit your profile')} aria-label={t('Edit your profile')}>
 					<img src={ACCOUNT_ICONS.quill} alt="" />
 				</button>
@@ -209,33 +241,51 @@
 					></span
 				>
 			</button>
-			<button class="btn green block" onclick={create} disabled={busy}>
-				<img src={PIXEL.house} alt="" />
-				<span class="stack"
-					>{t('Create a room')}<span class="sub"
-						>{guest.on ? t('Pick the mode, map and bots') : t('Invite friends with a code')}</span
-					></span
-				>
-			</button>
-
-			{#if !guest.on}
+			{#if guest.on}
+				<button class="btn green block" onclick={create} disabled={busy}>
+					<img src={PIXEL.house} alt="" />
+					<span class="stack">{t('Create a room')}<span class="sub">{t('Pick the mode, map and bots')}</span></span>
+				</button>
+			{:else}
+				<button class="btn green block" onclick={() => openSheet('rooms')} disabled={busy}>
+					<img src={ACCOUNT_ICONS.friends} alt="" />
+					<span class="stack"
+						>{t('Play online')}<span class="sub">{t('Open rooms, public or private tables')}</span></span
+					>
+					{#if openTables}<span class="live" title={t('Open rooms')}><i></i>{t('{n} open', { n: openTables })}</span>{/if}
+				</button>
 				<div class="divider"><i></i><span>{t('or join a friend')}</span><i></i></div>
-
 				<div class="join">
 					<CodeTiles bind:value={code} editable onenter={join} />
 					<button class="btn wood" onclick={join} disabled={code.length !== 5 || busy}>{t('Join')}</button>
 				</div>
-			{:else if !OFFLINE_BUILD}
-				<!-- A guest plays bots only: playing with people takes an account. -->
-				<div class="divider"><i></i><span>{t('play with friends')}</span><i></i></div>
-				<button class="btn purple block" onclick={() => (SITE_ACCOUNTS ? platform.signIn() : leaveGuest())}>
-					<img src={ACCOUNT_ICONS.friends} alt="" />
-					<span class="stack"
-						>{t('Play online')}<span class="sub"
-							>{SITE_ACCOUNTS ? t('Sign in to CrazyGames to play with friends') : t('Sign in or make a free account to play with friends')}</span
-						></span
-					>
-				</button>
+			{/if}
+
+			{#if guest.on && online}
+				<!-- A guest plays bots only: this is where playing with people begins. -->
+				<div class="online-card parch">
+					<div class="online-head">
+						<img class="icon-px" src={ACCOUNT_ICONS.friends} alt="" />
+						<b class="title">{t('Play online with friends')}</b>
+						{#if openTables}<span class="live dark"><i></i>{t('{n} open', { n: openTables })}</span>{/if}
+					</div>
+					<p>
+						{SITE_ACCOUNTS
+							? t('Sign in with CrazyGames to join public rooms, open private ones and invite friends.')
+							: t('A free account lets you join public rooms, open private ones with an invite code, add friends and keep your match history.')}
+					</p>
+					<div class="online-btns">
+						{#if SITE_ACCOUNTS}
+							<button class="btn shine" onclick={() => signIn('in')}>
+								<img class="icon-px" src={ACCOUNT_ICONS.key} alt="" />{t('Sign in to play online')}
+							</button>
+						{:else}
+							<button class="btn shine main" onclick={() => signIn('up')}>{t('Create free account')}</button>
+							<button class="btn wood" onclick={() => signIn('in')}>{t('Sign in')}</button>
+						{/if}
+					</div>
+					<button class="peek" onclick={() => openSheet('rooms')}>{t('See the open rooms')} <span aria-hidden="true">›</span></button>
+				</div>
 			{/if}
 		</div>
 
@@ -286,7 +336,9 @@
 	</div>
 </div>
 
-{#if sheet === 'games'}
+{#if sheet === 'rooms'}
+	<Modal title={t('Online rooms')} width={600} onclose={closeSheet}><Rooms guest={guest.on} onsignin={signIn} /></Modal>
+{:else if sheet === 'games'}
 	<GameChooser current={gamePick.game} onpick={pick} onclose={closeSheet} />
 {:else if sheet === 'settings'}
 	<Modal title={t('Settings')} width={600} onclose={closeSheet}><Settings /></Modal>
@@ -487,6 +539,108 @@
 	}
 	.sign .btn img {
 		height: calc(var(--s) * 9);
+	}
+	.signin {
+		flex: none;
+	}
+	.signin img {
+		height: 16px !important;
+	}
+	.live {
+		margin-left: auto;
+		margin-right: calc(var(--s) * 2);
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 2px 6px;
+		font-family: var(--px);
+		font-size: 13px;
+		color: #eaffd8;
+		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+		background: rgba(10, 40, 4, 0.45);
+		white-space: nowrap;
+	}
+	.live.dark {
+		margin-right: 0;
+		color: #24510f;
+		text-shadow: none;
+		background: rgba(60, 140, 30, 0.18);
+	}
+	.live i {
+		width: 7px;
+		height: 7px;
+		background: #7dff4f;
+		box-shadow: 0 0 6px #7dff4f;
+		animation: blink 1.6s ease-in-out infinite;
+	}
+	.live.dark i {
+		background: #3f9a2e;
+		box-shadow: none;
+	}
+	@keyframes blink {
+		50% {
+			opacity: 0.35;
+		}
+	}
+	.online-card {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 6px 10px 8px;
+		animation: pop-in 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) 0.3s both;
+	}
+	.online-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.online-head img {
+		width: 26px;
+		height: 26px;
+	}
+	.online-head b {
+		font-size: 18px;
+		color: var(--ink);
+	}
+	.online-card p {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 700;
+		line-height: 1.3;
+		color: var(--ink-soft);
+	}
+	.online-btns {
+		display: flex;
+		gap: 8px;
+	}
+	.online-btns .btn {
+		flex: 1 1 0;
+		min-width: 0;
+		padding: 0 calc(var(--s) * 1);
+		font-size: 15px;
+		min-height: calc(var(--s) * 13);
+	}
+	.online-btns .main {
+		flex-grow: 1.5;
+	}
+	.online-btns .btn img {
+		height: 18px;
+	}
+	.peek {
+		all: unset;
+		pointer-events: auto;
+		cursor: pointer;
+		align-self: center;
+		font-family: var(--px);
+		font-weight: 700;
+		font-size: 14px;
+		color: #8a4a12;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.peek:hover {
+		color: #b8600f;
 	}
 	.join {
 		display: flex;

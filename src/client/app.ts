@@ -5,7 +5,7 @@ import { prewarmBusts } from './scene/avatars';
 import { GameScene } from './scene/gameScene';
 import { getIcons } from './scene/icons';
 import { account } from './state/account.svelte';
-import { playAsGuest, wasGuest } from './state/guestPlay';
+import { startPlaying } from './state/guestPlay';
 import { PLATFORM } from './platform';
 import { client } from './state/client.svelte';
 import { replay } from './state/replay.svelte';
@@ -34,9 +34,8 @@ export function mountApp(canvas: HTMLCanvasElement, el: HTMLElement) {
 	account.watch((signedIn) => (signedIn ? client.connect() : client.disconnect()));
 	// CrazyGames signs players in itself (see platform/crazygames.ts).
 	if (PLATFORM === 'crazygames') void import('./platform/crazygames').then((m) => m.startCrazyGames());
-	// A guest (and everyone in the offline build) plays against bots in this page, with no server.
-	else if (wasGuest()) void playAsGuest();
-	else void account.boot();
+	// Signed in, or a guest (as is everyone in the offline build) playing bots in this page.
+	else startPlaying();
 	(window as any).__account = account;
 	(window as any).__client = client;
 	(window as any).__replay = replay;

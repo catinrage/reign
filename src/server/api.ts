@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError, type Accounts, SESSION_DAYS } from './accounts';
 import { verifyCrazyGamesToken } from './crazygames';
 import type { Hub } from './hub';
+import type { RoomSummary } from '../shared/protocol';
 
 /**
  * The account API under /api: signing up and in, the profile, friends and match history. The
@@ -133,7 +134,13 @@ function tooManyAttempts(req: IncomingMessage) {
 }
 
 /** Handle an /api request. Returns false when the path isn't part of the API. */
-export async function handleApi(req: IncomingMessage, res: ServerResponse, accounts: Accounts, hub: Hub): Promise<boolean> {
+export async function handleApi(
+	req: IncomingMessage,
+	res: ServerResponse,
+	accounts: Accounts,
+	hub: Hub,
+	openRooms: () => RoomSummary[] = () => []
+): Promise<boolean> {
 	const url = new URL(req.url ?? '/', 'http://x');
 	if (!url.pathname.startsWith('/api/')) return false;
 	const path = url.pathname.slice(5).replace(/\/+$/, '');
@@ -145,6 +152,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, accou
 			return (json(res, 415, { error: 'Send JSON.' }), true);
 		}
 		const token = sessionToken(req);
+
+		// The public tables waiting for players. Anyone may look, guests too (joining takes an account).
+		if (path === 'rooms' && method === 'GET') return (json(res, 200, { rooms: openRooms() }), true);
 
 		if (path === 'register' || path === 'login' || path === 'crazygames') {
 			if (method !== 'POST') return (json(res, 405, { error: 'Use POST.' }), true);
